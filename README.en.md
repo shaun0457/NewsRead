@@ -70,6 +70,8 @@ Papers and settings live in the `EasyRead` folder in your home directory (same p
 ./start.sh
 ```
 
+When started this way, the background service quits on its own about 15 seconds after you close every EasyRead page in the browser; if a translation is still running, it waits until that finishes.
+
 **Or with pip** (data goes to `~/EasyRead`):
 
 ```bash

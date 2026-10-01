@@ -7,16 +7,15 @@ import os
 import sys
 import threading
 
-import webbrowser
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, usage
-from .log import log, setup as setup_log, tail
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, usage, wsock
+from .log import log, tail
 from .jobs import Jobs
 from .library import Library
-from .store import now_iso, write_json_atomic
+from .store import now_iso
 
 WEB = config.WEB
 mimetypes.add_type("image/webp", ".webp")
@@ -35,6 +34,7 @@ class App:
         self.lib = Library(config.library_dir(cfg))
         self.jobs = Jobs(self.lib)
         self.token = os.urandom(12).hex()
+        self.presence = None  # presence.Presence，serve() 里设
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -157,6 +157,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(WEB / "reader.html")
         if path.startswith("/web/"):
             return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
+        if path == "/api/presence" and wsock.is_upgrade(self.headers):
+            return self._presence()
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
@@ -232,12 +234,33 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
+    def _presence(self):
+        """页面开着就一直连着这条 WebSocket；断开就是页面关了（见 presence.py）。"""
+        host = self.headers.get("Host") or ""
+        if self.headers.get("Origin") not in (None, f"http://{host}"):  # 别的网站不能来占着
+            self.close_connection = True
+            return self._json(403, {"error": "bad origin"})
+        wsock.accept(self)
+        self.close_connection = True
+        p = self.app.presence
+        if p:
+            p.enter()
+        try:
+            wsock.hold(self)
+        finally:
+            if p:
+                p.leave()
+
     def _post(self):
         url = urlparse(self.path)
         path = unquote(url.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
 
+        if path == "/api/presence/keep":  # easyread serve 复用了关页会退出的服务：改成常驻
+            if app.presence:
+                app.presence.keep()
+            return self._json(200, {"ok": True})
         if path == "/api/import":  # 请求体就是 PDF 文件
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
@@ -362,32 +385,3 @@ def _reveal(path: Path):
         subprocess.Popen(["open", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path)])
-
-
-class _Server(ThreadingHTTPServer):
-    # Windows 上 SO_REUSEADDR 会让两个进程同时占住 8765，浏览器随机连到其中一个（比如旧版本）
-    allow_reuse_address = os.name != "nt"
-
-
-def serve(port: int | None = None, open_browser: bool = False, path: str = "/"):
-    setup_log(config.LOG_PATH)
-    cfg = config.load()
-    app = App(cfg)
-    Handler.app = app
-    detect.warm(cfg)
-    port = cfg["port"] if port is None else port
-    try:
-        httpd = _Server(("127.0.0.1", port), Handler)
-    except OSError:
-        httpd = _Server(("127.0.0.1", 0), Handler)
-    url = f"http://127.0.0.1:{httpd.server_address[1]}"
-    if not config.temp_library():
-        write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
-    log.info("EasyRead %s 已启动：%s  文献库：%s", __version__, url, app.lib.root)
-    print(f"EasyRead 已启动：{url}  文献库：{app.lib.root}", flush=True)
-    if open_browser:
-        threading.Timer(0.4, lambda: webbrowser.open(url + path)).start()
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass

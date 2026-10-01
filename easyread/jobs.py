@@ -130,6 +130,13 @@ class Jobs:
         with self.lock:
             return [dict(j) for j in self.recent if not pid or j["pid"] == pid]
 
+    def busy(self) -> bool:
+        """还有整篇翻译或小任务没做完（关页自动退出时要等它们）。"""
+        if self.cancels or not self.bulk.empty() or not self.small.empty():
+            return True
+        with self.lock:
+            return any(j["state"] in ("queued", "running") for j in self.recent)
+
     def _small_loop(self):
         while True:
             job = self.small.get()

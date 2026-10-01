@@ -1,6 +1,6 @@
 """命令行。给人用，也给对话里的 agent 用（它在对话里翻译、追加讨论时走这些命令）。
 
-  easyread serve [--open] [--port N]      启动（或复用已在跑的）服务
+  easyread serve [--open] [--port N] [--exit-on-close]   启动（或复用已在跑的）服务
   easyread list                           列出文献库
   easyread import 论文.pdf|arXiv编号 [--no-translate]
   easyread translate ID [--pages 3-5]     排队翻译（需要服务在跑；否则直接前台译）
@@ -57,16 +57,21 @@ def running_server() -> str | None:
 
 
 def cmd_serve(a):
-    import os
     url = None if (a.port is not None or config.temp_library()) else running_server()
     if url:
         out(f"服务已在运行：{url}")
+        if not a.exit_on_close:  # 要常驻的服务：那个服务若是 start.cmd 起的、关页会退出，让它改成常驻
+            try:
+                token = json.loads(urllib.request.urlopen(url + "/api/library").read())["token"]
+                urllib.request.urlopen(urllib.request.Request(url + "/api/presence/keep", data=b"{}", headers={"X-Token": token}))
+            except Exception:  # noqa: BLE001
+                pass
         if a.open:
             import webbrowser
             webbrowser.open(url)
         return
-    from .server import serve
-    serve(a.port, a.open)
+    from .launch import serve
+    serve(a.port, a.open, exit_on_close=a.exit_on_close)
 
 
 def cmd_list(a):
@@ -98,12 +103,15 @@ def cmd_translate(a):
     url = running_server()
     pages = paperdata.parse_pages(a.pages) if a.pages else None
     if url:
-        token = json.loads(urllib.request.urlopen(url + "/api/library").read())["token"]
-        req = urllib.request.Request(f"{url}/api/p/{ws.id}/translate", data=json.dumps({"pages": pages}).encode(),
-                                     headers={"X-Token": token, "Content-Type": "application/json"})
-        urllib.request.urlopen(req)
-        out("已交给服务排队翻译，进度在文献库页面上看。")
-        return
+        try:
+            token = json.loads(urllib.request.urlopen(url + "/api/library").read())["token"]
+            req = urllib.request.Request(f"{url}/api/p/{ws.id}/translate", data=json.dumps({"pages": pages}).encode(),
+                                         headers={"X-Token": token, "Content-Type": "application/json"})
+            urllib.request.urlopen(req)
+            out("已交给服务排队翻译，进度在文献库页面上看。")
+            return
+        except OSError:  # 服务刚好在退出：就在这里译
+            pass
     from .translate import translate_pages
     cfg = config.load()
     paper = ws.load("paper")
@@ -208,7 +216,9 @@ def main(argv=None):
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(prog="easyread", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
-    p = sub.add_parser("serve"); p.add_argument("--open", action="store_true"); p.add_argument("--port", type=int); p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser("serve"); p.add_argument("--open", action="store_true"); p.add_argument("--port", type=int)
+    p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（start.cmd / start.sh 用）")
+    p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
     p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.set_defaults(fn=cmd_import)
     p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)
