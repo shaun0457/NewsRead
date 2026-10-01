@@ -15,6 +15,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterator
 
+from . import usage
 from .engines import Cancelled, EngineError
 
 API_KINDS = [("chat", "Chat Completions（通用）"), ("responses", "Responses（OpenAI 新接口）")]
@@ -78,7 +79,7 @@ def _http_error(e: urllib.error.HTTPError) -> EngineError:
 
 
 # ---------- 一次拿到整段（翻译用） ----------
-def complete(o: dict, prompt: str, images: list[Path], cancel=None) -> str:
+def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
     body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2)
     res = None
     for attempt in range(4):  # 限流、服务端错误、网络抖动：等一会儿再试
@@ -98,6 +99,8 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None) -> str:
                 _sleep(5, cancel)
                 continue
             raise EngineError(f"连不上接口：{e}")
+    if meter is not None and isinstance(res, dict):
+        meter.add(**usage.from_openai(res))
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
 
 

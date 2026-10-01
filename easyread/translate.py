@@ -114,12 +114,12 @@ def journal(ws: Workspace, line: str) -> None:
         f.write(f"{now_iso()[:19].replace('T', ' ')}  {line}\n")
 
 
-def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say) -> None:
+def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None) -> None:
     mode = engines.image_mode(cfg)
     images = [pdfwork.engine_image(ws.root, n) for n in batch] if mode != "text" else []
     nxt = batch[-1] + 1
     prompt = prompts.translate(ws, batch, mode, _next_head(ws, nxt) if nxt <= total_pages else "")
-    text = engines.run(cfg, prompt, ws.root, images, cancel)
+    text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
     try:
         data = engines.parse_json(text)
     except engines.EngineError:
@@ -130,7 +130,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     if problems:  # 给一次修的机会
         say(f"第 {batch[0]} 页起有 {len(problems)} 处公式或格式问题，正在让模型修正")
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel))
+            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
             fixed = _normalize(fixed, batch, _taken(ws, batch))
             if fixed["blocks"] and len(_problems(fixed)) < len(problems):
                 data = fixed
@@ -165,8 +165,8 @@ def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
             journal(ws, f"核对提示没存上：{e}")
 
 
-def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report) -> dict[int, str]:
-    """翻译给定的页（已完成的页会重译并替换）。report(done, total, message)。
+def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, meter=None) -> dict[int, str]:
+    """翻译给定的页（已完成的页会重译并替换）。report(done, total, message)；meter 收集 token 用量。
     返回译失败的页 {页码: 原因}。"""
     total_pages = ws.load("paper").get("meta", {}).get("page_count") or 0
     size = max(1, int(cfg.get("batch_pages") or 2))
@@ -204,7 +204,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report) 
         err = None
         for attempt in range(2):
             try:
-                _one_batch(ws, cfg, batch, total_pages, cancel, say)
+                _one_batch(ws, cfg, batch, total_pages, cancel, say, meter)
                 journal(ws, f"{label(batch)} 完成")
                 err = None
                 break

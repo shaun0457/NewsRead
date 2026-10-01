@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 
-from . import config, translate
+from . import config, translate, usage
 from .engines import Cancelled, EngineError
 from .library import Library
 from .log import log
@@ -35,7 +35,7 @@ class Jobs:
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。"""
         self._write(ws, type="translate" if translate_after else "prepare", state="queued", message="排队中",
-                    pages=pages, scope=scope or "all", translate=translate_after, done=0, total=0, error="", failed={})
+                    pages=pages, scope=scope or "all", translate=translate_after, done=0, total=0, error="", failed={}, usage={})
         self.bulk.put(ws.id)
 
     def cancel(self, pid: str):
@@ -95,13 +95,20 @@ class Jobs:
             self._write(ws, state="done", message="选定范围已译完")
             return
 
+        meter = usage.Meter(cfg.get("engine") or "")
+
         def report(done, total, message):
             if cancel.is_set():
                 raise Cancelled()
-            self._write(ws, state="running", done=done, total=total, message=message)
+            self._write(ws, state="running", done=done, total=total, message=message, usage=meter.snapshot())
 
         started = time.time()
-        failed = translate.translate_pages(ws, cfg, pages, cancel, report)
+        try:
+            failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter)
+        finally:  # 取消、出错也把已经花掉的记上
+            run = meter.snapshot()
+            if run["calls"]:
+                ws.update("job", lambda j: j.update(usage=run, usage_total=usage.merge(j.get("usage_total"), run)))
         minutes = max(1, round((time.time() - started) / 60))
         if failed:
             first = next(iter(failed.values()))

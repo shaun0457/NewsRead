@@ -23,7 +23,7 @@ def make_ws(n_pages: int) -> Workspace:
 
 
 def fake_engine(fail_pages: set, calls: list):
-    def run(cfg, prompt, cwd, images=None, cancel=None):
+    def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
         page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
         calls.append(page)
         if page in fail_pages:
@@ -60,7 +60,7 @@ class TranslateTest(unittest.TestCase):
     def test_quota_error_stops_remaining_batches(self):
         calls = []
 
-        def run(cfg, prompt, cwd, images=None, cancel=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
             page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
             calls.append(page)
             if page >= 3:

@@ -16,7 +16,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from . import netcheck
+from . import netcheck, usage
 
 
 class EngineError(RuntimeError):
@@ -30,24 +30,26 @@ class Cancelled(RuntimeError):
 ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "openai": "API", "none": "不翻译"}
 
 
-def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None) -> str:
+def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None,
+        meter: usage.Meter | None = None) -> str:
+    """meter：传了就把这次调用的 token 用量记进去（整篇翻译时用）。"""
     bad = netcheck.problem(cfg)
     if bad:
         raise EngineError(bad)
     try:
-        return _run(cfg, prompt, cwd, images, cancel)
+        return _run(cfg, prompt, cwd, images, cancel, meter)
     except EngineError as e:
         raise EngineError(netcheck.explain(cfg, str(e))) from None
 
 
-def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None) -> str:
+def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter) -> str:
     engine = cfg.get("engine")
     if engine == "claude":
-        return run_claude(cfg["claude"], prompt, cwd, cancel)
+        return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
     if engine == "codex":
-        return run_codex(cfg["codex"], prompt, cwd, images or [], cancel)
+        return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
     if engine == "openai":
-        return run_openai(cfg["openai"], prompt, images or [], cancel)
+        return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
     raise EngineError("没有配置翻译引擎（设置 → 翻译引擎）")
 
 
@@ -70,7 +72,8 @@ def who(cfg: dict) -> str:
 
 # ---------- 本机 CLI ----------
 _NO_WINDOW = 0x08000000 if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-_CLAUDE_ARGS = ["--output-format", "json", "--allowedTools", "Read", "--strict-mcp-config",
+# stream-json 比 json 多一条 rate_limit_event（订阅额度用了百分之几）；-p 下用它必须加 --verbose
+_CLAUDE_ARGS = ["--output-format", "stream-json", "--verbose", "--allowedTools", "Read", "--strict-mcp-config",
                 "--disable-slash-commands", "--no-session-persistence"]
 
 
@@ -88,7 +91,7 @@ def _popen(args: list[str], cwd: Path):
                             env=netcheck.proxy_env())
 
 
-def run_claude(c: dict, prompt: str, cwd: Path, cancel=None) -> str:
+def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     exe = claude_path(c)
     if not exe:
         raise EngineError(f"找不到 Claude Code 命令：{c.get('command') or 'claude'}（先装好并登录 Claude Code）")
@@ -97,10 +100,12 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None) -> str:
         args += ["--model", c["model"]]
     args += list(c.get("extra_args") or [])
     out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
-    try:
-        res = json.loads(out)
-    except json.JSONDecodeError:
+    events = _json_lines(out)
+    res = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    if res is None:
         raise EngineError(f"Claude Code 输出不是 JSON：{out[:300]}")
+    if meter is not None:
+        meter.add(**usage.from_claude(res, next((e for e in reversed(events) if e.get("type") == "rate_limit_event"), None)))
     if res.get("is_error") or res.get("subtype", "success") != "success":
         msg = str(res.get("result") or res.get("terminal_reason") or res.get("subtype"))
         if "limit" in msg.lower():
@@ -109,13 +114,13 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None) -> str:
     return res.get("result") or ""
 
 
-def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None) -> str:
+def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, meter=None) -> str:
     exe = codex_path(c)
     if not exe:
         raise EngineError(f"找不到 Codex 命令：{c.get('command') or 'codex'}（先装好并登录 Codex CLI）")
     fd, last = tempfile.mkstemp(suffix=".txt", prefix="easyread-codex-")
     os.close(fd)
-    args = [exe, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never", "-o", last]
+    args = [exe, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never", "--json", "-o", last]
     if c.get("model"):
         args += ["--model", c["model"]]
     for img in images:
@@ -126,9 +131,28 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None) 
         text = Path(last).read_text(encoding="utf-8", errors="replace").strip()
     finally:
         Path(last).unlink(missing_ok=True)
+    events = _json_lines(out)
+    if meter is not None:
+        for e in events:
+            if e.get("type") == "turn.completed":
+                meter.add(**usage.from_codex(e))
     if not text:
-        raise EngineError("Codex 没有给出结果：" + (out or "")[-300:])
+        errs = [str(e.get("message") or (e.get("error") or {}).get("message") or "") for e in events if e.get("type") in ("error", "turn.failed")]
+        raise EngineError("Codex 没有给出结果：" + (next((m for m in reversed(errs) if m), "") or (out or "")[-300:]))
     return text
+
+
+def _json_lines(out: str) -> list[dict]:
+    """CLI 一行一个 JSON 事件；夹杂的非 JSON 行跳过。"""
+    events = []
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+    return events
 
 
 def _communicate(proc, stdin_text: str, timeout: int, cancel) -> str:
@@ -155,9 +179,9 @@ def _communicate(proc, stdin_text: str, timeout: int, cancel) -> str:
 
 
 # ---------- OpenAI 兼容接口 ----------
-def run_openai(c: dict, prompt: str, images: list[Path], cancel=None) -> str:
+def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
     from . import openai_api  # 它要用本文件的 EngineError，放这里免得循环导入
-    return openai_api.complete(c, prompt, images, cancel)
+    return openai_api.complete(c, prompt, images, cancel, meter)
 
 
 def parse_json(text: str):

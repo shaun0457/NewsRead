@@ -151,7 +151,7 @@
     const job = S.job || {};
     const running = ["queued", "running"].includes(job.state);
     const nFailed = miss.filter((p) => failedOf()[p.n]).length;
-    const head = running ? '<span class="spin"></span> ' + PR.esc(job.message || "翻译中") + (job.total ? "（" + job.done + "/" + job.total + " 页）" : "") + '<span class="hint">译好的页会自动出现在这里</span>'
+    const head = running ? '<span class="spin"></span> ' + PR.esc(job.message || "翻译中") + (job.total ? "（" + job.done + "/" + job.total + " 页）" : "") + '<span class="hint">译好的页会自动出现在这里' + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
       : "下面 " + miss.length + " 页还没有译文，先放原页。" + (nFailed ? "其中 " + nFailed + " 页上次没译成功。" : "") +
         (PR.canAsk() ? '<button class="btn sm line" data-t="translate-rest">翻译剩下的页</button>' : "");
     return '<div class="pending-pages"><div class="pending">' + head + "</div>" + miss.map(origFig).join("") + "</div>";

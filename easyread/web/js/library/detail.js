@@ -37,6 +37,7 @@
     let h = '<div class="jobbox">';
     if (running) {
       h += '<div><span class="spin"></span> ' + PR.esc(j.message || "处理中") + (j.total ? "（" + j.done + "/" + j.total + " 页）" : "") + "</div>" +
+        (PR.usageShort(j.usage) ? '<div class="hint">' + PR.esc(PR.usageShort(j.usage)) + "</div>" : "") +
         '<div class="bar"><i style="width:' + pct + '%"></i></div><div class="row2"><button class="btn sm line" data-d="cancel">取消</button>' +
         '<button class="btn sm" data-d="read">边译边读</button></div>';
     } else {
@@ -44,6 +45,7 @@
       h += "<div>译文：" + (i.pages ? i.done_pages + " / " + i.pages + " 页" : "尚未处理") + (full ? " · 全文" : "") + "</div>";
       const failed = Object.keys(j.failed || {}).map(Number).sort((a, b) => a - b);
       if (j.state === "error") h += '<div class="err">上次翻译出错：' + PR.esc(j.error || j.message) + "</div>";
+      if (PR.usageLong(j.usage, j.usage_total)) h += '<div class="hint">' + PR.esc(PR.usageLong(j.usage, j.usage_total)) + "</div>";
       if (j.state === "partial" && failed.length) h += '<div class="err">第 ' + PR.esc(pageList(failed)) + " 页没译成功：" + PR.esc(j.error || "") + "</div>";
       h += '<div class="row2" style="margin-top:8px">' +
         (j.state === "partial" && failed.length ? '<button class="btn sm accent" data-d="retry-failed">重试这 ' + failed.length + " 页</button>" : "") +
