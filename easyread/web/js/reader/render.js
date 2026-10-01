@@ -191,18 +191,39 @@
     PR.emit("block-rendered", id);
   };
 
-  /* 版心放不下的长公式、宽表格：先缩小字号，再不行才横向滚动 */
-  PR.fitWide = function (scope) {
-    // 先全部复原、再一起量、最后一起改：边改边量会让浏览器每个公式都重排一次整页
-    const boxes = PR.$$(".math-body, .tbl-wrap", scope || PR.$("#paper")).filter((box) => box.firstElementChild);
-    boxes.forEach((box) => { box.firstElementChild.style.fontSize = ""; });
-    const sizes = boxes.map((box) => [box.clientWidth, box.firstElementChild.scrollWidth]);
+  /* 版心放不下的长公式、宽表格：先缩小字号，再不行才横向滚动。
+     公式原本多宽只和字号、字体有关，量一次记下来；开关侧栏、改窗口大小只是版心变了，不用再把几百个公式复原重量一遍
+     （复原再量要整页重排，长论文一两百毫秒，点“原页”“笔记”会明显顿一下）。 */
+  // 记的是 { w, over }：over 为真时 w 是放不下时量到的真实宽度；为假时只知道“宽 w 的版心放得下”，版心变窄得重量
+  const natural = new WeakMap();
+  let typeface = "";
+  PR.fitWide = function (scope, remeasure) {  // remeasure：字体刚加载完这类，量过的也不作数
+    const paper = PR.$("#paper");
+    const cs = getComputedStyle(paper);
+    const tf = cs.fontSize + "|" + cs.fontFamily;
+    const fresh = remeasure || tf !== typeface;
+    typeface = tf;
+    const boxes = PR.$$(".math-body, .tbl-wrap", fresh ? paper : scope || paper).filter((box) => box.firstElementChild);
+    const avail = boxes.map((box) => box.clientWidth);
+    const todo = boxes.filter((box, i) => {
+      const n = !fresh && natural.get(box.firstElementChild);
+      return !n || !n.w || (!n.over && avail[i] < n.w - 1);  // w 为 0：上次量时藏着（比如对照模式的英文）
+    });
+    // 要重量的：先全部复原、再一起量、最后一起改，边改边量会让浏览器每个公式都重排一次整页
+    todo.forEach((box) => { box.firstElementChild.style.fontSize = ""; });
+    todo.forEach((box) => {
+      const need = box.firstElementChild.scrollWidth, w = box.clientWidth;
+      natural.set(box.firstElementChild, need > w + 1 ? { w: need, over: true } : { w, over: false });
+    });
     const floor = window.innerWidth < 760 ? 0.58 : 0.72;
     boxes.forEach((box, i) => {
-      const [avail, need] = sizes[i];
-      if (need <= avail + 1) return;
-      const r = Math.max(floor, avail / need) * 0.99;
-      box.firstElementChild.style.fontSize = box.classList.contains("tbl-wrap") ? (0.86 * r).toFixed(3) + "em" : (r * 100).toFixed(1) + "%";
+      const n = natural.get(box.firstElementChild);
+      let size = "";
+      if (n.over && n.w > avail[i] + 1) {
+        const r = Math.max(floor, avail[i] / n.w) * 0.99;
+        size = box.classList.contains("tbl-wrap") ? (0.86 * r).toFixed(3) + "em" : (r * 100).toFixed(1) + "%";
+      }
+      if (box.firstElementChild.style.fontSize !== size) box.firstElementChild.style.fontSize = size;
     });
   };
   PR.on("rendered", () => PR.fitWide());

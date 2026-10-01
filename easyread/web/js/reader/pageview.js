@@ -7,10 +7,8 @@
   const pages = () => (S.paper.meta || {}).pages || [];
 
   /* 右侧面板开关：pages | notes | null */
-  /* 面板先滑出来（只动面板，不卡），滑完再让正文让位、重排一次。
-     长论文有几万个节点，正文宽度一变就要整页重排（两三百毫秒），放在点击的当下会让人觉得按钮反应慢。 */
+  /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
   PR.side = null;
-  let sideT = null;
   PR.openSide = function (name) {
     PR.side = name;
     body.classList.toggle("pv-open", name === "pages");
@@ -19,17 +17,14 @@
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
-    clearTimeout(sideT);
     if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
     if (body.classList.contains("side-open") === !!name) return;  // 面板之间切换：正文宽度不变
-    sideT = setTimeout(() => requestAnimationFrame(() => {
-      const anchor = PR.readingBlock && PR.readingBlock();
-      const node = anchor && document.getElementById("b-" + anchor);
-      const before = node ? node.getBoundingClientRect().top : 0;
-      body.classList.toggle("side-open", !!PR.side);
-      PR.fitWide(); PR.renderMargin();
-      if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
-    }), 300);
+    const anchor = PR.readingBlock && PR.readingBlock();
+    const node = anchor && document.getElementById("b-" + anchor);
+    const before = node ? node.getBoundingClientRect().top : 0;
+    body.classList.toggle("side-open", !!name);
+    PR.fitWide(); PR.renderMargin();
+    if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
   };
 
   PR.togglePages = function (force) {

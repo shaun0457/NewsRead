@@ -137,8 +137,14 @@
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", PR.debounce(() => { PR.fitWide(); PR.renderMargin(); }, 150));
-    if (document.fonts) document.fonts.ready.then(() => { PR.fitWide(); PR.layoutMargin(); });
-    new ResizeObserver(PR.debounce(() => PR.layoutMargin(), 80)).observe(PR.$("#paper"));
+    if (document.fonts) document.fonts.ready.then(() => { PR.fitWide(null, true); PR.layoutMargin(); });
+    // 正文变宽变窄（最大化、贴边分屏只来一次 resize，那时版面可能还没变完）就重新缩放宽公式
+    let paperW = 0;
+    new ResizeObserver(PR.debounce(() => {
+      const w = PR.$("#paper").clientWidth;
+      if (w !== paperW) { paperW = w; PR.fitWide(); }
+      PR.layoutMargin();
+    }, 80)).observe(PR.$("#paper"));
     PR.startPolling();
 
     if (location.hash && document.getElementById(location.hash.slice(1))) {

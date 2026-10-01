@@ -1,7 +1,7 @@
 /* 阅读页 · 面板与浮层：抽屉、右侧面板（原页 / 笔记）、设置、操作条、选区条、悬浮卡 */
 
 /* 左侧抽屉 */
-#drawer { position: fixed; top: 0; bottom: 0; left: 0; z-index: 70; width: 320px; max-width: 86vw; background: var(--surface); box-shadow: var(--shadow); transform: translateX(-102%); transition: transform .28s ease; display: flex; flex-direction: column; }
+#drawer { position: fixed; top: 0; bottom: 0; left: 0; z-index: 70; width: 320px; max-width: 86vw; background: var(--surface); box-shadow: var(--shadow); transform: translateX(-102%); transition: transform .22s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; }
 body.drawer-open #drawer { transform: none; }
 #scrim { position: fixed; inset: 0; z-index: 65; background: rgba(20, 18, 15, .18); opacity: 0; pointer-events: none; transition: opacity .25s; }
 body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
@@ -27,7 +27,7 @@ body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
 .about .row { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* 右侧面板（原页 / 笔记，一次一个） */
-.side-panel { position: fixed; top: var(--bar-h); right: 0; bottom: 0; z-index: 40; width: var(--side-w); background: var(--surface); border-left: 1px solid var(--rule); transform: translateX(102%); transition: transform .3s ease; display: flex; flex-direction: column; }
+.side-panel { position: fixed; top: var(--bar-h); right: 0; bottom: 0; z-index: 40; width: var(--side-w); background: var(--surface); border-left: 1px solid var(--rule); transform: translateX(102%); transition: transform .22s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; }
 body.pv-open #pageview, body.np-open #notespanel { transform: none; }
 @media (min-width: 1180px) {
   /* 右侧开着面板：边注收进正文（页边的小数字），版心在剩下的地方居中，放不下就变窄 */
