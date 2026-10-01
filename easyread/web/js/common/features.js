@@ -5,7 +5,7 @@
   "use strict";
 
   /* 阅读页排版的默认值（Aa 面板和设置 → 阅读共用；主题单独存） */
-  PR.TYPE_DEFAULTS = { fs: 18, measure: 35, lh: 1.9, font: "serif", mode: "zh", margin: true };
+  PR.TYPE_DEFAULTS = { fs: 21, measure: 35, lh: 1.9, font: "serif", mode: "zh", margin: true };
 
   /* [id, 名字, 默认开关, 说明] */
   PR.FEATURES = [
