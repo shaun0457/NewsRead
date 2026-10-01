@@ -9,7 +9,7 @@
   "use strict";
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
-  const st = { loaded: false, threads: [], cur: null, models: [], def: "", model: "", listOpen: false, menuOpen: false, usageOpen: false, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
+  const st = { loaded: false, threads: [], cur: null, models: [], def: "", model: "", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
 
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */
@@ -56,7 +56,7 @@
     }
     try {
       const d = await PR.api("/api/p/" + PR.pid + "/chat");
-      st.threads = d.threads || []; st.models = d.models || []; st.def = d.default;
+      st.threads = d.threads || []; st.models = d.models || []; st.def = d.default; st.limits = d.limits || null;
       if (!st.model || !st.models.some((m) => m.id === st.model)) st.model = st.def;
       if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
       st.loaded = true;
@@ -139,8 +139,8 @@
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="问点什么…">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="换模型">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + menu +
-      '<span class="grow"></span>' + PR.usageChip(thread() && thread().messages).replace('class="us-chip', 'class="us-chip' + (st.usageOpen ? " on" : "")) +
-      (st.usageOpen ? PR.usagePop(thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
+      '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
+      (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="发送（Enter）；换行用 Shift+Enter">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
   }
   function render() {
@@ -202,7 +202,7 @@
           if (ev.thread && !t.id) { t.id = ev.thread; st.cur = ev.thread; }
           if (ev.model) msg.model = ev.model;
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
-          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; }
+          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
         }
       }

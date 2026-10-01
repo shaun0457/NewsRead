@@ -199,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
             if action == "versions":
                 return self._json(200, ws.versions())
             if action == "chat":
-                return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load())})
+                return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "log":
                 return self._json(200, {"text": tail(ws.root / "job.log", 300)})
             if action == "export":

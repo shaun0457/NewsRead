@@ -6,6 +6,10 @@ input 是全部输入 token（含命中缓存的部分），cached 是其中命�
 from __future__ import annotations
 
 import threading
+import time
+
+from . import config
+from .store import read_json, write_json_atomic
 
 
 class Meter:
@@ -26,10 +30,29 @@ class Meter:
                 d["cost_usd"] = round(d.get("cost_usd", 0) + float(cost_usd), 4)
             if limits:
                 d["limits"] = limits  # 整个账号的额度（同时在用 Claude Code 干别的也算在里面），只记最新的
+        if limits:
+            remember(limits)
 
     def snapshot(self) -> dict:
         with self._lock:
             return dict(self.data)
+
+
+# ---------- 最近一次看到的订阅额度（全局，新对话也能显示） ----------
+def _limits_path():
+    return config.library_dir() / ".limits.json" if config.temp_library() else config.HOME / "limits.json"
+
+
+def remember(limits: dict) -> None:
+    try:
+        write_json_atomic(_limits_path(), {"limits": limits, "at": int(time.time())})
+    except OSError:
+        pass
+
+
+def latest() -> dict | None:
+    """{"limits": {...}, "at": 时间戳}；还没用 Claude Code 订阅调用过就是 None。"""
+    return read_json(_limits_path(), None)
 
 
 def merge(total: dict | None, run: dict) -> dict:

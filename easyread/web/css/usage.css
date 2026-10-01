@@ -1,18 +1,20 @@
-/* 用量：额度进度条、token 明细、对话框里的小圆环和弹出面板（文献库页、阅读页共用） */
+/* 用量：额度进度条、token 明细、对话框里的小圆环和弹出面板（文献库页、阅读页共用）。排版学 Claude 桌面端 */
 .us-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.us-row span { color: var(--ink-2); font-size: 12.5px; }
-.us-row b { font: 600 13px var(--ui); color: var(--ink); font-variant-numeric: tabular-nums; }
+.us-row > span { color: var(--ink); font-size: 13px; }
+.us-row > b { font: 600 13px var(--ui); color: var(--ink); font-variant-numeric: tabular-nums; }
+.us-row em { font-style: normal; font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.us-row em b { margin-left: 8px; font-weight: 500; color: var(--ink-2); }
 
 .us-limits { display: grid; gap: 12px; }
-.us-bar { height: 6px; margin: 6px 0 4px; border-radius: 3px; background: var(--rule); overflow: hidden; }
-.us-bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s; }
-.us-limit.high .us-bar i { background: var(--mine); }
+.us-head { font-size: 12.5px; color: var(--ink-3); }
+.us-bar { height: 4px; margin-top: 7px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+.us-bar i { display: block; height: 100%; border-radius: 2px; background: var(--ul-blue); transition: width .4s; }
+.us-limit.high .us-bar i { background: var(--ul-yellow); }
 .us-limit.full .us-bar i { background: var(--danger); }
-.us-limit.full .us-row b { color: var(--danger); }
-.us-limit.stale .us-row b { color: var(--ink-3); font-weight: 400; }
-.us-reset, .us-note, .us-split { font-size: 11.5px; color: var(--ink-3); }
-.us-note { margin-top: -4px; }
-.us-split { margin-top: 2px; font-variant-numeric: tabular-nums; }
+.us-limit.full .us-row em b { color: var(--danger); }
+.us-limit.stale .us-row > span { color: var(--ink-3); }
+.us-split, .us-foot { font-size: 11.5px; color: var(--ink-3); }
+.us-split { margin-top: 3px; font-variant-numeric: tabular-nums; }
 
 /* 论文详情 */
 .us-card { display: grid; gap: 12px; margin: 10px 0 2px; padding: 12px 14px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule); }
@@ -20,15 +22,15 @@
 
 /* 对话输入框底部的小圆环 */
 .us-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border-radius: 13px; font: 12px var(--ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.us-chip:hover, .us-chip.on { background: var(--accent-soft); color: var(--ink-2); }
+.us-chip:hover, .us-chip.on { background: var(--accent-soft-2); color: var(--ink-2); }
 .us-chip svg { flex: none; }
 .us-chip .track { fill: none; stroke: var(--rule-2); stroke-width: 2.4; }
-.us-chip .fill { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; }
-.us-chip.high .fill { stroke: var(--mine); }
+.us-chip .fill { fill: none; stroke: var(--ul-blue); stroke-width: 2.4; stroke-linecap: round; }
+.us-chip.high .fill { stroke: var(--ul-yellow); }
 .us-chip.full .fill { stroke: var(--danger); }
 
 /* 点开的用量面板 */
-.us-pop { position: absolute; right: 8px; bottom: 44px; z-index: 6; width: 280px; display: grid; gap: 14px; padding: 14px 16px 16px;
-  border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule), var(--shadow); }
-.us-title { font: 600 13px var(--ui); color: var(--ink); }
-.us-pop .us-tokens + .us-tokens, .us-pop .us-limits + .us-tokens { padding-top: 12px; border-top: 1px solid var(--rule); }
+.us-pop { position: absolute; right: 8px; bottom: 44px; z-index: 6; width: 340px; max-width: calc(100% - 16px); display: grid; gap: 14px; padding: 14px 16px;
+  border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule-2), var(--shadow-lg); }
+.us-pop .us-limits { padding-top: 14px; border-top: 1px solid var(--rule); }
+.us-foot { margin-top: -4px; }

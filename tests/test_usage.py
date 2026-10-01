@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from easyread import usage
 
@@ -10,6 +11,11 @@ CLAUDE_RATE = {"type": "rate_limit_event", "rate_limit_info": {"status": "allowe
 
 
 class UsageTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(usage, "remember")  # 别把测试数据写进真实的 limits.json
+        self.remember = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_claude_subscription_reports_limits_not_cost(self):
         rec = usage.from_claude(CLAUDE_RESULT, CLAUDE_RATE)
         self.assertEqual((rec["input"], rec["cached"], rec["output"]), (34424, 23584, 4))
@@ -43,6 +49,7 @@ class UsageTest(unittest.TestCase):
         total = usage.merge(usage.merge(None, run), run)
         self.assertEqual((total["calls"], total["input"]), (4, 68868))
         self.assertEqual(total["limits"]["seven_day"]["used"], 0.86)
+        self.remember.assert_called_once()  # 只有带额度的那次调用会记下来
 
 
 if __name__ == "__main__":
