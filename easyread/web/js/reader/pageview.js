@@ -126,7 +126,10 @@
     if (!force && (!PR.$(".pv-follow input").checked || Date.now() < holdUntil)) return;
     const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock();
     const b = PR.blockById[id];
-    if (!b) return;
+    if (!b) {  // 还在标题区，不在任何一段上：给第 1 页，别让面板空着
+      if (force || pvBlock) { pvBlock = null; showPage(1); }
+      return;
+    }
     if (!force && id === pvBlock) return;
     pvBlock = id;
     const loc = S.layout[id];
