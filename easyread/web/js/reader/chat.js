@@ -9,7 +9,7 @@
   "use strict";
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
-  const st = { loaded: false, threads: [], cur: null, models: [], def: "", model: "", listOpen: false, menuOpen: false, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
+  const st = { loaded: false, threads: [], cur: null, models: [], def: "", model: "", listOpen: false, menuOpen: false, usageOpen: false, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
 
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */
@@ -139,7 +139,8 @@
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="问点什么…">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="换模型">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + menu +
-      '<span class="grow"></span>' + (PR.usageThread(thread() && thread().messages) ? '<span class="ch-usage">' + PR.esc(PR.usageThread(thread().messages)) + "</span>" : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
+      '<span class="grow"></span>' + PR.usageChip(thread() && thread().messages).replace('class="us-chip', 'class="us-chip' + (st.usageOpen ? " on" : "")) +
+      (st.usageOpen ? PR.usagePop(thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="发送（Enter）；换行用 Shift+Enter">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
   }
   function render() {
@@ -220,13 +221,14 @@
   document.addEventListener("click", async (e) => {
     if (!e.target.closest("#chatpanel")) return;
     const b = e.target.closest("[data-c]");
-    if (!b) { if (st.menuOpen && !e.target.closest(".ch-menu")) { st.menuOpen = false; render(); } return; }
+    if (!b) { if ((st.menuOpen && !e.target.closest(".ch-menu")) || (st.usageOpen && !e.target.closest(".us-pop"))) { st.menuOpen = st.usageOpen = false; render(); } return; }
     const c = b.dataset.c;
     const row = b.closest(".ch-thread[data-t]");
     if (c === "close") return PR.toggleChat(false);
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
     if (c === "new") { if (st.streaming) return; st.cur = null; st.listOpen = false; st.model = st.def; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
-    if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = false; return render(); }
+    if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
+    if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
     if (c === "model") { st.model = b.dataset.m; st.menuOpen = false; return render(); }
     if (c === "manage") { st.menuOpen = false; render(); return PR.openSettings("chat"); }
     if (c === "send") return send(PR.$("#chatInput").value);
