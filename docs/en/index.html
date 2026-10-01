@@ -85,7 +85,7 @@ body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", var(--sans); }
   <div class="row flip">
     <div class="text">
       <h3>A library of your own</h3>
-      <p>Pin papers and folders, drag papers into your own folders, see recent reads, stars and progress at a glance, copy citations (GB/T 7714, APA, BibTeX), and export a single-file offline page to share.</p>
+      <p>Pin papers and folders, drag papers into your own folders, see recent reads, stars and progress at a glance, copy citations (GB/T 7714, APA, BibTeX), and export a single-file offline page to share. Deleted papers go to a trash you can restore from.</p>
     </div>
     <figure class="shot"><img src="../images/library.jpg" alt="Library" loading="lazy"></figure>
   </div>
@@ -100,24 +100,27 @@ body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", var(--sans); }
 
 <section id="engines"><div class="wrap">
   <h2>Pick your translation model</h2>
-  <p class="lead">Settings detect what's installed; “Test one sentence” tells you right away if it works. Failed pages retry automatically, and if your quota runs out it pauses and picks up later.</p>
+  <p class="lead">Settings detect what's installed; “Test one sentence” tells you right away if it works. Failed pages retry automatically, and if your quota runs out it pauses and picks up later. Token usage is recorded for every translation; with a Claude subscription you also see how much of the 5-hour quota is used.</p>
   <div class="tablebox"><table class="engines">
     <tr><th>Source</th><th>What you need</th><th>Notes</th></tr>
     <tr><td><b>Claude Code</b><span class="tag">Recommended</span></td><td>Claude Code installed and logged in</td><td>No API key, uses your subscription; checks equations against the page image. Best quality</td></tr>
     <tr><td><b>Codex CLI</b></td><td>Codex installed and logged in</td><td>No API key, uses your ChatGPT account</td></tr>
-    <tr><td><b>Free models</b><span class="tag">Free</span></td><td>Local Ollama / LM Studio, or a free API key</td><td>Qwen3 or GLM offline on your machine; or free tiers from Zhipu, SiliconFlow, Groq, Gemini, OpenRouter and more</td></tr>
-    <tr><td><b>Paid APIs</b></td><td>API key</td><td>DeepSeek, Qwen, Kimi, OpenAI, Anthropic… a 20-page paper costs cents</td></tr>
+    <tr><td><b>API · China-direct</b></td><td>API key</td><td>DeepSeek, Zhipu, Alibaba Bailian, Kimi, SiliconFlow, ModelScope. Zhipu GLM-4.7-Flash and SiliconFlow's small models are free; DeepSeek costs cents per paper</td></tr>
+    <tr><td><b>API · International</b></td><td>API key</td><td>OpenAI, Anthropic, Gemini, OpenRouter, Groq, Cerebras; the last four have free tiers</td></tr>
+    <tr><td><b>API · Local</b><span class="tag">Free</span></td><td>Ollama or LM Studio installed</td><td>Fully offline. qwen3.5:9b recommended (4b for small GPUs)</td></tr>
+    <tr><td><b>API · Custom endpoint</b></td><td>URL + key</td><td>Any OpenAI-compatible API or relay; “Fetch model list” pulls the model names for you</td></tr>
   </table></div>
 </div></section>
 
 <section id="install"><div class="wrap">
   <h2>Up and running in three steps</h2>
-  <p class="lead">Requires <a href="https://www.python.org/downloads/">Python 3.10+</a>. The first launch sets up everything in about a minute.</p>
+  <p class="lead">Easiest: download the installer. No Python needed, for Windows, macOS (Apple silicon) and Linux.</p>
   <div class="steps">
-    <div><h3>Download and launch</h3><p>Get the project from GitHub. On Windows double-click <code>start.cmd</code>; on macOS / Linux run <code>./start.sh</code>. Your browser opens EasyRead.</p></div>
-    <div><h3>Choose a model</h3><p>Open Settings (top right), pick Claude Code, Codex, a free model or a paid API, and hit “Test one sentence”.</p></div>
+    <div><h3>Download and install</h3><p>Grab the Windows <code>.exe</code>, macOS <code>.dmg</code> or Linux <code>.AppImage</code> from <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a>; it opens in its own window. Or run from source (Python 3.10+): double-click <code>start.cmd</code> on Windows, run <code>./start.sh</code> on macOS / Linux.</p></div>
+    <div><h3>Choose a model</h3><p>Open Settings (top right), pick Claude Code, Codex CLI or an API (DeepSeek, Zhipu, local Ollama…), and hit “Test one sentence”.</p></div>
     <div><h3>Import a paper and read</h3><p>Drag in a PDF or paste an arXiv ID or link. Translated pages are readable right away; the rest show the original.</p></div>
   </div>
+  <p class="lead">Or with pip:</p>
   <pre><code>pip install git+https://github.com/Edwardxlai/easyread
 easyread</code></pre>
 </div></section>
@@ -127,6 +130,7 @@ easyread</code></pre>
   <details><summary>Does it cost anything?</summary><p>EasyRead itself is free and open source. Translation runs on your own model: Claude Code / Codex use your existing subscription, local and free-tier models cost nothing, paid APIs bill per use.</p></details>
   <details><summary>Where are my papers and notes? Is anything uploaded?</summary><p>Everything stays on your machine, one folder per paper with the original PDF, page images and a few JSON files. Only the text being translated or asked about is sent to the model you picked.</p></details>
   <details><summary>Can it translate into other languages?</summary><p>Not yet. Prompts, typography and the interface are all tuned for Chinese. Issues and pull requests are welcome on GitHub.</p></details>
+  <details><summary>Can I share a paper with someone who doesn't have EasyRead?</summary><p>Yes. Right-click a paper → “Export offline HTML” for a single-file web page; they double-click to open it in a browser, with the translation, equations, page images, your highlights and notes included. Page images are embedded, so it's not small (about 10 MB for a 27-page paper).</p></details>
   <details><summary>Are highlights in the live demo saved?</summary><p>They're saved in your own browser and nobody else sees them. The demo can't import papers or ask AI; install it locally for the full feature set.</p></details>
 </div></section>
 

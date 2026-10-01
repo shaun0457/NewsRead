@@ -23,14 +23,15 @@ Runs locally. Your papers and notes never leave your computer.</p>
 
 ## How it differs from "throw the PDF into a translator"
 
-- **Reads like a typeset book.** Serif body text, comfortable line length and spacing. Equations are re-rendered with KaTeX, tables become clean three-line tables, references stay in the original.
+- **Reads like a typeset book.** Serif body text, comfortable line length and spacing. Equations are re-rendered with KaTeX, tables become clean three-line tables, references stay in the original. One click in the top bar for dark mode.
 - **The original is always right there.** Toggle "bilingual" to show the English under each paragraph. Open the original page on the right: it follows your reading position and draws a box around the paragraph you're on.
 - **Translation and commentary are kept apart.** The main text is only the faithful translation. AI explanations and answers go in the margin, so you always know what the paper actually says.
 - **Ask AI while you read.** A chat panel with streaming answers. Quote several paragraphs at once (drag selected text into the input). Ask "how do the equations I highlighted in red relate?" and it finds your red highlights. Multiple chats, each with its own model: Claude, GPT (Codex), DeepSeek, Qwen, local Ollama… Pin a good answer to the margin in one click.
 - **Annotate.** Four highlighter colors or underline, notes, questions. Send a question to AI with one click, or ask it to comment on a note. All annotations are collected in reading order and can be exported to Markdown (Obsidian, Notion).
 - **Edit the translation.** Double-click a paragraph to edit it; change a term in the glossary and it's replaced everywhere.
 - **Not just arXiv.** Drop in any PDF, or paste an arXiv ID, DOI, paper title or paper page (OpenReview, ACL, NeurIPS, bioRxiv, PMC, journal sites). It finds the open PDF and fills in authors, year and venue.
-- **A library of your own.** Pin papers and folders, create folders and drag papers into them, recent reads, search, unread / reading / done, stars, reading progress, copy citation (GB/T 7714, APA, BibTeX), export a single-file offline HTML to share. Custom keyboard shortcuts.
+- **A library of your own.** Pin papers and folders, create folders and drag papers into them, recent reads, search, unread / reading / done, stars, reading progress, copy citation (GB/T 7714, APA, BibTeX), export a single-file offline HTML to share. Deleted papers go to a trash you can restore from. Custom keyboard shortcuts.
+- **Know what you're spending.** Every translation and every AI answer records its token usage; with a Claude subscription you also see how much of the 5-hour / 7-day quota is used and when it resets.
 - **Doesn't lose your work.** Every edit is saved in the browser first and only cleared once the local server confirms it's on disk. If a re-translation touches a paragraph you edited, you get a notice, not an overwrite.
 
 <p align="center"><img src="docs/images/chat.jpg" width="860" alt="Ask AI while reading"></p>
@@ -84,7 +85,7 @@ Your browser opens `http://127.0.0.1:8765`. The server only listens on localhost
 ## Usage
 
 1. Open Settings (top right) and pick a translation engine.
-2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text or the first few pages.
+2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12.
 3. Translation runs in the background page by page. Translated parts are readable immediately; untranslated pages show the original.
 4. Click a paragraph for its action bar; select text to highlight, note or ask. Press `?` for all shortcuts.
 
@@ -108,7 +109,9 @@ See `easyread --help` for all commands and [docs/data-format.md](docs/data-forma
 
 **Where is my data? Is anything uploaded?** Everything stays on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper with the original PDF, page images and a few JSON files. Only the text being translated or asked about is sent to the model you chose.
 
-**Can I read offline or share a paper?** Right-click a paper → "Export offline HTML" for a single-file web page with equations and page images included. To publish on a site such as GitHub Pages, use `easyread demo ID --out DIR`.
+**Can I read offline or share a paper?** Yes. Right-click a paper → "Export offline HTML" (or `easyread export ID`) for a single-file web page. The recipient doesn't need EasyRead: double-click to open it in a browser with the translation, equations, page images, your highlights and notes, bilingual view and the original-page panel all working. Page images are embedded, so the file is not small (about 10 MB for a 27-page paper). New highlights made in the offline copy stay in that browser; to bring them back, use "Export my changes" under About in the left drawer and run `easyread merge ID --from export.json`.
+
+To publish on a site such as GitHub Pages, use `easyread demo ID --out DIR`: images are saved as separate files and loaded on demand, and AI chats are included (read-only).
 
 **Can it translate into languages other than Chinese?** Not yet. Prompts, typography and the UI are all tuned for Chinese. Issues and PRs are welcome.
 
