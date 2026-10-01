@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -109,7 +110,16 @@ class Library:
             raise KeyError(pid)
         dest = self.root / ".trash" / f"{pid}-{datetime.now():%Y%m%d%H%M%S}"
         dest.parent.mkdir(exist_ok=True)
-        shutil.move(str(ws.root), dest)
+        # 只整体改名，不用 shutil.move：改名失败时它会退回“复制再删”，删到一半出错就剩半个目录。
+        # 刚取消的翻译要零点几秒才停下（Claude Code 进程的工作目录就在这里），多等几次
+        for attempt in range(20):
+            try:
+                ws.root.rename(dest)
+                return dest
+            except PermissionError:
+                if attempt == 19:
+                    raise ValueError("这篇论文的文件还被占用着（可能正在翻译或生成图片），等几秒再删") from None
+                time.sleep(0.25)
         return dest
 
     def find_by_sha(self, digest: str) -> Workspace | None:

@@ -125,5 +125,20 @@ class LocateTest(unittest.TestCase):
         self.assertIn("p", json.loads((root / "layout.json").read_text(encoding="utf-8")))
 
 
+class PdfReleasedTest(unittest.TestCase):
+    """用完 PDF 要关掉：不然 Windows 上 source.pdf 一直被占着，论文移不进回收站。"""
+
+    def test_directory_can_be_moved_after_rendering(self):
+        tmp = Path(tempfile.mkdtemp())
+        ws = tmp / "ws"
+        (ws / "extract").mkdir(parents=True)
+        Image.new("RGB", (600, 800), "white").save(ws / "source.pdf", "PDF")
+        pdfwork.engine_image(ws, 1)
+        pdfwork.render_pages(ws / "source.pdf", ws / "pages")
+        pdfwork.extract_text(ws / "source.pdf", ws / "extract")
+        ws.rename(tmp / "moved")  # 文件还开着的话 Windows 上这里报 PermissionError
+        self.assertTrue((tmp / "moved" / "source.pdf").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

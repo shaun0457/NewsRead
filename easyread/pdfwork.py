@@ -7,37 +7,46 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 
 from .store import write_json_atomic
 
 
-def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84) -> list[dict]:
+@contextmanager
+def open_pdf(pdf: Path):
+    """用完一定要关：pypdfium2 不会在变量释放时关文件，Windows 上 source.pdf 会一直被占着，论文就移不进回收站。"""
     import pypdfium2 as pdfium
-
-    out_dir.mkdir(parents=True, exist_ok=True)
     doc = pdfium.PdfDocument(str(pdf))
+    try:
+        yield doc
+    finally:
+        doc.close()
+
+
+def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84) -> list[dict]:
+    out_dir.mkdir(parents=True, exist_ok=True)
     pages = []
-    for i in range(len(doc)):
-        page = doc[i]
-        w, h = page.get_size()
-        img = page.render(scale=scale).to_pil().convert("RGB")
-        name = f"page-{i + 1:03d}.webp"
-        img.save(out_dir / name, "WEBP", quality=quality, method=5)
-        pages.append({"n": i + 1, "w": round(w, 2), "h": round(h, 2), "img": f"pages/{name}"})
+    with open_pdf(pdf) as doc:
+        for i in range(len(doc)):
+            page = doc[i]
+            w, h = page.get_size()
+            img = page.render(scale=scale).to_pil().convert("RGB")
+            name = f"page-{i + 1:03d}.webp"
+            img.save(out_dir / name, "WEBP", quality=quality, method=5)
+            pages.append({"n": i + 1, "w": round(w, 2), "h": round(h, 2), "img": f"pages/{name}"})
     return pages
 
 
 def extract_text(pdf: Path, out_dir: Path) -> int:
     """每页一份 .txt（给 agent 读）和 .chars.json（给定位用，坐标按页宽高归一化）。"""
     import pdfplumber
-    import pypdfium2 as pdfium
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    doc = pdfium.PdfDocument(str(pdf))
-    for i in range(len(doc)):
-        tp = doc[i].get_textpage()
-        (out_dir / f"page-{i + 1:03d}.txt").write_text(tp.get_text_range(), encoding="utf-8")
+    with open_pdf(pdf) as doc:
+        for i in range(len(doc)):
+            tp = doc[i].get_textpage()
+            (out_dir / f"page-{i + 1:03d}.txt").write_text(tp.get_text_range(), encoding="utf-8")
     with pdfplumber.open(str(pdf)) as plumb:
         for i, page in enumerate(plumb.pages):
             W, H = float(page.width), float(page.height)
@@ -51,10 +60,8 @@ def extract_text(pdf: Path, out_dir: Path) -> int:
 
 def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 3.0) -> str:
     """box 是按页宽高归一化的 [x0, y0, x1, y1]；输出到 figures/，返回相对路径。"""
-    import pypdfium2 as pdfium
-
-    doc = pdfium.PdfDocument(str(root / "source.pdf"))
-    img = doc[page - 1].render(scale=scale).to_pil().convert("RGB")
+    with open_pdf(root / "source.pdf") as doc:
+        img = doc[page - 1].render(scale=scale).to_pil().convert("RGB")
     W, H = img.size
     x0, y0, x1, y1 = box
     part = img.crop((int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H)))
@@ -257,9 +264,8 @@ def engine_image(root: Path, n: int) -> Path:
     """给翻译模型看的原页图（JPEG，模型工具普遍支持），按需生成。"""
     out = root / "extract" / f"page-{n:03d}.jpg"
     if not out.exists():
-        import pypdfium2 as pdfium
-        doc = pdfium.PdfDocument(str(root / "source.pdf"))
-        doc[n - 1].render(scale=2.0).to_pil().convert("RGB").save(out, "JPEG", quality=82)
+        with open_pdf(root / "source.pdf") as doc:
+            doc[n - 1].render(scale=2.0).to_pil().convert("RGB").save(out, "JPEG", quality=82)
     return out
 
 
