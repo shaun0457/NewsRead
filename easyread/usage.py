@@ -19,10 +19,15 @@ class Meter:
         self._lock = threading.Lock()
         self.data: dict = {"engine": engine, "calls": 0, "input": 0, "cached": 0, "output": 0}
 
-    def add(self, input: int = 0, cached: int = 0, output: int = 0, cost_usd: float | None = None, limits: dict | None = None):
+    def add(self, input: int = 0, cached: int = 0, output: int = 0, cost_usd: float | None = None, limits: dict | None = None,
+            context_window: int | None = None):
         with self._lock:
             d = self.data
             d["calls"] += 1
+            # 最近一次调用的上下文有多大（输入 + 输出）：问 AI 时每次都把之前的对话一起发，这就是当前对话占了多少上下文
+            d["context"] = {"cached": int(cached or 0), "fresh": int(input or 0) - int(cached or 0), "output": int(output or 0)}
+            if context_window:
+                d["context_window"] = int(context_window)
             d["input"] += int(input or 0)
             d["cached"] += int(cached or 0)
             d["output"] += int(output or 0)
@@ -81,6 +86,9 @@ def from_claude(result: dict, rate_event: dict | None) -> dict:
                          for k, w in windows.items() if isinstance(w, dict)}
     elif result.get("total_cost_usd") is not None:
         rec["cost_usd"] = float(result["total_cost_usd"])
+    window = next((m.get("contextWindow") for m in (result.get("modelUsage") or {}).values() if m.get("contextWindow")), None)
+    if window:
+        rec["context_window"] = window
     return rec
 
 

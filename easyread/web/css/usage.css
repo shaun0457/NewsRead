@@ -34,3 +34,14 @@
   border-radius: 12px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule-2), var(--shadow-lg); }
 .us-pop .us-limits { padding-top: 14px; border-top: 1px solid var(--rule); }
 .us-foot { margin-top: -4px; }
+
+/* 上下文条：三段颜色 */
+.us-stack { display: flex; gap: 1px; }
+.us-stack i { flex: none; border-radius: 0; }
+.us-stack i:first-child { border-radius: 2px 0 0 2px; }
+.us-stack .cached, .us-legend .cached { background: var(--ul-blue); }
+.us-stack .fresh, .us-legend .fresh { background: var(--ul-green); }
+.us-stack .out, .us-legend .out { background: var(--mine); }
+.us-legend { display: flex; gap: 12px; margin-top: 7px; font-size: 11px; color: var(--ink-3); }
+.us-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.us-legend i { width: 7px; height: 7px; border-radius: 2px; }

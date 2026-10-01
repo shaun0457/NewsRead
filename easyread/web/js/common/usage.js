@@ -94,13 +94,24 @@ window.PR = window.PR || {};
     return latest && latest.limits ? '<button class="' + cls + '" data-c="usage" title="用量"><span>用量</span></button>' : "";
   };
 
+  /* 上下文条（学 Claude 的 Context window）：最近一次回答时发给模型的全部内容。每次提问都会连同之前的对话一起发，
+     所以看的是“当前对话多大”，不是累计。分三段：缓存命中的（系统提示、之前的对话）、这次新发的、模型的回答。
+     不知道模型上下文多大时（API、Codex），条按 20 万算，右边只写 token 数 */
+  function contextHtml(msgs) {
+    const last = (msgs || []).map((m) => m.usage).filter((u) => u && u.calls && u.context).pop();
+    if (!last) return '<div class="us-ctx"><div class="us-row"><span>上下文</span><em>还没提问</em></div><div class="us-bar"></div></div>';
+    const c = last.context, total = c.cached + c.fresh + c.output, win = last.context_window;
+    const scale = win || Math.max(200000, total);
+    const seg = (n, cls, name) => n > 0 ? '<i class="' + cls + '" style="width:' + Math.max(0.6, (n / scale) * 100) + '%" title="' + name + " " + tokens(n) + '"></i>' : "";
+    return '<div class="us-ctx"><div class="us-row"><span>上下文</span><em>' + tokens(total) + (win ? " / " + tokens(win) + "（" + Math.max(1, Math.round((total / win) * 100)) + "%）" : " token") + "</em></div>" +
+      '<div class="us-bar us-stack">' + seg(c.cached, "cached", "缓存命中（系统提示、之前的对话）") + seg(c.fresh, "fresh", "这次新发的（问题、引用的段落）") + seg(c.output, "out", "回答") + "</div>" +
+      '<div class="us-legend"><span><i class="cached"></i>缓存命中</span><span><i class="fresh"></i>新发送</span><span><i class="out"></i>回答</span></div></div>';
+  }
+
   /* 点圆环弹出的用量面板 */
   PR.usagePop = function (latest, msgs) {
-    const sum = threadSum(msgs);
     const bars = latest && latest.limits ? PR.usageBars(latest.limits, "Claude 订阅用量") : "";
-    if (!sum && !bars) return "";
-    return '<div class="us-pop">' +
-      (sum ? PR.usageTokens("这个对话", sum) : '<div class="us-tokens"><div class="us-row"><span>这个对话</span><em>还没提问</em></div></div>') +
-      bars + (bars ? '<div class="us-foot">整个账号共用，含其他用途 · 更新于 ' + ago(latest.at) + "</div>" : "") + "</div>";
+    return '<div class="us-pop">' + contextHtml(msgs) + bars +
+      (bars ? '<div class="us-foot">整个账号共用，含其他用途 · 更新于 ' + ago(latest.at) + "</div>" : "") + "</div>";
   };
 })(window.PR);

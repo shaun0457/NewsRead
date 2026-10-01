@@ -5,7 +5,8 @@ from easyread import usage
 
 # 2026-10 实测的 claude -p --output-format stream-json --verbose 输出（删减）
 CLAUDE_RESULT = {"type": "result", "total_cost_usd": 0.0915, "usage": {
-    "input_tokens": 2, "cache_creation_input_tokens": 10838, "cache_read_input_tokens": 23584, "output_tokens": 4}}
+    "input_tokens": 2, "cache_creation_input_tokens": 10838, "cache_read_input_tokens": 23584, "output_tokens": 4},
+    "modelUsage": {"claude-opus-5-5": {"contextWindow": 1000000}}}
 CLAUDE_RATE = {"type": "rate_limit_event", "rate_limit_info": {"status": "allowed_warning", "unifiedWindows": {
     "five_hour": {"utilization": 0.24, "resetsAt": 1790871000}, "seven_day": {"utilization": 0.86, "resetsAt": 1791054000}}}}
 
@@ -21,6 +22,7 @@ class UsageTest(unittest.TestCase):
         self.assertEqual((rec["input"], rec["cached"], rec["output"]), (34424, 23584, 4))
         self.assertEqual(rec["limits"]["five_hour"]["used"], 0.24)
         self.assertNotIn("cost_usd", rec)  # 订阅时按官方价折算的费用不是真花的钱
+        self.assertEqual(rec["context_window"], 1000000)
 
     def test_claude_api_key_reports_cost(self):
         rec = usage.from_claude(CLAUDE_RESULT, None)
@@ -49,6 +51,8 @@ class UsageTest(unittest.TestCase):
         total = usage.merge(usage.merge(None, run), run)
         self.assertEqual((total["calls"], total["input"]), (4, 68868))
         self.assertEqual(total["limits"]["seven_day"]["used"], 0.86)
+        self.assertEqual(run["context"], {"cached": 0, "fresh": 10, "output": 5})  # 上下文看最近一次调用
+        self.assertEqual(run["context_window"], 1000000)
         self.remember.assert_called_once()  # 只有带额度的那次调用会记下来
 
 
