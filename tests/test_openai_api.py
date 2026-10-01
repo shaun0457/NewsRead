@@ -22,6 +22,8 @@ class FakeAPI(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.headers.get("User-Agent", "").startswith("Python-urllib"):  # 像 Cloudflare 那样拦默认 UA（#10）
+            return self._send(403, b"error code: 1010", "text/plain")
         self._send(200, {"object": "list", "data": [{"id": "b-model"}, {"id": "a-model"}]})
 
     def do_POST(self):

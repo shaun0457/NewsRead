@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterator
 
-from . import usage
+from . import __version__, usage
 from .engines import Cancelled, EngineError
 
 API_KINDS = [("chat", "Chat Completions（通用）"), ("responses", "Responses（OpenAI 新接口）")]
@@ -35,7 +35,8 @@ def _base(o: dict) -> str:
 
 
 def _headers(o: dict, stream: bool = False) -> dict:
-    h = {"Content-Type": "application/json"}
+    # 要带 User-Agent：Python 默认的 "Python-urllib/x" 会被 Cloudflare 后面的接口（比如 OpenCode）直接拦掉，报 403 error code: 1010
+    h = {"Content-Type": "application/json", "User-Agent": f"EasyRead/{__version__}"}
     if stream:
         h["Accept"] = "text/event-stream"
     if o.get("api_key"):
