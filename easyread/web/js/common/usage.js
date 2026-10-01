@@ -35,7 +35,7 @@ window.PR = window.PR || {};
     const lim = limitsText(u);
     let s = "上次翻译用了 " + tokens(u.input + u.output) + " token（输入 " + tokens(u.input) +
       (u.cached ? "，其中缓存命中 " + tokens(u.cached) : "") + "；输出 " + tokens(u.output) + "）";
-    if (lim) s += "。译完时 Claude 订阅" + lim + "（整个账号的，含其他用途）";
+    if (lim) s += "。译完时 Claude 订阅的 " + lim + "（整个账号的，含其他用途）";
     else if (u.cost_usd != null) s += "，按官方价约 $" + u.cost_usd.toFixed(2);
     if (total && total.calls > u.calls) s += "。这篇累计 " + tokens(total.input + total.output) + " token";
     return s;
