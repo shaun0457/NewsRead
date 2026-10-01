@@ -1,5 +1,10 @@
 # 更新记录
 
+## v1.2.4（2026-10-01）
+
+- macOS 桌面版：⌘C / ⌘V / ⌘X / ⌘A / ⌘Z 恢复可用，屏幕顶部保留应用 / 编辑 / 窗口菜单（[#5](https://github.com/Edwardxlai/easyread/issues/5)）。
+- 桌面版右键菜单：输入框里右键有剪切 / 复制 / 粘贴 / 全选，选中文字右键可以复制。
+
 ## v1.2.3（2026-10-01）
 
 - 修复桌面安装包开始翻译就报错 `No module named 'pypdfium2'`（[#3](https://github.com/Edwardxlai/easyread/issues/3)）：发布流程打包时漏装了 PDF 处理依赖。打包脚本现在会先检查依赖，缺了直接停下。感谢 [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) 的修复。
