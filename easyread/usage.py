@@ -25,7 +25,8 @@ class Meter:
             if cost_usd is not None:
                 d["cost_usd"] = round(d.get("cost_usd", 0) + float(cost_usd), 4)
             if limits:
-                d["limits"] = limits  # 额度只看最新一次
+                d.setdefault("limits_start", limits)  # 第一次调用后的额度，和最新的一减就是这次大约用了多少
+                d["limits"] = limits
 
     def snapshot(self) -> dict:
         with self._lock:
