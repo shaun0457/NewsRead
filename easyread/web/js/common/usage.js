@@ -14,14 +14,12 @@ window.PR = window.PR || {};
 
   const pct = (x) => Math.round(x * 100) + "%";
 
-  /* “5 小时额度这次用了约 1%，现在用到 25%；7 天额度用到 86%” */
+  /* “5 小时额度用到 25%、7 天额度用到 86%”。额度是整个账号的，同时用 Claude Code 干别的也算在里面，
+     所以不拿前后相减去算翻译用了多少，翻译本身的量看 token 数 */
   function limitsText(u) {
-    const now = u.limits || {}, start = u.limits_start || {};
-    return Object.keys(WINDOWS).filter((k) => now[k] && now[k].used != null).map((k) => {
-      const d = start[k] && start[k].used != null ? now[k].used - start[k].used : null;
-      const spent = d == null ? "" : d < 0.01 ? "这次用了不到 1%，" : "这次用了约 " + pct(d) + "，";
-      return WINDOWS[k] + spent + "现在用到 " + pct(now[k].used);
-    }).join("；");
+    const now = u.limits || {};
+    return Object.keys(WINDOWS).filter((k) => now[k] && now[k].used != null)
+      .map((k) => WINDOWS[k] + "用到 " + pct(now[k].used)).join("、");
   }
 
   /* 简短：进度条旁边用。“已用 12.3 万 token · 5 小时额度用到 24%” */
@@ -37,7 +35,7 @@ window.PR = window.PR || {};
     const lim = limitsText(u);
     let s = "上次翻译用了 " + tokens(u.input + u.output) + " token（输入 " + tokens(u.input) +
       (u.cached ? "，其中缓存命中 " + tokens(u.cached) : "") + "；输出 " + tokens(u.output) + "）";
-    if (lim) s += "。Claude 订阅：" + lim;
+    if (lim) s += "。译完时 Claude 订阅" + lim + "（整个账号的，含其他用途）";
     else if (u.cost_usd != null) s += "，按官方价约 $" + u.cost_usd.toFixed(2);
     if (total && total.calls > u.calls) s += "。这篇累计 " + tokens(total.input + total.output) + " token";
     return s;

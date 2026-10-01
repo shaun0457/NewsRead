@@ -25,8 +25,7 @@ class Meter:
             if cost_usd is not None:
                 d["cost_usd"] = round(d.get("cost_usd", 0) + float(cost_usd), 4)
             if limits:
-                d.setdefault("limits_start", limits)  # 第一次调用后的额度，和最新的一减就是这次大约用了多少
-                d["limits"] = limits
+                d["limits"] = limits  # 整个账号的额度（同时在用 Claude Code 干别的也算在里面），只记最新的
 
     def snapshot(self) -> dict:
         with self._lock:
