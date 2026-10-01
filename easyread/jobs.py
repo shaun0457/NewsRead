@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from uuid import uuid4
 
 from . import config, translate, usage
 from .engines import Cancelled, EngineError
@@ -21,9 +22,9 @@ class Jobs:
         self.cancels: dict[str, threading.Event] = {}
         self.recent: list[dict] = []  # 小任务的状态，给页面轮询
         self.lock = threading.Lock()
+        self._resume()
         for target in (self._bulk_loop, self._small_loop):
             threading.Thread(target=target, daemon=True).start()
-        self._resume()
 
     # ---------- 整篇 ----------
     def _write(self, ws: Workspace, **fields):
@@ -34,17 +35,24 @@ class Jobs:
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。"""
-        self._write(ws, type="translate" if translate_after else "prepare", state="queued", message="排队中",
-                    pages=pages, scope=scope or "all", translate=translate_after, done=0, total=0, error="", failed={}, usage={})
-        self.bulk.put(ws.id)
+        def apply(job):
+            if job.get("state") in ("queued", "running"):
+                raise ValueError("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。")
+            job.update(type="translate" if translate_after else "prepare", state="queued", message="排队中",
+                       pages=pages, scope=scope or "all", translate=translate_after, done=0, total=0, error="", failed={},
+                       updated=now_iso(), usage={})
+        with self.lock:
+            ws.update("job", apply)
+            self.bulk.put(ws.id)
 
     def cancel(self, pid: str):
-        ev = self.cancels.get(pid)
-        if ev:
-            ev.set()
-        ws = self.lib.ws(pid)
-        if ws and (ws.load("job") or {}).get("state") == "queued":
-            self._write(ws, state="cancelled", message="已取消")
+        with self.lock:
+            ev = self.cancels.get(pid)
+            if ev:
+                ev.set()
+            ws = self.lib.ws(pid)
+            if ws and (ws.load("job") or {}).get("state") == "queued":
+                self._write(ws, state="cancelled", message="已取消")
 
     def _resume(self):
         for ws in self.lib.all():
@@ -56,13 +64,15 @@ class Jobs:
     def _bulk_loop(self):
         while True:
             pid = self.bulk.get()
-            ws = self.lib.ws(pid)
-            if not ws:
-                continue
-            job = ws.load("job") or {}
-            if job.get("state") != "queued":
-                continue
-            cancel = self.cancels[pid] = threading.Event()
+            with self.lock:
+                ws = self.lib.ws(pid)
+                if not ws:
+                    continue
+                job = ws.load("job") or {}
+                if job.get("state") != "queued":
+                    continue
+                cancel = self.cancels[pid] = threading.Event()
+                self._write(ws, state="running", message="正在开始任务")
             try:
                 self._run_bulk(ws, job, cancel)
             except Cancelled:
@@ -76,13 +86,18 @@ class Jobs:
                 except OSError:
                     pass
             finally:
-                self.cancels.pop(pid, None)
+                with self.lock:
+                    self.cancels.pop(pid, None)
 
     def _run_bulk(self, ws: Workspace, job: dict, cancel: threading.Event):
         cfg = config.load()
+        if cancel.is_set():
+            raise Cancelled()
         if not ws.load("paper").get("meta", {}).get("pages"):
             self._write(ws, state="running", message="正在渲染原页、抽取文字")
             translate.prepare(ws)
+        if cancel.is_set():
+            raise Cancelled()
         if not job.get("translate") or cfg.get("engine") == "none":
             self._write(ws, state="done", message="已导入" + ("（未开启自动翻译）" if job.get("translate") else ""))
             return
@@ -119,7 +134,7 @@ class Jobs:
 
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:
-        job = {"id": f"j{int(time.time() * 1000)}", "kind": kind, "pid": pid, "state": "queued", "message": "排队中",
+        job = {"id": "j" + uuid4().hex, "kind": kind, "pid": pid, "state": "queued", "message": "排队中",
                "at": now_iso(), **kw}
         with self.lock:
             self.recent = ([job] + self.recent)[:50]
@@ -142,6 +157,7 @@ class Jobs:
             job = self.small.get()
             ws = self.lib.ws(job["pid"])
             if not ws:
+                job["state"], job["message"] = "error", "文献已移除，无法执行任务"
                 continue
             job["state"], job["message"] = "running", "模型思考中"
             try:

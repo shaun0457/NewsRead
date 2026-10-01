@@ -140,9 +140,8 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
         elif kind == "note_del":
             nid = str(op["id"])
             cur = notes.get(nid)
-            if cur and _newer(at, cur.get("updated")):
-                cur["deleted"] = True
-                cur["updated"] = at
+            if not cur or _newer(at, cur.get("updated")):
+                notes[nid] = {**(cur or {"id": nid}), "deleted": True, "updated": at}
                 applied.append(f"note_del:{nid}")
         elif kind == "paper_note":
             cur = reader.get("paper_note") or {}

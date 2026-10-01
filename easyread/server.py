@@ -136,6 +136,16 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("文件太大")
         return self.rfile.read(n) if n else b""
 
+    def _import_result(self, ws, fresh, translate_after, scope):
+        # A failed first preparation still leaves a library entry. Re-importing
+        # that PDF must retry preparation instead of silently skipping it.
+        paper = ws.load("paper") or {}
+        active = (ws.load("job") or {}).get("state") in ("queued", "running")
+        queued = fresh or (not paper.get("meta", {}).get("pages") and not active)
+        if queued:
+            self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope)
+        return self._json(200, {"id": ws.id, "new": fresh, "queued": queued})
+
     # ---------- GET ----------
     def do_HEAD(self):
         self.do_GET()
@@ -270,16 +280,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/import":  # 请求体就是 PDF 文件
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
-            if fresh:
-                app.jobs.enqueue(ws, translate_after=q.get("translate", "1") == "1", scope=q.get("scope"))
-            return self._json(200, {"id": ws.id, "new": fresh})
+            return self._import_result(ws, fresh, q.get("translate", "1") == "1", q.get("scope"))
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400
             ws, fresh = lib.create_from_pdf(data, name, meta)
-            if fresh:
-                app.jobs.enqueue(ws, translate_after=bool(body.get("translate", True)), scope=body.get("scope"))
-            return self._json(200, {"id": ws.id, "new": fresh})
+            return self._import_result(ws, fresh, bool(body.get("translate", True)), body.get("scope"))
         if path in settings_api.POST:  # 设置页：保存配置、模型名单、试一下、取模型列表
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":

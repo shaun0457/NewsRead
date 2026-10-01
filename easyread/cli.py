@@ -88,12 +88,12 @@ def cmd_import(a):
     else:
         data, name, meta = L.fetch(src)
         ws, fresh = L.create_from_pdf(data, name, meta)
-    if not fresh:
+    if not fresh and ws.load("paper").get("meta", {}).get("pages"):
         out(f"已在库里：{ws.id}")
         return
     from .translate import prepare
     prepare(ws)
-    out(f"已导入：{ws.id}（{ws.root}）")
+    out(f"{'已导入' if fresh else '已重新准备'}：{ws.id}（{ws.root}）")
     if not a.no_translate:
         cmd_translate(argparse.Namespace(id=ws.id, pages=None))
 

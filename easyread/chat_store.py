@@ -7,14 +7,15 @@
 """
 from __future__ import annotations
 
-import time
+from uuid import uuid4
 
 from .paperdata import add_discussion
 from .store import Workspace, now_iso
 
 
 def _normalize(chat: dict) -> dict:
-    chat = chat or {}
+    if chat is None:
+        chat = {}
     threads = chat.setdefault("threads", [])
     legacy = chat.pop("messages", None)
     if legacy:
@@ -38,13 +39,13 @@ def get(ws: Workspace, tid: str | None) -> dict | None:
 
 
 def new_id() -> str:
-    return f"t{int(time.time() * 1000)}"
+    return "t" + uuid4().hex
 
 
 def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None) -> dict:
     """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。"""
     stamp = now_iso()
-    msg = {"id": f"m{int(time.time() * 1000)}", "role": "assistant", "content": answer, "at": stamp,
+    msg = {"id": "m" + uuid4().hex, "role": "assistant", "content": answer, "at": stamp,
            "model": model_name, "anchor": user.get("anchor"), "note": user.get("note")}
     if used and used.get("calls"):
         msg["usage"] = used  # 这条回答的 token 用量（usage.Meter 的快照）

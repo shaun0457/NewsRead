@@ -52,6 +52,7 @@ class OpenAIApiTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
+        cls.srv.server_close()
 
     def setUp(self):
         SEEN.clear()

@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build" / "backend"
 WORK = ROOT / "build" / "pyinstaller"
+REQUIRED = ("easyread", "pypdfium2", "pypdfium2_raw", "pdfplumber", "PIL", "pypdf", "truststore", "certifi")
 
 
 def python_with_pyinstaller() -> list[str]:
@@ -31,15 +32,16 @@ def python_with_pyinstaller() -> list[str]:
 
 
 def check_dependencies(python: list[str]) -> None:
-    required = ["pypdfium2", "pdfplumber", "PIL", "pypdf"]
-    for mod in required:
-        probe = subprocess.run(python + ["-c", f"import {mod}"], cwd=ROOT, capture_output=True)
-        if probe.returncode != 0:
-            raise SystemExit(f"缺少后端依赖 '{mod}'。请在打包前运行：python -m pip install -e .")
+    for module in REQUIRED:
+        probe = subprocess.run(python + ["-c", f"import {module}"], cwd=ROOT, capture_output=True)
+        if probe.returncode:
+            raise SystemExit(f"无法加载后端依赖 {module}。请使用打包的 Python 安装：python -m pip install pyinstaller .")
 
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认不是 UTF-8，下面的中文提示会让脚本崩掉
+    python = python_with_pyinstaller()
+    check_dependencies(python)  # 验证通过后再清理旧产物
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     for old in OUT.iterdir():
@@ -47,17 +49,10 @@ def main() -> None:
             old.unlink()
         elif old.is_dir():
             shutil.rmtree(old)
-    python = python_with_pyinstaller()
-    check_dependencies(python)
     cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
                     "--name", "easyread-backend", "--distpath", str(OUT),
                     "--workpath", str(WORK), "--specpath", str(WORK),
-                    "--collect-all", "easyread",
-                    "--collect-all", "pypdfium2",
-                    "--collect-all", "pypdfium2_raw",
-                    "--collect-all", "pdfplumber",
-                    "--collect-all", "PIL",
-                    "--collect-all", "pypdf",
+                    *[arg for module in REQUIRED for arg in ("--collect-all", module)],
                     str(ROOT / "scripts" / "backend_entry.py")]
     subprocess.run(cmd, cwd=ROOT, check=True)
     print(f"后端已生成：{OUT / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
