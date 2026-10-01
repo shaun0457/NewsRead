@@ -46,7 +46,6 @@
       slider("fs", "字号", 13, 28, 1, " px") + slider("measure", "版心", 26, 50, 1, " 字") + slider("lh", "行距", 1.5, 2.4, 0.05, "") +
       '<div class="row"><span>显示</span>' + segHtml("mode", [["zh", "译文"], ["bi", "对照"]]) + "</div>" +
       '<div class="row"><span>字体</span>' + segHtml("font", [["serif", "宋体"], ["sans", "黑体"]]) + "</div>" +
-      '<div class="row"><span>主题</span>' + segHtml("theme", [["auto", "跟随"], ["light", "浅"], ["dark", "深"]]) + "</div>" +
       '<div class="row"><span>边注</span>' + segHtml("margin", [[true, "显示"], [false, "收起"]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>恢复默认</button><span class="grow"></span>' +
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">更多设置…</button>' : "") + "</div>";
