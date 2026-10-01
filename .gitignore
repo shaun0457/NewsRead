@@ -14,6 +14,7 @@ dist/
 /outputs/
 /prefs.json
 /limits.json
+/update.json
 .limits.json
 .prefs.json
 .models-seen.json

@@ -27,6 +27,7 @@ DEFAULTS = {
     "port": 8765,
     "engine": "claude",          # claude | codex（本机 CLI 无头）| openai（任意 OpenAI 兼容接口）| none
     "auto_translate": True,      # 导入后自动开始翻译
+    "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数
     "concurrency": 1,            # 同时翻译几批
     "claude": {"command": "claude", "model": "", "extra_args": [], "timeout": 1200},

@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, usage, wsock
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -162,8 +162,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
-                                    "engine": cfg.get("engine"), "engine_label": _engine_label(cfg),
+                                    "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg),
                                     "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root))})
+        if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
+            return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
         if path == "/api/trash":
             return self._json(200, {"items": trash.items(lib.root)})
         if path == "/api/config":
@@ -192,6 +194,7 @@ class Handler(BaseHTTPRequestHandler):
                     opened["status"] = "reading"
                 ws.patch_item(opened)
                 _warm(ws.root)
+                _refresh_layout(ws)
                 return self._json(200, {
                     **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
                     "versions": ws.versions(), "token": app.token, "id": ws.id,
@@ -257,6 +260,9 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
 
+        if path == "/api/update":  # 开关“自动检查新版本”
+            config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})
+            return self._json(200, updates.check())
         if path == "/api/presence/keep":  # easyread serve 复用了关页会退出的服务：改成常驻
             if app.presence:
                 app.presence.keep()
@@ -343,6 +349,16 @@ class Handler(BaseHTTPRequestHandler):
 _warming: set[str] = set()
 
 
+def _refresh_layout(ws) -> None:
+    """定位规则升级后重算旧论文的原页框；翻译还在跑时不动，它结束时自己会定位。"""
+    if (ws.load("job") or {}).get("state") in ("queued", "running"):
+        return
+    try:
+        pdfwork.refresh_layout(ws.root)
+    except Exception:  # noqa: BLE001
+        log.exception("重算原页定位失败 %s", ws.root)
+
+
 def _warm(root: Path) -> None:
     """打开一篇论文时，后台生成原页面板用的小图（每篇只做一次）。"""
     if str(root) in _warming or (root / "pages" / f"w{pdfwork.PANEL_WIDTH}").exists() and \
@@ -358,23 +374,6 @@ def _warm(root: Path) -> None:
         finally:
             _warming.discard(str(root))
     threading.Thread(target=run, daemon=True).start()
-
-
-def _engine_label(cfg: dict) -> str:
-    e = cfg.get("engine")
-    if e == "openai":
-        preset = next((p["name"] for p in config.PRESETS if p["id"] == cfg["openai"].get("preset")), "API")
-        return f"{preset.split('（')[0]} · {cfg['openai'].get('model') or '未填模型'}"
-    name = engines.ENGINE_NAMES.get(e, e or "")
-    if e == "claude":  # 带上实际用的模型：Claude Code · Claude Opus 5.5
-        m = cfg["claude"].get("model") or ""
-        actual = chat_models.actual_of(m) if m else ""
-        model = chat_models.pretty(actual) if actual else ("Claude " + m.capitalize() if m in ("opus", "sonnet", "haiku") else m) if m else cli_models.claude_default()
-    elif e == "codex":
-        model = chat_models.label({"engine": "codex", "model": cfg["codex"].get("model") or ""})
-    else:
-        model = ""
-    return f"{name} · {model}" if model and model != "GPT" else name
 
 
 def _reveal(path: Path):

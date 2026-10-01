@@ -91,5 +91,39 @@ class TwoColumnLayoutTest(unittest.TestCase):
         self.assertEqual(layout["cap"]["box"], [0.15, 0.405, 0.85, 0.62])
 
 
+def _chars(lines):
+    """每行 (文字, top)，逐字给出字符框。"""
+    out = []
+    for text, top in lines:
+        for k, ch in enumerate(text):
+            out.append([ch, 0.1 + k * 0.005, top, 0.105 + k * 0.005, top + 0.012])
+    return out
+
+
+class LocateTest(unittest.TestCase):
+    def test_heading_skips_same_label_inside_figure(self):
+        import json
+        root = Path(tempfile.mkdtemp())
+        (root / "extract").mkdir()
+        chars = _chars([("Scaled Dot-Product Attention", 0.10), ("Figure 2: Scaled Dot-Product Attention.", 0.40),
+                        ("3.2.1 Scaled Dot-Product Attention", 0.45)])
+        (root / "extract" / "page-001.chars.json").write_text(json.dumps(chars), encoding="utf-8")
+        paper = {"blocks": [{"id": "h", "type": "heading", "page": 1, "num": "3.2.1", "en": "Scaled Dot-Product Attention"}]}
+        (root / "paper.json").write_text(json.dumps(paper), encoding="utf-8")
+        layout = pdfwork.locate(root)
+        self.assertAlmostEqual(layout["h"]["box"][1], 0.45)  # 不是图里 0.10 那行同名标签
+        self.assertEqual((root / "extract" / "locate.version").read_text(encoding="utf-8"), pdfwork.LOCATE_VERSION)
+
+    def test_refresh_layout_recomputes_stale(self):
+        import json
+        root = Path(tempfile.mkdtemp())
+        (root / "extract").mkdir()
+        (root / "extract" / "page-001.chars.json").write_text(json.dumps(_chars([("Hello world", 0.2)])), encoding="utf-8")
+        (root / "paper.json").write_text(json.dumps({"blocks": [{"id": "p", "type": "para", "page": 1, "en": "Hello world"}]}), encoding="utf-8")
+        (root / "layout.json").write_text("{}", encoding="utf-8")  # 旧规则算的
+        pdfwork.refresh_layout(root)
+        self.assertIn("p", json.loads((root / "layout.json").read_text(encoding="utf-8")))
+
+
 if __name__ == "__main__":
     unittest.main()

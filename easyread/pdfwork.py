@@ -68,6 +68,7 @@ def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 
 
 _MATH = re.compile(r"\$[^$]*\$")
 _ALNUM = re.compile(r"[a-z0-9]")
+LOCATE_VERSION = "2"  # 定位规则改了就加一，旧论文打开时会重算 layout.json
 
 
 def _norm(s: str) -> str:
@@ -125,6 +126,9 @@ def locate(root: Path) -> dict:
         head, tail = _anchors(block_english(block))
         if not head:
             continue
+        heads = [head]
+        if block.get("type") == "heading" and block.get("num"):  # 带上编号，免得撞上图里同名的标签
+            heads.insert(0, _anchors(f"{block['num']} {block.get('en', '')}")[0])
         for pn in (page, page + 1):
             if pn not in streams:
                 streams[pn] = _page_stream(extract_dir, pn)
@@ -132,9 +136,13 @@ def locate(root: Path) -> dict:
             if not st:
                 continue
             text, idx, chars = st
-            a = text.find(head, cursor.get(pn, 0) if pn == page else 0)
-            if a < 0:
-                a = text.find(head)
+            a = -1
+            for h in heads:
+                a = text.find(h, cursor.get(pn, 0) if pn == page else 0)
+                if a < 0:
+                    a = text.find(h)
+                if a >= 0:
+                    break
             if a < 0:
                 continue
             b = text.find(tail, a) if tail else -1
@@ -146,7 +154,20 @@ def locate(root: Path) -> dict:
     _clamp_overlaps(layout)
     _fill_gaps(paper.get("blocks", []), layout)
     write_json_atomic(root / "layout.json", layout)
+    (extract_dir / "locate.version").write_text(LOCATE_VERSION, encoding="utf-8")
     return layout
+
+
+def refresh_layout(root: Path) -> None:
+    """定位规则改过后，旧论文的 layout.json 是旧规则算的；打开时按新规则重算一次。"""
+    marker = root / "extract" / "locate.version"
+    if not (root / "layout.json").exists() or not (root / "paper.json").exists():
+        return
+    if not any((root / "extract").glob("page-*.chars.json")):  # 没有逐字坐标就算不出来，别把原来的框清空
+        return
+    if marker.exists() and marker.read_text(encoding="utf-8").strip() == LOCATE_VERSION:
+        return
+    locate(root)
 
 
 def _overlap_x(a: list, x0: float, x1: float) -> bool:

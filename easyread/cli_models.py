@@ -16,6 +16,7 @@ from pathlib import Path
 
 from . import chat_models, engines
 from .log import log
+from .presets import PRESETS
 
 _probing = threading.Lock()
 CLAUDE_ALIASES = [("opus", "Opus", "最强"), ("sonnet", "Sonnet", "快、省"), ("haiku", "Haiku", "最快最省")]
@@ -92,3 +93,21 @@ def _probe(exe: str, version: str) -> None:
 
 def listing() -> dict:
     return {"claude": claude(), "codex": codex()}
+
+
+def engine_label(cfg: dict) -> str:
+    """文献库右上角的引擎标签：“Claude Code · Claude Opus 5.5”“DeepSeek · deepseek-v4-flash”。"""
+    e = cfg.get("engine")
+    if e == "openai":
+        preset = next((p["name"] for p in PRESETS if p["id"] == cfg["openai"].get("preset")), "API")
+        return f"{preset.split('（')[0]} · {cfg['openai'].get('model') or '未填模型'}"
+    name = engines.ENGINE_NAMES.get(e, e or "")
+    if e == "claude":  # 带上实际用的模型：Claude Code · Claude Opus 5.5
+        m = cfg["claude"].get("model") or ""
+        actual = chat_models.actual_of(m) if m else ""
+        model = chat_models.pretty(actual) if actual else ("Claude " + m.capitalize() if m in ("opus", "sonnet", "haiku") else m) if m else claude_default()
+    elif e == "codex":
+        model = chat_models.label({"engine": "codex", "model": cfg["codex"].get("model") or ""})
+    else:
+        model = ""
+    return f"{name} · {model}" if model and model != "GPT" else name
