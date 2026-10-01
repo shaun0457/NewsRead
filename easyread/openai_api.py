@@ -55,20 +55,23 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
         body["temperature"] = temperature
     if stream:
         body["stream"] = True
+        if kind(o) == "chat":
+            body["stream_options"] = {"include_usage": True}  # 最后一块带上 token 用量；不认这个参数的接口会去掉再发
     return body
 
 
 def _open(o: dict, body: dict, stream: bool):
-    """发请求。有的模型（推理模型、Kimi K2 系列）不让改 temperature，报 400 时去掉它再发一次。"""
+    """发请求。有的模型（推理模型、Kimi K2 系列）不让改 temperature、有的接口不认 stream_options，报 400 时去掉再发。"""
     path = "/responses" if kind(o) == "responses" else "/chat/completions"
-    for _ in range(2):
+    for _ in range(3):
         req = urllib.request.Request(_base(o) + path, data=json.dumps(body).encode(), headers=_headers(o, stream))
         try:
             return urllib.request.urlopen(req, timeout=int(o.get("timeout") or 600))
         except urllib.error.HTTPError as e:
             detail = e.read()[:300].decode("utf-8", "replace")
-            if e.code == 400 and "temperature" in detail and "temperature" in body:
-                body = {k: v for k, v in body.items() if k != "temperature"}
+            drop = next((k for k in ("temperature", "stream_options") if k in detail and k in body), None)
+            if e.code == 400 and drop:
+                body = {k: v for k, v in body.items() if k != drop}
                 continue
             e.detail = detail
             raise
@@ -139,7 +142,7 @@ def _sleep(seconds: float, cancel) -> None:
 
 
 # ---------- 逐字输出（问 AI 用） ----------
-def stream(o: dict, text: str, cancel) -> Iterator[str]:
+def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
     body = _body(o, text, [], True, None if kind(o) == "responses" else 0.4)
     try:
         r = _open(o, body, True)
@@ -147,7 +150,7 @@ def stream(o: dict, text: str, cancel) -> Iterator[str]:
         raise _http_error(e)
     except Exception as e:  # noqa: BLE001
         raise EngineError(f"连不上接口：{e}")
-    pieces = _responses_pieces(r, cancel) if kind(o) == "responses" else _chat_pieces(r, cancel)
+    pieces = _responses_pieces(r, cancel, meter) if kind(o) == "responses" else _chat_pieces(r, cancel, meter)
     yield from _strip_think(pieces)
 
 
@@ -170,16 +173,20 @@ def _events(r, cancel) -> Iterator[dict | None]:
                 continue
 
 
-def _chat_pieces(r, cancel) -> Iterator[str]:
+def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
     for ev in _events(r, cancel):
         if ev is None:
             return
+        if ev.get("usage") and meter is not None:  # 开了 include_usage 时最后一块只有 usage、choices 为空
+            meter.add(**usage.from_openai(ev))
         yield ((ev.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
 
 
-def _responses_pieces(r, cancel) -> Iterator[str]:
+def _responses_pieces(r, cancel, meter=None) -> Iterator[str]:
     for ev in _events(r, cancel):
         t = (ev or {}).get("type", "")
+        if t == "response.completed" and meter is not None:
+            meter.add(**usage.from_openai(ev.get("response") or {}))
         if ev is None or t == "response.completed":
             return
         if t == "response.output_text.delta":

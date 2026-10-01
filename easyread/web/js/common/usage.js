@@ -29,6 +29,15 @@ window.PR = window.PR || {};
     return "已用 " + tokens(u.input + u.output) + " token" + (five && five.used != null ? " · 5 小时额度用到 " + pct(five.used) : "");
   };
 
+  /* 问 AI：整个对话加起来，带上最近一次回答时的订阅额度。“这个对话共 3.2 万 token · 5 小时额度用到 25%” */
+  PR.usageThread = function (msgs) {
+    const used = (msgs || []).map((m) => m.usage).filter((u) => u && u.calls);
+    if (!used.length) return "";
+    const sum = used.reduce((a, u) => a + u.input + u.output, 0);
+    const five = used[used.length - 1].limits && used[used.length - 1].limits.five_hour;
+    return "这个对话共 " + tokens(sum) + " token" + (five && five.used != null ? " · 5 小时额度用到 " + pct(five.used) : "");
+  };
+
   /* 完整：论文详情里用 */
   PR.usageLong = function (u, total) {
     if (!u || !u.calls) return "";

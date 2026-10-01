@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, usage
 from .log import log, setup as setup_log, tail
 from .jobs import Jobs
 from .library import Library
@@ -101,6 +101,7 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         cancel = threading.Event()
         pieces: list[str] = []
+        meter = usage.Meter(ecfg["engine"])
 
         def send(obj):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -111,15 +112,15 @@ class Handler(BaseHTTPRequestHandler):
                 chat_models.remember(m.get("model", ""), actual)
                 if m.get("engine") == "claude":
                     send({"model": chat_models.label(m)})
-            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen):
+            for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter):
                 pieces.append(piece)
                 send({"t": piece})
-            msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model)
-            send({"done": True, "id": msg["id"]})
+            msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot())
+            send({"done": True, "id": msg["id"], "usage": msg.get("usage")})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
             if pieces:
-                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n（已停止）", m["id"], model)
+                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n（已停止）", m["id"], model, meter.snapshot())
         except engines.Cancelled:
             pass
         except Exception as e:  # noqa: BLE001

@@ -114,7 +114,8 @@
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
-      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + "复制</button>" + (PR.canChat() ? '<button data-c="pin" title="作为 AI 讨论放到这段旁边">' + PR.icon("note", "sm") + "放到页边</button>" : "") + "</div>" : "") + "</div>";
+      (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + "复制</button>" + (PR.canChat() ? '<button data-c="pin" title="作为 AI 讨论放到这段旁边">' + PR.icon("note", "sm") + "放到页边</button>" : "") +
+        (m.usage && m.usage.calls ? '<span class="cm-usage" title="输入 ' + PR.fmtTokens(m.usage.input) + "（缓存命中 " + PR.fmtTokens(m.usage.cached) + "），输出 " + PR.fmtTokens(m.usage.output) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
     const counts = markCounts();
@@ -138,7 +139,7 @@
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="问点什么…">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="换模型">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + menu +
-      '<span class="grow"></span>' + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
+      '<span class="grow"></span>' + (PR.usageThread(thread() && thread().messages) ? '<span class="ch-usage">' + PR.esc(PR.usageThread(thread().messages)) + "</span>" : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="停止">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="发送（Enter）；换行用 Shift+Enter">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
   }
   function render() {
@@ -200,7 +201,7 @@
           if (ev.thread && !t.id) { t.id = ev.thread; st.cur = ev.thread; }
           if (ev.model) msg.model = ev.model;
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
-          if (ev.done) msg.id = ev.id;
+          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; }
           if (ev.error) msg.error = ev.error;
         }
       }

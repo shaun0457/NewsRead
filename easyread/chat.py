@@ -15,7 +15,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import engines, netcheck, openai_api
+from . import engines, netcheck, openai_api, usage
 from .prompts import _block_text
 from .store import Workspace
 
@@ -138,24 +138,24 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
 
 
 # ---------- 流式输出 ----------
-def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None) -> Iterator[str]:
-    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。"""
+def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None) -> Iterator[str]:
+    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。"""
     e = ecfg.get("engine")
     bad = netcheck.problem(ecfg)
     if bad:
         raise engines.EngineError(bad)
     try:
         if e == "claude":
-            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model)
+            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
         elif e == "openai":
-            yield from openai_api.stream(ecfg["openai"], text, cancel)
+            yield from openai_api.stream(ecfg["openai"], text, cancel, meter)
         else:  # codex 没有逐字输出，整段给
-            yield engines.run(ecfg, text, cwd, None, cancel)
+            yield engines.run(ecfg, text, cwd, None, cancel, meter)
     except engines.EngineError as err:
         raise engines.EngineError(netcheck.explain(ecfg, str(err))) from None
 
 
-def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None) -> Iterator[str]:
+def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError("找不到 Claude Code 命令（先装好并登录 Claude Code）")
@@ -169,6 +169,7 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None) -> Iter
     killer = threading.Thread(target=lambda: (cancel.wait(), proc.poll() is None and proc.kill()), daemon=True)
     killer.start()
     got = False
+    rate = None
     try:
         for line in proc.stdout:
             if cancel.is_set():
@@ -184,7 +185,11 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None) -> Iter
                 if d.get("type") == "text_delta" and d.get("text"):
                     got = True
                     yield d["text"]
+            elif ev.get("type") == "rate_limit_event":
+                rate = ev
             elif ev.get("type") == "result":
+                if meter is not None:
+                    meter.add(**usage.from_claude(ev, rate))
                 if ev.get("is_error"):
                     raise engines.EngineError("Claude Code 出错：" + str(ev.get("result") or ev.get("subtype")))
                 if not got and ev.get("result"):
