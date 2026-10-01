@@ -888,7 +888,7 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
   <button class="btn" data-act="pages" title="原文页，跟随阅读位置（O）"></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
-  <button class="btn" data-act="settings" title="字号、版心、主题（=、- 调字号）">Aa</button>
+  <button class="btn" data-act="settings" title="字号、版心、字体（=、- 调字号）">Aa</button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
 
@@ -1417,7 +1417,7 @@ window.PR = window.PR || {};
 })(window.PR);
 </script>
 <script>/* 顶栏的深色 / 浅色切换按钮（文献库页、阅读页都有）。点一下在浅色和深色之间切；
-   “跟随系统”还在设置里和阅读页的 Aa 面板里选。 */
+   “跟随系统”在设置 → 界面主题里选。 */
 window.PR = window.PR || {};
 (function (PR) {
   "use strict";
@@ -2872,7 +2872,6 @@ window.PR = window.PR || {};
       slider("fs", "字号", 13, 28, 1, " px") + slider("measure", "版心", 26, 50, 1, " 字") + slider("lh", "行距", 1.5, 2.4, 0.05, "") +
       '<div class="row"><span>显示</span>' + segHtml("mode", [["zh", "译文"], ["bi", "对照"]]) + "</div>" +
       '<div class="row"><span>字体</span>' + segHtml("font", [["serif", "宋体"], ["sans", "黑体"]]) + "</div>" +
-      '<div class="row"><span>主题</span>' + segHtml("theme", [["auto", "跟随"], ["light", "浅"], ["dark", "深"]]) + "</div>" +
       '<div class="row"><span>边注</span>' + segHtml("margin", [[true, "显示"], [false, "收起"]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>恢复默认</button><span class="grow"></span>' +
       (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">更多设置…</button>' : "") + "</div>";
