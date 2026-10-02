@@ -71,6 +71,20 @@ class LangsTest(unittest.TestCase):
             translate.translate_pages(self.ws, cfg, [1], threading.Event(), lambda *a: None)
         self.assertEqual(self.ws.load("paper")["meta"]["target"], "ko")
 
+    def test_import_remembers_target(self):
+        langs.remember(self.ws, "fr")
+        self.assertEqual(self.ws.load("paper")["meta"]["target"], "fr")
+        langs.remember(self.ws, "de")  # 已经记过的不改
+        self.assertEqual(self.ws.load("paper")["meta"]["target"], "fr")
+        other = make_ws(1)
+        paper = other.load("paper")
+        paper["blocks"] = [{"id": "p1-1", "type": "para", "page": 1, "en": "x", "zh": "旧译文"}]
+        write_json_atomic(other.root / "paper.json", paper)
+        langs.remember(other, "ja")  # 已经有中文译文的旧论文不改
+        langs.remember(self.ws, "xx")
+        self.assertNotIn("target", other.load("paper")["meta"])
+        shutil.rmtree(other.root, ignore_errors=True)
+
     def test_settings_rejects_unknown_target(self):
         with mock.patch.object(settings_api.config, "save", lambda patch: patch), mock.patch.object(settings_api.config, "public", lambda c: c):
             self.assertEqual(settings_api.save_config({"target": "xx"})["config"]["target"], "zh")

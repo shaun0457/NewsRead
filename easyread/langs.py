@@ -33,6 +33,18 @@ def of_paper(meta: dict | None, cfg: dict | None = None) -> str:
     return valid(cfg.get("target"))
 
 
+def remember(ws, code: str | None) -> None:
+    """导入时选了译文语言：记到这篇论文上。已经有译文的论文不改，免得一篇里混两种语言。"""
+    if code not in TARGETS:
+        return
+
+    def apply(paper):
+        meta = paper.setdefault("meta", {})
+        if not meta.get("target") and not any(b.get("zh") or b.get("caption_zh") for b in paper.get("blocks", [])):
+            meta["target"] = code
+    ws.update("paper", apply)
+
+
 def prompt_name(code: str) -> str:
     return TARGETS[valid(code)][1]
 

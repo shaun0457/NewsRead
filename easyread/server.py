@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -140,13 +140,15 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError(tr("文件太大"))
         return self.rfile.read(n) if n else b""
 
-    def _import_result(self, ws, fresh, translate_after, scope, read=False, model=""):
+    def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target=""):
         # A failed first preparation still leaves a library entry. Re-importing
         # that PDF must retry preparation instead of silently skipping it.
         paper = ws.load("paper") or {}
         active = (ws.load("job") or {}).get("state") in ("queued", "running")
         queued = fresh or (not paper.get("meta", {}).get("pages") and not active)
         if queued:
+            if translate_after and not read:
+                langs.remember(ws, target)  # 导入框里选的译文语言
             self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model)
         return self._json(200, {"id": ws.id, "new": fresh, "queued": queued})
 
@@ -285,13 +287,13 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
             return self._import_result(ws, fresh, q.get("translate", "1") == "1", q.get("scope"),
-                                       read=q.get("read") == "1", model=q.get("model", ""))
+                                       read=q.get("read") == "1", model=q.get("model", ""), target=q.get("target", ""))
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400
             ws, fresh = lib.create_from_pdf(data, name, meta)
             return self._import_result(ws, fresh, bool(body.get("translate", True)), body.get("scope"),
-                                       read=bool(body.get("read")), model=str(body.get("model") or ""))
+                                       read=bool(body.get("read")), model=str(body.get("model") or ""), target=str(body.get("target") or ""))
         if path in settings_api.POST:  # 设置页：保存配置、模型名单、试一下、取模型列表
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":
