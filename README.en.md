@@ -17,7 +17,7 @@ Runs locally. You choose the model service and whether to keep your library in a
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
 </p>
 
-<p align="center"><img src="docs/images/en/reading.png" width="860" alt="English paper reading with highlights and notes"></p>
+<p align="center"><img src="docs/images/en/hero.png" width="860" alt="English paper text and equations alongside the original PDF"></p>
 
 > **Choose your reading language.** Translate English papers into **Chinese, Japanese, Korean, Spanish, French or German**. Choose a language when importing, or set your default in Settings → Reading → Translate papers into (initially Chinese). The interface supports **English and Chinese**, independently of the translation language. You can also choose "Read the English original" on import and use the layout, highlights, notes and Ask AI without translating.
 

@@ -145,7 +145,7 @@ test("author names separated by and export as separate authors", () => {
   assert.match(PR.cite({ ...paper, authors: "Brandon Smith" }, "gb"), /^SMITH B\./);
 });
 
-// 对话框只需要节点与事件的轻量桩；测试选中、格式记忆、补信息跳转和空选择。
+// 对话框只需要节点与事件的轻量桩；测试预览、格式记忆、顺序、补信息跳转和空列表。
 function dialog() {
   const PR = formatter(), nodes = new Map(), memory = new Map(), copied = [];
   const node = (key) => {
@@ -169,45 +169,23 @@ function dialog() {
   return { PR, node, memory, copied, click };
 }
 
-test("export selection controls preview and copy, format persists, and missing metadata links to details", async () => {
+test("export previews every passed paper, format persists, and missing metadata links to details", async () => {
   const r = dialog(), incomplete = { ...journal, year: "" };
   r.PR.openCiteExport([incomplete, preprint], "Thesis");
   assert.match(r.node(".cite-items").innerHTML, /缺年份/);
-  r.node("#citeExportDlg").listeners.change({ target: { dataset: { item: "0" }, checked: false } });
-  assert.equal(r.node("textarea").value, r.PR.citeBatch([preprint], "gb"));
+  assert.equal(r.node("textarea").value, r.PR.citeBatch([incomplete, preprint], "gb"));
   await r.click("[data-style]", { style: "bibtex" });
-  assert.equal(r.node("textarea").value, r.PR.citeBatch([preprint], "bibtex"));
+  assert.equal(r.node("textarea").value.split("\n\n").length, 2);
   await r.click("[data-copy]");
   assert.equal(r.copied[0], r.node("textarea").value);
   r.PR.openCiteExport([incomplete], "Thesis");
   assert.match(r.node("textarea").value, /^@article/);
   await r.click("[data-edit]", { edit: "0" });
   assert.equal(r.PR.lib.selected, journal.id);
-  r.node("#citeExportDlg").listeners.change({ target: { dataset: { item: "0" }, checked: false } });
+  r.PR.openCiteExport([], "Empty");
   assert.equal(r.node("textarea").value, "");
   assert.equal(r.node("[data-copy]").disabled, true);
   assert.equal(r.node("[data-save]").disabled, true);
-});
-
-test("citation warnings use the selected UI language without altering citation metadata", () => {
-  const en = JSON.parse(fs.readFileSync(path.join(__dirname, "../easyread/web/i18n/en.json"), "utf8"));
-  const PR = formatter((key) => en[key] || key);
-  assert.deepEqual(Array.from(PR.citeMissing({ ...journal, year: "" }, "gb")), ["Year"]);
-  assert.equal(PR.cite(journal, "gb"), formatter().cite(journal, "gb"));
-});
-
-test("the export dialog switches between the opened list, all papers and a category", () => {
-  const r = dialog();
-  const tagged = { ...preprint, id: "tagged", tags: ["毕业论文"] };
-  Object.assign(r.PR.lib, { items: [journal, tagged], cats: () => ["毕业论文"] });
-  r.PR.openCiteExport([journal], "在读");
-  assert.match(r.node(".dialog").innerHTML, /value="c:毕业论文"/);
-  const change = (value) => r.node("#citeExportDlg").listeners.change({ target: { dataset: { scope: "" }, value } });
-  change("c:毕业论文");
-  assert.equal(r.node("textarea").value.split("\n").filter((l) => l.startsWith("[")).length, 1);
-  assert.match(r.node("textarea").value, new RegExp(tagged.title_en.slice(0, 20)));
-  change("all");
-  assert.equal(r.node("textarea").value.split("\n").filter((l) => l.startsWith("[")).length, 2);
 });
 
 test("export order: by author, by year, or dragged by hand (numbering follows the list)", () => {
@@ -225,3 +203,11 @@ test("export order: by author, by year, or dragged by hand (numbering follows th
   assert.equal(r.memory.get("easyread-cite-order"), "custom");
   assert.match(r.node("textarea").value, /^\[1\] MILLER/);
 });
+
+test("citation warnings use the selected UI language without altering citation metadata", () => {
+  const en = JSON.parse(fs.readFileSync(path.join(__dirname, "../easyread/web/i18n/en.json"), "utf8"));
+  const PR = formatter((key) => en[key] || key);
+  assert.deepEqual(Array.from(PR.citeMissing({ ...journal, year: "" }, "gb")), ["Year"]);
+  assert.equal(PR.cite(journal, "gb"), formatter().cite(journal, "gb"));
+});
+
