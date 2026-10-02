@@ -7,14 +7,23 @@ const { test } = require("node:test");
 function reader(mode = "server") {
   const nodes = new Map();
   const events = new Map();
+  const documentEvents = new Map();
+  const scrolls = [];
   function node(selector) {
+    if ([".pv-page", ".pv-page img", ".pv-hl"].includes(selector) && nodes.get(".pv-scroll")?.children.length) {
+      const label = nodes.get(".pv-label")?.textContent || "1";
+      const n = Number(label.match(/\d+/)[0]) - 1;
+      const page = nodes.get(".pv-scroll").children[n];
+      return selector === ".pv-page" ? page : page.children[selector === ".pv-hl" ? 1 : 0];
+    }
     if (!nodes.has(selector)) nodes.set(selector, {
       classList: { toggle() {}, add() {}, remove() {}, contains: () => false },
-      listeners: {}, children: [], style: {}, checked: true, complete: true, clientWidth: 480, clientHeight: 480, offsetHeight: 1000,
+      dataset: {}, scrollTop: 0, listeners: {}, children: [], style: {}, checked: true, complete: true, clientWidth: 480, clientHeight: 480, offsetHeight: 1000,
       addEventListener(name, fn) { this.listeners[name] = fn; },
       replaceChildren(...children) { this.children = children; },
       scrollTo(value) { this.scroll = value; },
-      getBoundingClientRect() { return { left: 0, top: 0, width: 1000, height: 1000 }; },
+      getBoundingClientRect() { const top = this.dataset.n ? 18 + (Number(this.dataset.n) - 1) * 1018 - node(".pv-scroll").scrollTop : 0;
+        return { left: 0, top, bottom: top + 1000, width: 1000, height: 1000 }; },
       getAttribute(name) { return this[name] || null; }, setAttribute(name, value) { this[name] = value; },
     });
     return nodes.get(selector);
@@ -31,10 +40,10 @@ function reader(mode = "server") {
     fitWide() {}, renderMargin() {},
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/pageview.js"), "utf8"), {
-    window: { PR }, document: { body: node("body"), getElementById: () => null, createElement: () => ({ style: {} }) },
+    window: { PR, scrollY: 0, innerHeight: 800, scrollTo: value => scrolls.push(value) }, document: { body: node("body"), addEventListener: (name, fn) => documentEvents.set(name, fn), getElementById: id => nodes.get(id) || null, createElement: () => node("created-" + nodes.size) },
     devicePixelRatio: 1, Image: class {}, setTimeout: () => 1, clearTimeout() {},
   });
-  return { PR, node, events, read: id => { reading = id; }, select: id => { selected = id; } };
+  return { PR, node, events, documentEvents, scrolls, read: id => { reading = id; }, select: id => { selected = id; } };
 }
 
 test("opening original pages at the paper title loads the first image", () => {
@@ -85,7 +94,7 @@ test("clicks hit either column fragment but leave the gutter and unrelated text 
   const page = r.node(".pv-page");
   for (const [x, y, expected] of [[0.20, 0.75, "b-first"], [0.70, 0.20, "b-first"], [0.50, 0.70, null], [0.70, 0.75, null]]) {
     r.PR.jumped = null;
-    page.listeners.click({ currentTarget: page, clientX: x * 1000, clientY: y * 1000 });
+    page.listeners.click({ currentTarget: page, clientX: x * 1000, clientY: page.getBoundingClientRect().top + y * 1000 });
     assert.equal(r.PR.jumped, expected);
   }
 });
@@ -99,3 +108,25 @@ test("legacy single boxes work and layout refresh replaces the visible regions",
   r.events.get("remote")(["layout"]);
   assert.equal(r.node(".pv-hl").children.length, 2);
 });
+
+
+test("continuous pages load nearby images and scrollbar updates the page without follow stealing it", () => {
+  const r = reader();
+  r.PR.state.paper.meta.pages = Array.from({ length: 27 }, (_, i) => ({ img: `pages/${i + 1}.webp`, w: 612, h: 792 }));
+  r.PR.togglePages(true);
+  const scroller = r.node(".pv-scroll");
+  assert.equal(scroller.children.length, 27);
+  assert.equal(scroller.children.filter(p => p.children[0].src).length, 3);
+  scroller.listeners.pointerdown();
+  scroller.scrollTop = 6 * 1018;
+  scroller.listeners.scroll();
+  assert.match(r.node(".pv-label").textContent, /7 \/ 27/);
+  assert.equal(r.node('[data-pv="pdf"]').href, "/p/paper/source.pdf#page=7");
+  assert.ok(scroller.children[6].children[0].src);
+  r.read("second"); r.PR.syncPage(false);
+  assert.match(r.node(".pv-label").textContent, /7 \/ 27/);
+  assert.equal(r.PR.jumped, undefined);
+  r.PR.pageStep(1);
+  assert.equal(scroller.scroll.top, 7 * 1018);
+});
+
