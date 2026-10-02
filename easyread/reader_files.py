@@ -1,12 +1,11 @@
 """阅读页文件准备：定位与小图预热，参与文献库迁移的在途操作计数。"""
 from __future__ import annotations
 
-import os
 import sys
 import threading
 from pathlib import Path
 
-from . import pdfwork
+from . import foreground, pdfwork
 from .log import log
 
 _warming: set[str] = set()
@@ -50,7 +49,7 @@ def warm(root: Path, gate=None) -> None:
 def reveal(path: Path):
     import subprocess
     if sys.platform.startswith("win"):
-        os.startfile(str(path))  # noqa: S606
+        foreground.open_folder(str(path))
     elif sys.platform == "darwin":
         subprocess.Popen(["open", str(path)])
     else:

@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 
+from . import foreground
+
 # Windows 用和“打开文件”同一种资源管理器窗口（IFileOpenDialog + FOS_PICKFOLDERS），不是老式的树状 FolderBrowserDialog。
 # 只用 ASCII：PowerShell 5.1 会按 GBK 读脚本。标题、起始目录从环境变量传进去。
 _PS = r"""
@@ -76,6 +78,7 @@ def pick(title: str, start: str = "") -> str | None:
         cmd = ["kdialog", "--getexistingdirectory", os.path.expanduser("~"), "--title", title]
     else:
         return None
+    foreground.allow()
     try:
         r = subprocess.run(cmd, capture_output=True, env=env, timeout=600,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
