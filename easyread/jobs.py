@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, translate, usage
+from . import chat_models, config, langs, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -47,16 +47,21 @@ class Jobs:
         ws.update("job", apply)
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
-                read: bool = False, model: str = ""):
+                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。
         read：只读原文，用模型把页整理成段落、公式、表格，不翻译；之后再翻译时就地补中文。
-        model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。"""
+        model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。
+        confirmed：只接受真正的 True；target：续跑时保留原任务的译文语言。
+        cap_check：pages 来自系统计划而非用户指定，仍检查页数上限并跳过已完成页。"""
+        target = langs.valid(target) if target else langs.of_paper((ws.load("paper") or {}).get("meta"))
         def apply(job):
             if job.get("state") in ("queued", "running"):
                 raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
             job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
                        state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
+                       confirmed=confirmed is True, target=target, cap_check=cap_check is True,
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
+            job.pop("page_cap", None)
         with self.lock:
             ws.update("job", apply)
             self.bulk.put(ws.id)
@@ -67,8 +72,11 @@ class Jobs:
             if ev:
                 ev.set()
             ws = self.lib.ws(pid)
-            if ws and (ws.load("job") or {}).get("state") == "queued":
+            job = (ws.load("job") or {}) if ws else {}
+            if job.get("state") == "queued":
                 self._write(ws, state="cancelled", message=tr("已取消"))
+            elif job.get("state") == "confirm":
+                self._write(ws, state="done", message=tr("已导入，未整理") if job.get("read") else tr("已导入，未翻译"))
 
     def _resume(self):
         for ws in self.lib.all():
@@ -107,6 +115,8 @@ class Jobs:
 
     def _run_bulk(self, ws: Workspace, job: dict, cancel: threading.Event):
         cfg = engine_for(config.load(), job.get("model"))
+        if job.get("target"):
+            cfg = {**cfg, "target": langs.valid(job["target"])}
         if cancel.is_set():
             raise Cancelled()
         if not ws.load("paper").get("meta", {}).get("pages"):
@@ -123,10 +133,24 @@ class Jobs:
         tl = paper.get("translation", {})
         # 只读原文：跳过已经整理过（或已经译过）的页；翻译：跳过已经有译文的页，只有原文的页会补译文
         skip = set(tl.get("done_pages", [])) if read else set(tl.get("done_pages", [])) - set(tl.get("en_pages", []))
-        wanted = job.get("pages") or translate.scope_pages(ws, job.get("scope")) or all_pages
-        pages = wanted if job.get("pages") else [n for n in wanted if n not in skip]
+        planned = job.get("pages") is not None
+        wanted = job["pages"] if planned else translate.scope_pages(ws, job.get("scope")) or all_pages
+        pages = wanted if planned and not job.get("cap_check") else [n for n in wanted if n not in skip]
         if not pages:
             self._write(ws, state="done", message=tr("选定范围已整理完") if read else tr("选定范围已译完"))
+            return
+
+        cap = cfg.get("page_cap", 60)
+        if type(cap) is not int or cap < 0:
+            cap = 60  # 手改配置写错时仍按默认上限保护，不把错误值当作不限。
+        check_cap = job.get("cap_check") or (not planned and (job.get("scope") or "all") in ("all", "body"))
+        if cap > 0 and len(pages) > cap and check_cap and job.get("confirmed") is not True:
+            with self.lock:
+                if cancel.is_set():
+                    raise Cancelled()
+                self._write(ws, state="confirm", total=len(pages), page_cap=cap, pages=pages, cap_check=True,
+                            message=tr("这篇要整理 {n} 页，超过了你设的 {cap} 页，确认后再开始", n=len(pages), cap=cap) if read
+                            else tr("这篇要译 {n} 页，超过了你设的 {cap} 页，确认后再开始", n=len(pages), cap=cap))
             return
 
         meter = usage.Meter(cfg.get("engine") or "")

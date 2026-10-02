@@ -86,8 +86,8 @@
         const m = S.paper.meta || {};
         PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
       } else if (changed.includes("job")) {
-        const pend = PR.$(".pending-pages .pending");
-        if (pend) PR.rerenderKeepingPlace();
+        const pend = PR.$(".pending-pages .pending, .page-cap");
+        if (pend || (S.job || {}).state === "confirm") PR.rerenderKeepingPlace();
       }
       PR.applyMarks(); PR.renderMargin();
       if (PR.notesPanelOpen()) PR.renderNotesPanel();

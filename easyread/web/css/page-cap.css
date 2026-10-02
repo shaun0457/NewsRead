@@ -1,0 +1,5 @@
+.page-cap { margin: 14px 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.page-cap p { margin: 7px 0 10px; }
+.page-cap-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.translation-limits { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) { .translation-limits { grid-template-columns: 1fr; } }

@@ -4,7 +4,7 @@
 <h1 align="center">EasyRead</h1>
 <p align="center"><b>Read English papers as comfortable, well-typeset Chinese.</b><br>
 Drop in a PDF and it gets translated page by page in the background. Equations and tables keep their original layout, the source is always one click away, and you can highlight, take notes and ask AI as you read.<br>
-Runs locally. Your papers and notes never leave your computer.</p>
+Runs locally. You choose the model service and whether to keep your library in a synced folder.</p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
@@ -56,10 +56,25 @@ Settings auto-detect what's installed; "Test one sentence" tells you right away 
 **Easiest: download the installer** (no Python needed). From [Releases](https://github.com/Edwardxlai/easyread/releases/latest):
 
 - **Windows**: `EasyRead-Setup-x.x.x.exe`. It is not code-signed; if SmartScreen says "Windows protected your PC", click "More info → Run anyway".
-- **macOS** (Apple silicon): `EasyRead-x.x.x-arm64.dmg`, drag EasyRead into Applications. The first launch says the developer cannot be verified: open System Settings → Privacy & Security and click "Open Anyway"; after that it opens normally.
+- **macOS** (Apple silicon): `EasyRead-x.x.x-arm64.dmg`, drag EasyRead into Applications. If macOS blocks the first launch, follow the matching instructions below.
 - **Linux**: `EasyRead-x.x.x.AppImage`, `chmod +x` and run it.
 
 Papers and settings live in the `EasyRead` folder in your home directory (same place as the pip install), so reinstalling keeps them.
+
+### First launch on macOS
+
+1. **“Developer cannot be verified” or “Apple cannot check it for malicious software”**: click **Done** (not **Move to Trash**), open **System Settings → Privacy & Security**, scroll down to the security message, and click **Open Anyway**. Click **Open** in the confirmation dialog, then enter your login password or use Touch ID when prompted.
+2. **“EasyRead is damaged and can’t be opened”**: download it again from the [official EasyRead Releases](https://github.com/Edwardxlai/easyread/releases/latest) and drag the app into Applications. This warning can also mean the file is damaged or has been modified; it does not identify the cause by itself. Only after confirming that your copy came from that official repository and that you trust it, run the following in **Terminal**, then open EasyRead again. This removes the quarantine attribute; it does not repair a damaged file.
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/EasyRead.app
+   ```
+
+3. **Why verification may fail**: the macOS package currently has an ad-hoc signature, without an Apple developer certificate or notarization, so macOS may block it. The code is open source; you can also [run from source](#run-from-source).
+
+If macOS says the app **“will damage your computer”**, or explicitly detects malware and asks you to move it to the Trash, stop the installation and do not use the steps above to bypass the warning. Follow [Apple’s official guidance](https://support.apple.com/en-us/102445).
+
+<a id="run-from-source"></a>
 
 **Or run from source** (needs Python 3.10+): download the latest zip from [Releases](https://github.com/Edwardxlai/easyread/releases/latest) and unzip it (or `git clone` this repo).
 
@@ -84,8 +99,8 @@ Your browser opens `http://127.0.0.1:8765`. The server only listens on localhost
 
 ## Usage
 
-1. Open Settings (top right) → Models: add the models you want and choose 设为翻译 (use for translation) on one card. Models for translation and Ask AI are managed on the same page.
-2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12. You can also pick which model to use for this import, or choose 读英文原文 (read the English original) to only lay out the paper without translating; click 翻译成中文 (translate to Chinese) any time later.
+1. Open Settings (top right) → Model: add the models you want and choose "Use for translation" on one card. Models for translation and Ask AI are managed on the same page.
+2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12. You can also pick the model and target language for this import, or choose "Read the English original" to lay out the paper without translating; use "Translate to…" any time later. Whole-paper jobs above 60 pages ask for confirmation by default; change the limit in Settings → Model.
 3. Translation runs in the background page by page. Translated parts are readable immediately; untranslated pages show the original.
 4. Click a paragraph for its action bar; select text to highlight, note or ask. Press `?` for all shortcuts.
 
@@ -107,13 +122,13 @@ See `easyread --help` for all commands and [docs/data-format.md](docs/data-forma
 
 **Does it cost anything?** EasyRead is free and open source. Translation uses your own model: Claude Code / Codex use your existing subscription, local and free-tier models cost nothing, paid APIs bill per use.
 
-**Where is my data? Is anything uploaded?** Everything stays on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper with the original PDF, page images and a few JSON files. Only the text being translated or asked about is sent to the model you chose.
+**Where is my data? Is anything uploaded?** By default, files stay on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper holds the original PDF, page images and JSON files. Settings → Cloud library can move the library to your synced folder; your cloud drive client then handles uploads and syncing. Translation and AI questions send the relevant content to the model you chose.
 
 **Can I read offline or share a paper?** Yes. Right-click a paper → "Export offline HTML" (or `easyread export ID`) for a single-file web page. The recipient doesn't need EasyRead: double-click to open it in a browser with the translation, equations, page images, your highlights and notes, bilingual view and the original-page panel all working. Page images are embedded, so the file is not small (about 10 MB for a 27-page paper). New highlights made in the offline copy stay in that browser; to bring them back, use "Export my changes" under About in the left drawer and run `easyread merge ID --from export.json`.
 
 To publish on a site such as GitHub Pages, use `easyread demo ID --out DIR`: images are saved as separate files and loaded on demand, and AI chats are included (read-only).
 
-**Can it translate into languages other than Chinese?** Not yet. Prompts, typography and the UI are all tuned for Chinese. Issues and PRs are welcome.
+**Can it translate into languages other than Chinese?** Yes: Chinese, Japanese, Korean, Spanish, French and German are available under Settings → Reading → Translate papers into, and in the import dialog. You can also read the English original. Interface language is independent: choose Chinese or English under Settings → Reading → Language.
 
 ## Development
 

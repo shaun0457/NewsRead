@@ -163,6 +163,7 @@
         { label: PR.t("下移"), disabled: i >= L.cats().length - 1, fn: () => L.moveCat(c, 1) },
         { label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden("c:" + c, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: PR.esc(c) })); } },
         "-",
+        { label: PR.t("导出这个分类的引用"), icon: "copy", fn: () => PR.openCiteExport(L.items.filter((paper) => (paper.tags || []).includes(c)), c) },
         { label: PR.t("删除分类"), icon: "trash", fn: () => L.deleteCat(c) },
       ]);
     }

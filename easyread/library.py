@@ -64,7 +64,7 @@ class Library:
             "open_questions": len([n for n in notes if n.get("kind") == "question" and n["id"] not in replied]),
             "discussions": len(disc.get("entries", [])),
             "has_paper_note": bool((reader.get("paper_note") or {}).get("body")),
-            "job": {k: job.get(k) for k in ("type", "state", "message", "done", "total", "updated", "error", "failed", "scope", "usage", "usage_total")} if job else None,
+            "job": {k: job.get(k) for k in ("type", "state", "message", "done", "total", "updated", "error", "failed", "scope", "read", "model", "target", "pages", "cap_check", "page_cap", "usage", "usage_total")} if job else None,
             "thumb": f"/p/{ws.id}/pages/page-001.webp" if (ws.root / "pages" / "page-001.webp").exists() else "",
         }
 

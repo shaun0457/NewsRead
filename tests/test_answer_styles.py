@@ -1,4 +1,5 @@
 """回答方式从 HTTP 请求、提示词、流式输出一直保留到对话和页边笔记。"""
+import contextlib
 import json
 import tempfile
 import threading
@@ -124,7 +125,8 @@ class AnswerStyleTest(unittest.TestCase):
         ws = self.ws
 
         class TestHandler(Handler):
-            app = types.SimpleNamespace(token="test-token", lib=types.SimpleNamespace(ws=lambda pid: ws))
+            app = types.SimpleNamespace(token="test-token", lib=types.SimpleNamespace(ws=lambda pid: ws),
+                                        location=types.SimpleNamespace(status="idle", request=lambda *a: contextlib.nullcontext()))
 
             def log_message(self, *args):
                 pass

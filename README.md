@@ -60,10 +60,25 @@
 **最省事：下载安装包**（不用装 Python）。在 [Releases](https://github.com/Edwardxlai/easyread/releases/latest) 下载：
 
 - **Windows**：`EasyRead-Setup-x.x.x.exe`，双击安装。没有代码签名，如果弹出“Windows 已保护你的电脑”，点“更多信息 → 仍要运行”。
-- **macOS**（Apple 芯片）：`EasyRead-x.x.x-arm64.dmg`，把 EasyRead 拖进“应用程序”。第一次打开会提示“无法验证开发者”：去“系统设置 → 隐私与安全性”，在下面点“仍要打开”，之后就正常了。
+- **macOS**（Apple 芯片）：`EasyRead-x.x.x-arm64.dmg`，把 EasyRead 拖进“应用程序”；第一次打开被系统拦截时，按下面对应的提示处理
 - **Linux**：`EasyRead-x.x.x.AppImage`，`chmod +x` 后运行。
 
 安装版的论文和设置存在用户目录下的 `EasyRead` 文件夹（和 pip 安装版同一个位置），卸载重装不会丢。
+
+### macOS 首次打开
+
+1. **提示“无法验证开发者”或“Apple 无法验证是否包含恶意软件”**：先点“完成”（不要点“移到废纸篓”），打开“系统设置 → 隐私与安全性”，向下找到安全性提示，点“仍要打开”；在确认窗口点“打开”，按提示输入登录密码或使用 Touch ID
+2. **提示“已损坏，无法打开”**：先从 [EasyRead 官方 Releases](https://github.com/Edwardxlai/easyread/releases/latest) 重新下载，并把应用拖进“应用程序”；文件也可能确实损坏或被改动，不能只凭这条提示判断原因。只有确认文件来自这个官方仓库、并信任该文件后，才在“终端”执行下面的命令，再重新打开 EasyRead；这条命令移除隔离属性，不会修复损坏的文件
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/EasyRead.app
+   ```
+
+3. **为什么会出现验证提示**：目前的 macOS 安装包只做了临时签名，没有 Apple 开发者证书，也没有经过公证，因此可能被系统拦截；代码完全开源，也可以[从源码运行](#run-from-source)
+
+如果系统提示“将损坏你的电脑”，或明确检测出恶意软件并要求移到废纸篓，请停止安装，不要用上面的步骤绕过；按 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 处理
+
+<a id="run-from-source"></a>
 
 **或者从源码运行**：需要 [Python 3.10+](https://www.python.org/downloads/)。
 

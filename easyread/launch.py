@@ -31,6 +31,8 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     except OSError:
         httpd = _Server(("127.0.0.1", 0), Handler)
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
+    app.shutdown = httpd.shutdown
+    app.location.marker.start()
     app.presence = Presence(app.jobs.busy, httpd.shutdown, exit_on_close)
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
@@ -43,6 +45,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     except KeyboardInterrupt:
         pass
     finally:
+        app.location.marker.close()
         httpd.server_close()
         if not config.temp_library() and (read_json(config.SERVER_INFO, {}) or {}).get("pid") == os.getpid():
             config.SERVER_INFO.unlink(missing_ok=True)  # 下次 easyread 命令不会去连一个已经关掉的服务

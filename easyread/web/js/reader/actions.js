@@ -115,6 +115,8 @@
 
   /* 段落里的按钮：页码、角标、过期提示 */
   document.addEventListener("click", (e) => {
+    const cap = e.target.closest("#paper [data-page-cap]");
+    if (cap) return PR.handlePageCap(cap, PR.pid, S.job, () => PR.poll());
     const t = e.target.closest("[data-t]");
     if (!t || !t.closest("#paper")) return;
     const host = t.closest(".blk");

@@ -30,6 +30,7 @@ DEFAULTS = {
     "target": "zh",              # 译文语言，见 langs.py
     "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数
+    "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
     "concurrency": 1,            # 同时翻译几批
     "claude": {"command": "claude", "model": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "extra_args": [], "timeout": 1200},

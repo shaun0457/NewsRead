@@ -35,6 +35,7 @@ function render(blocks) {
     blockKeys: (b) => b.type === "table" || b.type === "figure" ? [b.id + "#caption"] : [b.id],
     imageUrl: (rel) => rel,
     canAsk: () => false,
+    store: { mode: "file" },
     usageShort: () => "",
     emit() {},
     on() {},

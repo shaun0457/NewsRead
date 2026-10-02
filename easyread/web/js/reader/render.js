@@ -144,7 +144,7 @@
     const kicker = [m.arxiv, m.venue, m.date].filter(Boolean).map(PR.esc).join("　·　");
     const by = [m.authors, m.affiliation].filter(Boolean).map(PR.esc).join("　·　");
     const pages = (m.pages || []).length, done = (tr.done_pages || []).length, en = (tr.en_pages || []).length;
-    const toZh = en && PR.canAsk() && !jobRunning() ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName((S.paper.meta || {}).target || PR.target) }) + "</button>" : "";
+    const toZh = en && PR.canAsk() && !jobRunning() && (S.job || {}).state !== "confirm" ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName((S.paper.meta || {}).target || PR.target) }) + "</button>" : "";
     const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
@@ -182,7 +182,7 @@
     const job = S.job || {};
     const running = ["queued", "running"].includes(job.state);
     const nFailed = miss.filter((p) => failedOf()[p.n]).length;
-    const head = running ? '<span class="spin"></span> ' + PR.esc(job.message || PR.t("翻译中")) + (job.total ? PR.t("（{done}/{total} 页）", { done: job.done, total: job.total }) : "") + '<span class="hint">' + PR.t("译好的页会自动出现在这里") + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
+    const head = job.state === "confirm" ? PR.t("等待确认期间，仍可阅读原页。") : running ? '<span class="spin"></span> ' + PR.esc(job.message || PR.t("翻译中")) + (job.total ? PR.t("（{done}/{total} 页）", { done: job.done, total: job.total }) : "") + '<span class="hint">' + PR.t("译好的页会自动出现在这里") + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
       : reading() ? PR.t("下面 {n} 页还没整理，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没整理成功。", { n: nFailed }) : "") +
         (PR.canAsk() ? '<button class="btn sm line" data-t="read-rest">' + PR.t("整理剩下的页") + "</button>" : "")
       : PR.t("下面 {n} 页还没有译文，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没译成功。", { n: nFailed }) : "") +
@@ -192,7 +192,7 @@
 
   PR.renderPaper = function () {
     buildIndex();
-    let html = headHtml(), appendixSeen = false, lastPage = 0;
+    let html = headHtml() + (PR.store.mode === "server" ? PR.pageCapHtml(S.job) : ""), appendixSeen = false, lastPage = 0;
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const allPages = (S.paper.meta || {}).pages || [];
     for (const raw of S.paper.blocks || []) {

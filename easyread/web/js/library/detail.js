@@ -3,27 +3,6 @@
   "use strict";
   const L = PR.lib;
 
-  function citeKey(i) {
-    const last = (i.authors || "anon").split(",")[0].trim().split(/\s+/).pop().replace(/[^A-Za-z]/g, "").toLowerCase() || "anon";
-    const word = (i.title_en || "paper").split(/\s+/).find((w) => w.length > 3) || "paper";
-    return last + (i.year || "") + word.replace(/[^A-Za-z]/g, "").toLowerCase();
-  }
-  PR.cite = function (i, style) {
-    const authors = (i.authors || "").split(",").map((s) => s.trim()).filter(Boolean);
-    if (style === "bibtex") {
-      const arx = (i.arxiv || "").replace(/^arXiv:/i, "").split(/\s/)[0];
-      return "@article{" + citeKey(i) + ",\n  title = {" + i.title_en + "},\n  author = {" + authors.join(" and ") + "},\n  year = {" + (i.year || "") + "}" +
-        (arx ? ",\n  eprint = {" + arx + "},\n  archivePrefix = {arXiv}" : "") + (i.doi ? ",\n  doi = {" + i.doi + "}" : "") + (i.url ? ",\n  url = {" + i.url + "}" : "") + "\n}";
-    }
-    if (style === "apa") {
-      const apaNames = authors.slice(0, 20).map((a) => { const p = a.split(/\s+/); return p.length > 1 ? p.pop() + ", " + p.map((x) => x[0] + ".").join(" ") : a; });
-      const who = apaNames.length > 1 ? apaNames.slice(0, -1).join(", ") + ", & " + apaNames[apaNames.length - 1] : apaNames[0] || "";
-      return who + " (" + (i.year || "n.d.") + "). " + i.title_en + ". " + (i.venue || i.arxiv || "") + (i.url ? ". " + i.url : "");
-    }
-    // GB/T 7714 简式
-    const names = authors.slice(0, 3).map((a) => { const p = a.split(/\s+/); return p.length > 1 ? p.pop() + " " + p.map((x) => x[0]).join(" ") : a; });
-    return names.join(", ") + (authors.length > 3 ? ", et al" : "") + ". " + i.title_en + "[J/OL]. " + (i.venue || i.arxiv || "") + ", " + (i.year || "") + "." + (i.url ? " " + i.url : "");
-  };
   async function copy(text, what) {
     try { await navigator.clipboard.writeText(text); PR.toast(PR.t("已复制{what}", { what })); }
     catch (e) { PR.toast(PR.t("复制失败，请手动选中")); }
@@ -39,6 +18,7 @@
 
   function jobHtml(i) {
     const j = i.job || {};
+    if (j.state === "confirm") return PR.pageCapHtml(j);
     const running = ["queued", "running"].includes(j.state);
     const pct = j.total ? Math.round((j.done / j.total) * 100) : 0;
     let h = '<div class="jobbox">';
@@ -132,6 +112,8 @@
   box.addEventListener("click", async (e) => {
     const i = L.byId(L.selected);
     if (!i) return;
+    const cap = e.target.closest("[data-page-cap]");
+    if (cap) return PR.handlePageCap(cap, i.id, i.job, () => L.load());
     const st = e.target.closest("[data-status]");
     if (st) return L.patch(i.id, { status: st.dataset.status });
     const ct = e.target.closest("[data-cattoggle]");

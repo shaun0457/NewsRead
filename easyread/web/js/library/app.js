@@ -30,6 +30,7 @@
     L.firstRun = d.first_run;
     L.version = d.version;
     L.trashCount = d.trash || 0;
+    if (PR.libraryLocationNotice) PR.libraryLocationNotice(d);
     engineChip();
     L.items = d.items;
     L.render();
@@ -55,6 +56,7 @@
     list.sort((a, b) => (L.sort === "title" ? String(k(a)).localeCompare(String(k(b)), "zh") : String(k(b)).localeCompare(String(k(a)))));
     return list;
   }
+  L.filtered = filtered;
 
   function statusPill(i) {
     const m = { unread: PR.t("未读"), reading: PR.t("在读"), done: PR.t("已读") };
@@ -62,6 +64,7 @@
   }
   L.jobLine = function (i) {
     const j = i.job;
+    if (j && j.state === "confirm") return '<span class="stat">' + PR.t("等你确认") + "</span>";
     if (j && ["queued", "running"].includes(j.state)) {
       const pct = j.total ? " " + PR.t("{done}/{total} 页", { done: j.done, total: j.total }) : "";
       return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中"))) + pct + "</span>";
@@ -94,6 +97,7 @@
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     PR.$("#viewTitle").textContent = L.tag ? L.tag : L.view === "all" ? PR.t("全部论文") : view[1];
     PR.$("#count").textContent = PR.t("{n} 篇", { n: list.length });
+    PR.$("#citeExportBtn").disabled = !list.length;
     PR.$("#list").innerHTML = list.length ? list.map(rowHtml).join("") : emptyHtml();
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
