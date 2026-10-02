@@ -19,6 +19,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from . import http
+
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36 EasyRead"
 MAX_PDF = 200 * 1024 * 1024
 S2 = "https://api.semanticscholar.org/graph/v1/paper/"
@@ -42,7 +44,7 @@ def _get(url: str, accept: str = "*/*", timeout: int = 60, limit: int = MAX_PDF)
     """返回 (内容, Content-Type, 最终地址)。"""
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": accept, "Accept-Language": "en,zh;q=0.8"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with http.urlopen(req, timeout=timeout) as r:
             data = r.read(limit + 1)
             ctype, final = r.headers.get("Content-Type", ""), r.geturl()
     except Exception as e:  # noqa: BLE001

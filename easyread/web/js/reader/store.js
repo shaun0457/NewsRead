@@ -39,7 +39,7 @@
         reader.notes[op.note.id] = JSON.parse(JSON.stringify(op.note));
       } else if (op.op === "note_del") {
         const cur = reader.notes[op.id];
-        if (cur && at >= (cur.updated || "")) { cur.deleted = true; cur.updated = at; }
+        if (!cur || at >= (cur.updated || "")) reader.notes[op.id] = { ...(cur || { id: op.id }), deleted: true, updated: at };
       } else if (op.op === "paper_note") {
         const cur = reader.paper_note || {};
         if (at >= (cur.at || "")) reader.paper_note = { body: op.body || "", at };

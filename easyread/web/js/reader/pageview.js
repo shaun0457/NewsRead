@@ -5,6 +5,7 @@
   const body = document.body;
   let pvPage = 1, pvBlock = null;
   const pages = () => (S.paper.meta || {}).pages || [];
+  const boxesOf = (loc) => loc.boxes && loc.boxes.length ? loc.boxes : [loc.box];
 
   /* 右侧面板开关：pages | notes | null */
   /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
@@ -72,11 +73,17 @@
     const loc = blockId && S.layout[blockId];
     pair(loc && loc.page === pvPage ? blockId : null);
     if (loc && loc.page === pvPage) {
-      const [x0, y0, x1, y1] = loc.box;
-      Object.assign(hl.style, { left: (x0 * 100 - 0.8) + "%", top: (y0 * 100 - 0.4) + "%", width: ((x1 - x0) * 100 + 1.6) + "%", height: ((y1 - y0) * 100 + 0.8) + "%" });
+      const boxes = boxesOf(loc);
+      hl.replaceChildren(...boxes.map(([x0, y0, x1, y1]) => {
+        const region = document.createElement("div");
+        region.className = "pv-region";
+        Object.assign(region.style, { left: (x0 * 100 - 0.4) + "%", top: (y0 * 100 - 0.3) + "%", width: ((x1 - x0) * 100 + 0.8) + "%", height: ((y1 - y0) * 100 + 0.6) + "%" });
+        return region;
+      }));
       hl.classList.add("on");
       const scroller = PR.$(".pv-scroll");
       const doScroll = () => { const h = PR.$(".pv-page").offsetHeight;  // 原页里框出的那段也放在面板中间
+        const [, y0, , y1] = boxes[0];
         scroller.scrollTo({ top: Math.max(0, ((y0 + y1) / 2) * h + 18 - scroller.clientHeight / 2), behavior: "smooth" }); };
       img.complete ? doScroll() : img.addEventListener("load", doScroll, { once: true });
     } else hl.classList.remove("on");
@@ -94,6 +101,7 @@
   }
   PR.on("block-rendered", (id) => { if (id === paired) { paired = null; pair(id); } });  // 段落重画后补回标记
   PR.on("rendered", () => { const id = paired; paired = null; pair(id); });
+  PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock); });
 
   /* 点原页上的某一段 → 正文跳到那段译文（排版特殊、看不出语序时，从原文找回去） */
   function blockAt(x, y) {
@@ -101,9 +109,10 @@
     for (const id in S.layout) {
       const l = S.layout[id];
       if (l.page !== pvPage || !PR.blockById[id]) continue;
-      const [x0, y0, x1, y1] = l.box;
-      const a = (x1 - x0) * (y1 - y0);
-      if (x >= x0 - 0.01 && x <= x1 + 0.01 && y >= y0 - 0.006 && y <= y1 + 0.006 && a < area) { best = id; area = a; }
+      for (const [x0, y0, x1, y1] of boxesOf(l)) {
+        const a = (x1 - x0) * (y1 - y0);
+        if (x >= x0 - 0.01 && x <= x1 + 0.01 && y >= y0 - 0.006 && y <= y1 + 0.006 && a < area) { best = id; area = a; }
+      }
     }
     return best;
   }
@@ -124,7 +133,9 @@
   PR.syncPage = function (force) {
     if (PR.side !== "pages") return;
     if (!force && (!PR.$(".pv-follow input").checked || Date.now() < holdUntil)) return;
-    const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock();
+    const reading = PR.readingBlock();
+    // Selection controls an explicit click; scrolling follows the viewport.
+    const id = force ? (PR.currentBlock && PR.currentBlock()) || reading : reading;
     const b = PR.blockById[id];
     if (!b) {  // 还在标题区，不在任何一段上：给第 1 页，别让面板空着
       if (force || pvBlock) { pvBlock = null; showPage(1); }

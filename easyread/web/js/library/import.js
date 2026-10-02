@@ -73,7 +73,7 @@
       try {
         const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&scope=" + encodeURIComponent(o.scope) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
         last = r.id;
-        if (!r.new) PR.toast("《" + PR.esc(f.name) + "》已经在库里了");
+        if (!r.new) PR.toast("《" + PR.esc(f.name) + "》" + (r.queued ? "已重新加入准备队列" : "已经在库里了"));
       } catch (e) { PR.toast("导入失败：" + PR.esc(e.message)); }
     }
     await L.load();
@@ -92,7 +92,7 @@
       close();
       await L.load();
       L.select(r.id);
-      PR.toast(r.new ? "已导入" + (o.translate ? "，后台开始翻译" : "") : "这篇已经在库里了", { label: "打开", fn: () => L.openReader(r.id) }, 6000);
+      PR.toast(r.new ? "已导入" + (o.translate ? "，后台开始翻译" : "") : r.queued ? "已重新加入准备队列" : "这篇已经在库里了", { label: "打开", fn: () => L.openReader(r.id) }, 6000);
     } catch (e) {
       PR.toast("导入失败：" + PR.esc(e.message), null, 8000);
       if (btn) { btn.disabled = false; btn.textContent = "导入"; }

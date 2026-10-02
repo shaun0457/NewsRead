@@ -11,7 +11,7 @@ import threading
 import time
 import urllib.request
 
-from . import __version__, config
+from . import __version__, config, http
 from .log import log
 from .store import read_json, write_json_atomic
 
@@ -37,7 +37,7 @@ def newer(latest: str, current: str = __version__) -> bool:
 
 def _fetch() -> dict:
     req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": f"EasyRead/{__version__}"})
-    with urllib.request.urlopen(req, timeout=8) as r:
+    with http.urlopen(req, timeout=8) as r:
         rel = json.loads(r.read())
     return {"latest": (rel.get("tag_name") or "").lstrip("v"), "url": rel.get("html_url") or f"https://github.com/{REPO}/releases/latest",
             "notes": (rel.get("body") or "")[:6000], "published": rel.get("published_at") or ""}
