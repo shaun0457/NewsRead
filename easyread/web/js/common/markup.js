@@ -89,13 +89,97 @@
         i % 2 ? '<div class="eq">' + PR.tex(part.trim(), true) + "</div>" : para(part, opts)).join("")).join("");
   };
 
+  function isTableDelimiter(line) {
+    const trimmed = (line || "").trim();
+    if (!trimmed.includes("-") || !trimmed.includes("|")) return false;
+    let parts = trimmed.split("|");
+    if (trimmed.startsWith("|")) parts.shift();
+    if (trimmed.endsWith("|")) parts.pop();
+    if (parts.length === 0) return false;
+    return parts.every((p) => /^\s*:?-+:?\s*$/.test(p));
+  }
+
+  function splitTableRow(line) {
+    let s = (line || "").trim();
+    const tecs = [];
+    s = s.replace(/(?<!\\)\$((?:\\\$|[^$])+?)(?<!\\)\$/g, (m) => "" + (tecs.push(m) - 1) + "");
+    s = s.replace(/\\\|/g, "\uE002");
+    if (s.startsWith("|")) s = s.slice(1);
+    if (s.endsWith("|")) s = s.slice(0, -1);
+    return s.split("|").map((cell) => {
+      let c = cell.trim();
+      c = c.replace(/\uE002/g, "|");
+      c = c.replace(/(\d+)/g, (m, i) => tecs[i]);
+      return c;
+    });
+  }
+
+  function parseAlign(delimLine) {
+    return splitTableRow(delimLine).map((col) => {
+      const c = col.trim();
+      const left = c.startsWith(":");
+      const right = c.endsWith(":");
+      if (left && right) return "center";
+      if (right) return "right";
+      if (left) return "left";
+      return "";
+    });
+  }
+
+  function tableHtml(headerLine, delimLine, dataLines, opts) {
+    const align = parseAlign(delimLine);
+    const getStyle = (i) => (align[i] ? ' style="text-align:' + align[i] + '"' : "");
+    const headCells = splitTableRow(headerLine);
+    const head = "<tr>" + headCells.map((c, i) => "<th" + getStyle(i) + ">" + PR.md(c, opts) + "</th>").join("") + "</tr>";
+    const colCount = headCells.length;
+    const rows = dataLines.map((rowLine) => {
+      const cells = splitTableRow(rowLine);
+      while (cells.length < colCount) cells.push("");
+      return "<tr>" + cells.slice(0, colCount).map((c, i) => "<td" + getStyle(i) + ">" + PR.md(c, opts) + "</td>").join("") + "</tr>";
+    }).join("");
+    return '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
   function para(p, opts) {
     p = p.trim();
     if (!p) return "";
+
+    // 1. 表格（Markdown GFM 表格：表头 + 分隔行 + 数据行）
+    const lines = p.split("\n");
+    const dIdx = lines.findIndex((l, idx) => idx >= 1 && isTableDelimiter(l) && lines[idx - 1].includes("|"));
+    if (dIdx >= 1) {
+      const before = lines.slice(0, dIdx - 1);
+      const headerLine = lines[dIdx - 1];
+      const delimLine = lines[dIdx];
+      let endIdx = dIdx + 1;
+      while (endIdx < lines.length && lines[endIdx].includes("|") && lines[endIdx].trim()) {
+        endIdx++;
+      }
+      const dataLines = lines.slice(dIdx + 1, endIdx);
+      const after = lines.slice(endIdx);
+      return (before.length ? para(before.join("\n"), opts) : "") +
+        tableHtml(headerLine, delimLine, dataLines, opts) +
+        (after.length ? para(after.join("\n"), opts) : "");
+    }
+
+    // 2. 引用块（> 开头）
+    const qIdx = lines.findIndex((l) => /^\s*>/.test(l));
+    if (qIdx >= 0) {
+      let qEnd = qIdx;
+      while (qEnd < lines.length && /^\s*>/.test(lines[qEnd])) qEnd++;
+      const before = lines.slice(0, qIdx);
+      const qText = lines.slice(qIdx, qEnd).map((l) => l.replace(/^\s*>\s?/, "")).join("\n");
+      const after = lines.slice(qEnd);
+      return (before.length ? para(before.join("\n"), opts) : "") +
+        "<blockquote>" + para(qText, opts) + "</blockquote>" +
+        (after.length ? para(after.join("\n"), opts) : "");
+    }
+
+    // 3. 标题
     const h = p.match(/^#{1,4}\s+(.+)$/);
     if (h) return '<p class="md-h">' + PR.md(h[1], opts) + "</p>";
-    const lines = p.split("\n");
-    // 列表：从某行起每行都以 “- ”“* ”或“1. ”开头（AI 的回答常用“引子：\n- …\n- …”）
+
+    // 4. 列表：从某行起每行都以 “- ”“* ”或“1. ”开头（AI 的回答常用“引子：\n- …\n- …”）
     const isItem = (l) => /^\s*([-*•]|\d+[.、)])\s+/.test(l);
     const k = lines.findIndex(isItem);
     if (k >= 0 && lines.slice(k).every(isItem)) {
@@ -103,6 +187,7 @@
       return (k ? "<p>" + PR.md(lines.slice(0, k).join("\n"), opts) + "</p>" : "") + (ordered ? "<ol>" : "<ul>") +
         lines.slice(k).map((l) => "<li>" + PR.md(l.replace(/^\s*([-*•]|\d+[.、)])\s+/, ""), opts) + "</li>").join("") + (ordered ? "</ol>" : "</ul>");
     }
+
     return "<p>" + PR.md(p, opts) + "</p>";
   }
 
