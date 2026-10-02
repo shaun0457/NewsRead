@@ -53,7 +53,8 @@
           button("reveal", PR.t("打开文件夹"), "", busy) + '</div>' +
           (d.temp ? '<p class="hint">' + PR.t("当前是临时文献库，不能更改位置。") + "</p>" : "") + result(s) +
           '<h4 class="set-h">' + PR.t("检测到的网盘") + "</h4>" +
-          ((d.candidates || []).map((c) => target(s, c)).join("") || '<p class="hint">' + PR.t("没找到网盘同步文件夹。支持坚果云、OneDrive、iCloud、Google Drive、Dropbox") + "</p>") +
+          '<p class="hint">' + PR.t("自动检测 OneDrive、Dropbox 和 Windows 上的 iCloud；坚果云、Google Drive 及 macOS 上的 iCloud 请用“自定义文件夹”选择同步目录。") + "</p>" +
+          ((d.candidates || []).map((c) => target(s, c)).join("") || '<p class="hint">' + PR.t("没找到网盘同步文件夹。") + "</p>") +
           (s.cloudCustom ? target(s, s.cloudCustom) : "") + '<div class="cloud-actions">' + button("custom", PR.t("自定义文件夹…"), "", disabled(s)) +
           button("refresh", PR.t("重新检测"), "", busy || d.restart_required) + "</div>") +
         (busy ? '<p class="cloud-progress" role="status"><span class="spin"></span> ' + PR.t("正在处理文献库，请不要关闭 EasyRead…") + "</p>" : "") +
@@ -79,7 +80,8 @@
         if (action === "custom") {
           const desktop = window.easyreadDesktop;
           const path = desktop && desktop.pickFolder ? await desktop.pickFolder() : await PR.promptText({
-            title: PR.t("文献库文件夹"), body: PR.t("填写同步文件夹中 EasyRead 文献库的完整路径。"), max: 4096,
+            title: PR.t("文献库文件夹"), body: PR.t("填写网盘同步文件夹或已有 EasyRead 文献库的完整路径。") + "\n" +
+              PR.t("普通目录会使用其下的 EasyRead 子文件夹；已有文献库直接使用。"), max: 4096,
           });
           if (path) {
             busy = true; redraw();

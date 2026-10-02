@@ -53,3 +53,14 @@ test("cancelled confirmation never changes the library location", async () => {
   await click("use");
   assert.equal(calls.filter(([url]) => url.endsWith("/move")).length, 0);
 });
+
+test("cloud settings explain automatic detection limits even when a drive is found", () => {
+  const { PR, s } = setup();
+  for (const candidates of [[], [{ path: "D:/OneDrive/EasyRead", papers: 0, writable: true }]]) {
+    s.cloud.candidates = candidates;
+    const html = PR.settingsTabs.cloud.render(s);
+    assert.match(html, /自动检测 OneDrive、Dropbox 和 Windows 上的 iCloud/);
+    assert.match(html, /坚果云、Google Drive 及 macOS 上的 iCloud 请用“自定义文件夹”选择同步目录/);
+    assert.doesNotMatch(html, /支持坚果云、OneDrive、iCloud、Google Drive、Dropbox/);
+  }
+});

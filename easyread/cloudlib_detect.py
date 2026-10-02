@@ -35,7 +35,8 @@ def detect() -> list[dict]:
                     add("onedrive", "OneDrive", p)
     if sys.platform == "win32":
         # Apple: support.apple.com/guide/icloud-windows/icw0144825a5/icloud
-        add("icloud", "iCloud Drive", home / "iCloud Drive")
+        for name in ("iCloudDrive", "iCloud Drive"):
+            add("icloud", "iCloud Drive", home / name)
 
     # Dropbox 官方支持 info.json，包含 personal/business 两种账户。
     # help.dropbox.com/installs/locate-dropbox-folder
@@ -56,7 +57,7 @@ def detect() -> list[dict]:
 
 
 def target_path(value: str | Path) -> Path:
-    """自动候选和手选的已知网盘根目录都落在 EasyRead 子目录中。"""
+    """已有库按原路径使用，普通同步文件夹只在 EasyRead 子目录里放论文。"""
     from .i18n import tr
     if not isinstance(value, (str, Path)) or not str(value).strip():
         raise ValueError(tr("请选择文献库文件夹"))
@@ -64,7 +65,14 @@ def target_path(value: str | Path) -> Path:
     if not path.is_absolute():
         raise ValueError(tr("请输入完整的文件夹路径"))
     path = path.resolve()
-    for candidate in detect():
-        if path == Path(candidate["root_path"]):
-            return Path(candidate["path"])
-    return path
+    if path.name.casefold() == "easyread" or (path.exists() and not path.is_dir()):
+        return path
+    if path.is_dir():
+        # 未完成迁移也必须交给 inspect 原地检查，不能套一层目录后绕过事务标记。
+        marker = path / ".easyread-migration.json"
+        if marker.exists() or marker.is_symlink():
+            return path
+        if any(not child.name.startswith(".") and (child / "item.json").is_file()
+               for child in path.iterdir()):
+            return path
+    return path / "EasyRead"

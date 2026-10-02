@@ -81,7 +81,7 @@ def _papers(root: Path) -> list[Path]:
 def inspect(path: str | Path, *, exact: bool = False) -> dict:
     root = Path(path).resolve() if exact else target_path(path)
     if _incomplete(root):
-        raise ValueError(tr("目标文献库迁移未完成，请选择其他文件夹；原文献库仍然保留：{path}", path=str(root)))
+        raise ValueError(tr("目标文献库迁移未完成（{path}），请选择其他文件夹；原文献库仍然保留", path=str(root)))
     if root.exists() and not root.is_dir():
         return {"path": str(root), "exists": True, "writable": False, "papers": 0, "bytes": 0}
     papers = _papers(root)
@@ -144,10 +144,13 @@ def _copy_verified(src: Path, dst: Path):
 def move(src: str | Path, dst: str | Path, mode: str) -> dict:
     if config.temp_library():
         raise ValueError(tr("临时文献库不能更改位置"))
+    requested = dst
     src, dst = Path(src).resolve(), target_path(dst)
+    requested = Path(requested).expanduser().resolve()
     if mode not in ("copy", "use", "merge"):
         raise ValueError(tr("请选择复制、使用或合并文献库"))
-    if src == dst or src.is_relative_to(dst) or dst.is_relative_to(src):
+    if any(src == target or src.is_relative_to(target) or target.is_relative_to(src)
+           for target in (requested, dst)):
         raise ValueError(tr("新旧文献库不能相同，也不能互相包含"))
     state = inspect(dst, exact=True)
     if not state["writable"]:

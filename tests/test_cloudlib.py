@@ -32,12 +32,14 @@ class CloudLibraryTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.src, self.dst = self.root / "source", self.root / "target"
+        self.src, self.dst = self.root / "source", self.root / "EasyRead"
         self.src.mkdir()
         for key, value in (("CONFIG_PATH", self.root / "config.json"),):
             cm = patch.object(config, key, value)
             cm.start(); self.addCleanup(cm.stop)
         cm = patch.dict(os.environ, {})
+        cm.start(); self.addCleanup(cm.stop)
+        cm = patch("easyread.cloudlib.detect", return_value=[])
         cm.start(); self.addCleanup(cm.stop)
         for name in ("EASYREAD_LIBRARY", "COREAD_LIBRARY", "OneDrive", "OneDriveConsumer", "OneDriveCommercial"):
             os.environ.pop(name, None)
@@ -127,7 +129,7 @@ print(json.dumps({"errors": errors, "times": times, "status": location.status, "
         self.assertEqual((self.dst / "keep.txt").read_text(), "original")
         self.assertEqual(config.load()["library_dir"], str(self.src))
         self.assertEqual(self.location.status, "idle")
-        self.assertEqual(cloudlib.inspect(self.src)["papers"], 2)
+        self.assertEqual(cloudlib.inspect(self.src, exact=True)["papers"], 2)
         self.assertTrue(all((self.src / pid / "reader.json").is_file() for pid in ("paper001", "paper002")))
 
     def test_failed_merge_keeps_existing_target_and_rolls_back_additions(self):
