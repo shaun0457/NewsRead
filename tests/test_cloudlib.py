@@ -31,7 +31,7 @@ class CloudLibraryTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()  # macOS 的 /var 是软链接、Windows CI 是 RUNNER~1 短路径；代码比较的是解析后的路径
         self.src, self.dst = self.root / "source", self.root / "EasyRead"
         self.src.mkdir()
         for key, value in (("CONFIG_PATH", self.root / "config.json"),):

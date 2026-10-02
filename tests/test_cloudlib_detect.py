@@ -12,7 +12,7 @@ class CloudLibraryDetectionTest(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()  # 同 test_cloudlib：代码比较的是解析后的路径
         for context in (patch.object(config, "CONFIG_PATH", self.root / "config.json"),
                         patch.dict(os.environ, {}, clear=True),
                         patch("easyread.cloudlib_detect.Path.home", return_value=self.root)):
