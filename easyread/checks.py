@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 from .config import WEB
-from .paperdata import BLOCK_TYPES
+from .paperdata import BLOCK_TYPES, block_shape_problem
 from .store import Workspace
 
 _CITE = re.compile(r"\[(\d+(?:\s*[,–-]\s*\d+)*)\]")
@@ -22,18 +22,31 @@ def texts(block: dict):
     for key in ("zh", "en", "caption_zh", "caption_en"):
         if block.get(key):
             yield block[key]
-    for it in block.get("items", []):
-        yield it.get("zh", "")
-        yield it.get("en", "")
-    for row in block.get("head", []) + block.get("rows", []):
-        for cell in row:
-            yield str(cell)
+    items = block.get("items", [])
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict):
+                yield it.get("zh", "")
+                yield it.get("en", "")
+            else:
+                yield str(it)
+    for field in ("head", "rows"):
+        matrix = block.get(field, [])
+        if not isinstance(matrix, list):
+            continue
+        for row in matrix:
+            cells = row if isinstance(row, list) else [row]
+            for cell in cells:
+                yield str(cell)
 
 
 def block_problems(blocks: list[dict], refs: set[str] | None = None) -> tuple[list[str], list]:
     problems, tex = [], []
     ids = set()
     for b in blocks:
+        if not isinstance(b, dict):
+            problems.append(f"块必须是对象：{str(b)[:80]}")
+            continue
         bid = b.get("id")
         if not bid:
             problems.append(f"缺 id：{str(b)[:80]}")  # i18n-ok 交给模型修正的问题清单
@@ -41,7 +54,10 @@ def block_problems(blocks: list[dict], refs: set[str] | None = None) -> tuple[li
             problems.append(f"id 重复：{bid}")  # i18n-ok
         ids.add(bid)
         if b.get("type") not in BLOCK_TYPES:
-            problems.append(f"{bid}：未知类型 {b.get('type')}")  # i18n-ok
+            problems.append(f"{bid}：未知类型 {b.get('type')}")
+        shape_problem = block_shape_problem(b)
+        if shape_problem:
+            problems.append(shape_problem)
         if b.get("type") == "math":
             tex.append((bid, b.get("tex", ""), True))
         for t in list(texts(b)) + [b.get("tex", "")]:

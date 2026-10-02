@@ -11,18 +11,18 @@
     const b = PR.blockById[id];
     if (!b) return ["", ""];
     if (field === "caption") return [b.caption_zh || "", b.caption_en || ""];
-    if (field != null && /^\d+$/.test(field)) { const it = (b.items || [])[+field] || {}; return [it.zh || "", it.en || ""]; }
+    if (field != null && /^\d+$/.test(field)) { const it = (Array.isArray(b.items) ? b.items : [])[+field] || {}; return [it.zh || "", it.en || ""]; }
     return [b.zh || "", b.en || ""];
   }
   PR.agentText = function (key) { const [zh, en] = fields(key); return zh || en; };
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
-  PR.hasZh = (b) => !!(b.zh || b.caption_zh || (b.items || []).some((i) => i.zh));
+  PR.hasZh = (b) => !!(b.zh || b.caption_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
   PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
   PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
   PR.blockKeys = function (b) {
-    if (b.type === "list") return (b.items || []).map((_, i) => b.id + "#" + i);
+    if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
     if (b.type === "table" || b.type === "figure") return [b.id + "#caption"];
     if (b.type === "math" || b.type === "references" || b.type === "note") return [];
     return [b.id];
@@ -36,6 +36,7 @@
     PR.order = {};
     (S.paper.references || []).forEach((r) => (PR.refById[String(r.id)] = r));
     (S.paper.blocks || []).forEach((b, i) => {
+      if (!b || typeof b !== "object") return;
       PR.blockById[b.id] = b;
       PR.order[b.id] = i;
       if (b.type === "math" && b.tag) PR.xindex.eq[b.tag] = b.id;
@@ -61,6 +62,11 @@
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="caption"><div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + key + '">' + body + staleTag(key) + "</div>" + enIfZh(key, b.caption_en) + "</div>";
   }
+  function tableRows(value) {
+    if (!Array.isArray(value) || !value.length) return [];
+    if (value.every((row) => !Array.isArray(row))) return [value];
+    return value.map((row) => Array.isArray(row) ? row : [row]);
+  }
   function cell(c) { return PR.md(String(c), { xref: false, cite: false }).replace(/<br>(\([^<]*\))/g, '<br><span class="sub">$1</span>'); }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
@@ -75,14 +81,15 @@
     para: (b) => zhDiv(b.id) + enIfZh(b.id, b.en),
     list(b) {
       const tag = b.ordered ? "ol" : "ul";
-      return "<" + tag + ">" + (b.items || []).map((it, i) => "<li>" + zhDiv(b.id + "#" + i) + enIfZh(b.id + "#" + i, it.en) + "</li>").join("") + "</" + tag + ">";
+      const items = Array.isArray(b.items) ? b.items : [];
+      return "<" + tag + ">" + items.map((it, i) => "<li>" + zhDiv(b.id + "#" + i) + enIfZh(b.id + "#" + i, it && it.en) + "</li>").join("") + "</" + tag + ">";
     },
     math: (b) => '<div class="math-row"><div class="math-body">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
       const al = (b.align || "").split("");
       const style = (i) => (al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "");
-      const head = (b.head || []).map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c) + "</th>").join("") + "</tr>").join("");
-      const rows = (b.rows || []).map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c) + "</td>").join("") + "</tr>").join("");
+      const head = tableRows(b.head).map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c) + "</th>").join("") + "</tr>").join("");
+      const rows = tableRows(b.rows).map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c) + "</td>").join("") + "</tr>").join("");
       const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
       return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
     },
@@ -114,6 +121,13 @@
     return '<section class="' + blockClass(b) + (extraClass || "") + '" id="b-' + PR.esc(b.id) + '" data-id="' + PR.esc(b.id) + '">' +
       (pageMark ? '<button class="pgmark" data-t="page" title="' + PR.t("看原文第 {n} 页", { n: b.page }) + '">p.' + b.page + "</button>" : "") +
       R[b.type](b) + (edited(b) ? '<span class="edited-dot" title="' + PR.t("这里有你改过的译文") + '"></span>' : "") + "</section>";
+  }
+
+  function blockErrorHtml(b, error) {
+    const id = PR.esc(b && b.id ? b.id : "unknown");
+    console.error("EasyRead block render failed", b && b.id, error);
+    return '<section class="blk blk-error" id="b-' + id + '" data-id="' + id + '">' +
+      '<div class="inline-note"><div class="lbl">这一块没能显示</div><p>块 ' + id + ' 的数据格式有问题，其他内容仍可阅读。</p></div></section>';
   }
 
   /* 在线演示的署名和许可（CC BY 要求写明出处），网址做成链接 */
@@ -181,8 +195,9 @@
     let html = headHtml(), appendixSeen = false, lastPage = 0;
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const allPages = (S.paper.meta || {}).pages || [];
-    for (const b of S.paper.blocks || []) {
-      if (!R[b.type]) continue;
+    for (const raw of S.paper.blocks || []) {
+      const b = raw && typeof raw === "object" ? raw : null;
+      if (!b || !R[b.type]) continue;
       if (b.page && b.page > lastPage + 1) {
         const gap = allPages.filter((p) => p.n > lastPage && p.n < b.page && !done.has(p.n));
         if (gap.length) html += gapHtml(gap);
@@ -191,13 +206,17 @@
       if (b.appendix && !appendixSeen) { extra = " appendix-start"; appendixSeen = true; }
       const mark = b.page && b.page > lastPage;
       if (b.page) lastPage = Math.max(lastPage, b.page);
-      html += sectionHtml(b, extra, mark);
+      try {
+        html += sectionHtml(b, extra, mark);
+      } catch (error) {
+        html += blockErrorHtml(b, error);
+      }
     }
     PR.$("#paper").innerHTML = html + pendingHtml(lastPage);
     // 一段译文都没有（只读原文）：顶栏的“译文 / 对照”没意义，藏起来
-    document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some(PR.hasZh));
+    document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some((b) => b && PR.hasZh(b)));
     // 译文语言决定正文字体（base.css 按 data-target 换字体）；1.3 以前译的论文没记语言，都是中文
-    const target = (S.paper.meta || {}).target || ((S.paper.blocks || []).some(PR.hasZh) ? "zh" : PR.target);
+    const target = (S.paper.meta || {}).target || ((S.paper.blocks || []).some((b) => b && PR.hasZh(b)) ? "zh" : PR.target);
     document.documentElement.dataset.target = target;
     const paperEl = document.getElementById("paper");
     if (paperEl) paperEl.lang = target === "zh" ? "zh-CN" : target;  // 让浏览器选对日文、韩文字形，西文能断词
@@ -210,7 +229,11 @@
     const node = document.getElementById("b-" + id);
     if (!b || !node || !R[b.type]) return;
     const fresh = document.createElement("div");
-    fresh.innerHTML = sectionHtml(b, node.classList.contains("appendix-start") ? " appendix-start" : "", !!node.querySelector(":scope > .pgmark"));
+    try {
+      fresh.innerHTML = sectionHtml(b, node.classList.contains("appendix-start") ? " appendix-start" : "", !!node.querySelector(":scope > .pgmark"));
+    } catch (error) {
+      fresh.innerHTML = blockErrorHtml(b, error);
+    }
     const nn = fresh.firstChild;
     ["show-en", "notes-open", "current"].forEach((c) => node.classList.contains(c) && nn.classList.add(c));
     node.replaceWith(nn);
