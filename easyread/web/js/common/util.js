@@ -19,6 +19,10 @@ window.PR = window.PR || {};
     return e;
   };
 
+  /* 译文语言的名字跟着界面语言写：中文界面“日语”，英文界面“Japanese” */
+  PR.TARGETS = [["zh", PR.t("中文")], ["ja", PR.t("日语")], ["ko", PR.t("韩语")], ["es", PR.t("西班牙语")], ["fr", PR.t("法语")], ["de", PR.t("德语")]];
+  PR.targetName = (code) => (PR.TARGETS.find(([k]) => k === code) || PR.TARGETS[0])[1];
+
   PR.esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
