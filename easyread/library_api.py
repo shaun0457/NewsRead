@@ -36,7 +36,7 @@ class LibraryLocation:
     def request(self, method: str, raw_path: str):
         path = unquote(urlparse(raw_path).path)
         protected = (method == "POST" and path not in (
-            "/api/library/move", "/api/library/inspect", "/api/library/reveal", "/api/shutdown", "/api/presence/keep"))
+            "/api/library/move", "/api/library/inspect", "/api/library/pick-folder", "/api/library/reveal", "/api/shutdown", "/api/presence/keep"))
         if method in ("GET", "HEAD"):
             protected = path.startswith(("/read/", "/p/")) or (path.startswith("/api/p/") and not path.endswith("/versions"))
         entered = False
@@ -140,6 +140,10 @@ def get(app, path: str):
 def post(app, path: str, body: dict):
     if path == "/api/library/inspect":
         return inspect(body)
+    if path == "/api/library/pick-folder":  # 浏览器版：后端弹系统的选文件夹窗口
+        from .folder_pick import pick
+        chosen = pick(tr("选择放文献库的文件夹"))
+        return {"supported": chosen is not None, "path": chosen or ""}
     if path == "/api/library/cleanup":
         return cloudlib.cleanup(body.get("path", ""), app.lib.root)
     if path == "/api/library/move":
@@ -153,4 +157,4 @@ def post(app, path: str, body: dict):
     return None
 
 
-POST = {"/api/library/inspect", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}
+POST = {"/api/library/inspect", "/api/library/pick-folder", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}

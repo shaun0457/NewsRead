@@ -20,24 +20,29 @@
       (off ? " disabled" : "") + ">" + PR.esc(label) + "</button>";
   }
 
-  /* 一张网盘卡片：名字 + 一句状态 + 一个主按钮；目标已有论文时“合并”退成次要的文字按钮 */
-  function target(s, item) {
-    const name = PR.esc(item.label || PR.t("自定义文件夹"));
-    const head = '<div class="cloud-card-icon">' + PR.icon(item.label ? "cloud" : "folder") + '</div><div class="cloud-card-body"><b>' + name + '</b><div class="cloud-path">' + PR.esc(item.path) + "</div>";
-    if (item.incomplete) return '<div class="cloud-card warn">' + head + '<span class="cloud-state">' + PR.t("上次搬到这里没完成，原文献库没受影响") + '</span></div>' +
-      button("cleanup", PR.t("清理没搬完的内容"), item.path, busy) + "</div>";
-    const off = disabled(s) || !item.writable || item.path === s.cloud.path;
-    const state = item.path === s.cloud.path ? PR.t("正在用") : !item.writable ? PR.t("不可写") : item.papers ? PR.t("里面已有 {n} 篇", { n: item.papers }) : PR.t("空的，可以搬过去");
-    const acts = item.papers
-      ? button("use", PR.t("改用这里的文献库"), item.path, off, true) + '<button class="linkish" data-cloud="merge" data-path="' + PR.esc(item.path) + '"' + (off ? " disabled" : "") + ">" + PR.t("或把本机的也合并进去") + "</button>"
-      : button("copy", PR.t("搬过去"), item.path, off, true);
-    return '<div class="cloud-card">' + head + '<span class="cloud-state">' + state + "</span></div>" + '<div class="cloud-card-acts">' + acts + "</div></div>";
+  /* 一张卡片：图标 + 名字 + 路径 + 一句状态，右边是操作按钮 */
+  function card(icon, label, name, path, stateText, acts, cls) {
+    return '<div class="cloud-card' + (cls ? " " + cls : "") + '"><div class="cloud-card-icon">' + PR.icon(icon) + '</div><div class="cloud-card-body">' +
+      (label ? '<span class="cloud-label">' + PR.esc(label) + "</span>" : "") + "<b>" + PR.esc(name) + "</b>" +
+      (path ? '<div class="cloud-path">' + PR.esc(path) + "</div>" : "") + (stateText ? '<span class="cloud-state">' + PR.esc(stateText) + "</span>" : "") +
+      '</div><div class="cloud-card-acts">' + acts + "</div></div>";
   }
 
-  function where(d) {  // 现在的文献库在哪个网盘里
+  /* 网盘卡片：空的就“搬过去”；已有论文就“改用这里的”，合并是第二个按钮 */
+  function target(s, item) {
+    const name = item.label || PR.t("自选文件夹");
+    if (item.incomplete) return card("cloud", "", name, item.path, PR.t("上次搬到这里没完成，原文献库没受影响"), button("cleanup", PR.t("清理没搬完的内容"), item.path, busy), "warn");
+    const using = item.path === s.cloud.path, off = disabled(s) || !item.writable || using;
+    const stateText = using ? PR.t("正在用") : !item.writable ? PR.t("不可写") : item.papers ? PR.t("里面已有 {n} 篇", { n: item.papers }) : PR.t("空的，可以搬过去");
+    const acts = using ? "" : item.papers
+      ? button("use", PR.t("改用这里的"), item.path, off, true) + button("merge", PR.t("合并进去"), item.path, off)
+      : button("copy", PR.t("搬过去"), item.path, off, true);
+    return card(item.label ? "cloud" : "folder", "", name, item.path, stateText, acts);
+  }
+
+  function cloudOf(d) {  // 现在的文献库在哪个网盘里
     const norm = (p) => String(p || "").replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase() + "/";
-    const hit = (d.candidates || []).find((c) => c.root_path && norm(d.path).startsWith(norm(c.root_path)));
-    return hit ? PR.t("在 {name} 里，会自动同步", { name: hit.label }) : PR.t("在本机，不会同步");
+    return (d.candidates || []).find((c) => c.root_path && norm(d.path).startsWith(norm(c.root_path)));
   }
 
   function result(s) {
@@ -59,23 +64,23 @@
       const d = s.cloud;
       if (!d) return '<div class="cloud-settings">' + (s.cloudError ? '<p class="bad">' + PR.esc(s.cloudError) + "</p>" : "") +
         '<p class="hint">' + (s.cloudLoading ? PR.t("正在检查文献库位置…") : "") + "</p>" + button("refresh", PR.t("重试"), "", s.cloudLoading) + "</div>";
+      const inCloud = cloudOf(d), others = (d.candidates || []).filter((c) => c.path !== d.path);
       return '<div class="cloud-settings">' +
         '<p class="set-lead">' + PR.t("把文献库放进网盘的同步文件夹，换台电脑，论文、译文、笔记都还在。") + "</p>" +
-        (s.cloudError ? '<p class="bad">' + PR.esc(s.cloudError) + "</p>" : "") +
-        '<div class="cloud-now"><div class="cloud-card-icon">' + PR.icon("folder") + '</div><div class="cloud-card-body"><span class="cloud-label">' + PR.t("现在的文献库") + "</span><b>" + PR.esc(where(d)) +
-        '</b><div class="cloud-path">' + PR.esc(d.path) + "</div></div>" + button("reveal", PR.t("打开文件夹"), "", busy) + "</div>" +
-        (d.temp ? '<p class="hint">' + PR.t("当前是临时文献库，不能更改位置。") + "</p>" : "") + result(s) +
-        '<h4 class="set-h">' + PR.t("放到网盘") + "</h4>" +
-        '<div class="cloud-cards">' + (d.candidates || []).map((c) => target(s, c)).join("") + (s.cloudCustom ? target(s, s.cloudCustom) : "") + "</div>" +
-        (!(d.candidates || []).length && !s.cloudCustom ? '<p class="hint">' + PR.t("这台电脑上没找到 OneDrive、Dropbox 或 iCloud。") + "</p>" : "") +
-        '<div class="cloud-actions">' + button("custom", PR.t("选其他文件夹…"), "", disabled(s)) + button("refresh", PR.t("重新检测"), "", busy || d.restart_required) +
-        '<span class="hint">' + PR.t("坚果云、Google Drive 选它们的同步文件夹就行") + "</span></div>" +
+        (s.cloudError ? '<p class="bad">' + PR.esc(s.cloudError) + "</p>" : "") + result(s) +
+        '<h4 class="set-h">' + PR.t("本机") + "</h4>" +
+        card(inCloud ? "cloud" : "folder", PR.t("现在的文献库"), inCloud ? PR.t("在 {name} 里，会自动同步", { name: inCloud.label }) : PR.t("在本机，不会同步"), d.path,
+          d.temp ? PR.t("当前是临时文献库，不能更改位置。") : PR.t("{n} 篇论文", { n: d.papers || 0 }), button("reveal", PR.t("打开文件夹"), "", busy)) +
+        '<div class="cloud-head"><h4 class="set-h">' + PR.t("网盘") + '</h4><button class="linkish" data-cloud="refresh"' + (busy || d.restart_required ? " disabled" : "") + ">" + PR.t("重新检测") + "</button></div>" +
+        '<div class="cloud-cards">' + others.map((c) => target(s, c)).join("") + (s.cloudCustom && s.cloudCustom.path !== d.path ? target(s, s.cloudCustom) : "") +
+        card("plus", "", PR.t("其他网盘"), "", (d.candidates || []).length ? PR.t("坚果云、Google Drive 等：选它们的同步文件夹") : PR.t("没检测到 OneDrive、Dropbox、iCloud。坚果云、Google Drive 等：选它们的同步文件夹"),
+          button("custom", PR.t("选择文件夹…"), "", disabled(s)), "ghost") + "</div>" +
         (busy ? '<p class="cloud-progress" role="status"><span class="spin"></span> ' + PR.t("正在处理文献库，请不要关闭 EasyRead…") + "</p>" : "") +
-        '<details class="cloud-notes"><summary>' + PR.t("用之前看一眼") + "</summary><ul><li>" +
+        '<h4 class="set-h">' + PR.t("注意") + '</h4><ul class="cloud-notes"><li>' +
+        PR.t("搬的时候是复制，原来的文件夹保留不删。") + "</li><li>" +
         PR.t("不要在两台电脑上同时开着 EasyRead，否则同一篇论文的改动会互相覆盖。") + "</li><li>" +
         PR.t("iCloud 和 Google Drive 的省空间模式可能让文件只留在云端。请把 EasyRead 文件夹设为始终保留在此设备上。") + "</li><li>" +
-        PR.t("百度网盘、迅雷没有实时同步文件夹，不适合放文献库。") + "</li><li>" +
-        PR.t("搬的时候是复制，原来的文件夹保留不删。") + "</li></ul></details></div>";
+        PR.t("百度网盘、迅雷没有实时同步文件夹，不适合放文献库。") + "</li></ul></div>";
     },
     async click(e, s) {
       const b = e.target.closest("[data-cloud]");
@@ -102,10 +107,14 @@
         if (disabled(s)) return true;
         if (action === "custom") {
           const desktop = window.easyreadDesktop;
-          const path = desktop && desktop.pickFolder ? await desktop.pickFolder() : await PR.promptText({
-            title: PR.t("文献库文件夹"), body: PR.t("填写网盘同步文件夹或已有 EasyRead 文献库的完整路径。") + "\n" +
-              PR.t("普通目录会使用其下的 EasyRead 子文件夹；已有文献库直接使用。"), max: 4096,
-          });
+          let path = desktop && desktop.pickFolder ? await desktop.pickFolder() : null;
+          if (!(desktop && desktop.pickFolder)) {  // 浏览器版：后端弹系统的选文件夹窗口，弹不出来才让人填路径
+            const r = await PR.api("/api/library/pick-folder", { method: "POST", body: {} }).catch(() => ({ supported: false }));
+            path = r.supported ? r.path : await PR.promptText({
+              title: PR.t("文献库文件夹"), body: PR.t("填写网盘同步文件夹或已有 EasyRead 文献库的完整路径。") + "\n" +
+                PR.t("普通目录会使用其下的 EasyRead 子文件夹；已有文献库直接使用。"), max: 4096,
+            });
+          }
           if (path) {
             busy = true; redraw();
             s.cloudCustom = await PR.api("/api/library/inspect", { method: "POST", body: { path } });

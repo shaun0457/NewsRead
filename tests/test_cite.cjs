@@ -209,3 +209,19 @@ test("the export dialog switches between the opened list, all papers and a categ
   change("all");
   assert.equal(r.node("textarea").value.split("\n").filter((l) => l.startsWith("[")).length, 2);
 });
+
+test("export order: by author, by year, or dragged by hand (numbering follows the list)", () => {
+  const r = dialog();
+  const older = { ...preprint, id: "older", authors: "Zed Young", year: "1990" };
+  r.PR.openCiteExport([preprint, journal, older], "Thesis");
+  const firsts = () => r.node("textarea").value.split("\n\n").map((x) => x.slice(4, 12));
+  const order = (value) => r.node("#citeExportDlg").listeners.change({ target: { dataset: { order: "" }, value } });
+  order("author");
+  assert.deepEqual(firsts(), ["LOVELACE", "MILLER E", "YOUNG Z."]);
+  order("year");
+  assert.deepEqual(firsts(), ["LOVELACE", "YOUNG Z.", "MILLER E"]);
+  r.PR.citeMove(2, 0);  // 把最后一篇拖到最前
+  assert.deepEqual(firsts(), ["MILLER E", "LOVELACE", "YOUNG Z."]);
+  assert.equal(r.memory.get("easyread-cite-order"), "custom");
+  assert.match(r.node("textarea").value, /^\[1\] MILLER/);
+});

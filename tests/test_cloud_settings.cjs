@@ -60,7 +60,7 @@ test("cloud settings say where the library is now and keep other drives one clic
     s.cloud.candidates = candidates;
     const html = PR.settingsTabs.cloud.render(s);
     assert.match(html, /在本机，不会同步/);
-    assert.match(html, /坚果云、Google Drive 选它们的同步文件夹就行/);
+    assert.match(html, /坚果云、Google Drive 等：选它们的同步文件夹/);
     assert.match(html, /data-cloud="custom"/);
   }
   s.cloud.path = String.raw`D:\OneDrive\EasyRead`;

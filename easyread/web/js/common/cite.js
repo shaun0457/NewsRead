@@ -91,8 +91,10 @@
     return out;
   }
 
-  PR.citeBatch = function (items, style) {
-    if (style !== "bibtex") return items.slice().sort((a, b) => compareAuthor(a, b, style))
+  /* 按第一作者排序（著者-出版年制的顺序）；导出框里选了别的顺序时传 order = "keep" 原样输出 */
+  PR.citeSort = (items, style) => items.slice().sort((a, b) => compareAuthor(a, b, style));
+  PR.citeBatch = function (items, style, order) {
+    if (style !== "bibtex") return (order === "keep" ? items.slice() : PR.citeSort(items, style))
       .map((i, n) => (style === "gb" ? "[" + (n + 1) + "] " : "") + PR.cite(i, style)).join("\n\n");
     const keys = items.map(citeKey), counts = new Map(), used = new Set(keys), next = new Map();
     keys.forEach((key) => counts.set(key, (counts.get(key) || 0) + 1));
