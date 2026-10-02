@@ -8,7 +8,8 @@ from easyread import folder_pick
 class FolderPickTest(unittest.TestCase):
     def run_with(self, returncode, stdout):
         done = subprocess.CompletedProcess([], returncode, stdout=stdout.encode("utf-8"), stderr=b"")
-        with patch("easyread.folder_pick.subprocess.run", return_value=done) as run:
+        # 按 Windows 的 PowerShell 选择框测；CI 跑在 Linux 上，不固定平台会走 zenity 分支
+        with patch("easyread.folder_pick.sys.platform", "win32"), patch("easyread.folder_pick.subprocess.run", return_value=done) as run:
             return folder_pick.pick("选文件夹"), run
 
     def test_returns_chosen_path_without_trailing_separator(self):
