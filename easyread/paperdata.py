@@ -196,7 +196,7 @@ def delete_discussion(ws: Workspace, did: str) -> int:
 
 
 def set_block_text(ws: Workspace, key: str, zh: str) -> None:
-    """重译一段后写回译者稿。key 同页面：块 id、id#caption、id#序号。"""
+    """重译一段后写回译者稿。key 同页面：块 id、id#caption、id#image、id#序号。"""
     bid, _, field = key.partition("#")
 
     def apply(paper):
@@ -205,6 +205,8 @@ def set_block_text(ws: Workspace, key: str, zh: str) -> None:
                 continue
             if field == "caption":
                 b["caption_zh"] = zh
+            elif field == "image":
+                b["image_zh"] = zh
             elif field.isdigit():
                 b["items"][int(field)]["zh"] = zh
             else:

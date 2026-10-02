@@ -19,7 +19,7 @@ KATEX = WEB / "vendor" / "katex" / "katex.min.js"
 
 
 def texts(block: dict):
-    for key in ("zh", "en", "caption_zh", "caption_en"):
+    for key in ("zh", "en", "caption_zh", "caption_en", "image_zh", "image_en"):
         if block.get(key):
             yield block[key]
     items = block.get("items", [])

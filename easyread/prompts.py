@@ -12,7 +12,7 @@ RULES = """翻译要求：
 - 但要留心原文自己的问题：数字前后对不上（表和正文、两张表之间）、公式和文字说的不一致、符号用错、明显的笔误。发现了就写进 checks，正文照录不改；没有就不写，不要为了写而写，也不要写翻译说明。
 - 术语全文统一；首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。
 - 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
-- 表格重排成 table 块，表头译成中文，数字原样。图用 figure 块，只写题注（src 留空）。
+- 表格重排成 table 块，表头译成中文，数字原样。图用 figure 块：尽量给出图在原页中的归一化裁剪框 `box:[x0,y0,x1,y1]`（左上和右下坐标，范围 0 到 1），并翻译图内可读的标题、坐标轴、图例、流程框文字和标签到 `image_zh`，原文写入 `image_en`；看不清或没有文字就留空，不猜。`src` 留空，由程序按 `box` 从原 PDF 裁图。
 - 参考文献列表不翻译：输出一个 references 块，条目放进 references 数组（id 是编号，text 是原文）。
 - 看不清的地方写“此处识别不清，请核对原文第 N 页”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
@@ -31,7 +31,7 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…","zh":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
 - {"id":"tab2","type":"table","page":3,"num":"2","head":[["","题目数","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
-- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
+- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"image_en":"图内可读文字原文（没有就留空）","image_zh":"图内文字的中文翻译（没有就留空）","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
 - {"id":"refs","type":"references","page":10,"zh":"参考文献","en":"References"}
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图放在正文第一次提到它的段落之后。"""
@@ -169,6 +169,8 @@ def retranslate(ws: Workspace, key: str, hint: str) -> str:
     b = blocks[idx]
     if field == "caption":
         en, zh = b.get("caption_en", ""), b.get("caption_zh", "")
+    elif field == "image":
+        en, zh = b.get("image_en", ""), b.get("image_zh", "")
     elif field.isdigit():
         en, zh = b["items"][int(field)].get("en", ""), b["items"][int(field)].get("zh", "")
     else:

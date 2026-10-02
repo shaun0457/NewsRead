@@ -19,7 +19,7 @@
     const b = PR.blockById[id];
     if (!b) return [];
     const keys = PR.blockKeys(b);
-    const hasEn = PR.hasZh(b) && (b.en || b.caption_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
+    const hasEn = PR.hasZh(b) && (b.en || b.caption_en || b.image_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
     const list = [
       { k: "note", label: PR.t("笔记"), icon: "note", fn: () => PR.startNote({ anchor: id }) },
       { k: "question", label: PR.t("提问"), icon: "question", fn: () => PR.startNote({ anchor: id, kind: "question" }) },
@@ -90,7 +90,7 @@
   }
   function copyBlock(id, lang) {
     const b = PR.blockById[id];
-    const t = lang === "en" ? (b.en || b.caption_en || (b.items || []).map((i) => i.en).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
+    const t = lang === "en" ? (b.en || b.caption_en || b.image_en || (b.items || []).map((i) => i.en).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
     navigator.clipboard.writeText(PR.plain(t || (b.tex ? "$$" + b.tex + "$$" : ""))).then(() => PR.toast(PR.t("已复制")));
   }
 

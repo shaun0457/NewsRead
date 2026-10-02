@@ -11,19 +11,21 @@
     const b = PR.blockById[id];
     if (!b) return ["", ""];
     if (field === "caption") return [b.caption_zh || "", b.caption_en || ""];
+    if (field === "image") return [b.image_zh || "", b.image_en || ""];
     if (field != null && /^\d+$/.test(field)) { const it = (Array.isArray(b.items) ? b.items : [])[+field] || {}; return [it.zh || "", it.en || ""]; }
     return [b.zh || "", b.en || ""];
   }
   PR.agentText = function (key) { const [zh, en] = fields(key); return zh || en; };
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
-  PR.hasZh = (b) => !!(b.zh || b.caption_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
+  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
   PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
   PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
   PR.blockKeys = function (b) {
     if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
-    if (b.type === "table" || b.type === "figure") return [b.id + "#caption"];
+    if (b.type === "table") return [b.id + "#caption"];
+    if (b.type === "figure") return [b.id + "#caption"].concat(b.image_zh || b.image_en ? [b.id + "#image"] : []);
     if (b.type === "math" || b.type === "references" || b.type === "note") return [];
     return [b.id];
   };
@@ -96,7 +98,9 @@
     figure(b) {
       const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
         : '<button class="fig-missing" data-t="page">' + PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) + "</button>";
-      return img + captionHtml(b);
+      const key = b.id + "#image";
+      const imageText = b.image_zh || b.image_en ? '<div class="figure-translation"><div class="figure-translation-label">' + PR.t("图内文字") + '</div><div class="zh" data-key="' + key + '">' + PR.md(PR.textFor(key)) + staleTag(key) + '</div>' + enDiv(b.image_en) + '</div>' : '';
+      return '<div class="figure-media">' + img + '</div>' + imageText + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {

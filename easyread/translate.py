@@ -74,7 +74,47 @@ def _next_head(ws: Workspace, n: int) -> str:
     return p.read_text(encoding="utf-8")[:1500] if p.exists() else ""
 
 
-def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
+def _figure_box(value) -> list[float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    try:
+        box = [max(0.0, min(1.0, float(x))) for x in value]
+    except (TypeError, ValueError):
+        return None
+    x0, y0, x1, y1 = box
+    if x1 - x0 < 0.02 or y1 - y0 < 0.02:
+        return None
+    return [round(x0, 4), round(y0, 4), round(x1, 4), round(y1, 4)]
+
+
+def _prepare_figure(root, block: dict) -> None:
+    """Materialize a model-provided figure crop and keep image text separate."""
+    if block.get("type") != "figure":
+        return
+    box = _figure_box(block.get("box"))
+    if box:
+        block["box"] = box
+        rel = f"figures/{block['id']}.webp"
+        target = root / rel
+        if not target.exists():
+            try:
+                pdfwork.crop(root, int(block["page"]), box, block["id"])
+            except Exception:
+                block.pop("box", None)
+        if target.exists():
+            block["src"] = rel
+    else:
+        block.pop("box", None)
+    for lang in ("zh", "en"):
+        key = f"image_{lang}"
+        alias = f"image_text_{lang}"
+        if not block.get(key) and block.get(alias):
+            block[key] = str(block[alias])
+        if block.get(key) is not None:
+            block[key] = str(block[key]).strip()
+
+
+def _normalize(data: dict, pages: list[int], taken: set[str], root=None) -> dict:
     """补页码、去掉和已有块撞车的 id、丢掉明显无效的块。"""
     if isinstance(data, list):
         data = {"blocks": data}
@@ -96,6 +136,8 @@ def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
         b["id"] = bid
         if b["type"] == "figure":
             b.setdefault("src", "")
+            if root is not None:
+                _prepare_figure(root, b)
         blocks.append(b)
     data["blocks"] = blocks
     return data
@@ -156,13 +198,13 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     except engines.EngineError:
         (ws.root / "extract" / f"failed-{batch[0]:03d}.txt").write_text(text, encoding="utf-8")
         raise
-    data = _normalize(data, batch, _taken(ws, batch))
+    data = _normalize(data, batch, _taken(ws, batch), ws.root)
     problems = _problems(data)
     if problems:  # 给一次修的机会
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
             fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
-            fixed = _normalize(fixed, batch, _taken(ws, batch))
+            fixed = _normalize(fixed, batch, _taken(ws, batch), ws.root)
             if fixed["blocks"] and len(_problems(fixed)) < len(problems):
                 data = fixed
         except engines.EngineError as e:
@@ -170,7 +212,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     if not data["blocks"] and not data.get("references"):  # 整页都是参考文献时只有 references，没有新块，也算译完
         raise engines.EngineError(tr("模型没有整理出任何内容") if read else tr("模型没有译出任何内容"))
     with _merge_lock:
-        data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
+        data = _normalize(data, batch, _taken(ws, batch), ws.root)  # 并发时别的批可能刚占用了同名 id
         merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read)
         _save_checks(ws, data.get("checks"), batch)
         try:
