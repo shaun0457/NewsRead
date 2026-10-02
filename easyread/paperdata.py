@@ -10,6 +10,24 @@ BLOCK_TYPES = {"heading", "para", "list", "math", "table", "figure", "references
 DISCUSSION_KINDS = {"explain", "qa", "insight", "reply", "check"}
 
 
+def _is_matrix(value) -> bool:
+    return isinstance(value, list) and all(isinstance(row, list) for row in value)
+
+
+def block_shape_problem(block: dict) -> str | None:
+    """Return a user-facing problem for block shapes that renderers cannot safely consume."""
+    if not isinstance(block, dict):
+        return "块必须是对象"
+    bid = block.get("id")
+    if block.get("type") != "table":
+        return None
+    for field in ("head", "rows"):
+        value = block.get(field, [])
+        if not _is_matrix(value):
+            return f"{bid}：table.{field} 必须是二维数组"
+    return None
+
+
 def parse_pages(spec) -> list[int]:
     if isinstance(spec, list):
         return [int(x) for x in spec]
@@ -30,8 +48,11 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
     if isinstance(data, list):
         data = {"blocks": data}
     for b in data.get("blocks", []):
-        if not b.get("id") or b.get("type") not in BLOCK_TYPES:
+        if not isinstance(b, dict) or not b.get("id") or b.get("type") not in BLOCK_TYPES:
             raise ValueError(f"块缺 id 或类型不对：{str(b)[:120]}")
+        problem = block_shape_problem(b)
+        if problem:
+            raise ValueError(problem)
 
     def apply(paper):
         blocks = paper.setdefault("blocks", [])
@@ -103,7 +124,9 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list
             if field == "caption":
                 b["caption_zh"] = str(zh)
             elif field == "head":
-                if isinstance(zh, list) and len(zh) == len(b.get("head", [])):
+                if not _is_matrix(zh):
+                    raise ValueError(f"{bid}：译文 table.head 必须是二维数组")
+                if len(zh) == len(b.get("head", [])):
                     b["head"] = zh
             elif field.isdigit() and int(field) < len(b.get("items", [])):
                 b["items"][int(field)]["zh"] = str(zh)
