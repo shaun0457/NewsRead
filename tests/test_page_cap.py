@@ -42,10 +42,19 @@ class PageCapTest(unittest.TestCase):
         return ws
 
     def fake_engine(self, cfg, prompt, cwd, images=None, cancel=None, meter=None):
-        match = re.search(r"这次只处理第 ([\d, ]+) 页", prompt)
+        match = re.search(r"这次只(?:处理|翻译)第 ([\d, ]+) 页", prompt)
         pages = [int(n) for n in match[1].split(",")]
         self.calls.append({"pages": pages, "cfg": cfg, "root": str(cwd)})
+        if "要翻译的内容（键 → 英文）：\n" in prompt:
+            items = json.loads(prompt.split("要翻译的内容（键 → 英文）：\n", 1)[1])
+            return json.dumps({"zh": {key: "译文" for key in items}})
         return json.dumps({"blocks": [{"id": f"p{n}-1", "type": "para", "page": n, "en": "Original text", "zh": "译文"} for n in pages]})
+
+    def structured(self, ws, pages):
+        def apply(paper):
+            paper["translation"].update(done_pages=pages, en_pages=pages)
+            paper["blocks"] = [{"id": f"p{n}-1", "type": "para", "page": n, "en": "Original text"} for n in pages]
+        ws.update("paper", apply)
 
     def drain(self):
         get = self.jobs.bulk.get
@@ -119,17 +128,58 @@ class PageCapTest(unittest.TestCase):
         self.assertEqual(len(self.calls[0]["pages"]), 80)
 
     def test_translating_eighty_structured_english_pages_still_requires_confirmation(self):
-        ws = self.paper(80)
+        ws = self.paper(100)
         pages = list(range(1, 81))
-        ws.update("paper", lambda p: p["translation"].update(done_pages=pages, en_pages=pages))
+        self.structured(ws, pages)
         translate_api.enqueue(self.jobs, ws, {"en": True})
         queued = ws.load("job")
         self.assertEqual(queued["scope"], "all")
         self.assertFalse(queued["read"])
-        self.assertIsNone(queued["pages"])
+        self.assertEqual(queued["pages"], pages)
+        self.assertIs(queued["cap_check"], True)
         self.drain()
-        self.assertEqual((ws.load("job")["state"], ws.load("job")["total"]), ("confirm", 80))
+        job = ws.load("job")
+        self.assertEqual((job["state"], job["total"]), ("confirm", 80))
+        self.assertEqual((job["pages"], job["cap_check"]), (pages, True))
+        summary = self.lib.summary(ws)["job"]
+        self.assertEqual((summary["pages"], summary["cap_check"]), (pages, True))
         self.assertEqual(self.calls, [])
+        # 等确认时后来又整理了页，确认的仍是最初计划，不能扩大到整篇。
+        ws.update("paper", lambda p: p["translation"].update(done_pages=list(range(1, 91)), en_pages=list(range(1, 91))))
+        translate_api.enqueue(self.jobs, ws, {"confirmed": True})
+        self.drain()
+        self.assertEqual(self.calls[0]["pages"], pages)
+
+    def test_translate_structured_english_only_handles_ten_pages_even_without_cap(self):
+        for cap in (60, 0):
+            with self.subTest(cap=cap):
+                self.cfg["page_cap"] = cap
+                ws = self.paper(100, "partial" + str(cap))
+                pages = list(range(1, 11))
+                self.structured(ws, pages)
+                translate_api.enqueue(self.jobs, ws, {"en": True})
+                self.drain()
+                self.assertEqual(ws.load("job")["state"], "done")
+                self.assertEqual(self.calls[-1]["pages"], pages)
+
+    def test_empty_english_page_plan_does_not_fall_back_to_whole_paper(self):
+        ws = self.paper(100)
+        self.cfg["page_cap"] = 0
+        translate_api.enqueue(self.jobs, ws, {"en": True})
+        self.drain()
+        self.assertEqual(ws.load("job")["state"], "done")
+        self.assertEqual(self.calls, [])
+
+    def test_first_pages_choice_only_translates_structured_pages_in_waiting_plan(self):
+        ws = self.paper(100)
+        pages = list(range(11, 91))
+        self.structured(ws, pages)
+        translate_api.enqueue(self.jobs, ws, {"en": True})
+        self.drain()
+        self.assertEqual(ws.load("job")["state"], "confirm")
+        translate_api.enqueue(self.jobs, ws, {"scope": "range:1-60"})
+        self.drain()
+        self.assertEqual(self.calls[0]["pages"], list(range(11, 61)))
 
     def test_only_remaining_pages_count_toward_cap(self):
         ws = self.paper(80)
