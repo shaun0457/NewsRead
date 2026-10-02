@@ -4,7 +4,7 @@
 <h1 align="center">EasyRead</h1>
 <p align="center"><b>Read English papers as comfortable, well-typeset Chinese.</b><br>
 Drop in a PDF and it gets translated page by page in the background. Equations and tables keep their original layout, the source is always one click away, and you can highlight, take notes and ask AI as you read.<br>
-Runs locally. Your papers and notes never leave your computer.</p>
+Runs locally. You choose the model service and whether to keep your library in a synced folder.</p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
@@ -99,8 +99,8 @@ Your browser opens `http://127.0.0.1:8765`. The server only listens on localhost
 
 ## Usage
 
-1. Open Settings (top right) → Models: add the models you want and choose 设为翻译 (use for translation) on one card. Models for translation and Ask AI are managed on the same page.
-2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12. You can also pick which model to use for this import, or choose 读英文原文 (read the English original) to only lay out the paper without translating; click 翻译成中文 (translate to Chinese) any time later.
+1. Open Settings (top right) → Model: add the models you want and choose "Use for translation" on one card. Models for translation and Ask AI are managed on the same page.
+2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12. You can also pick the model and target language for this import, or choose "Read the English original" to lay out the paper without translating; use "Translate to…" any time later. Whole-paper jobs above 60 pages ask for confirmation by default; change the limit in Settings → Model.
 3. Translation runs in the background page by page. Translated parts are readable immediately; untranslated pages show the original.
 4. Click a paragraph for its action bar; select text to highlight, note or ask. Press `?` for all shortcuts.
 
@@ -122,13 +122,13 @@ See `easyread --help` for all commands and [docs/data-format.md](docs/data-forma
 
 **Does it cost anything?** EasyRead is free and open source. Translation uses your own model: Claude Code / Codex use your existing subscription, local and free-tier models cost nothing, paid APIs bill per use.
 
-**Where is my data? Is anything uploaded?** Everything stays on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper with the original PDF, page images and a few JSON files. Only the text being translated or asked about is sent to the model you chose.
+**Where is my data? Is anything uploaded?** By default, files stay on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper holds the original PDF, page images and JSON files. Settings → Cloud library can move the library to your synced folder; your cloud drive client then handles uploads and syncing. Translation and AI questions send the relevant content to the model you chose.
 
 **Can I read offline or share a paper?** Yes. Right-click a paper → "Export offline HTML" (or `easyread export ID`) for a single-file web page. The recipient doesn't need EasyRead: double-click to open it in a browser with the translation, equations, page images, your highlights and notes, bilingual view and the original-page panel all working. Page images are embedded, so the file is not small (about 10 MB for a 27-page paper). New highlights made in the offline copy stay in that browser; to bring them back, use "Export my changes" under About in the left drawer and run `easyread merge ID --from export.json`.
 
 To publish on a site such as GitHub Pages, use `easyread demo ID --out DIR`: images are saved as separate files and loaded on demand, and AI chats are included (read-only).
 
-**Can it translate into languages other than Chinese?** Not yet. Prompts, typography and the UI are all tuned for Chinese. Issues and PRs are welcome.
+**Can it translate into languages other than Chinese?** Yes: Chinese, Japanese, Korean, Spanish, French and German are available under Settings → Reading → Translate papers into, and in the import dialog. You can also read the English original. Interface language is independent: choose Chinese or English under Settings → Reading → Language.
 
 ## Development
 

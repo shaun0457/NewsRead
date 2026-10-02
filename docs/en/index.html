@@ -30,7 +30,7 @@ body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", var(--sans); }
   <div class="hero">
     <h1>Read English papers<br>as <mark>comfortable Chinese</mark></h1>
     <p class="sub">Import a PDF and let the Claude Code or Codex you already use, or a free model, translate it page by page in the background. Equations and tables keep their layout, the original page is always beside you, and you can highlight, take notes and ask AI as you read.</p>
-    <p class="notice"><b>Heads-up:</b> EasyRead translates <b>English → Chinese</b> and its interface is in Chinese. It's made for Chinese-speaking students and researchers.</p>
+    <p class="notice">Read the English original or translate into Chinese, Japanese, Korean, Spanish, French or German. The interface supports English and Chinese; choose it separately in Settings → Reading → Language.</p>
     <div class="cta">
       <a class="btn primary" href="../demo/index.html">Try the live demo →</a>
       <a class="btn line" href="https://github.com/Edwardxlai/easyread">Free download · GitHub</a>
@@ -139,8 +139,8 @@ easyread</code></pre>
 <section id="faq" class="faq"><div class="wrap">
   <h2>FAQ</h2>
   <details><summary>Does it cost anything?</summary><p>EasyRead itself is free and open source. Translation runs on your own model: Claude Code / Codex use your existing subscription, local and free-tier models cost nothing, paid APIs bill per use.</p></details>
-  <details><summary>Where are my papers and notes? Is anything uploaded?</summary><p>Everything stays on your machine, one folder per paper with the original PDF, page images and a few JSON files. Only the text being translated or asked about is sent to the model you picked.</p></details>
-  <details><summary>Can it translate into other languages?</summary><p>Not yet. Prompts, typography and the interface are all tuned for Chinese. Issues and pull requests are welcome on GitHub.</p></details>
+  <details><summary>Where are my papers and notes? Is anything uploaded?</summary><p>Files stay on your machine by default, one folder per paper with the original PDF, page images and JSON files. If you choose a synced folder in Settings → Cloud library, your cloud drive client handles uploads and syncing. Translation and AI questions send the relevant content to the model you picked.</p></details>
+  <details><summary>Can it translate into other languages?</summary><p>Yes: Chinese, Japanese, Korean, Spanish, French and German. Choose the default in Settings → Reading → Translate papers into, or pick a language when importing. You can also read the English original without translation.</p></details>
   <details><summary>Can I share a paper with someone who doesn't have EasyRead?</summary><p>Yes. Right-click a paper → “Export offline HTML” for a single-file web page; they double-click to open it in a browser, with the translation, equations, page images, your highlights and notes included. Page images are embedded, so it's not small (about 10 MB for a 27-page paper).</p></details>
   <details><summary>Are highlights in the live demo saved?</summary><p>They're saved in your own browser and nobody else sees them. The demo can't import papers or ask AI; install it locally for the full feature set.</p></details>
 </div></section>
