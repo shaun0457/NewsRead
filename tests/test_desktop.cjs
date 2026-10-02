@@ -40,7 +40,9 @@ async function desktop(platform = "darwin", lock = true) {
   const proc = new EventEmitter();
   Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources" });
   const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, dialog: { showErrorBox() {} }, shell: {} }
-    : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true } : require(name);
+    : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
+    : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
+    : require(name);
   const source = fs.readFileSync(path.join(__dirname, "../electron/main.cjs"), "utf8");
   vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout, clearTimeout, console });
   const settled = () => new Promise(resolve => setImmediate(resolve));
