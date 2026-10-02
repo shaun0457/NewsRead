@@ -151,6 +151,11 @@
 /* 导入选项 */
 .imp-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .imp-opts .check { margin: 0; }
+.imp-opts[hidden] { display: none; }
+.imp-lbl { font-size: 13px; color: var(--ink-3); min-width: 3em; }
+#impModel { width: auto; max-width: 340px; height: 30px; font-size: 13px; }
+.imp-opts.dim { opacity: .4; pointer-events: none; }  /* 先不处理：范围用不上，留着位置不让对话框跳 */
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
 .first-n { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }
 .first-n .input { width: 64px; height: 28px; }
 .first-n[hidden] { display: none; }

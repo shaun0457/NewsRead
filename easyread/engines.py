@@ -50,7 +50,7 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
         return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
     if engine == "openai":
         return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
-    raise EngineError("没有配置翻译引擎（设置 → 翻译引擎）")
+    raise EngineError("没有配置翻译引擎（设置 → 模型）")
 
 
 def image_mode(cfg: dict) -> str:

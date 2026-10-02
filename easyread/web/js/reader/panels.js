@@ -127,8 +127,8 @@
     const j = S.job || {};
     const el = PR.$("#jobState");
     if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || "翻译中") + (j.total ? " " + j.done + "/" + j.total : "");
-    else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">翻译出错</span>';
-    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + Object.keys(j.failed || {}).length + " 页没译成功</span>";
+    else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? "整理原文" : "翻译") + "出错</span>";
+    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + Object.keys(j.failed || {}).length + " 页没" + (j.read ? "整理" : "译") + "成功</span>";
     else el.innerHTML = "";
   };
 
@@ -182,7 +182,7 @@
     }
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = ((S.paper.meta || {}).pages || []).filter((p) => !done.has(p.n));
-    if (miss.length) html += '<div class="group">未译的页</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>原文第 ' + p.n + " 页</a>").join("");
+    if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? "还没整理的页" : "未译的页") + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>原文第 ' + p.n + " 页</a>").join("");
     return html + "</nav>";
   }
   function termsHtml() {
@@ -199,7 +199,8 @@
       : PR.store.mode === "server"
       ? "你改的译文、笔记、划线写进论文目录的 reader.json（每次保存记日志，每 10 分钟留快照）。翻译方只写 paper.json 和 discussion.json，不会覆盖你的内容。"
       : "这是离线单文件版：修改只存在当前浏览器里。要把修改带回文献库，点“导出我的修改”得到一个 JSON，再运行 easyread merge。";
-    return '<div class="about"><h3>译文</h3><p>' + ((tr.done_pages || []).length) + " / " + ((m.pages || []).length) + " 页。" + PR.esc(tr.note || "") + "</p>" +
+    const en = (tr.en_pages || []).length, done = (tr.done_pages || []).length;
+    return '<div class="about"><h3>' + (en ? "英文原文" : "译文") + "</h3><p>" + done + " / " + ((m.pages || []).length) + " 页" + (en ? "，其中 " + en + " 页没有翻译" : "") + "。" + PR.esc(tr.note || "") + "</p>" +
       "<h3>保存</h3><p>" + status + "</p>" + (PR.store.pending ? "<p>还有 " + PR.store.pending + " 条修改在等待写入。</p>" : "") +
       '<div class="row">' + (pdf ? '<a class="btn sm line" href="' + pdf + '" target="_blank" rel="noopener">打开原 PDF</a>' : "") +
       '<button class="btn sm line" data-x="md">导出笔记…</button>' + (PR.store.mode === "static" && !S.demo ? '<button class="btn sm line" data-x="ops">导出我的修改</button>' : "") + "</div>" +

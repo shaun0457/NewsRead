@@ -29,6 +29,8 @@ class FakeAPI(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         SEEN.append((self.path, body))
+        if not self.headers.get("x-opencode-session"):  # 像 OpenCode Go 那样要求会话 ID（#10）
+            return self._send(400, {"type": "error", "error": {"type": "MissingSessionID"}})
         if body.get("model") == "fixed-temp" and "temperature" in body:
             return self._send(400, {"error": {"message": "invalid temperature: only 1 is allowed for this model"}})
         if self.path.endswith("/responses"):

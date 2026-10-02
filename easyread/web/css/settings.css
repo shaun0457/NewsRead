@@ -111,6 +111,9 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
 .mc-cards .mc:hover { background: var(--accent-soft); }
 .mc-cards .mc.on { box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--accent-soft); }
 .mc-cards .mc.editing { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mc-cards .mc.dragging { opacity: .4; }
+.mc-cards .mc.drop-before { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--rule-2); }
+.mc-cards .mc.drop-after { box-shadow: inset -3px 0 0 var(--accent), inset 0 0 0 1px var(--rule-2); }
 .mc-cards .mc.off b { color: var(--ink-3); }
 .mc-cards .mc .badge { margin-top: auto; padding-top: 0; }
 .mc-cards .mc .badge.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
@@ -138,3 +141,5 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
 .api-adv > summary { cursor: pointer; font-size: 12.5px; color: var(--ink-3); margin-bottom: 10px; }
 .api-adv > summary:hover { color: var(--ink); }
 @media (max-width: 560px) { .engine-cards:not(.mc-cards) { grid-template-columns: 1fr; } }
+.mc-cards .mc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; padding-top: 8px; }
+.mc-cards .mc-tags .badge { margin: 0; }

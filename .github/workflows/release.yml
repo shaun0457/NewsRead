@@ -22,7 +22,7 @@ jobs:
           - name: macOS
             os: macos-latest
           - name: Linux
-            os: ubuntu-latest
+            os: ubuntu-22.04  # 用老系统打包：24.04 上打的 libpython 要新 glibc，22.04 及更老的机器打不开（AppImage 目录测试就挂在这）
     steps:
       - name: Check out source
         uses: actions/checkout@v4

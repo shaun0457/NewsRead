@@ -12,6 +12,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Iterator
 
@@ -21,6 +22,7 @@ from .engines import Cancelled, EngineError
 API_KINDS = [("chat", "Chat Completions（通用）"), ("responses", "Responses（OpenAI 新接口）")]
 _HINT = {401: "（Key 不对或过期了）", 402: "（余额不足）", 403: "（没有权限用这个模型）",
          404: "（地址、模型名或接口格式不对）", 429: "（被限流了，稍后重试或换个模型）"}
+_SESSION = f"easyread-{uuid.uuid4()}"  # 每次启动一个，整个进程内不变
 
 
 def kind(o: dict) -> str:
@@ -30,13 +32,14 @@ def kind(o: dict) -> str:
 def _base(o: dict) -> str:
     base = (o.get("base_url") or "").strip().rstrip("/")
     if not base or not o.get("model"):
-        raise EngineError("API 没填地址或模型（设置 → 翻译引擎）")
+        raise EngineError("API 没填地址或模型（设置 → 模型）")
     return base
 
 
 def _headers(o: dict, stream: bool = False) -> dict:
     # 要带 User-Agent：Python 默认的 "Python-urllib/x" 会被 Cloudflare 后面的接口（比如 OpenCode）直接拦掉，报 403 error code: 1010
-    h = {"Content-Type": "application/json", "User-Agent": f"EasyRead/{__version__}"}
+    # x-opencode-session：OpenCode Go 要求带一个稳定的会话 ID，不带报 400 MissingSessionID；别的服务商会忽略这个头
+    h = {"Content-Type": "application/json", "User-Agent": f"EasyRead/{__version__}", "x-opencode-session": _SESSION}
     if stream:
         h["Accept"] = "text/event-stream"
     if o.get("api_key"):

@@ -30,16 +30,16 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
     lines = [f"论文：《{meta.get('title_zh') or ''}》{meta.get('title_en') or ''}，{meta.get('authors', '')[:200]}。"]
-    abstract = next((b.get("zh") for b in blocks if b.get("role") == "abstract"), "")
+    abstract = next((_block_text(b) for b in blocks if b.get("role") == "abstract"), "")
     if abstract:
-        lines.append("摘要（译文）：" + abstract[:1500])
+        lines.append("摘要：" + abstract[:1500])
     idx = next((i for i, b in enumerate(blocks) if b.get("id") == anchor), None)
     if idx is not None:
         h = next((b for b in reversed(blocks[:idx + 1]) if b.get("type") == "heading"), None)
         if h:
-            lines.append(f"读者正在读的章节：{h.get('num', '')} {h.get('zh', '')}")
+            lines.append(f"读者正在读的章节：{h.get('num', '')} {h.get('zh') or h.get('en', '')}")
         near = blocks[max(0, idx - 3): idx + 3]
-        lines.append("附近的译文：\n" + "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near))
+        lines.append("附近的段落（有译文用译文，没译的是原文）：\n" + "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near))
         focus = blocks[idx]
         lines.append(f"读者指着的段落 [{focus['id']}]：\n译文：{_block_text(focus)}\n原文：{focus.get('en') or focus.get('caption_en') or focus.get('tex', '')}")
     if quote:

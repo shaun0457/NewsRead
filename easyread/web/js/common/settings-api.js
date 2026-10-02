@@ -1,8 +1,8 @@
-/* API 接口的表单，“翻译”和“问 AI”两页共用一套样子：
+/* API 接口的表单，设置 → 模型页里添加、修改模型时用：
    服务商（按 国内直连 / 海外 / 本机 分组，有免费模型的带“免费”）→ 说明和获取 Key → API Key → 模型 → 高级（接口地址、接口格式）。
    自定义地址时，接口地址和格式直接放在最上面。
    表单的值放在调用方给的对象 a 里：{preset, base_url, api, model, vision, [keyProp]}；
-   翻译页 keyProp 是 api_key（存过的显示成 ••••），问 AI 页是 key。 */
+   翻译设置用 keyProp api_key（存过的显示成 ••••），模型卡片的表单用 key。 */
 (function (PR) {
   "use strict";
   const API_KINDS = [["chat", "Chat Completions（通用）"], ["responses", "Responses（OpenAI 新接口）"]];

@@ -19,7 +19,7 @@
     const b = PR.blockById[id];
     if (!b) return [];
     const keys = PR.blockKeys(b);
-    const hasEn = b.en || b.caption_en || (b.items || []).some((i) => i.en);
+    const hasEn = PR.hasZh(b) && (b.en || b.caption_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
     const list = [
       { k: "note", label: "笔记", icon: "note", fn: () => PR.startNote({ anchor: id }) },
       { k: "question", label: "提问", icon: "question", fn: () => PR.startNote({ anchor: id, kind: "question" }) },
@@ -123,6 +123,8 @@
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
     if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast("正在重试，译好后自动替换"); PR.poll(); });
+    if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast("已开始翻译，译好的页就地换成中文，笔记和划线都保留"); PR.poll(); });
+    if (t.dataset.t === "read-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { read: true } }).then(() => { PR.toast("已开始整理，整理好的页会自动出现"); PR.poll(); });
     if (t.dataset.t === "translate-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: {} }).then(() => { PR.toast("已开始翻译，译好的页会自动出现"); PR.poll(); });
   });
 

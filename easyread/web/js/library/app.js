@@ -68,7 +68,9 @@
     }
     if (j && j.state === "error") return '<span class="stat err">翻译出错</span>';
     if (j && j.state === "partial") return '<span class="stat err">' + Object.keys(j.failed || {}).length + " 页没译成功</span>";
-    if (i.pages && i.done_pages < i.pages) return '<span class="stat">已译 ' + i.done_pages + "/" + i.pages + " 页</span>";
+    const tr = i.done_pages - (i.en_pages || 0);
+    if (i.en_pages && !tr) return '<span class="stat">英文原文</span>';
+    if (i.pages && tr < i.pages) return '<span class="stat">已译 ' + tr + "/" + i.pages + " 页</span>";
     return "";
   };
 

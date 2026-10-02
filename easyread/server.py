@@ -271,14 +271,14 @@ class Handler(BaseHTTPRequestHandler):
             data = self._body()
             ws, fresh = lib.create_from_pdf(data, q.get("name", "paper.pdf"))
             if fresh:
-                app.jobs.enqueue(ws, translate_after=q.get("translate", "1") == "1", scope=q.get("scope"))
+                app.jobs.enqueue(ws, translate_after=q.get("translate", "1") == "1", scope=q.get("scope"), read=q.get("read") == "1", model=q.get("model", ""))
             return self._json(200, {"id": ws.id, "new": fresh})
         if path in ("/api/import-url", "/api/import-arxiv"):
             body = json.loads(self._body() or b"{}")
             data, name, meta = lib.fetch(body.get("ref", ""))  # sources.SourceError 是 ValueError，回 400
             ws, fresh = lib.create_from_pdf(data, name, meta)
             if fresh:
-                app.jobs.enqueue(ws, translate_after=bool(body.get("translate", True)), scope=body.get("scope"))
+                app.jobs.enqueue(ws, translate_after=bool(body.get("translate", True)), scope=body.get("scope"), read=bool(body.get("read")), model=str(body.get("model") or ""))
             return self._json(200, {"id": ws.id, "new": fresh})
         if path in settings_api.POST:  # 设置页：保存配置、模型名单、试一下、取模型列表
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
@@ -326,9 +326,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, ws.patch_item(body))
             if action == "translate":
                 pages = paperdata.parse_pages(body["pages"]) if body.get("pages") else None
-                if body.get("failed"):  # 只重试上次没译成功的页
-                    pages = sorted(int(k) for k in ((ws.load("job") or {}).get("failed") or {})) or None
-                app.jobs.enqueue(ws, pages=pages, translate_after=True, scope=body.get("scope"))
+                read = bool(body.get("read"))  # 只读原文：整理成块，不翻译
+                model = ""
+                if body.get("failed"):  # 只重试上次没译成功的页，上次是只读原文就还是只读原文
+                    last = ws.load("job") or {}
+                    pages = sorted(int(k) for k in (last.get("failed") or {})) or None
+                    read, model = bool(last.get("read")), last.get("model") or ""  # 重试用上次的模型
+                elif body.get("en"):  # 只读原文之后“翻译成中文”：只译已经整理过的页，就地补中文
+                    pages = ws.load("paper").get("translation", {}).get("en_pages") or None
+                app.jobs.enqueue(ws, pages=pages, translate_after=True, scope=body.get("scope"), read=read, model=model)
                 return self._json(200, {"ok": True})
             if action == "reveal":  # 在资源管理器 / 访达里打开这篇的文件夹
                 _reveal(ws.root)

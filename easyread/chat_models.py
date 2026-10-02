@@ -99,6 +99,21 @@ def engine_cfg(cfg: dict, mid: str | None) -> tuple[dict, dict]:
     return out, m
 
 
+def translation_id(cfg: dict) -> str:
+    """名单里哪一张就是翻译用的那个模型（设置里标着“翻译”的卡片）；对不上返回空。"""
+    e = cfg.get("engine")
+    for m in models(cfg):
+        if m.get("engine") != e:
+            continue
+        if e in ("claude", "codex") and (m.get("model") or "") == (cfg.get(e, {}).get("model") or ""):
+            return m["id"]
+        if e == "openai":
+            o = cfg.get("openai", {})
+            if (m.get("preset") or "") == (o.get("preset") or "") and (m.get("model") or "") == (o.get("model") or ""):
+                return m["id"]
+    return ""
+
+
 def label(m: dict) -> str:
     """面板上显示的名字：Claude 别名显示实际版本（Claude Opus 5），Codex 没填模型时带上它实际用的模型。"""
     if m.get("engine") == "claude" and m.get("model") in ("opus", "sonnet", "haiku") and actual_of(m["model"]):
@@ -125,12 +140,12 @@ def listing(cfg: dict) -> dict:
             p = next((x for x in PRESETS if x["id"] == m.get("preset")), None)
             ready = bool(_key(cfg, m.get("preset") or "")) or not needs_key({"preset": m.get("preset"), "base_url": m.get("base_url", "")})
             source = p["name"] if p else "自定义地址"
-            hint = "" if ready else f"还没填 {source} 的 Key（设置 → 问 AI → 改）"
+            hint = "" if ready else f"还没填 {source} 的 Key（设置 → 模型 → 点这张卡片 → 修改）"
         out.append({**m, "label": label(m), "source": source, "ready": ready, "hint": hint,
-                    "detail": (actual_of(m.get("model", "")) or m.get("model")) if e == "claude"
+                    "detail": (actual_of(m.get("model", "")) or m.get("model") or _claude_default()) if e == "claude"
                     else m.get("model") or ((codex_default_model() + "（跟随 Codex 默认）") if e == "codex" and codex_default_model() else "")})
     default = (cfg.get("chat") or {}).get("default") or (out[0]["id"] if out else "")
-    return {"models": out, "default": default, "presets": [{"id": p["id"], "name": p["name"], "models": p.get("models", []), "api": p.get("api", "chat")} for p in PRESETS]}
+    return {"models": out, "default": default, "translate": translation_id(cfg), "presets": [{"id": p["id"], "name": p["name"], "models": p.get("models", []), "api": p.get("api", "chat")} for p in PRESETS]}
 
 
 def sanitize(items: list[dict]) -> list[dict]:
@@ -148,3 +163,10 @@ def sanitize(items: list[dict]) -> list[dict]:
                     "model": str(m.get("model") or "")[:120], "preset": str(m.get("preset") or ""), "base_url": str(m.get("base_url") or "")[:300],
                     "api": m.get("api") if m.get("api") in ("chat", "responses") else ""})
     return out or copy.deepcopy(DEFAULT_MODELS)
+
+
+def _claude_default() -> str:
+    """“跟随 Claude Code 默认”的卡片下面写出实际是哪个：跟随默认（Claude Opus 5.5）"""
+    from .cli_models import claude_default  # cli_models 引用了本文件，放这里免得循环导入
+    d = claude_default()
+    return f"跟随默认（{d}）" if d else "跟随默认"

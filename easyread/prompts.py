@@ -36,7 +36,8 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图放在正文第一次提到它的段落之后。"""
 
 
-def _context(ws: Workspace, pages: list[int]) -> str:
+def _context(ws: Workspace, pages: list[int], new_blocks: bool = True) -> str:
+    """new_blocks=False：只给已有的块补译文（只读原文之后再翻译），不用提块 id 和上一批的续文。"""
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
@@ -44,9 +45,11 @@ def _context(ws: Workspace, pages: list[int]) -> str:
     gl = paper.get("glossary", [])
     if gl:
         lines.append("已有术语表（必须沿用）：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl))
-    heads = [f"{b.get('num', '')} {b.get('zh', '')}".strip() for b in blocks if b.get("type") == "heading"]
+    heads = [f"{b.get('num', '')} {b.get('zh') or b.get('en', '')}".strip() for b in blocks if b.get("type") == "heading"]
     if heads:
-        lines.append("已译的章节：" + " / ".join(heads))
+        lines.append("已有的章节：" + " / ".join(heads))
+    if not new_blocks:
+        return "\n".join(lines)
     ids = [b["id"] for b in blocks]
     if ids:
         lines.append("已用过的块 id（不要重复）：" + ", ".join(ids[-60:]))
@@ -57,11 +60,15 @@ def _context(ws: Workspace, pages: list[int]) -> str:
     return "\n".join(lines)
 
 
-def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> str:
+def _page_texts(ws: Workspace, pages: list[int]) -> str:
     texts = []
     for n in pages:
         p = ws.root / "extract" / f"page-{n:03d}.txt"
         texts.append(f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的）=====\n" + (p.read_text(encoding="utf-8") if p.exists() else ""))
+    return "\n\n".join(texts)
+
+
+def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> str:
     look = ""
     if next_head:
         look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要翻译）=====\n" + next_head)
@@ -72,7 +79,7 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> s
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     return (f"你在把一篇学术论文译成中文，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages)}\n\n{RULES}\n\n{SCHEMA}\n\n" + "\n\n".join(texts) + look)
+            f"{_context(ws, pages)}\n\n{RULES}\n\n{SCHEMA}\n\n" + _page_texts(ws, pages) + look)
 
 
 def repair(original_json: str, problems: list[str]) -> str:
@@ -81,13 +88,14 @@ def repair(original_json: str, problems: list[str]) -> str:
 
 
 def _block_text(b: dict) -> str:
+    """块的正文：有译文用译文，只读原文、还没译的块用英文。"""
     if b.get("type") == "list":
-        return "\n".join(f"- {it.get('zh', '')}" for it in b.get("items", []))
+        return "\n".join(f"- {it.get('zh') or it.get('en', '')}" for it in b.get("items", []))
     if b.get("type") in ("table", "figure"):
-        return b.get("caption_zh", "")
+        return b.get("caption_zh") or b.get("caption_en", "")
     if b.get("type") == "math":
         return f"$${b.get('tex', '')}$$"
-    return b.get("zh", "")
+    return b.get("zh") or b.get("en", "")
 
 
 def answer(ws: Workspace, note: dict) -> str:
@@ -98,12 +106,12 @@ def answer(ws: Workspace, note: dict) -> str:
     section = ""
     if idx is not None:
         h = next((b for b in reversed(blocks[:idx + 1]) if b.get("type") == "heading"), None)
-        section = f"{h.get('num', '')} {h.get('zh', '')}" if h else ""
+        section = f"{h.get('num', '')} {h.get('zh') or h.get('en', '')}" if h else ""
     ctx = "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near)
     focus = blocks[idx] if idx is not None else {}
     return (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
             f"读者读到「{section}」时在 [{note.get('anchor')}] 这段提了一个问题。\n\n"
-            f"上下文（中文译文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
+            f"上下文（中文译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
             + (f"读者选中的原话：「{note.get('quote')}」\n" if note.get("quote") else "")
             + f"读者的问题：{note.get('body', '')}\n\n"
             "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用中文，具体、讲清楚，能举例就举例，"

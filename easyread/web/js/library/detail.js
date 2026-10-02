@@ -42,15 +42,18 @@
         '<button class="btn sm" data-d="read">边译边读</button></div>';
     } else {
       const full = i.pages && i.done_pages >= i.pages;
-      h += "<div>译文：" + (i.pages ? i.done_pages + " / " + i.pages + " 页" : "尚未处理") + (full ? " · 全文" : "") + "</div>";
+      const en = i.en_pages || 0, read = en > 0 || j.read;  // 只读原文：整理成英文块，没翻译
+      h += read ? "<div>英文原文：" + i.done_pages + " / " + i.pages + " 页" + (full ? " · 全文" : "") + (i.done_pages - en ? " · 其中 " + (i.done_pages - en) + " 页已译" : "") + "</div>"
+        : "<div>译文：" + (i.pages ? i.done_pages + " / " + i.pages + " 页" : "尚未处理") + (full ? " · 全文" : "") + "</div>";
       const failed = Object.keys(j.failed || {}).map(Number).sort((a, b) => a - b);
-      if (j.state === "error") h += '<div class="err">上次翻译出错：' + PR.esc(j.error || j.message) + "</div>";
+      if (j.state === "error") h += '<div class="err">上次' + (j.read ? "整理原文" : "翻译") + '出错：' + PR.esc(j.error || j.message) + "</div>";
       h += PR.usageCard(j.usage, j.usage_total);
-      if (j.state === "partial" && failed.length) h += '<div class="err">第 ' + PR.esc(pageList(failed)) + " 页没译成功：" + PR.esc(j.error || "") + "</div>";
+      if (j.state === "partial" && failed.length) h += '<div class="err">第 ' + PR.esc(pageList(failed)) + " 页没" + (j.read ? "整理" : "译") + "成功：" + PR.esc(j.error || "") + "</div>";
       h += '<div class="row2" style="margin-top:8px">' +
         (j.state === "partial" && failed.length ? '<button class="btn sm accent" data-d="retry-failed">重试这 ' + failed.length + " 页</button>" : "") +
-        (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm accent" data-d="translate">' + (i.done_pages ? "继续翻译剩下的页" : "开始翻译") + "</button>" : "") +
-        (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="translate">继续翻译剩下的页</button>' : "") +
+        (en ? '<button class="btn sm accent" data-d="translate-en">翻译成中文</button>' : "") +
+        (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? "继续整理剩下的页" : i.done_pages ? "继续翻译剩下的页" : "开始翻译") + "</button>" : "") +
+        (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? "继续整理剩下的页" : "继续翻译剩下的页") + "</button>" : "") +
         (j.state ? '<button class="btn sm" data-d="log">' + PR.icon("log", "sm") + "翻译记录</button>" : "") + "</div>" +
         (L.engine === "none" ? '<div class="hint" style="margin-top:6px">当前没有开启翻译引擎，去设置里选一个。</div>' : "");
     }
@@ -147,6 +150,8 @@
     else if (act === "retry-failed") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { failed: true } }); PR.toast("正在重试"); L.load(); }
     else if (act === "log") { const r = await PR.api("/api/p/" + i.id + "/log"); PR.showText("翻译记录", r.text); }
     else if (act === "translate") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: {} }); PR.toast("已开始翻译"); L.load(); }
+    else if (act === "translate-en") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { en: true } }); PR.toast("已开始翻译，笔记和划线都保留"); L.load(); }
+    else if (act === "read-rest") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { read: true } }); PR.toast("已开始整理原文"); L.load(); }
   });
   async function retranslateAll(i) {
     if (!(await PR.confirm({ title: "全部重新翻译？", body: "会消耗模型额度。你改过的译文、笔记都保留。", ok: "重新翻译" }))) return;

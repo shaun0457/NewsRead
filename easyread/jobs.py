@@ -6,11 +6,23 @@ import queue
 import threading
 import time
 
-from . import config, translate, usage
+from . import chat_models, config, translate, usage
 from .engines import Cancelled, EngineError
 from .library import Library
 from .log import log
 from .store import Workspace, now_iso
+
+
+def engine_for(cfg: dict, model: str | None) -> dict:
+    """导入时选了“问 AI”名单里的模型就用它，否则用设置里的翻译引擎。名单里已经没有这个模型了，也用翻译引擎。"""
+    m = next((x for x in chat_models.models(cfg) if x.get("id") == model), None) if model else None
+    if not m:
+        return cfg
+    out, _ = chat_models.engine_cfg(cfg, model)
+    o = cfg.get("openai") or {}
+    if m["engine"] == "openai" and m.get("preset") == o.get("preset") and (m.get("model") or o.get("model")) == o.get("model"):
+        out["openai"]["vision"] = o.get("vision", False)  # 和翻译引擎是同一个模型：沿用“模型能看图”
+    return out
 
 
 class Jobs:
@@ -32,10 +44,14 @@ class Jobs:
             job["updated"] = now_iso()
         ws.update("job", apply)
 
-    def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None):
-        """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。"""
-        self._write(ws, type="translate" if translate_after else "prepare", state="queued", message="排队中",
-                    pages=pages, scope=scope or "all", translate=translate_after, done=0, total=0, error="", failed={}, usage={})
+    def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
+                read: bool = False, model: str = ""):
+        """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。
+        read：只读原文，用模型把页整理成段落、公式、表格，不翻译；之后再翻译时就地补中文。
+        model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。"""
+        self._write(ws, type="read" if read and translate_after else "translate" if translate_after else "prepare",
+                    state="queued", message="排队中", pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
+                    done=0, total=0, error="", failed={}, usage={})
         self.bulk.put(ws.id)
 
     def cancel(self, pid: str):
@@ -79,20 +95,23 @@ class Jobs:
                 self.cancels.pop(pid, None)
 
     def _run_bulk(self, ws: Workspace, job: dict, cancel: threading.Event):
-        cfg = config.load()
+        cfg = engine_for(config.load(), job.get("model"))
         if not ws.load("paper").get("meta", {}).get("pages"):
             self._write(ws, state="running", message="正在渲染原页、抽取文字")
             translate.prepare(ws)
+        read = bool(job.get("read"))
         if not job.get("translate") or cfg.get("engine") == "none":
-            self._write(ws, state="done", message="已导入" + ("（未开启自动翻译）" if job.get("translate") else ""))
+            self._write(ws, state="done", message="已导入" + ("（没有可用的模型，先放原页）" if read else "（未开启自动翻译）" if job.get("translate") else ""))
             return
         paper = ws.load("paper")
         all_pages = [p["n"] for p in paper["meta"]["pages"]]
-        done_pages = set(paper.get("translation", {}).get("done_pages", []))
+        tr = paper.get("translation", {})
+        # 只读原文：跳过已经整理过（或已经译过）的页；翻译：跳过已经有译文的页，只有原文的页会补译文
+        skip = set(tr.get("done_pages", [])) if read else set(tr.get("done_pages", [])) - set(tr.get("en_pages", []))
         wanted = job.get("pages") or translate.scope_pages(ws, job.get("scope")) or all_pages
-        pages = wanted if job.get("pages") else [n for n in wanted if n not in done_pages]
+        pages = wanted if job.get("pages") else [n for n in wanted if n not in skip]
         if not pages:
-            self._write(ws, state="done", message="选定范围已译完")
+            self._write(ws, state="done", message="选定范围已" + ("整理完" if read else "译完"))
             return
 
         meter = usage.Meter(cfg.get("engine") or "")
@@ -104,7 +123,7 @@ class Jobs:
 
         started = time.time()
         try:
-            failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter)
+            failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter, read)
         finally:  # 取消、出错也把已经花掉的记上
             run = meter.snapshot()
             if run["calls"]:
@@ -113,9 +132,10 @@ class Jobs:
         if failed:
             first = next(iter(failed.values()))
             self._write(ws, state="partial", failed={str(k): v for k, v in failed.items()}, error=first,
-                        message=(f"{len(pages) - len(failed)} 页译好了，" if len(failed) < len(pages) else "") + f"{len(failed)} 页没译成功")
+                        message=(f"{len(pages) - len(failed)} 页好了，" if len(failed) < len(pages) else "") + f"{len(failed)} 页没" + ("整理" if read else "译") + "成功")
         else:
-            self._write(ws, state="done", failed={}, error="", message=f"翻译完成（{len(pages)} 页，用时约 {minutes} 分钟）")
+            self._write(ws, state="done", failed={}, error="",
+                        message=("原文整理完成" if read else "翻译完成") + f"（{len(pages)} 页，用时约 {minutes} 分钟）")
 
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:

@@ -45,14 +45,14 @@ class Library:
         tr = paper.get("translation", {})
         notes = [n for n in reader.get("notes", {}).values() if not n.get("deleted")]
         replied = {e.get("reply_to") for e in disc.get("entries", []) if e.get("reply_to")}
-        abstract = next((b.get("zh") for b in paper.get("blocks", []) if b.get("role") == "abstract"), "") or meta.get("abstract_en", "")
+        abstract = next((b.get("zh") or b.get("en") for b in paper.get("blocks", []) if b.get("role") == "abstract"), "") or meta.get("abstract_en", "")
         return {
             "id": ws.id,
             "title_zh": meta.get("title_zh", ""), "title_en": meta.get("title_en", ""), "short_zh": meta.get("short_zh", ""),
             "authors": meta.get("authors", ""), "affiliation": meta.get("affiliation", ""),
             "year": meta.get("year") or _year(meta.get("date", "")), "date": meta.get("date", ""),
             "venue": meta.get("venue", ""), "arxiv": meta.get("arxiv", ""), "url": _link(meta), "doi": meta.get("doi", ""),
-            "pages": meta.get("page_count", 0), "done_pages": len(tr.get("done_pages", [])),
+            "pages": meta.get("page_count", 0), "done_pages": len(tr.get("done_pages", [])), "en_pages": len(tr.get("en_pages", [])),
             "abstract": abstract,
             "meta_override": item.get("meta_override") or {},
             "tags": item.get("tags", []), "status": item.get("status", "unread"), "starred": bool(item.get("starred")),

@@ -55,6 +55,7 @@ body.font-sans #paper { font-family: var(--sans-zh); letter-spacing: .01em; }
 .paper-head .byline { font: 14px/1.7 var(--ui); color: var(--ink-2); margin: 0; }
 .paper-head .scope { margin: 1.6em 0 0; padding-top: 1em; border-top: 1px solid var(--rule); font: 12.5px/1.8 var(--ui); color: var(--ink-3); }
 .paper-head .scope b { font-weight: 500; color: var(--ink-2); }
+.paper-head .scope .btn { margin-left: 10px; vertical-align: 1px; }
 .legend-agent, .legend-mine { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin: 0 4px 0 2px; }
 .legend-agent { background: var(--accent); }
 .legend-mine { background: var(--mine); }
@@ -85,6 +86,11 @@ body.font-sans #paper { font-family: var(--sans-zh); letter-spacing: .01em; }
 }
 body.mode-bi .en, .blk.show-en .en { display: block; }
 .en .katex { font-size: 1.04em; }
+
+/* 只读原文（不翻译）：没译的地方正文直接是英文，用英文衬线、左对齐、断词 */
+.zh.en-main { font-family: var(--serif-en); text-align: left; hyphens: auto; letter-spacing: 0; font-variant-numeric: lining-nums; }
+.zh.en-main .katex { font-size: 1.04em; }
+body.en-only #bar .seg[aria-label="显示"] { display: none; }
 
 /* 标题 */
 .blk-heading { margin: 2.4em 0 1em; }

@@ -23,9 +23,10 @@ def parse_pages(spec) -> list[int]:
     return out
 
 
-def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None) -> dict:
+def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_only: bool = False) -> dict:
     """并入一批块。同 id 整块替换；新块按 _after 或页码顺序插入。
-    replace_pages：先删掉这些页上已有的块（重新翻译某几页时用）。"""
+    replace_pages：先删掉这些页上已有的块（重新翻译某几页时用）。
+    en_only：这批是“只读原文”整理出来的、只有英文的块，done 的页记进 translation.en_pages；否则从 en_pages 里去掉。"""
     if isinstance(data, list):
         data = {"blocks": data}
     for b in data.get("blocks", []):
@@ -69,11 +70,58 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None) -> di
         if data.get("translation"):
             tr.update(data["translation"])
         if done:
-            tr["done_pages"] = sorted(set(tr.get("done_pages", [])) | set(parse_pages(done)))
-            total = paper.get("meta", {}).get("page_count") or 0
-            n = len(tr["done_pages"])
-            tr["scope"] = "全文" if total and n >= total else f"已译 {n} / {total} 页"
+            pages = set(parse_pages(done))
+            tr["done_pages"] = sorted(set(tr.get("done_pages", [])) | pages)
+            en = set(tr.get("en_pages", []))
+            tr["en_pages"] = sorted(en | pages if en_only else en - pages)
+            _scope(paper)
         return {"new": n_new, "updated": n_upd, "done_pages": tr.get("done_pages", [])}
+
+    return ws.update("paper", apply)
+
+
+def _scope(paper: dict) -> None:
+    tr = paper.setdefault("translation", {})
+    total = paper.get("meta", {}).get("page_count") or 0
+    n = len(set(tr.get("done_pages", [])) - set(tr.get("en_pages", [])))
+    tr["scope"] = "全文" if total and n >= total else f"已译 {n} / {total} 页"
+
+
+def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list[str]:
+    """给只读原文整理出来的块就地补译文（块 id 不变，笔记还挂得住）。
+    data 是模型的输出 {"zh": {键: 译文}, "meta", "glossary"}；keys 是这次要译的键。
+    返回漏译的键；这几页的键都译齐了，才把页从 en_pages 去掉。"""
+    got = {k: v for k, v in (data.get("zh") or {}).items() if k in keys and v}
+
+    def apply(paper):
+        by_id = {b.get("id"): b for b in paper.get("blocks", [])}
+        for key, zh in got.items():
+            bid, _, field = key.partition("#")
+            b = by_id.get(bid)
+            if not b:
+                continue
+            if field == "caption":
+                b["caption_zh"] = str(zh)
+            elif field == "head":
+                if isinstance(zh, list) and len(zh) == len(b.get("head", [])):
+                    b["head"] = zh
+            elif field.isdigit() and int(field) < len(b.get("items", [])):
+                b["items"][int(field)]["zh"] = str(zh)
+            else:
+                b["zh"] = str(zh)
+        meta = paper.setdefault("meta", {})
+        for k in ("title_zh", "short_zh"):
+            if (data.get("meta") or {}).get(k):
+                meta[k] = data["meta"][k]
+        if data.get("glossary"):
+            have = {str(x.get("en")) for x in paper.get("glossary", [])}
+            paper["glossary"] = paper.get("glossary", []) + [x for x in data["glossary"] if isinstance(x, dict) and str(x.get("en")) not in have]
+        missing = [k for k in keys if k not in got and not k.endswith("#head")]  # 表头没译不算漏
+        left = {by_id[k.partition("#")[0]].get("page") for k in missing if k.partition("#")[0] in by_id}
+        tr = paper.setdefault("translation", {})
+        tr["en_pages"] = sorted(set(tr.get("en_pages", [])) - (set(pages) - left))
+        _scope(paper)
+        return missing
 
     return ws.update("paper", apply)
 
