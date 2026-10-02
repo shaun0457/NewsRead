@@ -15,13 +15,11 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .i18n import tr
 from . import http
 from .log import log
 from .presets import NEEDS_VPN, PRESETS
 
-def tr(text: str, **kw) -> str:  # config 间接导入了本文件，i18n 又导入 config，所以用到时再导入
-    from .i18n import tr as _tr
-    return _tr(text, **kw)
 
 
 _OK_TTL = 120  # 通过一次后两分钟内不再测，一篇论文几十批不用每批都测

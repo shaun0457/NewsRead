@@ -16,12 +16,10 @@ import tempfile
 import threading
 from pathlib import Path
 
+from .i18n import tr
 from . import netcheck, usage
 
 
-def tr(text: str, **kw) -> str:  # config 间接导入了本文件，i18n 又导入 config，所以用到时再导入
-    from .i18n import tr as _tr
-    return _tr(text, **kw)
 
 
 class EngineError(RuntimeError):

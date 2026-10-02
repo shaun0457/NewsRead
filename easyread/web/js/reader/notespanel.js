@@ -145,13 +145,13 @@
       const sec = it.anchor === "head" ? PR.t("论文开头") : sectionOf(it.anchor);
       if (sec !== lastSec) { out.push("### " + sec, ""); lastSec = sec; }
       const d = it.data;
-      const q = pick.quote && d.quote ? "「" + d.quote + "」" : "";
-      if (it.src === "mine") out.push("- **" + ({ question: PR.t("我的问题"), highlight: PR.t("划线") }[d.kind] || PR.t("我的笔记")) + "**" + q + (d.body ? "：" + d.body : ""));
-      else out.push("- **AI" + (d.kind === "reply" ? " " + PR.t("回答") : "") + (d.title ? "：" + d.title : "") + "**" + q + (d.q ? PR.t("（问：{q}）", { q: d.q }) : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
+      const q = pick.quote && d.quote ? PR.t("「{q}」", { q: d.quote }) : "";
+      if (it.src === "mine") out.push("- **" + ({ question: PR.t("我的问题"), highlight: PR.t("划线") }[d.kind] || PR.t("我的笔记")) + "**" + q + (d.body ? PR.t("：") + d.body : ""));
+      else out.push("- **AI" + (d.kind === "reply" ? " " + PR.t("回答") : "") + (d.title ? PR.t("：") + d.title : "") + "**" + q + (d.q ? PR.t("（问：{q}）", { q: d.q }) : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
     }
     if (pick.chat && chat && chat.length) {
       out.push("", "## " + PR.t("问 AI 的对话"), "");
-      for (const c of chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : "**AI**（" + (c.model || "") + "）：" + c.content, "");
+      for (const c of chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
     }
     return out.join("\n");
   };

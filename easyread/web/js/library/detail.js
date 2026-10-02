@@ -51,7 +51,7 @@
       if (j.state === "partial" && failed.length) h += '<div class="err">' + (j.read ? PR.t("第 {pages} 页没整理成功：", { pages: PR.esc(pageList(failed)) }) : PR.t("第 {pages} 页没译成功：", { pages: PR.esc(pageList(failed)) })) + PR.esc(j.error || "") + "</div>";
       h += '<div class="row2" style="margin-top:8px">' +
         (j.state === "partial" && failed.length ? '<button class="btn sm accent" data-d="retry-failed">' + PR.t("重试这 {n} 页", { n: failed.length }) + "</button>" : "") +
-        (en ? '<button class="btn sm accent" data-d="translate-en">' + PR.t("翻译成中文") + "</button>" : "") +
+        (en ? '<button class="btn sm accent" data-d="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }) + "</button>" : "") +
         (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : i.done_pages ? PR.t("继续翻译剩下的页") : PR.t("开始翻译")) + "</button>" : "") +
         (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : PR.t("继续翻译剩下的页")) + "</button>" : "") +
         (j.state ? '<button class="btn sm" data-d="log">' + PR.icon("log", "sm") + PR.t("翻译记录") + "</button>" : "") + "</div>" +
@@ -63,7 +63,7 @@
   function pageList(ns) { // [3,4,5,9] → "3–5、9"
     const out = [];
     ns.forEach((n) => { const r = out[out.length - 1]; if (r && n === r[1] + 1) r[1] = n; else out.push([n, n]); });
-    return out.map(([a, b]) => (a === b ? a : a + "–" + b)).join("、");
+    return out.map(([a, b]) => (a === b ? a : a + "–" + b)).join(PR.t("、"));
   }
 
   PR.renderDetail = function () {
@@ -143,7 +143,7 @@
       { label: PR.t("APA · 英文论文常用"), icon: "copy", fn: () => copy(PR.cite(i, "apa"), PR.t(" APA 引用")) },
       { label: PR.t("BibTeX · LaTeX / Overleaf、Zotero 导入"), icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
       "-",
-      { label: PR.t("标题 + 链接 · 发给别人"), icon: "link", fn: () => copy((i.title_zh ? i.title_zh + "（" + i.title_en + "）" : i.title_en) + "\n" + (i.url || ""), PR.t("标题和链接")) },
+      { label: PR.t("标题 + 链接 · 发给别人"), icon: "link", fn: () => copy((i.title_zh ? PR.t("{a}（{b}）", { a: i.title_zh, b: i.title_en }) : i.title_en) + "\n" + (i.url || ""), PR.t("标题和链接")) },
     ]);
     else if (act === "more") PR.rowMenu(i.id, d);
     else if (act === "cancel") { await PR.api("/api/p/" + i.id + "/cancel", { method: "POST", body: {} }); L.load(); }

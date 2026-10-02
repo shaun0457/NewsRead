@@ -19,7 +19,7 @@ Runs locally. Your papers and notes never leave your computer.</p>
 
 <p align="center"><img src="docs/images/pages.jpg" width="860" alt="Translation side by side with the original page"></p>
 
-> **Who is this for?** EasyRead translates **English → Chinese** and is built for Chinese-speaking students and researchers. The interface follows your system language (Chinese, otherwise English; you can switch in Settings). Without the translation you can still use it as a paper reader: choose "Read the English original" on import to get the clean layout, highlights, notes and Ask AI on the English text.
+> **Who is this for?** EasyRead was built for Chinese-speaking students and researchers, and translates English papers into **Chinese** by default. It can also translate into **Japanese, Korean, Spanish, French or German** (Settings → Reading → Translate papers into). The interface follows your system language (Chinese, otherwise English). If you don't need a translation, choose "Read the English original" on import: you get the clean layout, highlights, notes and Ask AI on the English text.
 
 ## How it differs from "throw the PDF into a translator"
 

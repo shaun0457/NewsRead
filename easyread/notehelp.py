@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import threading
 
+from . import langs
 from . import chat, chat_models, config, engines
 from .i18n import tr
 from .log import log
@@ -47,7 +48,7 @@ def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     title = meta.get("title_zh") or meta.get("title_en") or ""
     paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"  # i18n-ok 提示词
              if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))  # i18n-ok
-    return (f"你在帮读者整理读论文《{title}》的笔记。用中文。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
+    return (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
             + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
 
 

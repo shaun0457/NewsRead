@@ -37,7 +37,7 @@
     if (item.src === "agent") {
       return '<div class="card agent' + (d.kind === "check" ? " check" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
         '<div class="lbl"><span>' + (KIND_LABEL[d.kind] || "AI") + '</span><span class="meta">' + PR.shortTime(d.updated || d.at) + "</span></div>" +
-        (d.quote ? '<div class="quote">「' + PR.md(d.quote, { cite: false, xref: false }) + "」</div>" : "") +
+        (d.quote ? '<div class="quote">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") +
         (d.title ? '<div class="ttl">' + PR.md(d.title, { xref: false }) + "</div>" : "") +
         (d.q ? '<div class="q">' + PR.md(d.q) + "</div>" : "") +
         '<div class="body">' + PR.mdBlocks(d.body) + "</div>" +
@@ -60,7 +60,7 @@
         '<div class="acts"><button data-a="edit">' + PR.t("编辑") + '</button><button data-a="kind">' + (d.kind === "question" ? PR.t("改成笔记") : PR.t("改成问题")) + '</button><button data-a="del">' + PR.t("删除") + "</button></div>";
     return '<div class="card mine' + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       '<div class="lbl"><span>' + lbl + '</span><span class="meta">' + PR.shortTime(d.updated || d.created) + "</span></div>" +
-      (d.quote ? '<div class="quote' + lost + '">「' + PR.md(d.quote, { cite: false, xref: false }) + "」</div>" : "") + body + "</div>";
+      (d.quote ? '<div class="quote' + lost + '">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") + body + "</div>";
   }
   PR.cardHtml = cardHtml;
   PR.collectNotes = collect;

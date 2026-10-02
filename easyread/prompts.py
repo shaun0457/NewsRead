@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+from . import langs
 from .store import Workspace
 
 RULES = """翻译要求：
@@ -34,6 +35,47 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
 - {"id":"refs","type":"references","page":10,"zh":"参考文献","en":"References"}
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图放在正文第一次提到它的段落之后。"""
+
+
+# 译成中文以外的语言时，把只适用于中文的说法换掉；中文的提示词保持原样
+_RULES_SWAP = [
+    ("可以调整中文语序、拆长句，读起来要像中文母语者写的学术文字。", "可以调整语序、拆长句，读起来要像{L}母语者写的学术文字。"),
+    ("首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。", "首次出现的核心术语写“{L}译名（English）”。已有术语表必须遵守。"),
+    ("表头译成中文", "表头译成{L}"),
+    ("看不清的地方写“此处识别不清，请核对原文第 N 页”", "看不清的地方写“[unclear, see page N]”"),
+]
+_SCHEMA_SWAP = [
+    ('"short_zh": "不超过 12 字的短标题"', '"short_zh": "不超过 6 个词的短标题"'),
+    ('{"en": "standard error", "zh": "标准误差"}', '{"en": "standard error", "zh": "{L}译名"}'),
+    ('"zh":"中文译文"', '"zh":"{L}译文"'),
+    ('"zh":"相互独立的题目"', '"zh":"…"'),
+    ('"head":[["","题目数","…"]]', '"head":[["","…","…"]]'),
+    ('"caption_zh":"表 2：…"', '"caption_zh":"…"'),
+    ('"caption_zh":"图 1：…"', '"caption_zh":"…"'),
+    ('"zh":"参考文献"', '"zh":"…"'),
+    ('字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。', '字符串里的英文双引号要转义成 \\"。'),
+]
+
+
+def _swap(text: str, pairs, target: str) -> str:
+    if target == "zh":
+        return text
+    name = langs.prompt_name(target)
+    for a, b in pairs:
+        text = text.replace(a, b.replace("{L}", name))
+    return text
+
+
+def rules(target: str = "zh") -> str:
+    if target == "zh":
+        return RULES
+    name = langs.prompt_name(target)
+    return (_swap(RULES, _RULES_SWAP, target) +
+            f"\n- 译文语言是{name}：zh、caption_zh、title_zh 这些字段名是历史叫法，里面一律写{name}，不要写中文。")
+
+
+def schema(target: str = "zh") -> str:
+    return _swap(SCHEMA, _SCHEMA_SWAP, target)
 
 
 def _context(ws: Workspace, pages: list[int], new_blocks: bool = True) -> str:
@@ -78,8 +120,9 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> s
         see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
-    return (f"你在把一篇学术论文译成中文，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages)}\n\n{RULES}\n\n{SCHEMA}\n\n" + _page_texts(ws, pages) + look)
+    target = langs.of_paper(ws.load("paper").get("meta"))
+    return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
+            f"{_context(ws, pages)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + _page_texts(ws, pages) + look)
 
 
 def repair(original_json: str, problems: list[str]) -> str:
@@ -111,10 +154,10 @@ def answer(ws: Workspace, note: dict) -> str:
     focus = blocks[idx] if idx is not None else {}
     return (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
             f"读者读到「{section}」时在 [{note.get('anchor')}] 这段提了一个问题。\n\n"
-            f"上下文（中文译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
+            f"上下文（译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
             + (f"读者选中的原话：「{note.get('quote')}」\n" if note.get("quote") else "")
             + f"读者的问题：{note.get('body', '')}\n\n"
-            "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用中文，具体、讲清楚，能举例就举例，"
+            "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用" + langs.reply_lang(paper.get("meta")) + "，具体、讲清楚，能举例就举例，"
             "区分“论文里写了什么”和“你的补充解释”。行内公式用 $TeX$，段落之间空一行。只输出回答正文，不要客套。")
 
 
@@ -132,7 +175,8 @@ def retranslate(ws: Workspace, key: str, hint: str) -> str:
         en, zh = b.get("en", ""), b.get("zh", "")
     near = "\n".join(_block_text(x) for x in blocks[max(0, idx - 2): idx + 3] if x is not b)
     gl = "；".join(f"{g['en']} = {g['zh']}" for g in paper.get("glossary", []))
-    return (f"请重新翻译论文里的一段。\n{RULES}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
+    target = langs.of_paper(paper.get("meta"))
+    return (f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。\n{rules(target)}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
             f"英文原文：\n{en}\n\n现在的译文：\n{zh}\n\n"
             + (f"读者觉得不好的地方：{hint}\n\n" if hint else "")
             + '只输出 JSON：{"zh": "新译文"}')

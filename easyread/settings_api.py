@@ -1,11 +1,13 @@
 """设置页的保存类接口（POST）。server.py 按路径转过来，每个函数收请求体、返回要回给页面的 JSON。"""
 from __future__ import annotations
 
-from . import chat_models, config, engines, openai_api
+from . import chat_models, config, engines, langs, openai_api
 
 
 def save_config(patch: dict) -> dict:
     patch.pop("library_dir", None)
+    if "target" in patch:
+        patch["target"] = langs.valid(patch["target"])
     if isinstance(patch.get("openai"), dict):
         patch["openai"] = config.with_key(patch["openai"])
     return {"config": config.public(config.save(patch))}

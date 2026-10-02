@@ -76,7 +76,7 @@
     if (b.type === "math" && !c.quote) return (PR.sectionOf ? PR.sectionOf(c.anchor) + " · " : "") + (b.tag ? PR.t("公式 ({tag})", { tag: b.tag }) : PR.t("一个公式"));
     const text = plainTex(c.quote || PR.textFor(PR.blockKeys(b)[0] || b.id) || b.caption_zh || b.tex || "").replace(/\*\*|`/g, "");  // 先去公式记号再去粗体，不然 $ 已被 PR.plain 去掉、TeX 原样露出来
     const sec = PR.sectionOf ? PR.sectionOf(c.anchor) : "";
-    return (sec ? sec + " · " : "") + "「" + text.slice(0, 18) + (text.length > 18 ? "…" : "") + "」";
+    return (sec ? sec + " · " : "") + PR.t("「{q}」", { q: text.slice(0, 18) + (text.length > 18 ? "…" : "") });
   }
   function refChip(r, i, auto) {
     const label = ctxLabel(r);

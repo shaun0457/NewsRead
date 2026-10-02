@@ -8,6 +8,10 @@ window.PR = window.PR || {};
   try { dict = JSON.parse((document.getElementById("pr-i18n") || {}).textContent || "{}"); } catch (e) { dict = {}; }
   PR.lang = document.documentElement.lang === "en" ? "en" : "zh";
   PR.langChoice = document.documentElement.dataset.langChoice || "auto";  // 设置里选的：auto 跟随系统
+  /* 译文语言（论文翻成什么）。名字用各自的文字写，和界面语言无关 */
+  PR.TARGETS = [["zh", "中文"], ["ja", "日本語"], ["ko", "한국어"], ["es", "Español"], ["fr", "Français"], ["de", "Deutsch"]];  // i18n-ok
+  PR.target = document.documentElement.dataset.target || "zh";
+  PR.targetName = (code) => (PR.TARGETS.find(([k]) => k === code) || PR.TARGETS[0])[1];
 
   const fill = (s, vars) => vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) : s;
   PR.t = (zh, vars) => fill(PR.lang === "en" ? dict[zh] || zh : zh, vars);

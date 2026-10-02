@@ -5,12 +5,14 @@
   const dlg = PR.$("#importDlg");
   const SCOPES = [["all", PR.t("全文")], ["body", PR.t("正文（到参考文献为止）")], ["range", PR.t("指定页")]];
   // 导入后做什么：翻译成中文 / 只读英文原文（模型把版面排好，不翻译）/ 只放原页图
-  const AFTER = [["translate", PR.t("翻译成中文"), PR.t("后台逐页翻译，正文是中文，随时对照原文")],
-    ["read", PR.t("读英文原文"), PR.t("不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看中文了随时点“翻译成中文”")],
+  const AFTER = [["translate", PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }), PR.t("后台逐页翻译成{lang}，随时对照原文", { lang: PR.targetName(PR.target) })],
+    ["read", PR.t("读英文原文"), PR.t("不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看译文了随时点“翻译成{lang}”", { lang: PR.targetName(PR.target) })],
     ["none", PR.t("先不处理"), PR.t("不用模型，阅读页先放原页图片")]];
 
   const pref = () => {
-    const p = Object.assign({ auto: true, scope: "all", from: 1, to: 10 }, PR.ls.get("easyread-import", {}));
+    const saved = PR.ls.get("easyread-import", null);
+    // 英文界面第一次导入默认读原文：母语是英文的人多半不需要译文，要翻译时再选
+    const p = Object.assign({ auto: true, scope: "all", from: 1, to: 10 }, saved || (PR.lang === "en" ? { after: "read" } : {}));
     if (p.scope === "first") Object.assign(p, { scope: "range", from: 1, to: p.first || 10 });  // 旧的“前几页”
     if (!p.after) p.after = p.auto ? "translate" : "none";  // 旧的“导入后翻译”勾选框
     return p;

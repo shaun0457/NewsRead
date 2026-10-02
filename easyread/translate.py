@@ -8,7 +8,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engines, netcheck, pdfwork, prompts, prompts_en, sources
+from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, sources
 from .checks import block_problems, tex_problems
 from .i18n import tr
 from .log import log
@@ -223,6 +223,10 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     bad = netcheck.problem(cfg)
     if bad:
         raise engines.EngineError(bad)
+    if not read and not paper.get("meta", {}).get("target"):  # 第一次翻译时记下译文语言，之后改设置不影响这篇
+        old_zh = any(b.get("zh") or b.get("caption_zh") for b in paper.get("blocks", []))  # 1.3 以前译的都是中文
+        target = "zh" if old_zh else langs.of_paper(paper.get("meta"), cfg)
+        ws.update("paper", lambda p: p.setdefault("meta", {}).setdefault("target", target))
     journal(ws, (tr("只读原文（不翻译）") if read else "") + tr("开始：{pages} 页，{batches} 批，引擎 {engine}，并发 {workers}", pages=len(pages), batches=len(batches), engine=engines.engine_name(cfg.get("engine")), workers=workers))
 
     def label(batch):

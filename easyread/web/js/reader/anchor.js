@@ -114,7 +114,7 @@
     bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：涂底色") + '">' + PR.icon("marker", "sm") + "</button>" +
       '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
-      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? "（" + (i + 1) + "）" : "") + '"></button>').join("") + "</span>" +
+      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? PR.t("（{k}）", { k: i + 1 }) : "") + '"></button>').join("") + "</span>" +
       '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
       '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
       (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +

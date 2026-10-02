@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from . import engines, netcheck, openai_api, usage
+from . import langs
 from .i18n import tr
 from .prompts import _block_text
 from .store import Workspace
@@ -79,7 +80,7 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
         b = blocks.get(n.get("anchor")) or {}
         line = f"- [{n.get('anchor')}] {kinds.get(n.get('kind'), '笔记')}"  # i18n-ok
         if n.get("quote"):
-            line += f"：「{n['quote']}」"
+            line += f"：「{n['quote']}」"  # i18n-ok 发给模型的上下文
         if n.get("body"):
             line += f"；读者写道：{n['body'][:300]}"  # i18n-ok
         if b and b.get("id") not in shown:
@@ -91,7 +92,7 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
         for line in groups.get(color, []):
             if used > MARKS_BUDGET:
                 break
-            if not parts or not parts[-1].startswith(f"【{color}"):
+            if not parts or not parts[-1].startswith(f"【{color}"):  # i18n-ok 发给模型的上下文
                 parts.append(f"【{color}色】" if color != "无颜色" else "【没有颜色的笔记和问题】")  # i18n-ok
             parts.append(line)
             used += len(line)
@@ -129,7 +130,8 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
             if engine == "claude" else "")
     want, colors = wants_marks(ask)
     marks = _marks(ws, colors) if want else _marks_summary(ws)
-    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。用中文，直接、具体，能举例就举例；"  # i18n-ok
+    reply = langs.reply_lang(ws.load("paper").get("meta"))
+    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。用" + reply + "，直接、具体，能举例就举例；"  # i18n-ok
             "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
             "行内公式写 $TeX$，行间公式写 $$TeX$$。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
             + _context(ws, anchor, quote, refs)

@@ -10,10 +10,10 @@ import os
 import subprocess
 import sys
 from functools import lru_cache
+from pathlib import Path
 
-from .config import WEB
-
-EN_PATH = WEB / "i18n" / "en.json"
+# 不导入 config：config 间接导入了很多用 tr 的模块，这里保持没有包内依赖
+EN_PATH = Path(__file__).resolve().parent / "web" / "i18n" / "en.json"
 CHOICES = ("auto", "zh", "en")
 
 
@@ -82,7 +82,9 @@ def inject(page: str, language: str | None = None) -> str:
     """返回页面时写上语言，英文时把词典也塞进去，前端同步就能用。"""
     picked = choice() if language is None else language  # 设置里的“界面语言”要显示当前选的是哪项
     language = language or lang()
-    page = page.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}" data-lang-choice="{picked}">', 1)
+    from . import config, langs  # 用到时再导入，见文件开头
+    target = langs.valid(config.load().get("target"))  # 设置里的译文语言：按钮文字、没译过的论文用它
+    page = page.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}" data-lang-choice="{picked}" data-target="{target}">', 1)
     if language == "en":
         payload = json.dumps(en_dict(), ensure_ascii=False).replace("<", "\\u003c")
         page = page.replace("</title>", f'</title>\n<script id="pr-i18n" type="application/json">{payload}</script>', 1)

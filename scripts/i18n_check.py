@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "easyread" / "web"
 EN = WEB / "i18n" / "en.json"
-CJK = re.compile(r"[一-鿿]")
+CJK = re.compile("[、-〿一-鿿！-～]")  # 汉字和全角标点
 
 # 后端里只检查会显示到界面上的模块；cli（命令行）、prompts*（给模型的提示词）不翻
 PY_SKIP = {"cli.py", "prompts.py", "prompts_en.py", "i18n.py", "log.py", "__main__.py"}

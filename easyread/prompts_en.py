@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import json
 
-from .prompts import RULES, _context, _page_texts
+from . import langs
+from .prompts import _context, _page_texts, rules
 from .store import Workspace
 
 RULES_EN = """整理要求（不翻译）：
@@ -68,14 +69,16 @@ def todo(blocks: list[dict]) -> dict[str, object]:
 def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     """给已经整理好的原文块补译文。"""
     first = 1 in pages
-    meta = ('  "meta": {"title_zh": "", "short_zh": "不超过 12 字的短标题"},   // 论文英文标题：'
+    target = langs.of_paper(ws.load("paper").get("meta"))
+    name = langs.prompt_name(target)
+    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target == "zh" else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
-    return (f"你在把一篇学术论文译成中文。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
-            f"{_context(ws, pages)}\n\n{RULES}\n"
-            "- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成中文，数字和符号原样。\n\n"
+    return (f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
+            f"{_context(ws, pages)}\n\n{rules(target)}\n"
+            f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。\n\n"
             "输出格式：只输出一个 JSON 对象，不要任何别的文字。\n{\n" + meta +
-            '  "glossary": [{"en": "standard error", "zh": "标准误差"}],   // 本批新出现的核心术语\n'
+            '  "glossary": [{"en": "standard error", "zh": "' + ("标准误差" if target == "zh" else name + "译名") + '"}],   // 本批新出现的核心术语\n'
             '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // 原文有问题时才写\n'
-            '  "zh": {"键": "中文译文", …}   // 下面每个键都要有，一个不漏\n}\n'
-            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」。\n\n"
+            '  "zh": {"键": "' + name + '译文", …}   // 下面每个键都要有，一个不漏\n}\n'
+            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字符串里的中文引号用“”或「」。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
             "要翻译的内容（键 → 英文）：\n" + json.dumps(items, ensure_ascii=False, indent=1))

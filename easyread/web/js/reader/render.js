@@ -130,7 +130,7 @@
     const kicker = [m.arxiv, m.venue, m.date].filter(Boolean).map(PR.esc).join("　·　");
     const by = [m.authors, m.affiliation].filter(Boolean).map(PR.esc).join("　·　");
     const pages = (m.pages || []).length, done = (tr.done_pages || []).length, en = (tr.en_pages || []).length;
-    const toZh = en && PR.canAsk() && !jobRunning() ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成中文") + "</button>" : "";
+    const toZh = en && PR.canAsk() && !jobRunning() ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName((S.paper.meta || {}).target || PR.target) }) + "</button>" : "";
     const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
@@ -196,6 +196,11 @@
     PR.$("#paper").innerHTML = html + pendingHtml(lastPage);
     // 一段译文都没有（只读原文）：顶栏的“译文 / 对照”没意义，藏起来
     document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some(PR.hasZh));
+    // 译文语言决定正文字体（base.css 按 data-target 换字体）；1.3 以前译的论文没记语言，都是中文
+    const target = (S.paper.meta || {}).target || ((S.paper.blocks || []).some(PR.hasZh) ? "zh" : PR.target);
+    document.documentElement.dataset.target = target;
+    const paperEl = document.getElementById("paper");
+    if (paperEl) paperEl.lang = target === "zh" ? "zh-CN" : target;  // 让浏览器选对日文、韩文字形，西文能断词
     PR.emit("rendered");
   };
 

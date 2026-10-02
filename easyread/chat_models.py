@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import engines
 from .presets import PRESETS
-from .engines import tr  # 不能直接从 i18n 导入：config 导入了本文件
+from .i18n import tr
 
 # opus / sonnet 是 Claude Code 的别名：它会用自己支持的最新版（升级 Claude Code 后自动变成 Opus 5.5 等），
 # 实际用的是哪个版本，第一次回答时记下来显示在名单上。

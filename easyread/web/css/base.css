@@ -34,6 +34,16 @@
   --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
   --bar-h: 50px;
 }
+/* 英文界面：西文字体排前面，否则中文字体会把弯引号、撇号画成全角 */
+html[lang="en"] {
+  --ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif;
+  --sans-zh: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+}
+/* 译文不是中文时换正文字体（变量名沿用 -zh，指“译文”） */
+html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif; --sans-zh: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif; }
+html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", AppleMyungjo, Batang, serif; --sans-zh: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
   --bg: #1a1917;
   --surface: #22211e;

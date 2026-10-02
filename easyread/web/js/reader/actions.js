@@ -47,7 +47,7 @@
 
   function showBar() {
     const acts = actionsFor(current).filter((a) => !a.menuOnly);
-    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" title="' + PR.esc(a.label) + (a.kbd ? "（" + a.kbd + "）" : "") + '">' + PR.icon(a.icon, "sm") + "<span>" + PR.esc(a.label) + "</span></button>").join("") +
+    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" title="' + PR.esc(a.label) + (a.kbd ? PR.t("（{k}）", { k: a.kbd }) : "") + '">' + PR.icon(a.icon, "sm") + "<span>" + PR.esc(a.label) + "</span></button>").join("") +
       '<button data-i="more" title="' + PR.t("更多（右键段落也可以）") + '">⋯</button>';
     bar().onclick = (e) => {
       const b = e.target.closest("[data-i]");
@@ -124,7 +124,7 @@
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
     if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast(PR.t("正在重试，译好后自动替换")); PR.poll(); });
-    if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast(PR.t("已开始翻译，译好的页就地换成中文，笔记和划线都保留")); PR.poll(); });
+    if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast(PR.t("已开始翻译，译好的页就地换成{lang}，笔记和划线都保留", { lang: PR.targetName((PR.state.paper.meta || {}).target || PR.target) })); PR.poll(); });
     if (t.dataset.t === "read-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { read: true } }).then(() => { PR.toast(PR.t("已开始整理，整理好的页会自动出现")); PR.poll(); });
     if (t.dataset.t === "translate-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: {} }).then(() => { PR.toast(PR.t("已开始翻译，译好的页会自动出现")); PR.poll(); });
   });

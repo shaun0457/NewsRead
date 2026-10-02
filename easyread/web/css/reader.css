@@ -90,7 +90,8 @@ body.mode-bi .en, .blk.show-en .en { display: block; }
 /* 只读原文（不翻译）：没译的地方正文直接是英文，用英文衬线、左对齐、断词 */
 .zh.en-main { font-family: var(--serif-en); text-align: left; hyphens: auto; letter-spacing: 0; font-variant-numeric: lining-nums; }
 .zh.en-main .katex { font-size: 1.04em; }
-body.en-only #bar .seg[aria-label="显示"] { display: none; }
+body.en-only #bar .mode-seg { display: none; }
+body.en-only #paper { font-family: var(--serif-en); }  /* 只读英文原文：用西文字体排 */
 
 /* 标题 */
 .blk-heading { margin: 2.4em 0 1em; }
