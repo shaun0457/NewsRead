@@ -45,7 +45,7 @@ def block_problems(blocks: list[dict], refs: set[str] | None = None) -> tuple[li
     ids = set()
     for b in blocks:
         if not isinstance(b, dict):
-            problems.append(f"块必须是对象：{str(b)[:80]}")
+            problems.append(f"块必须是对象：{str(b)[:80]}")  # i18n-ok
             continue
         bid = b.get("id")
         if not bid:
@@ -54,7 +54,7 @@ def block_problems(blocks: list[dict], refs: set[str] | None = None) -> tuple[li
             problems.append(f"id 重复：{bid}")  # i18n-ok
         ids.add(bid)
         if b.get("type") not in BLOCK_TYPES:
-            problems.append(f"{bid}：未知类型 {b.get('type')}")
+            problems.append(f"{bid}：未知类型 {b.get('type')}")  # i18n-ok
         shape_problem = block_shape_problem(b)
         if shape_problem:
             problems.append(shape_problem)

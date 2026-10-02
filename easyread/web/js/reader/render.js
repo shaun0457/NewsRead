@@ -127,7 +127,7 @@
     const id = PR.esc(b && b.id ? b.id : "unknown");
     console.error("EasyRead block render failed", b && b.id, error);
     return '<section class="blk blk-error" id="b-' + id + '" data-id="' + id + '">' +
-      '<div class="inline-note"><div class="lbl">这一块没能显示</div><p>块 ' + id + ' 的数据格式有问题，其他内容仍可阅读。</p></div></section>';
+      '<div class="inline-note"><div class="lbl">' + PR.t("这一块没能显示") + '</div><p>' + PR.t("块 {id} 的数据格式有问题，其他内容仍可阅读。", { id }) + '</p></div></section>';
   }
 
   /* 在线演示的署名和许可（CC BY 要求写明出处），网址做成链接 */

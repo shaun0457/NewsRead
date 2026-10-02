@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
+from . import __version__, answer_styles, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -84,19 +84,20 @@ class Handler(BaseHTTPRequestHandler):
         text = (body.get("text") or "").strip()
         if not text:
             raise ValueError(tr("问题是空的"))
+        thread = chat_store.get(ws, body.get("thread"))
+        style = answer_styles.parse(body.get("answer_style", (thread or {}).get("answer_style")))
         cfg = config.load()
         ecfg, m = chat_models.engine_cfg(cfg, body.get("model"))
         model = chat_models.label(m)
-        thread = chat_store.get(ws, body.get("thread"))
         tid = thread["id"] if thread else chat_store.new_id()
         refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000]}
                 for r in (body.get("refs") or [])[:12] if isinstance(r, dict) and r.get("anchor")]
         first = refs[0] if refs else {}
         user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "quote": (body.get("quote") or first.get("quote") or "")[:1000],
-                "note": body.get("note"), "refs": refs}
+                "note": body.get("note"), "refs": refs, "answer_style": style}
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"]} for x in past] + [{"role": "user", "content": text}]
-        prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs)
+        prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style)
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -111,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
             self.wfile.flush()
         try:
-            send({"model": model, "thread": tid})
+            send({"model": model, "thread": tid, "answer_style": style})
             def seen(actual):
                 chat_models.remember(m.get("model", ""), actual)
                 if m.get("engine") == "claude":

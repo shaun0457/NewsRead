@@ -18,14 +18,14 @@ def _is_matrix(value) -> bool:
 def block_shape_problem(block: dict) -> str | None:
     """Return a user-facing problem for block shapes that renderers cannot safely consume."""
     if not isinstance(block, dict):
-        return "块必须是对象"
+        return tr("块必须是对象")
     bid = block.get("id")
     if block.get("type") != "table":
         return None
     for field in ("head", "rows"):
         value = block.get(field, [])
         if not _is_matrix(value):
-            return f"{bid}：table.{field} 必须是二维数组"
+            return tr("{id}：table.{field} 必须是二维数组", id=bid, field=field)
     return None
 
 
@@ -50,7 +50,7 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         data = {"blocks": data}
     for b in data.get("blocks", []):
         if not isinstance(b, dict) or not b.get("id") or b.get("type") not in BLOCK_TYPES:
-            raise ValueError(f"块缺 id 或类型不对：{str(b)[:120]}")
+            raise ValueError(tr("块缺 id 或类型不对：{block}", block=str(b)[:120]))
         problem = block_shape_problem(b)
         if problem:
             raise ValueError(problem)
@@ -126,7 +126,7 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list
                 b["caption_zh"] = str(zh)
             elif field == "head":
                 if not _is_matrix(zh):
-                    raise ValueError(f"{bid}：译文 table.head 必须是二维数组")
+                    raise ValueError(tr("{id}：译文 table.head 必须是二维数组", id=bid))
                 if len(zh) == len(b.get("head", [])):
                     b["head"] = zh
             elif field.isdigit() and int(field) < len(b.get("items", [])):
@@ -142,8 +142,8 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list
             paper["glossary"] = paper.get("glossary", []) + [x for x in data["glossary"] if isinstance(x, dict) and str(x.get("en")) not in have]
         missing = [k for k in keys if k not in got and not k.endswith("#head")]  # 表头没译不算漏
         left = {by_id[k.partition("#")[0]].get("page") for k in missing if k.partition("#")[0] in by_id}
-        tr = paper.setdefault("translation", {})
-        tr["en_pages"] = sorted(set(tr.get("en_pages", [])) - (set(pages) - left))
+        translation = paper.setdefault("translation", {})
+        translation["en_pages"] = sorted(set(translation.get("en_pages", [])) - (set(pages) - left))
         _scope(paper)
         return missing
 

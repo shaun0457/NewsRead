@@ -8,6 +8,8 @@ function render(blocks) {
   const paperEl = { innerHTML: "" };
   const bodyClass = new Set();
   const PR = {
+    t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
+    titleOf: (m) => m.title_en || "",
     state: {
       paper: { meta: { title_en: "Table test", pages: [{ n: 1, img: "pages/page-001.webp" }] }, translation: { done_pages: [1] }, blocks },
       reader: { edits: {} },
@@ -41,6 +43,7 @@ function render(blocks) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/render.js"), "utf8"), {
     window: { PR },
     document: {
+      documentElement: { dataset: {} },
       body: { classList: { toggle() {} } },
       getElementById: () => null,
       createElement: () => ({ innerHTML: "", firstChild: null, classList: { contains: () => false, add() {} }, querySelector: () => null }),

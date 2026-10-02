@@ -1,9 +1,33 @@
-/* 行内标记：$TeX$、**粗体**、*斜体*、`代码`、[n] 引用，以及“公式 (1) / 表 2 / 第 2.2 节 / 附录 A”这类交叉引用。
+/* 行内标记：$TeX$ / \(TeX\)、**粗体**、*斜体*、`代码`、[n] 引用，以及“公式 (1) / 表 2 / 第 2.2 节 / 附录 A”这类交叉引用。
    译文、讨论、笔记都用同一套，用户编辑时看到的就是这套原始标记。 */
 (function (PR) {
   "use strict";
-  const MATH = /(?<!\\)\$((?:\\\$|[^$])+?)(?<!\\)\$/g;
+  // 先识别代码和完整公式，避免分段、Markdown 和表格的 | 拆坏 TeX。
+  const TOKENS = /(?<!\\)(`+)([\s\S]*?)\1|(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$|(?<![\\$])\$(?!\$)((?:\\\$|[^$])+?)(?<!\\)\$(?!\$)|(?<!\\)\\\[([\s\S]+?)(?<!\\)\\\]|(?<!\\)\\\(([\s\S]+?)(?<!\\)\\\)/g;  // i18n-ok regex, not UI text
   const mathCache = new Map();
+
+  function tokens(text, blocks) {
+    let prefix = "\uE000";
+    while (text.includes(prefix)) prefix += "\uE000";
+    const values = [];
+    const masked = text.replace(TOKENS, (raw, ticks, code, dollarBlock, dollarInline, bracketBlock, parenInline) => {
+      const display = ticks ? ticks.length >= 3 && code.includes("\n") : dollarBlock != null || bracketBlock != null;
+      const body = ticks ? (display ? code.replace(/^[\w+-]*\r?\n/, "") : code) : dollarBlock ?? dollarInline ?? bracketBlock ?? parenInline;
+      values.push({ raw, text: body, code: !!ticks, display });
+      return prefix + (values.length - 1) + (blocks && display ? "B" : "I") + "\uE001";
+    });
+    return { text: masked, values, inline: new RegExp(prefix + "(\\d+)I\uE001", "g"), blocks: new RegExp(prefix + "(\\d+)B\uE001", "g") };
+  }
+
+  function tokenHtml(t, block) {
+    if (t.code) return (t.display ? "<pre><code>" : "<code>") + PR.esc(t.text) + (t.display ? "</code></pre>" : "</code>");
+    const html = PR.tex(t.display ? t.text.trim() : t.text, t.display);
+    return block ? '<div class="eq">' + html + "</div>" : html;
+  }
+
+  function restore(s, saved, raw) {
+    return s.replace(saved.inline, (m, i) => raw ? saved.values[i].raw : tokenHtml(saved.values[i], false));
+  }
 
   PR.tex = function (tex, display) {
     const key = (display ? "D" : "I") + tex;
@@ -63,7 +87,6 @@
 
   function inline(text, opts) {
     let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
-    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");  // i18n-ok
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     if (opts.cite !== false) s = citeLinks(s);
@@ -75,18 +98,16 @@
   PR.md = function (text, opts) {
     opts = opts || {};
     text = String(text == null ? "" : text);
-    // 公式先换成占位符再处理粗体等标记，这样 **粗体里带 $公式$** 也能认出来
-    const maths = [];
-    MATH.lastIndex = 0;
-    const s = text.replace(MATH, (m, t) => "" + (maths.push(t) - 1) + "");
-    return inline(s, opts).replace(/(\d+)/g, (m, i) => PR.tex(maths[i].replace(/\\\$/g, "\\$"), false));
+    const saved = tokens(text, false);
+    return restore(inline(saved.text, opts), saved);
   };
 
-  /* 多段文字（讨论、笔记正文）：空行分段；$$...$$ 是行间公式——AI 常把它紧贴在上一行文字或列表后面，也要拆出来 */
+  /* 行间公式先拆出来，再按空行分段；已有回答的 \[...\] 也能显示，不需要改记录。 */
   PR.mdBlocks = function (text, opts) {
-    return String(text || "").trim().split(/\n\s*\n/).map((p) =>
-      p.split(/(?<!\\)\$\$([\s\S]+?)\$\$/).map((part, i) =>
-        i % 2 ? '<div class="eq">' + PR.tex(part.trim(), true) + "</div>" : para(part, opts)).join("")).join("");
+    const saved = tokens(String(text || "").trim(), true);
+    const html = saved.text.split(saved.blocks).map((part, i) => i % 2 ? tokenHtml(saved.values[part], true) :
+      part.split(/\n\s*\n/).map((p) => para(p, opts)).join("")).join("");
+    return restore(html, saved);
   };
 
   function isTableDelimiter(line) {
@@ -101,16 +122,15 @@
 
   function splitTableRow(line) {
     let s = (line || "").trim();
-    const tecs = [];
-    s = s.replace(/(?<!\\)\$((?:\\\$|[^$])+?)(?<!\\)\$/g, (m) => "" + (tecs.push(m) - 1) + "");
+    const saved = tokens(s, false);
+    s = saved.text;
     s = s.replace(/\\\|/g, "\uE002");
     if (s.startsWith("|")) s = s.slice(1);
     if (s.endsWith("|")) s = s.slice(0, -1);
     return s.split("|").map((cell) => {
       let c = cell.trim();
       c = c.replace(/\uE002/g, "|");
-      c = c.replace(/(\d+)/g, (m, i) => tecs[i]);
-      return c;
+      return restore(c, saved, true);
     });
   }
 
@@ -176,15 +196,21 @@
     }
 
     // 3. 标题
-    const h = p.match(/^#{1,4}\s+(.+)$/);
-    if (h) return '<p class="md-h">' + PR.md(h[1], opts) + "</p>";
+    const hIdx = lines.findIndex((l) => /^#{1,6}\s+.+$/.test(l));
+    if (hIdx >= 0) {
+      const h = lines[hIdx].replace(/^#{1,6}\s+/, "");
+      return (hIdx ? para(lines.slice(0, hIdx).join("\n"), opts) : "") +
+        '<p class="md-h">' + PR.md(h, opts) + "</p>" +
+        (hIdx + 1 < lines.length ? para(lines.slice(hIdx + 1).join("\n"), opts) : "");
+    }
 
     // 4. 列表：从某行起每行都以 “- ”“* ”或“1. ”开头（AI 的回答常用“引子：\n- …\n- …”）
     const isItem = (l) => /^\s*([-*•]|\d+[.、)])\s+/.test(l);
     const k = lines.findIndex(isItem);
     if (k >= 0 && lines.slice(k).every(isItem)) {
       const ordered = /^\s*\d/.test(lines[k]);
-      return (k ? "<p>" + PR.md(lines.slice(0, k).join("\n"), opts) + "</p>" : "") + (ordered ? "<ol>" : "<ul>") +
+      const start = ordered ? lines[k].match(/^\s*(\d+)/)[1] : "";
+      return (k ? "<p>" + PR.md(lines.slice(0, k).join("\n"), opts) + "</p>" : "") + (ordered ? '<ol' + (start === "1" ? "" : ' start="' + start + '"') + '>' : "<ul>") +
         lines.slice(k).map((l) => "<li>" + PR.md(l.replace(/^\s*([-*•]|\d+[.、)])\s+/, ""), opts) + "</li>").join("") + (ordered ? "</ol>" : "</ul>");
     }
 
@@ -192,5 +218,8 @@
   }
 
   /* 去掉标记的纯文字，给目录、列表摘要用 */
-  PR.plain = (text) => String(text || "").replace(MATH, (m, t) => t).replace(/\*\*|`/g, "");
+  PR.plain = (text) => {
+    const saved = tokens(String(text || ""), false);
+    return saved.text.replace(saved.inline, (m, i) => saved.values[i].text).replace(/\*\*|`/g, "");
+  };
 })(window.PR);

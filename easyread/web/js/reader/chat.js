@@ -9,7 +9,8 @@
   "use strict";
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
-  const st = { loaded: false, threads: [], cur: null, models: [], def: "", model: "", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
+  const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
+  const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
 
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */
@@ -48,21 +49,27 @@
     });
   };
 
-  async function load(force) {
+  async function load(force, modelsOnly) {
     if (st.loaded && !force) return;
     if (!PR.canChat()) {
       st.threads = (S.chat && S.chat.threads) || []; st.cur = st.cur || (st.threads[0] || {}).id || null; st.loaded = true;
+      st.answerStyle = styleOf(thread());
       return;
     }
     try {
       const d = await PR.api("/api/p/" + PR.pid + "/chat");
-      st.threads = d.threads || []; st.models = d.models || []; st.def = d.default; st.limits = d.limits || null;
+      // 设置变更只刷新模型，不能覆盖尚未发送的模式或正在流式回答的对话。
+      if (!modelsOnly) st.threads = d.threads || [];
+      st.models = d.models || []; st.def = d.default; st.limits = d.limits || null;
       if (!st.model || !st.models.some((m) => m.id === st.model)) st.model = st.def;
-      if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
+      if (!modelsOnly) {
+        if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
+        if (st.cur) st.answerStyle = styleOf(thread());
+      }
       st.loaded = true;
     } catch (e) { PR.toast(PR.t("读不到对话记录：{msg}", { msg: PR.esc(e.message) })); }
   }
-  PR.on("settings-saved", () => { if (st.loaded) load(true).then(render); });
+  PR.on("settings-saved", () => { if (st.loaded) load(true, true).then(render); });
 
   const thread = () => st.threads.find((t) => t.id === st.cur) || null;
   const modelOf = (id) => st.models.find((m) => m.id === id) || st.models[0] || { label: PR.t("模型") };
@@ -95,24 +102,25 @@
   /* ---------- 画面 ---------- */
   function headHtml() {
     const t = thread();
-    return '<div class="ch-head"><button class="ch-title" data-c="list" title="' + PR.t("全部对话") + '">' + PR.icon("menu", "sm") + "<span>" + PR.esc(t ? t.title : PR.t("新对话")) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
+    return '<div class="ch-head"><button class="ch-title" data-c="list" title="' + PR.t("全部对话") + '">' + PR.icon("menu", "sm") + "<span>" + PR.md(t ? t.title : PR.t("新对话"), { cite: false, xref: false }) + "</span>" + PR.icon("chevron", "sm") + "</button>" +
       '<span class="grow"></span><button class="btn icon" data-c="new" title="' + PR.t("新对话") + '">' + PR.icon("plus", "sm") + '</button><button class="btn icon" data-c="close" title="' + PR.t("关闭") + '">×</button></div>' +
       (st.listOpen ? listHtml() : "");
   }
   function listHtml() {
-    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.esc(t.title) + "</div>" +
+    const rows = st.threads.map((t) => '<div class="ch-thread' + (t.id === st.cur ? " on" : "") + '" data-t="' + PR.esc(t.id) + '"><div class="tt">' + PR.md(t.title, { cite: false, xref: false }) + "</div>" +
       '<div class="tm">' + PR.t("{n} 问", { n: Math.round((t.messages || []).length / 2) }) + " · " + PR.esc(when(t.updated)) + "</div>" +
-      '<button class="tx" data-c="rename" title="' + PR.t("改名") + '">' + PR.icon("edit", "sm") + '</button><button class="tx" data-c="del" title="' + PR.t("删除") + '">' + PR.icon("trash", "sm") + "</button></div>").join("");
+      '<button class="tx" data-c="rename" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("改名")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("edit", "sm") + '</button><button class="tx" data-c="del" title="' + (st.streaming ? PR.t("请先停止当前回答") : PR.t("删除")) + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.icon("trash", "sm") + "</button></div>").join("");
     return '<div class="ch-list"><button class="ch-thread newt" data-c="new">' + PR.icon("plus", "sm") + PR.t("新对话") + "</button>" + (rows || '<div class="hint" style="padding:10px 12px">' + PR.t("还没有对话。") + "</div>") + "</div>";
   }
   function msgHtml(m) {
     if (m.role === "user") {
-      return '<div class="cm user"><div class="bubble">' + PR.esc(m.content).replace(/\n/g, "<br>") + "</div>" +
+      return '<div class="cm user"><div class="bubble">' + PR.md(m.content, { cite: false, xref: false }) + "</div>" +
         ((m.refs && m.refs.length ? m.refs : m.anchor ? [m] : []).filter((r) => PR.blockById[r.anchor])
           .map((r) => '<button class="cm-ctx" data-c="go" data-anchor="' + PR.esc(r.anchor) + '">' + PR.icon("link", "sm") + "<span>" + PR.esc(ctxLabel(r)) + "</span></button>").join("")) + "</div>";
     }
     const live = st.streaming && st.streaming.msg === m;
-    return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
+    return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") +
+      (m.answer_style === "ste100" ? '<span class="cm-style">ASD-STE100</span>' : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
@@ -121,6 +129,7 @@
     const counts = markCounts();
     const colors = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
     const sug = [PR.t("这段在说什么？用大白话讲一遍"), PR.t("这个公式每一项是什么意思？怎么推出来的？"), PR.t("这里的结论靠得住吗？有什么前提？")];
+    if (st.answerStyle === "ste100") sug.unshift(PR.t("总结这篇论文的主要问题、方法、结果和局限"));
     if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
     return '<div class="ch-empty">' + PR.logo("hero") + "<b>" + PR.t("边读边问") + "</b><p>" + PR.t("默认带上你正在读的段落；把正文里选中的文字拖到输入框，可以引用多段一起问。") + (colors.length ? PR.t("问到“标{color}的”“划线”时，会自动找出你的 {n} 处标记。", { color: colorName(colors[0]), n: Object.values(counts).reduce((a, b) => a + b, 0) }) : "") + "</p>" +
       '<div class="chips">' + sug.map((q) => '<button data-c="suggest">' + PR.esc(q) + "</button>").join("") + "</div></div>";
@@ -136,7 +145,11 @@
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
       '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
-    return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
+    const style = '<div class="ch-style"><label for="chatAnswerStyle">' + PR.t("回答方式") + '</label><select id="chatAnswerStyle"' + (st.streaming ? " disabled" : "") + '>' +
+      '<option value="standard"' + (st.answerStyle === "standard" ? " selected" : "") + '>' + PR.t("普通问答") + '</option>' +
+      '<option value="ste100"' + (st.answerStyle === "ste100" ? " selected" : "") + '>' + PR.t("ASD-STE100 问答") + '</option></select>' +
+      (st.answerStyle === "ste100" ? '<span class="ch-style-hint">' + PR.t("简明中文回答") + '</span>' : "") + '</div>';
+    return '<div class="ch-compose">' + style + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型") + '">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
@@ -171,10 +184,14 @@
     if (!text || st.streaming) return;
     const refs = only || sendRefs();
     const c = refs[0] || null;
+    const answerStyle = st.answerStyle;
+    const modelId = st.model;
     let t = thread();
     if (!t) { t = { id: null, title: text.slice(0, 22), messages: [], updated: PR.nowIso() }; st.threads.unshift(t); }
-    const user = { role: "user", content: text, anchor: c ? c.anchor : null, quote: c ? c.quote : "", note: noteId || null, refs };
-    const msg = { role: "assistant", content: "", model: modelOf(st.model).label };
+    t.answer_style = answerStyle;
+    t.model = modelId;
+    const user = { role: "user", content: text, anchor: c ? c.anchor : null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle };
+    const msg = { role: "assistant", content: "", model: modelOf(modelId).label, answer_style: answerStyle };
     t.messages.push(user, msg);
     const ctrl = new AbortController();
     st.streaming = { ctrl, msg };
@@ -185,7 +202,7 @@
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: t.id, text, anchor: user.anchor, quote: user.quote, refs, note: noteId || null, model: st.model }),
+        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -199,8 +216,9 @@
           const line = buf.slice(0, i); buf = buf.slice(i + 1);
           if (!line.trim()) continue;
           const ev = JSON.parse(line);
-          if (ev.thread && !t.id) { t.id = ev.thread; st.cur = ev.thread; }
+          if (ev.thread && (!t.id || t.local)) { t.id = ev.thread; delete t.local; st.cur = ev.thread; }
           if (ev.model) msg.model = ev.model;
+          if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
           if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
@@ -211,6 +229,8 @@
       else msg.error = PR.t("没能回答：{msg}", { msg: e.message });
     }
     st.streaming = null;
+    // 首次提问在服务端分配 ID 前失败，也应能切到新对话或重试。
+    if (!t.id) { t.id = "local-" + (++st.localSeq); t.local = true; st.cur = t.id; }
     t.updated = PR.nowIso();
     if (noteId) { PR.asking.delete(noteId); setTimeout(() => PR.poll && PR.poll(), 300); }
     if (!only) { st.refs = []; st.noAuto = false; autoContext(); }  // 问完清掉引用，回到“正在读”
@@ -226,7 +246,7 @@
     const row = b.closest(".ch-thread[data-t]");
     if (c === "close") return PR.toggleChat(false);
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
-    if (c === "new") { if (st.streaming) return; st.cur = null; st.listOpen = false; st.model = st.def; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
+    if (c === "new") { if (st.streaming) return; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
     if (c === "model") { st.model = b.dataset.m; st.menuOpen = false; return render(); }
@@ -237,18 +257,21 @@
     if (c === "unref") { st.refs.splice(+b.dataset.i, 1); return render(); }
     if (c === "noauto") { st.noAuto = true; return render(); }
     if (c === "go") return PR.jumpTo("b-" + b.dataset.anchor);
+    if ((c === "rename" || c === "del") && st.streaming) return PR.toast(PR.t("请先停止当前回答，再修改对话"));
     if (c === "rename" && row) {
       const t = st.threads.find((x) => x.id === row.dataset.t);
+      if (!t) return;
       const title = await PR.promptText({ title: PR.t("对话改名"), value: t.title, ok: PR.t("改名"), at: row });
-      if (title) { t.title = title; await PR.api("/api/p/" + PR.pid + "/chat/rename", { method: "POST", body: { thread: t.id, title: t.title } }); render(); }
+      if (title) { t.title = title; if (!t.local) await PR.api("/api/p/" + PR.pid + "/chat/rename", { method: "POST", body: { thread: t.id, title: t.title } }); render(); }
       return;
     }
     if (c === "del" && row) {
       const t = st.threads.find((x) => x.id === row.dataset.t);
+      if (!t) return;
       if (!(await PR.confirm({ title: PR.t("删除这个对话？"), body: PR.t("「{title}」。已经放到页边的讨论不受影响。", { title: t.title }), ok: PR.t("删除"), danger: true, at: row }))) return;
-      await PR.api("/api/p/" + PR.pid + "/chat/delete", { method: "POST", body: { thread: t.id } });
+      if (!t.local) await PR.api("/api/p/" + PR.pid + "/chat/delete", { method: "POST", body: { thread: t.id } });
       st.threads = st.threads.filter((x) => x !== t);
-      if (st.cur === t.id) st.cur = null;
+      if (st.cur === t.id) { st.cur = null; st.answerStyle = "standard"; }
       return render();
     }
     const card = b.closest(".cm.ai");
@@ -263,10 +286,18 @@
   });
   document.addEventListener("click", (e) => {  // 点对话列表里的一行：切过去
     const row = e.target.closest("#chatpanel .ch-thread[data-t]");
-    if (!row || e.target.closest("[data-c]")) return;
+    if (!row || e.target.closest("[data-c]") || st.streaming) return;
     st.cur = row.dataset.t; st.listOpen = false;
     const t = thread();
     if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
+    st.answerStyle = styleOf(t);
+    render();
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.id !== "chatAnswerStyle" || st.streaming) return;
+    st.answerStyle = e.target.value === "ste100" ? "ste100" : "standard";
+    const t = thread();
+    if (t) t.answer_style = st.answerStyle;
     render();
   });
   document.addEventListener("keydown", (e) => {

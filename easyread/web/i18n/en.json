@@ -875,5 +875,18 @@
  "（还没有记录）": "(nothing recorded yet)",
  "（问：{q}）": " (Q: {q})",
  "：": ": ",
- "；<span class=\"legend-agent\"></span>青色细线是 AI 的解释和回答，<span class=\"legend-mine\"></span>赭色细线是我的笔记，都不属于原文。": "; <span class=\"legend-agent\"></span>teal lines are AI explanations and answers, <span class=\"legend-mine\"></span>ochre lines are my notes. Neither is part of the paper."
+ "；<span class=\"legend-agent\"></span>青色细线是 AI 的解释和回答，<span class=\"legend-mine\"></span>赭色细线是我的笔记，都不属于原文。": "; <span class=\"legend-agent\"></span>teal lines are AI explanations and answers, <span class=\"legend-mine\"></span>ochre lines are my notes. Neither is part of the paper.",
+  "块必须是对象": "Block must be an object",
+  "{id}：table.{field} 必须是二维数组": "{id}: table.{field} must be a two-dimensional array",
+  "{id}：译文 table.head 必须是二维数组": "{id}: translated table.head must be a two-dimensional array",
+  "回答方式只能是 standard / ste100": "Answer style must be standard or ste100",
+  "这一块没能显示": "This block could not be displayed",
+  "块 {id} 的数据格式有问题，其他内容仍可阅读。": "Block {id} has invalid data. Other content remains readable.",
+  "请先停止当前回答": "Stop the current answer first",
+  "请先停止当前回答，再修改对话": "Stop the current answer before editing the conversation",
+  "总结这篇论文的主要问题、方法、结果和局限": "Summarize the main question, methods, results and limitations of this paper",
+  "回答方式": "Answer style",
+  "普通问答": "Standard",
+  "ASD-STE100 问答": "ASD-STE100 Q&A",
+  "简明中文回答": "Clear answers in Chinese"
 }

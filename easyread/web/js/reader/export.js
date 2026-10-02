@@ -38,7 +38,14 @@
     PR.$$("[data-exp]", dlg).forEach((i) => (pick[i.dataset.exp] = i.checked));
     PR.ls.set("easyread-export", pick);
     let chat = [];
-    if (pick.chat && PR.store.mode === "server") { try { chat = (await PR.api("/api/p/" + PR.pid + "/chat")).messages || []; } catch (err) { /* 没有就算了 */ } }
+    if (pick.chat) {
+      let data = S.chat || {};
+      if (PR.store.mode === "server") {
+        try { data = await PR.api("/api/p/" + PR.pid + "/chat"); }
+        catch (err) { PR.toast(PR.t("读不到对话记录：{msg}", { msg: PR.esc(err.message) })); return; }
+      }
+      chat = data.threads ? data.threads.flatMap((t) => t.messages || []) : data.messages || [];
+    }
     const text = PR.notesMarkdown(pick, chat);
     const stem = ((S.paper.meta || {}).short_zh || (S.paper.meta || {}).title_zh || PR.t("论文")).replace(/[\\/:*?"<>|]/g, "");
     const a = PR.el("a", { href: URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" })), download: stem + PR.t("-笔记.md") });

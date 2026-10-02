@@ -15,7 +15,7 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from . import engines, netcheck, openai_api, usage
+from . import answer_styles, engines, netcheck, openai_api, usage
 from . import langs
 from .i18n import tr
 from .prompts import _block_text
@@ -24,6 +24,7 @@ from .store import Workspace
 HISTORY = 12  # 带上最近几轮对话
 COLOR_NAMES = {"yellow": "黄", "green": "绿", "blue": "蓝", "pink": "红"}  # i18n-ok
 MARKS_BUDGET = 9000  # 标记部分最多带多少字
+PAPER_BUDGET = 30000  # STE 问答带上正文，长论文各段取节选，保留后面的结果和结论
 
 
 # ---------- 提示词 ----------
@@ -59,6 +60,44 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     if gl:
         lines.append("术语表：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl[:80]))  # i18n-ok
     return "\n\n".join(lines)
+
+
+def _paper_context(ws: Workspace) -> str:
+    """跨段或全文问题也能读到后面的结果；明确标出未提供的内容。"""
+    paper = ws.load("paper")
+    blocks = paper.get("blocks", [])
+    parts = []
+    for b in blocks:
+        text = b.get("en") or b.get("caption_en") or _block_text(b)
+        if b.get("type") == "list":
+            text = "\n".join("- " + (it.get("en") or it.get("zh", "")) for it in b.get("items", []))
+        elif b.get("type") == "table":
+            rows = b.get("head", []) + b.get("rows", [])
+            text += "\n" + "\n".join(" | ".join(str(cell) for cell in row) for row in rows)
+        if text:
+            page = f"第 {b['page']} 页" if b.get("page") else ""  # i18n-ok
+            parts.append(f"[{b.get('id', '')}] {page}\n{text}")
+    if not parts:
+        return "论文正文尚未提供；只能依据摘要、引用和当前段落回答。"  # i18n-ok
+    complete = sum(map(len, parts)) + 2 * (len(parts) - 1) <= PAPER_BUDGET
+    if not complete:
+        limit = max(0, PAPER_BUDGET // len(parts) - 2)
+        marker = "\n…（本段节选）…\n"  # i18n-ok
+        clipped = []
+        for part in parts:
+            if len(part) > limit:
+                room = max(0, limit - len(marker))
+                head = (room + 1) // 2
+                tail = room - head
+                part = (part[:head] + marker + (part[-tail:] if tail else "")) if room else part[:limit]
+            clipped.append(part)
+        parts = clipped
+    label = "当前已导入的正文" if complete else "正文节选（长文超出上下文预算，各段只保留部分内容）"  # i18n-ok
+    total = paper.get("meta", {}).get("page_count")
+    done = paper.get("translation", {}).get("done_pages")
+    if total and done is not None and len(set(done)) < total:
+        label += f"（只完成整理 {len(set(done))} / {total} 页）"  # i18n-ok
+    return label + "；没有提供的页面和省略部分不能视为已读：\n\n" + "\n\n".join(parts)  # i18n-ok
 
 
 def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
@@ -122,7 +161,9 @@ def _marks_summary(ws: Workspace) -> str:
     return "读者在论文上做过 " + str(len(notes)) + " 处标记（" + "、".join(f"{k} {v}" for k, v in counts.items()) + "），这次问题没提到，就没附上。"  # i18n-ok
 
 
-def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None) -> str:
+def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None,
+           answer_style: str = answer_styles.DEFAULT) -> str:
+    answer_style = answer_styles.parse(answer_style)
     history = messages[-HISTORY:]
     convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])  # i18n-ok
     ask = history[-1]["content"] if history else ""
@@ -130,11 +171,17 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
             if engine == "claude" else "")
     want, colors = wants_marks(ask)
     marks = _marks(ws, colors) if want else _marks_summary(ws)
-    reply = langs.reply_lang(ws.load("paper").get("meta"))
-    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。用" + reply + "，直接、具体，能举例就举例；"  # i18n-ok
-            "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
-            "行内公式写 $TeX$，行间公式写 $$TeX$$。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
+    style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
+             else "用" + langs.reply_lang(ws.load("paper").get("meta")) + "，直接、具体，能举例就举例。\n")  # i18n-ok
+    whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
+    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。\n" + style  # i18n-ok
+            + "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
+            "行内公式只用 $TeX$，行间公式只用 $$TeX$$。"  # i18n-ok
+            r"不要用 \(\) 或 \[\]，不要把公式放进反引号或代码块。"  # i18n-ok
+            "行间公式的 $$ 单独占一行。公式内部可以换行，但不要在公式中插入空行；多行推导使用 aligned 环境。"  # i18n-ok
+            "保留完整的上下标、括号和单位。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
             + _context(ws, anchor, quote, refs)
+            + ("\n\n" + whole if whole else "")
             + ("\n\n" + marks if marks else "")
             + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
             + f"\n\n读者现在问：{ask}")  # i18n-ok

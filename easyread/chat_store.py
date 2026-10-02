@@ -1,8 +1,8 @@
 """“问 AI”的对话记录：每篇论文一个 chat.json，里面可以有多个对话（像聊天客户端那样新建、切换、删除）。
 
-{"threads": [{"id", "title", "model", "created", "updated",
+{"threads": [{"id", "title", "model", "answer_style", "created", "updated",
               "messages": [{"role": "user", "content", "anchor", "quote", "note", "at"},
-                           {"role": "assistant", "id", "content", "model", "anchor", "note", "at"}]}]}
+                           {"role": "assistant", "id", "content", "model", "answer_style", "anchor", "note", "at"}]}]}
 旧版只有一个顶层 "messages"，读的时候当成第一个对话。
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .i18n import tr
+from . import answer_styles
 from .paperdata import add_discussion
 from .store import Workspace, now_iso
 
@@ -22,6 +23,10 @@ def _normalize(chat: dict) -> dict:
     if legacy:
         threads.insert(0, {"id": "t-first", "title": _title(legacy[0].get("content", "")), "model": "",
                            "created": legacy[0].get("at", ""), "updated": legacy[-1].get("at", ""), "messages": legacy})
+    for t in threads:
+        t.setdefault("answer_style", answer_styles.DEFAULT)
+        for m in t.get("messages", []):
+            m.setdefault("answer_style", answer_styles.DEFAULT)
     return chat
 
 
@@ -46,8 +51,9 @@ def new_id() -> str:
 def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None) -> dict:
     """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。"""
     stamp = now_iso()
+    style = answer_styles.parse(user.get("answer_style"))
     msg = {"id": "m" + uuid4().hex, "role": "assistant", "content": answer, "at": stamp,
-           "model": model_name, "anchor": user.get("anchor"), "note": user.get("note")}
+           "model": model_name, "anchor": user.get("anchor"), "note": user.get("note"), "answer_style": style}
     if used and used.get("calls"):
         msg["usage"] = used  # 这条回答的 token 用量（usage.Meter 的快照）
 
@@ -57,8 +63,8 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
         if not t:
             t = {"id": tid, "title": _title(user["content"]), "created": stamp, "messages": []}
             chat["threads"].append(t)
-        t["messages"] += [{**user, "role": "user", "at": stamp}, msg]
-        t.update(updated=stamp, model=model_id)
+        t["messages"] += [{**user, "role": "user", "at": stamp, "answer_style": style}, msg]
+        t.update(updated=stamp, model=model_id, answer_style=style)
     ws.update("chat", apply)
     note_id = user.get("note")
     if note_id and answer.strip():
