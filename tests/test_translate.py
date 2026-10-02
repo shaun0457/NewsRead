@@ -111,6 +111,9 @@ class ScopePagesTest(unittest.TestCase):
         self.assertEqual(scope_pages(ws, "range:3-5"), [3, 4, 5])
         self.assertEqual(scope_pages(ws, "range:18-30"), [18, 19, 20])   # 超出总页数就截到最后一页
         self.assertEqual(scope_pages(ws, "range:5-3"), [3, 4, 5])        # 填反了也行
+        self.assertEqual(scope_pages(ws, "range:30-18"), [18, 19, 20])
+        with self.assertRaisesRegex(ValueError, "超出了论文范围"):
+            scope_pages(ws, "range:30-40")
         self.assertEqual(scope_pages(ws, "first:2"), [1, 2])              # 旧写法还认
 
 

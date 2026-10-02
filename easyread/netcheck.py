@@ -15,6 +15,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from . import http
 from .log import log
 from .presets import NEEDS_VPN, PRESETS
 
@@ -24,6 +25,7 @@ _LOCAL = {"localhost", "127.0.0.1", "::1"}
 _NET = re.compile(r"ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|EAI_AGAIN|fetch failed|connection error|unable to connect"
                   r"|error sending request|stream disconnected|timed out|getaddrinfo|连不上", re.I)
 _REGION = re.compile(r"unsupported_country|not available in your (country|region)|request not allowed", re.I)
+_CERT = re.compile(r"CERTIFICATE_VERIFY_FAILED|certificate verify failed|self.signed certificate|unknown issuer", re.I)
 
 
 def _claude_base() -> str:
@@ -88,6 +90,11 @@ def _region(t: dict) -> str:
     return f"{t['name']} 拒绝了当前地区的访问：梯子节点在它不支持的地区（比如香港），换成美国、日本、新加坡等节点再重试。"
 
 
+def _certificate(t: dict) -> str:
+    host = urlparse(t["url"]).hostname or t["url"]
+    return f"{t['name']}（{host}）证书校验失败：请检查系统信任的根证书；使用代理时，也检查代理证书是否已获系统信任。"
+
+
 def problem(cfg: dict, timeout: float = 6) -> str | None:
     """连得上返回 None，连不上返回给用户看的一句话。"""
     t = target(cfg)
@@ -99,11 +106,14 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
         return None
     for attempt in range(2):  # 梯子偶尔抖一下，失败一次不算
         try:
-            urllib.request.urlopen(origin, timeout=timeout).close()
+            http.urlopen(origin, timeout=timeout).close()
         except urllib.error.HTTPError as e:  # 有 HTTP 响应就说明网络是通的
             if _REGION.search(e.read(2000).decode("utf-8", "replace")):
                 return _region(t)
         except Exception as e:  # noqa: BLE001  DNS 失败、拒绝连接、超时、证书被劫持……
+            if _CERT.search(str(e)):
+                log.info("证书校验失败 %s：%s", origin, e)
+                return _certificate(t)
             if attempt == 0:
                 continue
             log.info("连通性检查失败 %s：%s", origin, e)
@@ -118,6 +128,9 @@ def explain(cfg: dict, msg: str) -> str:
         return msg
     if _REGION.search(msg):
         return msg + "\n" + _region(t)
+    if _CERT.search(msg):
+        _ok.clear()
+        return msg + "\n" + _certificate(t)
     if _NET.search(msg):
         _ok.clear()
         return msg + "\n" + _advice(t)
@@ -126,7 +139,7 @@ def explain(cfg: dict, msg: str) -> str:
 
 def offline(msg: str) -> bool:
     """这条报错是不是网络 / 地区问题（是的话剩下的页不用再试了）。"""
-    return "梯子" in msg or "先把它打开" in msg
+    return "梯子" in msg or "先把它打开" in msg or "证书校验失败" in msg
 
 
 def proxy_env() -> dict | None:

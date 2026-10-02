@@ -9,14 +9,16 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import time
 import urllib.error
 import urllib.request
 import uuid
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import __version__, usage
+from . import __version__, http, usage
 from .engines import Cancelled, EngineError
 
 API_KINDS = [("chat", "Chat Completions（通用）"), ("responses", "Responses（OpenAI 新接口）")]
@@ -70,9 +72,10 @@ def _open(o: dict, body: dict, stream: bool):
     for _ in range(3):
         req = urllib.request.Request(_base(o) + path, data=json.dumps(body).encode(), headers=_headers(o, stream))
         try:
-            return urllib.request.urlopen(req, timeout=int(o.get("timeout") or 600))
+            return http.urlopen(req, timeout=int(o.get("timeout") or 600))
         except urllib.error.HTTPError as e:
-            detail = e.read()[:300].decode("utf-8", "replace")
+            detail = e.read(300).decode("utf-8", "replace")
+            e.close()
             drop = next((k for k in ("temperature", "stream_options") if k in detail and k in body), None)
             if e.code == 400 and drop:
                 body = {k: v for k, v in body.items() if k != drop}
@@ -98,7 +101,7 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) 
             break
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < 3:
-                _sleep(float(e.headers.get("Retry-After") or 0) or 5 * 2 ** attempt, cancel)
+                _sleep(_retry_after(e.headers.get("Retry-After"), 5 * 2 ** attempt), cancel)
                 continue
             raise _http_error(e)
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
@@ -117,24 +120,53 @@ def _chat_text(res) -> str:
         text = choice["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
         raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
-    if choice.get("finish_reason") == "length":
-        raise _truncated()
+    _check_finish(choice.get("finish_reason"))
     return text
 
 
 def _responses_text(res) -> str:
-    if not isinstance(res, dict) or "output" not in res:
+    if not isinstance(res, dict):
         raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
-    if res.get("status") == "incomplete" and (res.get("incomplete_details") or {}).get("reason") == "max_output_tokens":
-        raise _truncated()
-    if res.get("status") == "failed":
-        raise EngineError(f"接口返回出错：{res.get('error')}")
+    _check_response_status(res)
+    if "output" not in res:
+        raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
     return "".join(c.get("text") or "" for item in res["output"] if item.get("type") == "message"
                    for c in item.get("content") or [] if c.get("type") == "output_text")
 
 
 def _truncated() -> EngineError:
     return EngineError("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。")
+
+
+def _check_finish(reason) -> None:
+    if reason == "length":
+        raise _truncated()
+    if reason == "content_filter":
+        raise EngineError("模型输出被服务商的内容过滤器中断了。")
+
+
+def _check_response_status(res: dict) -> None:
+    if res.get("status") == "incomplete":
+        reason = (res.get("incomplete_details") or {}).get("reason")
+        if reason == "max_output_tokens":
+            raise _truncated()
+        raise EngineError(f"模型未完成回答：{reason or '接口没有提供原因'}")
+    if res.get("status") == "failed":
+        raise EngineError(f"接口返回出错：{res.get('error')}")
+
+
+def _retry_after(value: str | None, default: float) -> float:
+    """Retry-After 可以是秒数或 HTTP 日期；不合法时使用正常退避。"""
+    if not value:
+        return default
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            seconds = parsedate_to_datetime(value).timestamp() - time.time()
+        except (ValueError, TypeError, OverflowError):
+            return default
+    return max(0, seconds) if math.isfinite(seconds) else default
 
 
 def _sleep(seconds: float, cancel) -> None:
@@ -147,6 +179,8 @@ def _sleep(seconds: float, cancel) -> None:
 
 # ---------- 逐字输出（问 AI 用） ----------
 def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
+    if cancel.is_set():
+        raise Cancelled()
     body = _body(o, text, [], True, None if kind(o) == "responses" else 0.4)
     try:
         r = _open(o, body, True)
@@ -154,64 +188,126 @@ def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
         raise _http_error(e)
     except Exception as e:  # noqa: BLE001
         raise EngineError(f"连不上接口：{e}")
-    pieces = _responses_pieces(r, cancel, meter) if kind(o) == "responses" else _chat_pieces(r, cancel, meter)
-    yield from _strip_think(pieces)
+    with r:
+        if cancel.is_set():
+            raise Cancelled()
+        pieces = _responses_pieces(r, cancel, meter) if kind(o) == "responses" else _chat_pieces(r, cancel, meter)
+        yield from _strip_think(pieces)
+
+
+_DONE, _EMPTY, _PARTIAL = object(), object(), object()
+
+
+def _payload(data: list[str]):
+    """一条事件的 data 行合起来：[DONE]、空事件、还没收完整的 JSON 分别给标记，否则给解析结果。"""
+    payload = "\n".join(data).strip()
+    if payload == "[DONE]":
+        return _DONE
+    if not payload:
+        return _EMPTY
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return _PARTIAL
 
 
 def _events(r, cancel) -> Iterator[dict | None]:
-    """SSE 的每个 data 行；[DONE] 给 None。"""
-    with r:
-        for raw in r:
-            if cancel.is_set():
-                raise Cancelled()
-            line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            data = line[5:].strip()
-            if data == "[DONE]":
-                yield None
-                return
-            try:
-                yield json.loads(data)
-            except json.JSONDecodeError:
-                continue
+    """按空行分隔 SSE 事件，同一事件的多个 data 行要合起来解析；[DONE] 给 None。
+    有的中转接口事件之间只隔一个换行，或者最后一条后面没有空行就断开：
+    已攒下的 data 本身就是完整 JSON 时，碰到下一行 data 或连接结束也照样交出去。"""
+    data = []
+    for raw in r:
+        if cancel.is_set():
+            raise Cancelled()
+        line = raw.decode("utf-8", "replace").rstrip("\r\n")
+        is_data = line.startswith("data:") or line == "data"
+        if data and (not line or is_data):
+            ev = _payload(data)
+            if not (ev is _PARTIAL and is_data):  # 还不完整又来了 data 行：一条事件拆成了多行，接着攒
+                data.clear()
+                if ev is _DONE:
+                    yield None
+                    return
+                if ev is not _EMPTY:
+                    yield _check_event(ev)
+        if is_data:
+            data.append(line.partition(":")[2].removeprefix(" "))
+    if data:
+        ev = _payload(data)
+        if ev is _DONE:
+            yield None
+        elif ev is not _EMPTY:
+            yield _check_event(ev)
+
+
+def _check_event(ev) -> dict:
+    if ev is _PARTIAL:
+        raise EngineError("接口返回的流数据不是有效 JSON")
+    if not isinstance(ev, dict):
+        raise EngineError("接口返回的流数据格式不对")
+    return ev
 
 
 def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
+    finished = False
     for ev in _events(r, cancel):
         if ev is None:
             return
-        if ev.get("usage") and meter is not None:  # 开了 include_usage 时最后一块只有 usage、choices 为空
+        if ev.get("error"):
+            raise EngineError(f"接口返回出错：{ev['error']}")
+        if ev.get("usage") and meter is not None:
             meter.add(**usage.from_openai(ev))
-        yield ((ev.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
+        choice = (ev.get("choices") or [{}])[0]
+        _check_finish(choice.get("finish_reason"))
+        finished = finished or bool(choice.get("finish_reason"))
+        yield (choice.get("delta") or {}).get("content") or ""
+    if not finished:
+        raise EngineError("接口连接提前结束，回答未完成，请重试。")
 
 
 def _responses_pieces(r, cancel, meter=None) -> Iterator[str]:
     for ev in _events(r, cancel):
         t = (ev or {}).get("type", "")
-        if t == "response.completed" and meter is not None:
-            meter.add(**usage.from_openai(ev.get("response") or {}))
-        if ev is None or t == "response.completed":
+        if ev is None:
+            return
+        if t in ("response.completed", "response.incomplete", "response.failed"):
+            res = ev.get("response") or {}
+            _check_response_status({**res, "status": res.get("status") or t.split(".")[1]})
+            if meter is not None:
+                meter.add(**usage.from_openai(res))
             return
         if t == "response.output_text.delta":
             yield ev.get("delta") or ""
-        elif t in ("response.failed", "error"):
+        elif t == "error":
             err = (ev.get("response") or {}).get("error") or ev.get("error") or ev.get("message")
             raise EngineError(f"接口返回出错：{err}")
+    raise EngineError("接口连接提前结束，回答未完成，请重试。")
 
 
 def _strip_think(pieces: Iterator[str]) -> Iterator[str]:
     """推理模型把思考过程包在 <think> 里，读者不需要看。"""
     thinking = False
+    pending = ""
     for piece in pieces:
-        if "<think>" in piece:
-            thinking, piece = True, piece.split("<think>")[0]
-        if thinking:
-            if "</think>" not in piece:
+        pending += piece
+        while pending:
+            tag = "</think>" if thinking else "<think>"
+            index = pending.find(tag)
+            if index >= 0:
+                if not thinking and index:
+                    yield pending[:index]
+                pending = pending[index + len(tag):]
+                thinking = not thinking
                 continue
-            thinking, piece = False, piece.split("</think>", 1)[1]
-        if piece:
-            yield piece
+            # 留下可能是下一个标签开头的后缀，下一片到来后再判断。
+            keep = next((n for n in range(len(tag) - 1, 0, -1) if pending.endswith(tag[:n])), 0)
+            visible = pending[:-keep] if keep else pending
+            if not thinking and visible:
+                yield visible
+            pending = pending[-keep:] if keep else ""
+            break
+    if pending and not thinking:
+        yield pending
 
 
 # ---------- 模型列表 ----------
@@ -222,10 +318,11 @@ def models(o: dict) -> list[str]:
         raise EngineError("先填接口地址")
     req = urllib.request.Request(base + "/models", headers=_headers(o))
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with http.urlopen(req, timeout=20) as r:
             res = json.loads(r.read())
     except urllib.error.HTTPError as e:
-        e.detail = e.read()[:300].decode("utf-8", "replace")
+        e.detail = e.read(300).decode("utf-8", "replace")
+        e.close()
         raise _http_error(e)
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
         raise EngineError(f"连不上接口：{e}")

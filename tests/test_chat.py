@@ -33,6 +33,7 @@ class ChatStreamTest(unittest.TestCase):
             out = "".join(chat.stream(cfg, "问题", None, threading.Event()))
         finally:
             srv.shutdown()
+            srv.server_close()
         self.assertEqual(out, "标准误差除以 $\sqrt{n}$。")
 
     def test_model_list_picks_preset_key(self):

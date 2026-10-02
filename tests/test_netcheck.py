@@ -2,6 +2,9 @@ import http.server
 import socket
 import threading
 import unittest
+import ssl
+import urllib.error
+from unittest.mock import patch
 
 from easyread import netcheck
 
@@ -41,6 +44,15 @@ class NetcheckTest(unittest.TestCase):
         self.assertIn("梯子", netcheck.explain(cfg, "stream disconnected before completion"))
         self.assertIn("节点", netcheck.explain(cfg, "unsupported_country_region_territory"))
         self.assertEqual(netcheck.explain(cfg, "模型输出里没有 JSON"), "模型输出里没有 JSON")
+
+    def test_certificate_failure_is_not_reported_as_vpn_problem(self):
+        err = urllib.error.URLError(ssl.SSLCertVerificationError("CERTIFICATE_VERIFY_FAILED"))
+        with patch("easyread.netcheck.http.urlopen", side_effect=err) as request:
+            message = netcheck.problem({"engine": "codex"})
+        self.assertIn("证书校验失败", message)
+        self.assertNotIn("梯子", message)
+        self.assertTrue(netcheck.offline(message))
+        self.assertEqual(request.call_count, 1)
 
 
 if __name__ == "__main__":

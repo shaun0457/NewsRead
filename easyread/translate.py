@@ -57,10 +57,11 @@ def scope_pages(ws: Workspace, scope: str | None) -> list[int] | None:
         return list(range(1, ref + 1)) if ref else None
     if scope and scope.startswith("range:"):
         a, _, b = scope.split(":", 1)[1].partition("-")
-        lo, hi = max(1, int(a or 1)), min(n, int(b or n))
+        start, end = sorted((int(a or 1), int(b or n)))
+        lo, hi = max(1, start), min(n, end)
         if lo > hi:
-            lo, hi = hi, lo
-        return list(range(max(1, lo), hi + 1)) or None
+            raise ValueError(f"指定页码超出了论文范围（共 {n} 页）")
+        return list(range(lo, hi + 1))
     if scope and scope.startswith("first:"):
         k = int(scope.split(":", 1)[1] or 0)
         return list(range(1, min(n, k) + 1)) if k > 0 else None
