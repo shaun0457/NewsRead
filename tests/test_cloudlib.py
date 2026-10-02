@@ -368,3 +368,68 @@ print(json.dumps({"errors": errors, "times": times, "status": location.status, "
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarkerRecoveryTest(unittest.TestCase):
+    """第二轮审查：不可写目录不能卡死；本机没搬完的目标能清理；别的电脑的标记不拦。"""
+
+    setUp = CloudLibraryTest.setUp
+    migrate = CloudLibraryTest.migrate
+    fail_second_publication = CloudLibraryTest.fail_second_publication
+
+    def test_unwritable_folder_returns_immediately(self):
+        self.dst.mkdir()
+        with patch("easyread.cloudlib.os.open", side_effect=PermissionError("denied")), \
+                patch("easyread.cloudlib.uuid.uuid4", wraps=cloudlib.uuid.uuid4) as probe:
+            self.assertFalse(cloudlib.inspect(self.dst)["writable"])
+        self.assertEqual(probe.call_count, 1)  # 只试一次，不像 tempfile 那样重试
+        paper(self.src, "paper001")
+        with patch("easyread.cloudlib.os.open", side_effect=PermissionError("denied")), \
+                self.assertRaisesRegex(ValueError, "不可写"):
+            self.migrate()
+        self.assertEqual(self.location.status, "idle")
+
+    def locked_merge(self):
+        for pid in ("paper001", "paper002"):
+            paper(self.src, pid)
+        existing = paper(self.dst, "existing")
+        remove = cloudlib.shutil.rmtree
+
+        def locked(path, *args, **kwargs):
+            if Path(path) == self.dst / "paper001":
+                raise PermissionError("sync client locks rollback")
+            return remove(path, *args, **kwargs)
+        with self.fail_second_publication(), patch("easyread.cloudlib.shutil.rmtree", side_effect=locked), \
+                self.assertRaises(OSError):
+            self.migrate("merge")
+        return existing
+
+    def test_cleanup_restores_target_and_unblocks(self):
+        existing = self.locked_merge()
+        info = self.location.location()  # 候选里有没搬完的目标也不能抛错
+        self.assertIn("papers", info)
+        from easyread import library_api
+        self.assertTrue(library_api.inspect({"path": str(self.dst)})["incomplete"])
+        result = cloudlib.cleanup(self.dst, self.src)
+        self.assertTrue(result["ok"])
+        self.assertEqual(sorted(p.name for p in self.dst.iterdir()), ["existing"])
+        self.assertTrue((existing / "reader.json").exists())
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 1)
+        self.assertEqual(sorted(p.name for p in self.src.iterdir()), ["paper001", "paper002"])
+
+    def test_cleanup_refuses_current_library(self):
+        self.locked_merge()
+        with self.assertRaises(ValueError):
+            cloudlib.cleanup(self.dst, self.dst)
+
+    def test_marker_from_another_computer_does_not_block(self):
+        self.locked_merge()
+        with patch("easyread.cloudlib.socket.gethostname", return_value="OTHER-PC"):
+            self.assertEqual(cloudlib.inspect(self.dst)["papers"], 2)
+
+    def test_ready_marker_opens_from_another_path(self):
+        paper(self.dst, "paper001")
+        write_json_atomic(self.dst / cloudlib.MIGRATION_MARKER, {"state": "ready", "target": "D:/elsewhere/EasyRead"})
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 1)
+        self.migrate("use")
+        self.assertFalse((self.dst / cloudlib.MIGRATION_MARKER).exists())

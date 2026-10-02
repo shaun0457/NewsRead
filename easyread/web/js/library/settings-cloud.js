@@ -21,6 +21,9 @@
   }
 
   function target(s, item) {
+    if (item.incomplete) return '<div class="cloud-target"><div><b>' + PR.esc(item.label || PR.t("自定义文件夹")) + '</b><div class="cloud-path">' +
+      PR.esc(item.path) + '</div><span class="hint">' + PR.t("上次搬到这里没完成，原文献库没受影响") + '</span></div><div class="cloud-actions">' +
+      button("cleanup", PR.t("清理没搬完的内容"), item.path, busy) + "</div></div>";
     const off = disabled(s) || !item.writable || item.path === s.cloud.path;
     return '<div class="cloud-target"><div><b>' + PR.esc(item.label || PR.t("自定义文件夹")) + '</b><div class="cloud-path">' +
       PR.esc(item.path) + '</div><span class="hint">' + (item.papers ? PR.t("里面已有 {n} 篇", { n: item.papers }) : PR.t("空的")) +
@@ -74,6 +77,15 @@
         if (action === "restart") {
           if (window.easyreadDesktop && window.easyreadDesktop.relaunch) await window.easyreadDesktop.relaunch();
           else PR.toast(PR.t("请关掉 EasyRead 再重新打开"));
+          return true;
+        }
+        if (action === "cleanup") {
+          if (!(await PR.confirm({ title: PR.t("清理没搬完的内容？"), body: PR.t("只删除上次迁移复制到 {path} 的内容，那里原有的论文和你现在用的文献库都不动。", { path: b.dataset.path }), ok: PR.t("清理") }))) return true;
+          busy = true; redraw();
+          await PR.api("/api/library/cleanup", { method: "POST", body: { path: b.dataset.path } });
+          if (s.cloudCustom && s.cloudCustom.path === b.dataset.path) s.cloudCustom = await PR.api("/api/library/inspect", { method: "POST", body: { path: b.dataset.path } });
+          busy = false; await load(s);
+          PR.toast(PR.t("已清理"));
           return true;
         }
         if (disabled(s)) return true;

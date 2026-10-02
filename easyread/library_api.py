@@ -98,6 +98,8 @@ class LibraryLocation:
         for candidate in cloudlib.detect():
             try:
                 candidates.append({**candidate, **cloudlib.inspect(candidate["path"])})
+            except cloudlib.Incomplete as e:
+                candidates.append({**candidate, **incomplete(e)})
             except (ValueError, OSError):
                 continue
         return {**current, "path": str(self.app.lib.root), "temp": config.temp_library(), "candidates": candidates,
@@ -117,6 +119,18 @@ class LibraryLocation:
         return {"ok": True}
 
 
+def incomplete(e: "cloudlib.Incomplete") -> dict:
+    """没搬完的目标：不报错，交给页面显示“清理”按钮。"""
+    return {"path": e.path, "exists": True, "writable": False, "papers": 0, "bytes": 0, "incomplete": str(e)}
+
+
+def inspect(body: dict) -> dict:
+    try:
+        return cloudlib.inspect(body.get("path", ""))
+    except cloudlib.Incomplete as e:
+        return incomplete(e)
+
+
 def get(app, path: str):
     if path == "/api/library/location":
         return app.location.location()
@@ -125,7 +139,9 @@ def get(app, path: str):
 
 def post(app, path: str, body: dict):
     if path == "/api/library/inspect":
-        return cloudlib.inspect(body.get("path", ""))
+        return inspect(body)
+    if path == "/api/library/cleanup":
+        return cloudlib.cleanup(body.get("path", ""), app.lib.root)
     if path == "/api/library/move":
         return app.location.move(body)
     if path == "/api/library/reveal":
@@ -137,4 +153,4 @@ def post(app, path: str, body: dict):
     return None
 
 
-POST = {"/api/library/inspect", "/api/library/move", "/api/library/reveal", "/api/shutdown"}
+POST = {"/api/library/inspect", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}

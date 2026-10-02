@@ -5,8 +5,9 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import stat
-import tempfile
+import uuid
 from pathlib import Path
 
 from . import config
@@ -16,6 +17,15 @@ from .log import log
 from .store import read_json, write_json_atomic
 
 MIGRATION_MARKER = ".easyread-migration.json"
+STAGING_PREFIX = ".easyread-copy-"
+
+
+class Incomplete(ValueError):
+    """目标里留着本机一次没完成的迁移；页面可以提供“清理”。"""
+
+    def __init__(self, root: Path):
+        self.path = str(root)
+        super().__init__(tr("目标文献库迁移未完成（{path}），可以先清理这次没搬完的内容；原文献库仍然保留", path=str(root)))
 
 
 def _incomplete(root: Path) -> bool:
@@ -26,10 +36,29 @@ def _incomplete(root: Path) -> bool:
         if _linked(marker):
             return True
         data = read_json(marker, {})
-        # ready 先于配置切换写入，表示目标已完整发布；清理锁住不影响下次打开。
-        return not (data.get("state") == "ready" and data.get("target") == str(root))
+        # ready 先于配置切换写入，表示目标已完整发布；不比较路径，同一个网盘目录在另一台电脑上路径不同。
+        if data.get("state") == "ready":
+            return False
+        # 别的电脑留下的标记随网盘同步过来：那边的事，这里只是普通文献库，不拦。
+        host = data.get("host")
+        return not (host and host != socket.gethostname())
     except (OSError, ValueError, AttributeError):
         return True
+
+
+def _writable(folder: Path) -> bool:
+    """只试一次：tempfile 在 Windows 上遇到没权限的目录会重试 TMP_MAX（约 21 亿）次，后端就卡死了。"""
+    probe = folder / f".easyread-probe-{uuid.uuid4().hex}"
+    try:
+        fd = os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except OSError:
+        return False
+    os.close(fd)
+    try:
+        probe.unlink()
+    except OSError:
+        pass
+    return True
 
 
 def _linked(path: Path) -> bool:
@@ -81,7 +110,7 @@ def _papers(root: Path) -> list[Path]:
 def inspect(path: str | Path, *, exact: bool = False) -> dict:
     root = Path(path).resolve() if exact else target_path(path)
     if _incomplete(root):
-        raise ValueError(tr("目标文献库迁移未完成（{path}），请选择其他文件夹；原文献库仍然保留", path=str(root)))
+        raise Incomplete(root)
     if root.exists() and not root.is_dir():
         return {"path": str(root), "exists": True, "writable": False, "papers": 0, "bytes": 0}
     papers = _papers(root)
@@ -93,13 +122,8 @@ def inspect(path: str | Path, *, exact: bool = False) -> dict:
         if parent == parent.parent:
             raise ValueError(tr("路径不存在：{path}", path=str(root)))
         parent = parent.parent
-    # 实际创建临时文件检测 ACL；不创建用户选择的目标目录。
-    try:
-        with tempfile.TemporaryFile(dir=parent):
-            pass
-        writable = True
-    except OSError:
-        writable = False
+    # 实际创建一个文件检测 ACL；不创建用户选择的目标目录。
+    writable = _writable(parent)
     return {"path": str(root), "exists": root.exists(), "writable": writable, "papers": len(papers), "bytes": size}
 
 
@@ -163,6 +187,7 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
               "restart_required": True, "message": tr("文献库位置已更改，需要重启 EasyRead 才能生效")}
     if mode == "use":
         config.save({"library_dir": str(dst)})
+        _drop_ready_marker(dst)
         return result
     papers = _papers(src)
     digests = {_sha(p) for p in _papers(dst)} - {""} if mode == "merge" else set()
@@ -193,11 +218,12 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
             else:
                 entries.append((p, target))
     dst.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=".easyread-copy-", dir=dst))
+    staging = dst / f"{STAGING_PREFIX}{uuid.uuid4().hex}"
+    staging.mkdir()  # 不用 mkdtemp：同样会在没权限时无限重试
     marker = dst / MIGRATION_MARKER
     created, parents = [], []
     marker_owned, ready, committed = False, False, False
-    transaction = {"source": str(src), "target": str(dst), "staging": staging.name,
+    transaction = {"host": socket.gethostname(), "source": str(src), "target": str(dst), "staging": staging.name,
                    "entries": [str(relative) for _, relative in entries], "state": "publishing"}
 
     def remember(path):
@@ -295,7 +321,53 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
                 cleanup_warning(tr("迁移已完成，但临时标记 {path} 没删掉，可以手动删", path=str(marker)))
         # 只清理本次在目标下生成的随机 staging；绝不清理源库或目标已有目录。
         try:
-            if staging.parent == dst and staging.resolve().parent == dst and staging.name.startswith(".easyread-copy-") and not _linked(staging):
+            if staging.parent == dst and staging.resolve().parent == dst and staging.name.startswith(STAGING_PREFIX) and not _linked(staging):
                 shutil.rmtree(staging)
         except OSError:
             cleanup_warning(tr("临时目录 {path} 没删掉，可以手动删", path=str(staging)))
+
+
+def _drop_ready_marker(root: Path):
+    """接入一个已完整发布的库后，顺手删掉留下的 ready 标记；删不掉也不要紧。"""
+    marker = root / MIGRATION_MARKER
+    try:
+        if marker.exists() and not _linked(marker) and read_json(marker, {}).get("state") == "ready":
+            marker.unlink()
+    except (OSError, ValueError, AttributeError):
+        log.warning("没删掉 ready 标记 %s", marker, exc_info=True)
+
+
+def cleanup(path: str | Path, current: str | Path) -> dict:
+    """清理本机一次没完成的迁移：只删标记里记录的、本次要新建的项和临时目录，目标原有的论文不动。"""
+    root = Path(path).resolve()
+    marker = root / MIGRATION_MARKER
+    if root == Path(current).resolve():
+        raise ValueError(tr("不能清理正在使用的文献库"))
+    if not marker.exists() or _linked(marker):
+        raise ValueError(tr("这里没有需要清理的迁移"))
+    data = read_json(marker, {}) or {}
+    if data.get("state") == "ready":  # 完整的库，只是标记没删掉
+        marker.unlink()
+        return {"ok": True, "removed": 0}
+    names = list(data.get("entries") or []) + [data.get("staging") or ""]
+    names += [p.name for p in root.iterdir() if p.name.startswith(STAGING_PREFIX)]
+    removed, failed = 0, []
+    for name in dict.fromkeys(n for n in names if n):
+        target = (root / name)
+        rel = Path(name)
+        # 只认标记里写的相对路径，且必须还在这个库里面
+        if rel.is_absolute() or ".." in rel.parts or not target.parent.resolve().is_relative_to(root):
+            continue
+        if not target.exists() and not target.is_symlink():
+            continue
+        try:
+            if _linked(target):
+                raise OSError("link")
+            shutil.rmtree(target) if target.is_dir() else target.unlink()
+            removed += 1
+        except OSError:
+            failed.append(str(target))
+    if failed:
+        raise ValueError(tr("这些文件被占用，没删掉，请关掉网盘客户端后重试：{path}", path=failed[0]))
+    marker.unlink()
+    return {"ok": True, "removed": removed}
