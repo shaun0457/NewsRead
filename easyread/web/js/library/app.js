@@ -30,6 +30,7 @@
     L.firstRun = d.first_run;
     L.version = d.version;
     L.trashCount = d.trash || 0;
+    if (PR.libraryLocationNotice) PR.libraryLocationNotice(d);
     engineChip();
     L.items = d.items;
     L.render();

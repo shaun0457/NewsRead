@@ -1,9 +1,11 @@
-const { app, BrowserWindow, dialog, Menu, shell } = require("electron");
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const windowState = require("./window-state.cjs");
+const { URL } = require("url");
+const http = require("http");
 
 // 窗口缓存等放 %APPDATA%\EasyRead（默认会用 package.json 的 name，叫 easyread-desktop）。
 // 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
@@ -15,6 +17,8 @@ let backend;
 let mainWindow;
 let backendReady;
 let windowOpening = false;
+let backendUrl;
+let quitting = false;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -94,7 +98,7 @@ function startBackend() {
     backend.stdout.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
       const match = output.match(/EasyRead\s+已启动：\s*(http:\/\/127\.0\.0\.1:\d+)/);
-      if (match) finish(resolve, match[1]);
+      if (match) { backendUrl = match[1]; finish(resolve, match[1]); }
     });
     backend.stderr.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
@@ -104,10 +108,67 @@ function startBackend() {
       if (!settled) finish(reject, new Error((isZh() ? `EasyRead 后端退出（code=${code}, signal=${signal}）。` : `EasyRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
       backendReady = undefined;
+      backendUrl = undefined;
     });
   });
   return backendReady;
 }
+
+function backendJson(endpoint, token) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(new URL(endpoint, backendUrl), {
+      method: token ? "POST" : "GET",
+      headers: token ? { "X-Token": token, "Content-Type": "application/json", "Content-Length": 2 } : {},
+    }, res => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", part => { body += part; });
+      res.on("end", () => {
+        try {
+          const data = JSON.parse(body);
+          if (res.statusCode !== 200) return reject(new Error(data.error || `HTTP ${res.statusCode}`));
+          resolve(data);
+        } catch (error) { reject(error); }
+      });
+    });
+    req.setTimeout(8000, () => req.destroy(new Error(isZh() ? "后端关闭超时，请稍后重试" : "Backend shutdown timed out. Try again later.")));
+    req.on("error", reject);
+    req.end(token ? "{}" : undefined);
+  });
+}
+
+async function stopBackendGracefully() {
+  const child = backend;
+  if (!child) return;
+  const info = await backendJson("/api/library");
+  await backendJson("/api/shutdown", info.token);
+  // 后端清掉占用标记、关闭 HTTP 服务后才启动新进程。
+  if (backend !== child) return;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { child.removeListener("exit", exited); reject(new Error(isZh() ? "后端尚未退出，请稍后重试" : "The backend has not exited yet. Try again later.")); }, 8000);
+    function exited() { clearTimeout(timer); resolve(); }
+    child.once("exit", exited);
+  });
+}
+
+function trustedWindow(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame ||
+      !backendUrl || new URL(event.senderFrame.url).origin !== backendUrl) {
+    throw new Error("Untrusted IPC sender");
+  }
+}
+
+ipcMain.handle("easyread:pick-folder", async event => {
+  trustedWindow(event);
+  const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
+  return result.canceled ? null : result.filePaths[0] || null;
+});
+ipcMain.handle("easyread:relaunch", async event => {
+  trustedWindow(event);
+  await stopBackendGracefully();
+  app.relaunch();
+  app.exit(0);
+});
 
 function stopBackend() {
   backendReady = undefined;
@@ -196,7 +257,12 @@ if (!app.requestSingleInstanceLock()) {
     ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
     : null);
   app.whenReady().then(createWindow);
-  app.on("before-quit", stopBackend);
+  app.on("before-quit", event => {
+    if (quitting || !backend) return;
+    event.preventDefault();
+    quitting = true;
+    stopBackendGracefully().catch(stopBackend).finally(() => app.quit());
+  });
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });

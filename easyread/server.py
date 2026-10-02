@@ -11,12 +11,13 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
 from .i18n import tr
 from .store import now_iso
+from .reader_files import refresh_layout as _refresh_layout, warm as _warm, reveal as _reveal, _warming
 
 WEB = config.WEB
 mimetypes.add_type("image/webp", ".webp")
@@ -35,6 +36,7 @@ class App:
         self.lib = Library(config.library_dir(cfg))
         self.jobs = Jobs(self.lib)
         self.token = os.urandom(12).hex()
+        self.location = library_api.LibraryLocation(self)
         self.presence = None  # presence.Presence，serve() 里设
 
 
@@ -156,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            self._get()
+            with self.app.location.request(self.command, self.path):
+                self._get()
+        except ValueError as e:
+            self._json(409, {"error": str(e), "library_status": self.app.location.status})
         except Exception as e:  # noqa: BLE001
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
@@ -173,9 +178,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
         if path == "/api/presence" and wsock.is_upgrade(self.headers):
             return self._presence()
+        location = library_api.get(app, path)
+        if location is not None:
+            return self._json(200, location)
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
+                                    "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg),
                                     "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root))})
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
@@ -206,20 +215,23 @@ class Handler(BaseHTTPRequestHandler):
                 opened = {"last_opened": now_iso()}
                 if (ws.load("item") or {}).get("status", "unread") == "unread":  # 打开过就算在读
                     opened["status"] = "reading"
-                ws.patch_item(opened)
-                _warm(ws.root)
-                _refresh_layout(ws)
+                if app.location.status == "idle":
+                    ws.patch_item(opened)
+                    _warm(ws.root, app.location)
+                    _refresh_layout(ws)
                 return self._json(200, {
                     **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
-                    "versions": ws.versions(), "token": app.token, "id": ws.id,
+                    "versions": ws.versions(), "token": app.token, "id": ws.id, "library_status": app.location.status,
                     "engine": config.load().get("engine")})
             if action == "versions":
-                return self._json(200, ws.versions())
+                return self._json(200, {**ws.versions(), "library_status": app.location.status})
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "log":
                 return self._json(200, {"text": tail(ws.root / "job.log", 300)})
             if action == "export":
+                if app.location.status != "idle":
+                    raise app.location._error()
                 from .build import build
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
@@ -228,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
             ws = lib.ws(pid)
-            if ws and rel.startswith("pages/") and "w=" in url.query:  # 原页面板用的小一号图，第一次请求时生成
+            if ws and app.location.status == "idle" and rel.startswith("pages/") and "w=" in url.query:  # 原页面板用的小一号图，第一次请求时生成
                 try:
                     w = int(parse_qs(url.query)["w"][0])
                 except (KeyError, IndexError, ValueError):
@@ -244,7 +256,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
             return self._json(403, {"error": "bad token"})
         try:
-            self._post()
+            with self.app.location.request("POST", self.path):
+                self._post()
         except (ValueError, KeyError) as e:
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
@@ -257,12 +270,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Origin") not in (None, f"http://{host}"):  # 别的网站不能来占着
             self.close_connection = True
             return self._json(403, {"error": "bad origin"})
-        wsock.accept(self)
-        self.close_connection = True
         p = self.app.presence
-        if p:
-            p.enter()
+        self.app.location.enter_page()
         try:
+            wsock.accept(self)
+            self.close_connection = True
             wsock.hold(self)
         finally:
             if p:
@@ -274,6 +286,8 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
 
+        if path in library_api.POST:
+            return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))
         if path == "/api/update":  # 开关“自动检查新版本”
             config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})
             return self._json(200, updates.check())
@@ -363,42 +377,3 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"trash": str(lib.trash(ws.id))})
         return self._json(404, {"error": "not found"})
 
-
-_warming: set[str] = set()
-
-
-def _refresh_layout(ws) -> None:
-    """定位规则升级后重算旧论文的原页框；翻译还在跑时不动，它结束时自己会定位。"""
-    if (ws.load("job") or {}).get("state") in ("queued", "running"):
-        return
-    try:
-        pdfwork.refresh_layout(ws.root)
-    except Exception:  # noqa: BLE001
-        log.exception("重算原页定位失败 %s", ws.root)
-
-
-def _warm(root: Path) -> None:
-    """打开一篇论文时，后台生成原页面板用的小图（每篇只做一次）。"""
-    if str(root) in _warming or (root / "pages" / f"w{pdfwork.PANEL_WIDTH}").exists() and \
-            len(list((root / "pages" / f"w{pdfwork.PANEL_WIDTH}").glob("*.webp"))) >= len(list((root / "pages").glob("page-*.webp"))):
-        return
-    _warming.add(str(root))
-
-    def run():
-        try:
-            pdfwork.warm_variants(root)
-        except Exception:  # noqa: BLE001
-            log.exception("生成面板图失败 %s", root)
-        finally:
-            _warming.discard(str(root))
-    threading.Thread(target=run, daemon=True).start()
-
-
-def _reveal(path: Path):
-    import subprocess
-    if sys.platform.startswith("win"):
-        os.startfile(str(path))  # noqa: S606
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
-    else:
-        subprocess.Popen(["xdg-open", str(path)])
