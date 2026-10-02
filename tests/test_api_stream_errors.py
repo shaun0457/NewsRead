@@ -71,6 +71,15 @@ class APIStreamErrorsTest(unittest.TestCase):
         response = io.BytesIO(b': ping\r\nevent: message\r\ndata: {"choices": [\r\ndata: {"delta": {"content": "ok"}}]}\r\n\r\ndata: [DONE]\r\n\r\n')
         self.assertEqual(self.run_stream(response), "ok")
 
+    def test_relay_framing_without_blank_lines(self):
+        delta = b'data: {"choices": [{"delta": {"content": "ok"}}]}'
+        stop = b'data: {"choices": [{"delta": {}, "finish_reason": "stop"}]}'
+        for name, payload in [("事件之间只隔一个换行", delta + b"\n" + stop + b"\ndata: [DONE]\n"),
+                              ("最后一条后面没有空行就断开", delta + b"\n\n" + stop + b"\n"),
+                              ("最后一条连换行都没有", delta + b"\n\n" + stop)]:
+            with self.subTest(name):
+                self.assertEqual(self.run_stream(io.BytesIO(payload)), "ok")
+
     def test_invalid_sse_does_not_finish_successfully(self):
         for payload in [b"data: broken\n\n", b"data: null\n\n"]:
             with self.assertRaises(EngineError):
