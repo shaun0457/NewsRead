@@ -108,8 +108,8 @@ npm run dist
 
 ## 怎么用
 
-1. 右上角“设置”选翻译引擎。
-2. 把 PDF 拖进窗口；或者粘贴 arXiv 编号、arXiv / OpenReview 链接、PDF 直链（在文献库页面直接 `Ctrl+V` 也行）。长论文可以选“只译正文”，或者“指定页”只译第几页到第几页。
+1. 右上角“设置” → “模型”：添加要用的模型，点卡片选“设为翻译”。翻译和“问 AI”用的模型都在这一页管理。
+2. 把 PDF 拖进窗口；或者粘贴 arXiv 编号、arXiv / OpenReview 链接、PDF 直链（在文献库页面直接 `Ctrl+V` 也行）。长论文可以选“只译正文”，或者“指定页”只译第几页到第几页。导入时还能选这次用哪个模型；“导入后”选“读英文原文”就只排版、不翻译，想看中文了随时点“翻译成中文”。
 3. 翻译在后台一页页进行，已译的部分马上能读，没译到的页先显示原页。
 4. 读的时候点一下段落出现操作条；选中文字可以划线、写笔记、提问。按 `?` 看全部快捷键。
 
@@ -161,3 +161,5 @@ MIT。公式渲染用 [KaTeX](https://katex.org)（MIT）。
 ## 贡献者
 
 - [@Wang-auspicious](https://github.com/Wang-auspicious) — Electron 桌面版打包与发布流程
+- [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) — 修复桌面安装包漏打 PDF 依赖、双栏论文原页定位；“问 AI”和笔记里的 Markdown 表格与引用块
+- [@MeshedPoto](https://github.com/MeshedPoto) — 并行翻译时 PDFium 随机报错、跨栏段落原页高亮、macOS 桌面版稳定性、HTTPS 证书与流式回答的一批修复
