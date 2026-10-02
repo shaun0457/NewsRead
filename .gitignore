@@ -19,3 +19,8 @@ dist/
 .prefs.json
 .models-seen.json
 /promo/
+
+# 本机工具和内部工作记录
+.claude/
+.ruff_cache/
+/docs/tasks/
