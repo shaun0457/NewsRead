@@ -42,7 +42,7 @@ test("conference identification uses venue words and whole abbreviations", () =>
 
 test("preprint repositories from metadata enrichment are not journals", () => {
   const PR = formatter();
-  for (const venue of ["arXiv", "arXiv.org", "arXiv preprint arXiv:2301.00001", "CoRR", "OpenReview", "OpenReview.net"]) {
+  for (const venue of ["arXiv", "arXiv.org", "arXiv preprint arXiv:2301.00001", "CoRR", "CoRR abs/2301.00001", "bioRxiv", "medRxiv", "OpenReview", "OpenReview.net"]) {
     const paper = { ...preprint, venue, arxiv: "2301.00001" };
     assert.equal(PR.citeType(paper), "preprint", venue);
     assert.match(PR.cite(paper, "gb"), /\[EB\/OL\]/);
@@ -87,6 +87,8 @@ test("BibTeX preserves DOI and URL identifiers without TeX escapes", () => {
   assert.ok(out.includes("url = {" + url + "}"));
   assert.ok(out.includes("journal = {R\\&D}"));
   assert.doesNotMatch(out, /doi = \{[^\n]*\\|url = \{[^\n]*\\/);
+  const broken = formatter().cite({ ...journal, doi: "10.1000/{x}\n", url: "" }, "bibtex");
+  assert.ok(broken.includes("doi = {10.1000/x}"));
 });
 
 test("batch BibTeX keys are unique, including generated suffix collisions and over 26 duplicates", () => {

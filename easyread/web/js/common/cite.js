@@ -12,7 +12,7 @@
 
   PR.citeType = function (i) {
     const venue = text(i.venue);
-    if (/^(arxiv|openreview)\b/i.test(venue) || /^corr$/i.test(venue)) return "preprint";
+    if (/^(arxiv|openreview|biorxiv|medrxiv|corr)\b/i.test(venue)) return "preprint";
     if (/\b(conference|proceedings|workshop|symposium|neurips|icml|iclr|acl|emnlp|naacl|cvpr|iccv|eccv|aaai|ijcai|kdd|sigir|www|chi)\b/i.test(venue)) return "conference";
     return !venue && arxiv(i) ? "preprint" : "journal";
   };
@@ -48,9 +48,10 @@
       if (arxiv(i)) fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}");
       else if (text(i.venue)) fields.push("howpublished = {" + bibEscape(i.venue) + "}");
     }
-    // DOI 和 URL 是标识符，不是 TeX 正文；转义会改变导入后的真实值。
-    if (text(i.doi)) fields.push("doi = {" + text(i.doi) + "}");
-    if (text(i.url)) fields.push("url = {" + text(i.url) + "}");
+    // DOI 和 URL 是标识符，不是 TeX 正文；转义会改变导入后的真实值。只去掉会破坏条目结构的花括号和换行。
+    const ident = (s) => text(s).replace(/[{}\r\n]/g, "");
+    if (ident(i.doi)) fields.push("doi = {" + ident(i.doi) + "}");
+    if (ident(i.url)) fields.push("url = {" + ident(i.url) + "}");
     return "@" + ({ journal: "article", conference: "inproceedings", preprint: "misc" }[type]) + "{" + key + ",\n  " + fields.join(",\n  ") + "\n}";
   }
 
