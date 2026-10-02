@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import stat
@@ -11,6 +12,8 @@ from pathlib import Path
 from . import config
 from .cloudlib_detect import detect, target_path  # noqa: F401
 from .i18n import tr
+
+MIGRATION_MARKER = ".easyread-migration.json"
 
 
 def _linked(path: Path) -> bool:
@@ -61,6 +64,8 @@ def _papers(root: Path) -> list[Path]:
 
 def inspect(path: str | Path, *, exact: bool = False) -> dict:
     root = Path(path).resolve() if exact else target_path(path)
+    if (root / MIGRATION_MARKER).exists():
+        raise ValueError(tr("目标文献库迁移未完成，请选择其他文件夹；原文献库仍然保留：{path}", path=str(root)))
     if root.exists() and not root.is_dir():
         return {"path": str(root), "exists": True, "writable": False, "papers": 0, "bytes": 0}
     papers = _papers(root)
@@ -170,35 +175,79 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
                 entries.append((p, target))
     dst.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".easyread-copy-", dir=dst))
+    marker = dst / MIGRATION_MARKER
+    created, parents = [], []
+    marker_owned, committed = False, False
+
+    def remember(path):
+        info = path.stat()
+        created.append((path, info.st_dev, info.st_ino))
+
     try:
         snapshots = []
         for i, (source, _) in enumerate(entries):
             snapshots.append(_copy_verified(source, staging / str(i)))
         if any(_manifest(source) != snapshot for (source, _), snapshot in zip(entries, snapshots)):
             raise ValueError(tr("复制过程中源文件发生变化，请重试"))
+        # 持久标记先于任何论文发布；崩溃或回滚被网盘锁住时，半库不能再被接管。
+        with marker.open("x", encoding="utf-8") as output:
+            marker_owned = True
+            json.dump({"source": str(src), "staging": staging.name,
+                       "entries": [str(relative) for _, relative in entries]}, output)
+            output.flush()
+            os.fsync(output.fileno())
         # 此时尚未改配置；目标同名项即使在复制期间出现，也不能覆盖。
         for i, (_, relative) in enumerate(entries):
             target = dst / relative
             if not target.parent.resolve().is_relative_to(dst):
                 raise ValueError(tr("复制过程中目标文件夹发生变化，请重试"))
-            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.parent.exists():
+                target.parent.mkdir()
+                parents.append(target.parent)
             if target.exists() or target.is_symlink():
                 raise ValueError(tr("目标中已有同名文件或文件夹，不会覆盖：{name}", name=str(relative)))
             # mkdir 是跨平台排他占位；之后逐个移动，只写入自己刚建的目录。
             staged = staging / str(i)
             if staged.is_dir():
                 target.mkdir(exist_ok=False)
+                remember(target)
                 for child in staged.iterdir():
                     child.rename(target / child.name)
             else:
                 with target.open("xb") as output, staged.open("rb") as source:
+                    remember(target)
                     shutil.copyfileobj(source, output)
                 if target.stat().st_size != staged.stat().st_size:
                     raise ValueError(tr("复制核对失败，文献库位置没有更改"))
             if relative.parts[0] != ".trash":
                 result["copied"] += 1
         config.save({"library_dir": str(dst)})
+        committed = True
+        marker.unlink()
         return result
+    except Exception:
+        if not committed:
+            rollback_failed = False
+            # 只移除本次独占创建、身份未变的项；保留合并目标原来的每一个文件。
+            for target, device, inode in reversed(created):
+                try:
+                    info = target.lstat()
+                    if _linked(target) or (info.st_dev, info.st_ino) != (device, inode):
+                        raise OSError("Migration target changed during rollback")
+                    if target.is_dir():
+                        shutil.rmtree(target)
+                    else:
+                        target.unlink()
+                except OSError:
+                    rollback_failed = True
+            for parent in reversed(parents):
+                try:
+                    parent.rmdir()
+                except OSError:
+                    rollback_failed = True
+            if marker_owned and not rollback_failed:
+                marker.unlink(missing_ok=True)
+        raise
     finally:
         # 只清理本次在目标下生成的随机 staging；绝不清理源库或目标已有目录。
         if staging.parent == dst and staging.resolve().parent == dst and staging.name.startswith(".easyread-copy-") and not _linked(staging):

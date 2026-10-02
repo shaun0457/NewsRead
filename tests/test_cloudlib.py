@@ -107,6 +107,63 @@ print(json.dumps({"errors": errors, "times": times, "status": location.status, "
         self.assertEqual((self.dst / "keep.txt").read_text(), "original")
         self.assertFalse(list(self.dst.glob(".easyread-copy-*")))
 
+    def fail_second_publication(self):
+        rename = Path.rename
+
+        def locked(path, target):
+            if Path(target).parent == self.dst / "paper002":
+                raise OSError("second paper is locked")
+            return rename(path, target)
+        return patch.object(Path, "rename", locked)
+
+    def test_failed_second_publication_rolls_back_new_papers(self):
+        for pid in ("paper001", "paper002"):
+            paper(self.src, pid)
+        self.dst.mkdir()
+        (self.dst / "keep.txt").write_text("original")
+        with self.fail_second_publication(), self.assertRaisesRegex(OSError, "second paper"):
+            self.migrate()
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 0)
+        self.assertEqual((self.dst / "keep.txt").read_text(), "original")
+        self.assertEqual(config.load()["library_dir"], str(self.src))
+        self.assertEqual(self.location.status, "idle")
+        self.assertEqual(cloudlib.inspect(self.src)["papers"], 2)
+        self.assertTrue(all((self.src / pid / "reader.json").is_file() for pid in ("paper001", "paper002")))
+
+    def test_failed_merge_keeps_existing_target_and_rolls_back_additions(self):
+        for pid in ("paper001", "paper002"):
+            paper(self.src, pid)
+        existing = paper(self.dst, "existing")
+        before = {p.name: p.read_bytes() for p in existing.iterdir()}
+        with self.fail_second_publication(), self.assertRaisesRegex(OSError, "second paper"):
+            self.migrate("merge")
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 1)
+        self.assertEqual({p.name: p.read_bytes() for p in existing.iterdir()}, before)
+        self.assertFalse((self.dst / "paper001").exists())
+        self.assertFalse((self.dst / "paper002").exists())
+        self.assertEqual(config.load()["library_dir"], str(self.src))
+
+    def test_locked_rollback_leaves_marker_and_blocks_partial_library_use(self):
+        for pid in ("paper001", "paper002"):
+            paper(self.src, pid)
+        paper(self.dst, "existing")
+        remove = cloudlib.shutil.rmtree
+
+        def locked(path, *args, **kwargs):
+            if Path(path) == self.dst / "paper001":
+                raise PermissionError("sync client locks rollback")
+            return remove(path, *args, **kwargs)
+        with self.fail_second_publication(), patch("easyread.cloudlib.shutil.rmtree", side_effect=locked), \
+                self.assertRaises(OSError):
+            self.migrate("merge")
+        with self.assertRaisesRegex(ValueError, "未完成"):
+            cloudlib.inspect(self.dst)
+        for mode in ("use", "merge", "copy"):
+            with self.assertRaisesRegex(ValueError, "未完成"):
+                self.migrate(mode)
+        self.assertEqual(config.load()["library_dir"], str(self.src))
+        self.assertEqual(self.location.status, "idle")
+
     def test_mismatch_is_not_accepted(self):
         paper(self.src, "paper001")
         with patch("easyread.cloudlib.shutil.copy2", side_effect=lambda s, d: Path(d).write_bytes(b"bad")):
