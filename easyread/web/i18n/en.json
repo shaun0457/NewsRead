@@ -1,4 +1,13 @@
 {
+ "导出引用": "Export citations",
+ "导出这个分类的引用": "Export citations from this collection",
+ "导出引用 · {title}（{n} 篇）": "Export citations · {title} ({n} papers)",
+ "缺{fields}": "Missing {fields}",
+ "去补": "Edit details",
+ "题名": "Title",
+ "保存为文件": "Save to file",
+ "已复制引用": "Citations copied",
+ "引用由论文信息按格式规则生成，不经过 AI。提交前请核对作者、年份和出处。": "Citations are formatted from paper metadata without AI. Check authors, year, and source before submitting.",
  " APA 引用": " APA citation",
  " GB/T 7714 引用": " GB/T 7714 citation",
  " · {date} 发布": " · Released {date}",
