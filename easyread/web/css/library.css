@@ -47,6 +47,7 @@
 .row .t1 .star { color: #c9a24a; flex: none; }
 .row .t1 .star svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
 .row .t2 { font: italic 13.5px/1.5 var(--serif-en); color: var(--ink-2); margin-top: 1px; }
+.row .t2:not([lang="en"]), .detail .title-sub:not([lang="en"]) { font-style: normal; font-family: var(--serif-zh); }  /* 译文标题放第二行时不要斜体 */
 .row .t3 { font-size: 12.5px; color: var(--ink-3); margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .row .t3 .chip { height: 20px; font-size: 11.5px; }
 .row .side-info { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 120px; padding-top: 3px; }
@@ -71,8 +72,8 @@
 .detail .cover .act-row .btn:first-child { flex: 1; }
 .detail .cover .btn.icon { justify-content: center; width: 32px; }
 .detail .cover .btn.icon svg.i { stroke-width: 2.4; }
-.detail .title-zh { font: 600 19px/1.45 var(--serif-zh); margin: 18px 0 4px; outline: 0; border-radius: 4px; }
-.detail .title-en { font: italic 14px/1.5 var(--serif-en); color: var(--ink-2); margin: 0 0 12px; outline: 0; border-radius: 4px; }
+.detail .title-main { font: 600 19px/1.45 var(--serif-zh); margin: 18px 0 4px; outline: 0; border-radius: 4px; }
+.detail .title-sub { font: italic 14px/1.5 var(--serif-en); color: var(--ink-2); margin: 0 0 12px; outline: 0; border-radius: 4px; }
 .detail [contenteditable]:hover { box-shadow: 0 0 0 4px var(--accent-soft); background: var(--accent-soft); }
 .detail [contenteditable]:focus { box-shadow: 0 0 0 4px var(--accent-soft-2); background: var(--accent-soft-2); }
 .kv { display: grid; grid-template-columns: 58px 1fr; gap: 6px 10px; font-size: 13px; margin: 14px 0; }
@@ -275,3 +276,6 @@ body.resizing { cursor: col-resize; user-select: none; }
 .help-update .check { margin: 0; }
 @media (max-width: 760px) { .update-chip { display: inline-flex; } }
 .update-chip[hidden] { display: none !important; }
+
+/* 换界面语言时整页重新加载：新旧两页淡入淡出，不白闪（只在文献库页之间生效） */
+@view-transition { navigation: auto; }

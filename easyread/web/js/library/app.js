@@ -21,8 +21,9 @@
     await L.load();
   };
 
-  L.load = async function () {
-    const d = await PR.api("/api/library");
+  L.load = async function () { apply(await PR.api("/api/library")); };
+  function apply(d) {
+    L.lastData = d;  // 切换界面语言前存一份，刷新后先拿它画列表，不闪空白（lang-toggle.js）
     PR.token = d.token;
     L.engine = d.engine;
     L.engineLabel = d.engine_label;
@@ -33,7 +34,7 @@
     L.items = d.items;
     L.render();
     schedule();
-  };
+  }
 
   let pollT;
   function schedule() {
@@ -49,7 +50,7 @@
     if (L.tag) list = list.filter((i) => i.tags.includes(L.tag));
     if (q) list = list.filter((i) => [i.title_zh, i.title_en, i.authors, i.venue, i.arxiv, i.abstract, (i.tags || []).join(" "), i.year]
       .join(" ").toLowerCase().includes(q));
-    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => i.title_zh || i.title_en };
+    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => PR.titles(i).main };
     const k = key[L.sort] || key.opened;
     list.sort((a, b) => (L.sort === "title" ? String(k(a)).localeCompare(String(k(b)), "zh") : String(k(b)).localeCompare(String(k(a)))));
     return list;
@@ -74,8 +75,8 @@
   };
 
   function rowHtml(i) {
-    const title = i.title_zh || i.title_en || PR.t("（未命名）");
-    const sub = i.title_zh && i.title_en ? '<div class="t2" lang="en">' + PR.esc(i.title_en) + "</div>" : "";
+    const tt = PR.titles(i), title = tt.main;
+    const sub = tt.sub ? '<div class="t2" lang="' + tt.subLang + '">' + PR.esc(tt.sub) + "</div>" : "";
     const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
     const tags = (i.tags || []).map((t) => '<span class="chip cat">' + PR.icon("folder", "sm") + PR.esc(t) + "</span>").join("");
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
@@ -178,6 +179,11 @@
   // 等侧栏、详情这些脚本都加载完再取数据：数据先到、脚本还没到时会出错
   document.addEventListener("DOMContentLoaded", () => {
     PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); });
+    try {
+      const snap = JSON.parse(sessionStorage.getItem("easyread-lib-snap") || "null");
+      sessionStorage.removeItem("easyread-lib-snap");
+      if (snap && Date.now() - snap.t < 15000) apply(snap.d);
+    } catch (e) { /* 没有就等下面取 */ }
     L.load().catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
   });
 })(window.PR);

@@ -108,10 +108,10 @@
     return '<div class="srow' + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon("folder", "sm") +
       '<span class="t">' + PR.esc(c) + '</span><span class="n">' + count((i) => (i.tags || []).includes(c)) + "</span>" + more + "</div>";
   }
-  /* 侧栏放短标题：优先用翻译时起的短标题，其次取中文标题冒号前那半句 */
-  const shortTitle = (i) => i.short_zh || (i.title_zh || "").split(/[：:]/)[0] || i.title_en || PR.t("（未命名）");
+  /* 侧栏放短标题（PR.titles 里定：翻译时起的短标题，或主标题冒号前那半句） */
+  const shortTitle = (i) => PR.titles(i).short;
   function paperRow(i, pinnedRow) {
-    const title = i.title_zh || i.title_en || PR.t("（未命名）");
+    const title = PR.titles(i).main;
     return '<a class="srow paper" href="/read/' + i.id + '" data-paper="' + i.id + '"' + (pinnedRow ? " data-pinrow" : "") + ' title="' + PR.esc(title) + (i.last_opened ? PR.t("（{time}打开）", { time: PR.esc(PR.relTime(i.last_opened)) }) : "") + '">' +
       (pinnedRow ? PR.icon("pin", "sm") : "") + '<span class="t">' + PR.esc(shortTitle(i)) + "</span>" + (i.progress > 0.02 ? "<em>" + Math.round(i.progress * 100) + "%</em>" : "") + more + "</a>";
   }

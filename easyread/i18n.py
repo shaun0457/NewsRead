@@ -61,6 +61,9 @@ def system_lang() -> str:
 
 
 def choice() -> str:
+    forced = os.environ.get("EASYREAD_LANG")  # 测试、排查问题时临时指定，优先于设置
+    if forced in ("zh", "en"):
+        return forced
     from . import prefs
     value = (prefs.load().get("ui") or {}).get("lang")
     return value if value in CHOICES else "auto"
