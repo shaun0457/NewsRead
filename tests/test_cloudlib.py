@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -46,6 +47,41 @@ class CloudLibraryTest(unittest.TestCase):
 
     def migrate(self, mode="copy", target=None):
         return self.location.move({"path": str(target or self.dst), "mode": mode})
+
+    @unittest.skipUnless(os.name == "nt", "Windows drive roots")
+    def test_missing_drive_returns_in_a_second_and_reopens_gate(self):
+        missing = next((Path(f"{letter}:/") for letter in "QZYXWVUTSR" if not Path(f"{letter}:/").exists()), None)
+        if missing is None:
+            self.skipTest("No unused drive letter available")
+        # 子进程给旧实现设硬超时，回归时不会把整个测试进程卡在根目录循环里。
+        script = """
+import json, sys, time
+from pathlib import Path
+from types import SimpleNamespace
+from easyread import cloudlib, config
+from easyread.library import Library
+from easyread.library_api import LibraryLocation
+config.CONFIG_PATH = Path(sys.argv[1])
+source, target = Path(sys.argv[2]), sys.argv[3]
+location = LibraryLocation(SimpleNamespace(lib=Library(source), jobs=SimpleNamespace(busy=lambda: False), presence=None))
+errors, times = [], []
+for operation in (lambda: cloudlib.inspect(target), lambda: location.move({"path": target, "mode": "copy"})):
+    start = time.monotonic()
+    try:
+        operation()
+    except ValueError as error:
+        errors.append(str(error))
+    times.append(time.monotonic() - start)
+print(json.dumps({"errors": errors, "times": times, "status": location.status, "path": config.load()["library_dir"]}))
+"""
+        result = subprocess.run([sys.executable, "-c", script, str(config.CONFIG_PATH), str(self.src),
+                                 str(missing / "nope" / "EasyRead")],
+                                capture_output=True, text=True, encoding="utf-8", timeout=2, check=True)
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data["errors"]), 2)
+        self.assertTrue(all(elapsed < 1 for elapsed in data["times"]))
+        self.assertEqual(data["status"], "idle")
+        self.assertEqual(data["path"], str(self.src))
 
     def test_copy_preserves_all_papers_notes_trash_and_old_library(self):
         for pid in ("paper001", "paper002", "paper003"):

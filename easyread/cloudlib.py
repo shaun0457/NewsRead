@@ -59,8 +59,8 @@ def _papers(root: Path) -> list[Path]:
     return found
 
 
-def inspect(path: str | Path) -> dict:
-    root = target_path(path)
+def inspect(path: str | Path, *, exact: bool = False) -> dict:
+    root = Path(path).resolve() if exact else target_path(path)
     if root.exists() and not root.is_dir():
         return {"path": str(root), "exists": True, "writable": False, "papers": 0, "bytes": 0}
     papers = _papers(root)
@@ -69,6 +69,8 @@ def inspect(path: str | Path) -> dict:
         size += sum(n for n, _ in _manifest(root / ".trash").values())
     parent = root
     while not parent.exists():
+        if parent == parent.parent:
+            raise ValueError(tr("路径不存在：{path}", path=str(root)))
         parent = parent.parent
     # 实际创建临时文件检测 ACL；不创建用户选择的目标目录。
     try:
@@ -126,7 +128,7 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
         raise ValueError(tr("请选择复制、使用或合并文献库"))
     if src == dst or src.is_relative_to(dst) or dst.is_relative_to(src):
         raise ValueError(tr("新旧文献库不能相同，也不能互相包含"))
-    state = inspect(dst)
+    state = inspect(dst, exact=True)
     if not state["writable"]:
         raise ValueError(tr("目标文件夹不可写"))
     if mode == "copy" and state["papers"]:

@@ -84,16 +84,16 @@ class LibraryLocation:
             self.status = "moving"
         try:
             result = cloudlib.move(self.app.lib.root, body.get("path", ""), body.get("mode", ""))
-        except Exception:
             with self.lock:
-                self.status = "idle"
-            raise
-        with self.lock:
-            self.status = "restart_required"
-        return result
+                self.status = "restart_required"
+            return result
+        finally:
+            with self.lock:
+                if self.status == "moving":
+                    self.status = "idle"
 
     def location(self) -> dict:
-        current = cloudlib.inspect(self.app.lib.root)
+        current = cloudlib.inspect(self.app.lib.root, exact=True)
         candidates = []
         for candidate in cloudlib.detect():
             try:
