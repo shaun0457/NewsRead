@@ -37,7 +37,7 @@ public static class EasyReadPicker {
   }
   [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
   static extern void SHCreateItemFromParsingName(string path, IntPtr bc, ref Guid riid, out IShellItem item);
-  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
   public static string Pick(string title, string start) {
     var d = (IFileDialog)new FileOpenDialog();
     uint o; d.GetOptions(out o); d.SetOptions(o | 0x20 | 0x40);  // FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM
@@ -45,13 +45,20 @@ public static class EasyReadPicker {
     if (!string.IsNullOrEmpty(start)) {
       try { var g = typeof(IShellItem).GUID; IShellItem s; SHCreateItemFromParsingName(start, IntPtr.Zero, ref g, out s); d.SetFolder(s); } catch {}
     }
-    if (d.Show(GetForegroundWindow()) != 0) return "";
+    // Background process: without a topmost owner the dialog opens behind the browser.
+    var owner = new System.Windows.Forms.Form();
+    owner.TopMost = true; owner.ShowInTaskbar = false; owner.Opacity = 0;
+    owner.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+    owner.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+    owner.Size = new System.Drawing.Size(1, 1);
+    owner.Show(); owner.Activate(); SetForegroundWindow(owner.Handle);
+    try { if (d.Show(owner.Handle) != 0) return ""; } finally { owner.Close(); }
     IShellItem r; d.GetResult(out r); string p; r.GetDisplayName(0x80058000, out p);  // SIGDN_FILESYSPATH
     return p;
   }
 }
 '@
-Add-Type -TypeDefinition $code -Language CSharp
+Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies System.Windows.Forms, System.Drawing
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::Out.Write([EasyReadPicker]::Pick($env:EASYREAD_PICK_TITLE, $env:EASYREAD_PICK_START))
 """

@@ -140,11 +140,17 @@
         s.cloud = d;
         const dest = await PR.api("/api/library/inspect", { method: "POST", body: { path: target } });
         const path = dest.path || target;
-        const text = action === "use" ? PR.t("将使用 {path} 中的 {n} 篇论文，本机原来的文献库保留不动。", { path, n: dest.papers })
-          : action === "merge" ? PR.t("会把本机 {n} 篇论文（{size}）合并到 {path}；重复论文和同名目录会跳过，原文献库保留不删。", { n: d.papers, size: size(d.bytes || 0), path })
-          : PR.t("会把 {n} 篇论文（{size}）复制到 {path}，核对无误后以后都存在那里；原来的文件夹保留不删。", { n: d.papers, size: size(d.bytes || 0), path });
-        const yes = await PR.confirm({ title: PR.t("更改文献库位置"), body: text + "\n\n" +
-          PR.t("请确认其他阅读窗口的笔记已保存并关闭。完成后需要重启 EasyRead。"), ok: PR.t("继续") });
+        const mine = PR.t("{n} 篇论文 · {size}", { n: d.papers, size: size(d.bytes || 0) });
+        const first = action === "use" ? PR.t("以后直接用那里的论文")
+          : action === "merge" ? PR.t("重复的论文会跳过")
+          : PR.t("复制完逐个核对，以后都存在新位置");
+        const yes = await PR.migrateDialog({
+          title: action === "use" ? PR.t("切换文献库") : action === "merge" ? PR.t("合并文献库") : PR.t("迁移文献库"),
+          from: d.path, to: path,
+          meta: action === "use" ? PR.t("那里有 {n} 篇论文", { n: dest.papers }) : mine,
+          notes: [first, PR.t("原来的文件夹保留，不会删除"), PR.t("开始前请关闭其他阅读窗口，完成后需要重启")],
+          ok: action === "use" ? PR.t("切换") : action === "merge" ? PR.t("开始合并") : PR.t("开始迁移"),
+        });
         if (!yes) return true;
         s.cloudResult = await PR.api("/api/library/move", { method: "POST", body: { path, mode: action } });
         if (s.cloudResult.ok === false) throw new Error(s.cloudResult.message);

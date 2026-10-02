@@ -29,3 +29,19 @@
   .cloud-card { flex-wrap: wrap; }
   .cloud-card-acts { width: 100%; justify-content: flex-end; }
 }
+
+/* 迁移确认窗（js/library/migrate-dialog.js） */
+.mg-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 16px; background: rgba(20, 18, 15, .38); opacity: 0; transition: opacity .16s; }
+.mg-backdrop.open { opacity: 1; }
+.mg { width: min(480px, 100%); box-sizing: border-box; padding: 22px 24px 18px; border: 1px solid var(--rule-2); border-radius: 14px; background: var(--surface); box-shadow: 0 18px 48px rgba(0, 0, 0, .28); transform: translateY(6px); transition: transform .16s; }
+.mg-backdrop.open .mg { transform: none; }
+.mg-title { font-size: 16px; font-weight: 600; color: var(--ink); }
+.mg-route { margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft-2, var(--accent-soft)); }
+.mg-row { display: flex; align-items: baseline; gap: 10px; }
+.mg-tag { flex: none; width: 2em; font-size: 12px; color: var(--ink-3); }
+.mg-path { min-width: 0; overflow-wrap: anywhere; font: 12.5px/1.55 var(--mono, ui-monospace, monospace); color: var(--ink); }
+.mg-arrow { margin: 2px 0 2px calc(2em + 10px); font-size: 12px; line-height: 1; color: var(--accent); }
+.mg-meta { margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+.mg-notes { margin: 12px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.8; color: var(--ink-3); }
+.mg-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.mg-acts .btn { min-width: 84px; justify-content: center; }

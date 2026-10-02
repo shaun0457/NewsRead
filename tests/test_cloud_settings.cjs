@@ -11,6 +11,7 @@ function setup(confirm = true) {
     t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, k) => vars[k]),
     esc: (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
     confirm: async (args) => { calls.push(["confirm", args]); return confirm; },
+    migrateDialog: async (args) => { calls.push(["confirm", args]); return confirm; },
     api: async (url, opts) => {
       calls.push([url, opts]);
       if (url.endsWith("location")) return s.cloud;
