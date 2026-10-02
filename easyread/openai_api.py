@@ -20,10 +20,17 @@ from typing import Iterator
 
 from . import __version__, http, usage
 from .engines import Cancelled, EngineError
+from .i18n import tr
 
-API_KINDS = [("chat", "Chat Completions（通用）"), ("responses", "Responses（OpenAI 新接口）")]
-_HINT = {401: "（Key 不对或过期了）", 402: "（余额不足）", 403: "（没有权限用这个模型）",
-         404: "（地址、模型名或接口格式不对）", 429: "（被限流了，稍后重试或换个模型）"}
+def api_kinds() -> list[tuple[str, str]]:
+    return [("chat", tr("Chat Completions（通用）")), ("responses", tr("Responses（OpenAI 新接口）"))]
+
+
+def _hint(code: int) -> str:
+    return {401: tr("（Key 不对或过期了）"), 402: tr("（余额不足）"), 403: tr("（没有权限用这个模型）"),
+            404: tr("（地址、模型名或接口格式不对）"), 429: tr("（被限流了，稍后重试或换个模型）")}.get(code, "")
+
+
 _SESSION = f"easyread-{uuid.uuid4()}"  # 每次启动一个，整个进程内不变
 
 
@@ -34,7 +41,7 @@ def kind(o: dict) -> str:
 def _base(o: dict) -> str:
     base = (o.get("base_url") or "").strip().rstrip("/")
     if not base or not o.get("model"):
-        raise EngineError("API 没填地址或模型（设置 → 模型）")
+        raise EngineError(tr("API 没填地址或模型（设置 → 模型）"))
     return base
 
 
@@ -85,7 +92,7 @@ def _open(o: dict, body: dict, stream: bool):
 
 
 def _http_error(e: urllib.error.HTTPError) -> EngineError:
-    return EngineError(f"接口返回 {e.code}{_HINT.get(e.code, '')}：{getattr(e, 'detail', '')}")
+    return EngineError(tr("接口返回 {code}{hint}：{detail}", code=e.code, hint=_hint(e.code), detail=getattr(e, "detail", "")))
 
 
 # ---------- 一次拿到整段（翻译用） ----------
@@ -108,7 +115,7 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) 
             if attempt < 2:
                 _sleep(5, cancel)
                 continue
-            raise EngineError(f"连不上接口：{e}")
+            raise EngineError(tr("连不上接口：{err}", err=e))
     if meter is not None and isinstance(res, dict):
         meter.add(**usage.from_openai(res))
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
@@ -119,30 +126,30 @@ def _chat_text(res) -> str:
         choice = res["choices"][0]
         text = choice["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
-        raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
+        raise EngineError(tr("接口返回格式不对：{res}", res=str(res)[:300]))
     _check_finish(choice.get("finish_reason"))
     return text
 
 
 def _responses_text(res) -> str:
     if not isinstance(res, dict):
-        raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
+        raise EngineError(tr("接口返回格式不对：{res}", res=str(res)[:300]))
     _check_response_status(res)
     if "output" not in res:
-        raise EngineError(f"接口返回格式不对：{str(res)[:300]}")
+        raise EngineError(tr("接口返回格式不对：{res}", res=str(res)[:300]))
     return "".join(c.get("text") or "" for item in res["output"] if item.get("type") == "message"
                    for c in item.get("content") or [] if c.get("type") == "output_text")
 
 
 def _truncated() -> EngineError:
-    return EngineError("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。")
+    return EngineError(tr("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。"))
 
 
 def _check_finish(reason) -> None:
     if reason == "length":
         raise _truncated()
     if reason == "content_filter":
-        raise EngineError("模型输出被服务商的内容过滤器中断了。")
+        raise EngineError(tr("模型输出被服务商的内容过滤器中断了。"))
 
 
 def _check_response_status(res: dict) -> None:
@@ -150,9 +157,9 @@ def _check_response_status(res: dict) -> None:
         reason = (res.get("incomplete_details") or {}).get("reason")
         if reason == "max_output_tokens":
             raise _truncated()
-        raise EngineError(f"模型未完成回答：{reason or '接口没有提供原因'}")
+        raise EngineError(tr("模型未完成回答：{reason}", reason=reason or tr("接口没有提供原因")))
     if res.get("status") == "failed":
-        raise EngineError(f"接口返回出错：{res.get('error')}")
+        raise EngineError(tr("接口返回出错：{err}", err=res.get("error")))
 
 
 def _retry_after(value: str | None, default: float) -> float:
@@ -187,7 +194,7 @@ def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
     except urllib.error.HTTPError as e:
         raise _http_error(e)
     except Exception as e:  # noqa: BLE001
-        raise EngineError(f"连不上接口：{e}")
+        raise EngineError(tr("连不上接口：{err}", err=e))
     with r:
         if cancel.is_set():
             raise Cancelled()
@@ -242,9 +249,9 @@ def _events(r, cancel) -> Iterator[dict | None]:
 
 def _check_event(ev) -> dict:
     if ev is _PARTIAL:
-        raise EngineError("接口返回的流数据不是有效 JSON")
+        raise EngineError(tr("接口返回的流数据不是有效 JSON"))
     if not isinstance(ev, dict):
-        raise EngineError("接口返回的流数据格式不对")
+        raise EngineError(tr("接口返回的流数据格式不对"))
     return ev
 
 
@@ -254,7 +261,7 @@ def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
         if ev is None:
             return
         if ev.get("error"):
-            raise EngineError(f"接口返回出错：{ev['error']}")
+            raise EngineError(tr("接口返回出错：{err}", err=ev["error"]))
         if ev.get("usage") and meter is not None:
             meter.add(**usage.from_openai(ev))
         choice = (ev.get("choices") or [{}])[0]
@@ -262,7 +269,7 @@ def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
         finished = finished or bool(choice.get("finish_reason"))
         yield (choice.get("delta") or {}).get("content") or ""
     if not finished:
-        raise EngineError("接口连接提前结束，回答未完成，请重试。")
+        raise EngineError(tr("接口连接提前结束，回答未完成，请重试。"))
 
 
 def _responses_pieces(r, cancel, meter=None) -> Iterator[str]:
@@ -280,8 +287,8 @@ def _responses_pieces(r, cancel, meter=None) -> Iterator[str]:
             yield ev.get("delta") or ""
         elif t == "error":
             err = (ev.get("response") or {}).get("error") or ev.get("error") or ev.get("message")
-            raise EngineError(f"接口返回出错：{err}")
-    raise EngineError("接口连接提前结束，回答未完成，请重试。")
+            raise EngineError(tr("接口返回出错：{err}", err=err))
+    raise EngineError(tr("接口连接提前结束，回答未完成，请重试。"))
 
 
 def _strip_think(pieces: Iterator[str]) -> Iterator[str]:
@@ -315,7 +322,7 @@ def models(o: dict) -> list[str]:
     """GET {base}/models，返回模型名（排好序）。"""
     base = (o.get("base_url") or "").strip().rstrip("/")
     if not base:
-        raise EngineError("先填接口地址")
+        raise EngineError(tr("先填接口地址"))
     req = urllib.request.Request(base + "/models", headers=_headers(o))
     try:
         with http.urlopen(req, timeout=20) as r:
@@ -325,9 +332,9 @@ def models(o: dict) -> list[str]:
         e.close()
         raise _http_error(e)
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
-        raise EngineError(f"连不上接口：{e}")
+        raise EngineError(tr("连不上接口：{err}", err=e))
     except json.JSONDecodeError:
-        raise EngineError("这个地址不提供模型列表，手填模型名")
+        raise EngineError(tr("这个地址不提供模型列表，手填模型名"))
     items = res.get("data") if isinstance(res, dict) else res
     if not isinstance(items, list):  # Gemini 的旧格式是 {"models": [...]}
         items = (res or {}).get("models") or []

@@ -20,6 +20,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 from . import http
+from .i18n import tr
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36 EasyRead"
 MAX_PDF = 200 * 1024 * 1024
@@ -48,9 +49,9 @@ def _get(url: str, accept: str = "*/*", timeout: int = 60, limit: int = MAX_PDF)
             data = r.read(limit + 1)
             ctype, final = r.headers.get("Content-Type", ""), r.geturl()
     except Exception as e:  # noqa: BLE001
-        raise SourceError(f"打不开 {url}：{e}")
+        raise SourceError(tr("打不开 {url}：{err}", url=url, err=e))
     if len(data) > limit:
-        raise SourceError("文件超过 200 MB")
+        raise SourceError(tr("文件超过 200 MB"))
     return data, ctype, final
 
 
@@ -62,7 +63,7 @@ def _json(url: str) -> dict:
 def _pdf(url: str) -> bytes:
     data, _, _ = _get(url, "application/pdf,*/*", 120)
     if not data.startswith(b"%PDF"):
-        raise SourceError(f"{url} 打开的不是 PDF")
+        raise SourceError(tr("{url} 打开的不是 PDF", url=url))
     return data
 
 
@@ -147,7 +148,7 @@ def s2_search_title(title: str) -> dict | None:
 
 def _from_s2(p: dict | None, what: str) -> tuple[bytes, str, dict]:
     if not p:
-        raise SourceError(f"在 Semantic Scholar 上没找到 {what}")
+        raise SourceError(tr("在 Semantic Scholar 上没找到 {what}", what=what))
     meta = _s2_meta(p)
     ext = p.get("externalIds") or {}
     if ext.get("ArXiv"):  # arXiv 版最稳
@@ -160,7 +161,7 @@ def _from_s2(p: dict | None, what: str) -> tuple[bytes, str, dict]:
         except SourceError:
             data, name, page_meta = _from_page(oa)
             return data, name, {**meta, **{k: v for k, v in page_meta.items() if k not in meta}}
-    raise SourceError(f"找到了《{meta.get('title_en', what)}》，但没有公开的 PDF。请从出版社或学校图书馆下载后拖进来")
+    raise SourceError(tr("找到了《{title}》，但没有公开的 PDF。请从出版社或学校图书馆下载后拖进来", title=meta.get("title_en", what)))
 
 
 # ---------- 网页里的 PDF 链接 ----------
@@ -210,14 +211,14 @@ def _from_page(url: str) -> tuple[bytes, str, dict]:
             pass
     if meta.get("doi"):
         return _from_s2(s2_lookup("DOI:" + meta["doi"]), meta["doi"])
-    raise SourceError("这个网页里没找到能下载的 PDF。可能需要登录或订阅，请下载后拖进来")
+    raise SourceError(tr("这个网页里没找到能下载的 PDF。可能需要登录或订阅，请下载后拖进来"))
 
 
 # ---------- 入口 ----------
 def fetch(ref: str) -> tuple[bytes, str, dict]:
     ref = (ref or "").strip().strip("<>")
     if not ref:
-        raise SourceError("填一个链接、arXiv 编号、DOI 或论文标题")
+        raise SourceError(tr("填一个链接、arXiv 编号、DOI 或论文标题"))
     low = ref.lower()
     is_url = bool(re.match(r"https?://", ref, re.I))
 
@@ -261,7 +262,7 @@ def fetch(ref: str) -> tuple[bytes, str, dict]:
 
     # 其余当作标题
     if len(ref) < 8:
-        raise SourceError("认不出来。可以填 arXiv 编号、DOI、论文链接、PDF 直链，或者完整的论文标题")
+        raise SourceError(tr("认不出来。可以填 arXiv 编号、DOI、论文链接、PDF 直链，或者完整的论文标题"))
     return _from_s2(s2_search_title(ref), f"“{ref}”")
 
 

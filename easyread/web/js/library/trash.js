@@ -13,25 +13,25 @@
 
   function render() {
     const rows = items.map((t) => '<div class="trash-row"><div class="trash-t"><b>' + PR.esc(t.title_zh || t.title_en || t.id) + "</b>" +
-      "<small>" + PR.esc([t.title_zh && t.title_en ? t.title_en : "", "删除于 " + PR.shortTime(t.deleted)].filter(Boolean).join(" · ")) + "</small></div>" +
-      '<button class="btn sm" data-tr="restore" data-name="' + PR.esc(t.name) + '">恢复</button>' +
-      '<button class="btn sm danger" data-tr="purge" data-name="' + PR.esc(t.name) + '">彻底删除</button></div>').join("");
-    dlg().querySelector(".dialog").innerHTML = "<h2>回收站</h2>" +
-      (items.length ? '<div class="trash-list">' + rows + "</div>" : '<p class="hint">回收站是空的。</p>') +
-      '<div class="actions">' + (items.length ? '<button class="btn danger" data-tr="empty">清空回收站</button>' : "") +
-      '<span class="grow"></span><button class="btn" data-tr="close">关闭</button></div>';
+      "<small>" + PR.esc([t.title_zh && t.title_en ? t.title_en : "", PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
+      '<button class="btn sm" data-tr="restore" data-name="' + PR.esc(t.name) + '">' + PR.t("恢复") + "</button>" +
+      '<button class="btn sm danger" data-tr="purge" data-name="' + PR.esc(t.name) + '">' + PR.t("彻底删除") + "</button></div>").join("");
+    dlg().querySelector(".dialog").innerHTML = "<h2>" + PR.t("回收站") + "</h2>" +
+      (items.length ? '<div class="trash-list">' + rows + "</div>" : '<p class="hint">' + PR.t("回收站是空的。") + "</p>") +
+      '<div class="actions">' + (items.length ? '<button class="btn danger" data-tr="empty">' + PR.t("清空回收站") + "</button>" : "") +
+      '<span class="grow"></span><button class="btn" data-tr="close">' + PR.t("关闭") + "</button></div>";
   }
 
   async function act(action, name, at) {
-    if (action === "purge" && !(await PR.confirm({ title: "彻底删除这篇？", body: "论文、译文、笔记都会删掉，不能恢复。", ok: "彻底删除", danger: true, at }))) return;
-    if (action === "empty" && !(await PR.confirm({ title: "清空回收站？", body: items.length + " 篇论文会被彻底删除，不能恢复。", ok: "清空", danger: true, at }))) return;
+    if (action === "purge" && !(await PR.confirm({ title: PR.t("彻底删除这篇？"), body: PR.t("论文、译文、笔记都会删掉，不能恢复。"), ok: PR.t("彻底删除"), danger: true, at }))) return;
+    if (action === "empty" && !(await PR.confirm({ title: PR.t("清空回收站？"), body: PR.t("{n} 篇论文会被彻底删除，不能恢复。", { n: items.length }), ok: PR.t("清空"), danger: true, at }))) return;
     try {
       await PR.api("/api/trash", { method: "POST", body: { action, name } });
     } catch (e) { return PR.toast(PR.esc(e.message)); }
     items = action === "empty" ? [] : items.filter((t) => t.name !== name);
     render();
     await L.load();
-    if (action === "restore") PR.toast("已恢复");
+    if (action === "restore") PR.toast(PR.t("已恢复"));
   }
   PR.restoreTrash = (name) => act("restore", name);
 

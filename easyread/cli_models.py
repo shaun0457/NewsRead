@@ -15,11 +15,16 @@ import threading
 from pathlib import Path
 
 from . import chat_models, engines
+from .i18n import tr
 from .log import log
 from .presets import PRESETS
 
 _probing = threading.Lock()
-CLAUDE_ALIASES = [("opus", "Opus", "最强"), ("sonnet", "Sonnet", "快、省"), ("haiku", "Haiku", "最快最省")]
+CLAUDE_ALIASES = [("opus", "Opus", "最强"), ("sonnet", "Sonnet", "快、省"), ("haiku", "Haiku", "最快最省")]  # i18n-ok 显示时用 _alias_desc()
+
+
+def _alias_desc(alias: str) -> str:
+    return {"opus": tr("最强"), "sonnet": tr("快、省"), "haiku": tr("最快最省")}.get(alias, "")
 
 
 def codex() -> dict:
@@ -49,8 +54,8 @@ def claude_default() -> str:
 
 def claude() -> dict:
     """{"default": "Claude Opus 5.5", "models": [{"id": "opus", "name": "Opus", "desc": "最强", "actual": "Claude Opus 5.5"}]}"""
-    return {"default": claude_default(), "models": [{"id": a, "name": n, "desc": d, "actual": chat_models.pretty(chat_models.actual_of(a)) if chat_models.actual_of(a) else ""}
-                       for a, n, d in CLAUDE_ALIASES]}
+    return {"default": claude_default(), "models": [{"id": a, "name": n, "desc": _alias_desc(a), "actual": chat_models.pretty(chat_models.actual_of(a)) if chat_models.actual_of(a) else ""}
+                       for a, n, _ in CLAUDE_ALIASES]}
 
 
 def probe_claude(c: dict, version: str) -> None:
@@ -100,8 +105,8 @@ def engine_label(cfg: dict) -> str:
     e = cfg.get("engine")
     if e == "openai":
         preset = next((p["name"] for p in PRESETS if p["id"] == cfg["openai"].get("preset")), "API")
-        return f"{preset.split('（')[0]} · {cfg['openai'].get('model') or '未填模型'}"
-    name = engines.ENGINE_NAMES.get(e, e or "")
+        return f"{preset.split('（')[0]} · {cfg['openai'].get('model') or tr('未填模型')}"  # i18n-ok （ 是拆预设名
+    name = engines.engine_name(e)
     if e == "claude":  # 带上实际用的模型：Claude Code · Claude Opus 5.5
         m = cfg["claude"].get("model") or ""
         actual = chat_models.actual_of(m) if m else ""

@@ -7,7 +7,8 @@ window.PR = window.PR || {};
   function tokens(n) {
     n = Number(n) || 0;
     if (n < 10000) return n.toLocaleString();
-    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + PR.t(" 万");
+    if (PR.lang === "en") return n < 1e6 ? (n / 1000).toFixed(n < 1e5 ? 1 : 0).replace(/\.0$/, "") + "k" : (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + " 万";  // i18n-ok 英文走上一行
   }
   PR.fmtTokens = tokens;
 

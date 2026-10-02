@@ -60,9 +60,9 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
     data.update({"paper": paper, "images": images}, **(extra or {}))
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     page = page.replace("<!--PR:DATA-->", f'<script id="pr-data" type="application/json">{payload}</script>')
-    title = paper.get("meta", {}).get("title_zh") or paper.get("meta", {}).get("title_en") or "论文"
+    title = paper.get("meta", {}).get("title_zh") or paper.get("meta", {}).get("title_en") or i18n.tr("论文")
     page = re.sub(r"<title>.*?</title>", f"<title>{htmllib.escape(title)}</title>", page, count=1)
     stem = re.sub(r'[\\/:*?"<>|]', "", paper.get("meta", {}).get("short_zh") or ws.id)
-    out = out or ws.root / f"{stem}-离线版.html"
+    out = out or ws.root / i18n.tr("{name}-离线版.html", name=stem)
     out.write_text(page, encoding="utf-8")
     return out

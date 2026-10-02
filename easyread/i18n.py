@@ -80,8 +80,9 @@ def tr(text: str, **kw) -> str:
 
 def inject(page: str, language: str | None = None) -> str:
     """返回页面时写上语言，英文时把词典也塞进去，前端同步就能用。"""
+    picked = choice() if language is None else language  # 设置里的“界面语言”要显示当前选的是哪项
     language = language or lang()
-    page = page.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}">', 1)
+    page = page.replace('<html lang="zh-CN">', f'<html lang="{"zh-CN" if language == "zh" else "en"}" data-lang-choice="{picked}">', 1)
     if language == "en":
         payload = json.dumps(en_dict(), ensure_ascii=False).replace("<", "\\u003c")
         page = page.replace("</title>", f'</title>\n<script id="pr-i18n" type="application/json">{payload}</script>', 1)

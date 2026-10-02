@@ -20,7 +20,9 @@
       return typeHtml(s) + '<h4 class="set-h">' + PR.t("功能") + '</h4><p class="set-lead">' + PR.t("阅读页上显示哪些功能。关掉的功能，按钮和快捷键都会一起消失。") + '</p><div class="switch-list">' +
         PR.FEATURES.map(([id, name, , desc]) => '<label class="switch-row"><span><b>' + name + "</b><small>" + desc + '</small></span><input type="checkbox" class="switch" data-feat="' + id + '"' + (s.ui.features[id] !== false ? " checked" : "") + "></label>").join("") +
         "</div>" + '<div class="settings-sec grid2"><label class="field"><span>' + PR.t("界面主题") + '</span><select class="input" id="themeSel">' +
-        PR.opt([["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]], s.theme) + "</select></label></div>";
+        PR.opt([["auto", PR.t("跟随系统")], ["light", PR.t("浅色")], ["dark", PR.t("深色")]], s.theme) + "</select></label>" +
+        (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("界面语言") + '</span><select class="input" id="langSel">' +
+          PR.opt([["auto", PR.t("跟随系统")], ["zh", "中文"], ["en", "English"]], s.lang || PR.langChoice) + "</select></label>") + "</div>";  // i18n-ok 语言名各用自己的文字
     },
     click(e, s) {
       if (!e.target.closest("[data-type-reset]")) return false;
@@ -32,6 +34,7 @@
       if (t) s.type[t] = t === "margin" ? e.target.value === "true" : ["fs", "measure", "lh"].includes(t) ? +e.target.value : e.target.value;
       if (e.target.dataset.feat) s.ui.features[e.target.dataset.feat] = e.target.checked;
       if (e.target.id === "themeSel") { s.theme = e.target.value; PR.applyTheme(s.theme); }
+      if (e.target.id === "langSel") s.lang = e.target.value;
       return false;
     },
   };

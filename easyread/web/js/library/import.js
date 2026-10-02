@@ -3,11 +3,11 @@
   "use strict";
   const L = PR.lib;
   const dlg = PR.$("#importDlg");
-  const SCOPES = [["all", "全文"], ["body", "正文（到参考文献为止）"], ["range", "指定页"]];
+  const SCOPES = [["all", PR.t("全文")], ["body", PR.t("正文（到参考文献为止）")], ["range", PR.t("指定页")]];
   // 导入后做什么：翻译成中文 / 只读英文原文（模型把版面排好，不翻译）/ 只放原页图
-  const AFTER = [["translate", "翻译成中文", "后台逐页翻译，正文是中文，随时对照原文"],
-    ["read", "读英文原文", "不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看中文了随时点“翻译成中文”"],
-    ["none", "先不处理", "不用模型，阅读页先放原页图片"]];
+  const AFTER = [["translate", PR.t("翻译成中文"), PR.t("后台逐页翻译，正文是中文，随时对照原文")],
+    ["read", PR.t("读英文原文"), PR.t("不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看中文了随时点“翻译成中文”")],
+    ["none", PR.t("先不处理"), PR.t("不用模型，阅读页先放原页图片")]];
 
   const pref = () => {
     const p = Object.assign({ auto: true, scope: "all", from: 1, to: 10 }, PR.ls.get("easyread-import", {}));
@@ -22,18 +22,18 @@
     const off = L.engine === "none";
     const after = off ? "none" : p.after;
     dlg.querySelector(".dialog").innerHTML =
-      "<h2>导入论文</h2>" +
-      '<div class="dropzone" id="pick">' + PR.icon("upload") + '<div class="big">选择 PDF，或拖到这里</div><div class="hint">可以一次选多个；同一个文件不会重复导入</div></div>' +
-      '<div class="or">或者</div>' +
-      '<label class="field"><span>链接、arXiv 编号、DOI 或论文标题</span><div class="inline"><input class="input" id="arxivRef" placeholder="2411.00640 · 10.18653/v1/N19-1423 · 论文网页链接 · 论文标题">' +
-      '<button class="btn accent" id="arxivGo">导入</button></div></label>' +
-      '<div class="imp-opts"><span class="imp-lbl">导入后</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + tip + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div></div>" +
-      '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">范围</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
-      '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>第 <input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '"> 到 <input class="input" id="pgTo" type="number" min="1" value="' + p.to + '"> 页</span></div>' +
-      '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">模型</span><select class="input" id="impModel">' +
-      '<option value="">' + PR.esc(L.engineLabel || "未设置") + "</option></select>" +
-      '<button class="linkish" id="impEngine" title="增删模型在设置 → 模型">管理模型</button></div>' +
-      '<div class="actions"><button class="btn" id="impClose">关闭</button></div>';
+      "<h2>" + PR.t("导入论文") + "</h2>" +
+      '<div class="dropzone" id="pick">' + PR.icon("upload") + '<div class="big">' + PR.t("选择 PDF，或拖到这里") + '</div><div class="hint">' + PR.t("可以一次选多个；同一个文件不会重复导入") + "</div></div>" +
+      '<div class="or">' + PR.t("或者") + "</div>" +
+      '<label class="field"><span>' + PR.t("链接、arXiv 编号、DOI 或论文标题") + '</span><div class="inline"><input class="input" id="arxivRef" placeholder="' + PR.t("2411.00640 · 10.18653/v1/N19-1423 · 论文网页链接 · 论文标题") + '">' +
+      '<button class="btn accent" id="arxivGo">' + PR.t("导入") + "</button></div></label>" +
+      '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div></div>" +
+      '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
+      '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
+      '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">' + PR.t("模型") + '</span><select class="input" id="impModel">' +
+      '<option value="">' + PR.esc(L.engineLabel || PR.t("未设置")) + "</option></select>" +
+      '<button class="linkish" id="impEngine" title="' + PR.t("增删模型在设置 → 模型") + '">' + PR.t("管理模型") + "</button></div>" +
+      '<div class="actions"><button class="btn" id="impClose">' + PR.t("关闭") + "</button></div>";
     dlg.classList.add("open");
     setTimeout(() => { const i = PR.$("#arxivRef"); if (ref) i.value = ref; i.focus(); }, 50);
     fillModels(p.model);
@@ -92,38 +92,38 @@
 
   async function importFiles(files) {
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
-    if (!pdfs.length) return PR.toast("只支持 PDF 文件");
+    if (!pdfs.length) return PR.toast(PR.t("只支持 PDF 文件"));
     close();
     const o = opts();
     let last = null;
     for (const [k, f] of pdfs.entries()) {
-      PR.toast("正在导入 " + (k + 1) + "/" + pdfs.length + "：" + PR.esc(f.name), null, 60000);
+      PR.toast(PR.t("正在导入 {i}/{n}：{name}", { i: k + 1, n: pdfs.length, name: PR.esc(f.name) }), null, 60000);
       try {
         const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&read=" + (o.read ? 1 : 0) + "&model=" + encodeURIComponent(o.model) + "&scope=" + encodeURIComponent(o.scope) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
         last = r.id;
-        if (!r.new) PR.toast("《" + PR.esc(f.name) + "》" + (r.queued ? "已重新加入准备队列" : "已经在库里了"));
-      } catch (e) { PR.toast("导入失败：" + PR.esc(e.message)); }
+        if (!r.new) PR.toast(r.queued ? PR.t("《{name}》已重新加入准备队列", { name: PR.esc(f.name) }) : PR.t("《{name}》已经在库里了", { name: PR.esc(f.name) }));
+      } catch (e) { PR.toast(PR.t("导入失败：{msg}", { msg: PR.esc(e.message) })); }
     }
     await L.load();
-    if (last) { L.select(last); PR.toast("已导入 " + pdfs.length + " 篇" + (o.read ? "，后台开始整理原文" : o.translate ? "，后台开始翻译" : ""), { label: "打开", fn: () => L.openReader(last) }, 6000); }
+    if (last) { L.select(last); PR.toast((o.read ? PR.t("已导入 {n} 篇，后台开始整理原文", { n: pdfs.length }) : o.translate ? PR.t("已导入 {n} 篇，后台开始翻译", { n: pdfs.length }) : PR.t("已导入 {n} 篇", { n: pdfs.length })), { label: PR.t("打开"), fn: () => L.openReader(last) }, 6000); }
   }
 
   async function importRef(ref) {
     ref = (ref || "").trim();
     if (!ref) return;
     const btn = PR.$("#arxivGo");
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 查找中'; }
-    else PR.toast('<span class="spin"></span> 正在查找并下载 ' + PR.esc(ref), null, 60000);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> ' + PR.t("查找中"); }
+    else PR.toast('<span class="spin"></span> ' + PR.t("正在查找并下载 {ref}", { ref: PR.esc(ref) }), null, 60000);
     const o = opts();
     try {
       const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope } });
       close();
       await L.load();
       L.select(r.id);
-      PR.toast(r.new ? "已导入" + (o.read ? "，后台开始整理原文" : o.translate ? "，后台开始翻译" : "") : r.queued ? "已重新加入准备队列" : "这篇已经在库里了", { label: "打开", fn: () => L.openReader(r.id) }, 6000);
+      PR.toast(r.new ? (o.read ? PR.t("已导入，后台开始整理原文") : o.translate ? PR.t("已导入，后台开始翻译") : PR.t("已导入")) : r.queued ? PR.t("已重新加入准备队列") : PR.t("这篇已经在库里了"), { label: PR.t("打开"), fn: () => L.openReader(r.id) }, 6000);
     } catch (e) {
-      PR.toast("导入失败：" + PR.esc(e.message), null, 8000);
-      if (btn) { btn.disabled = false; btn.textContent = "导入"; }
+      PR.toast(PR.t("导入失败：{msg}", { msg: PR.esc(e.message) }), null, 8000);
+      if (btn) { btn.disabled = false; btn.textContent = PR.t("导入"); }
     }
   }
   PR.importRef = importRef;

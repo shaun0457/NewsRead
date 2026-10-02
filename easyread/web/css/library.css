@@ -142,7 +142,8 @@
 .steps li::before { content: counter(s); grid-row: 1 / 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 600 13px/1 var(--ui); color: var(--accent); background: var(--accent-soft-2); }
 .steps li.done::before { content: "✓"; color: #fff; background: var(--ok); }
 .steps li b { font-size: 14.5px; }
-.steps li span { grid-column: 2; font-size: 13px; color: var(--ink-3); display: flex; gap: 6px; align-items: center; }
+.steps li span { grid-column: 2; font-size: 13px; color: var(--ink-3); display: block; }
+.steps li span .spin { display: inline-block; margin-right: 4px; vertical-align: -2px; }
 .steps li .btn { grid-column: 3; grid-row: 1 / 3; }
 .welcome .try { font-size: 13px; color: var(--ink-3); margin-top: 18px; }
 

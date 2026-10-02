@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from .i18n import tr
 from .store import read_json
 
 _NAME = re.compile(r"^([0-9a-f]{12})-(\d{14})$")
@@ -17,10 +18,10 @@ def _dir(root: Path) -> Path:
 
 def _entry(root: Path, name: str) -> Path:
     if not _NAME.match(name or ""):
-        raise ValueError("回收站里没有这一项")
+        raise ValueError(tr("回收站里没有这一项"))
     p = _dir(root) / name
     if not p.is_dir():
-        raise ValueError("回收站里没有这一项")
+        raise ValueError(tr("回收站里没有这一项"))
     return p
 
 
@@ -40,7 +41,7 @@ def restore(root: Path, name: str) -> str:
     src = _entry(root, name)
     pid = _NAME.match(name).group(1)
     if (root / pid).exists():
-        raise ValueError("文献库里已经有这篇论文了（可能后来又导入过一次）")
+        raise ValueError(tr("文献库里已经有这篇论文了（可能后来又导入过一次）"))
     shutil.move(str(src), root / pid)
     return pid
 

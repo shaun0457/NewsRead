@@ -51,11 +51,11 @@
   }
 
   function rebuildReader() { S.reader = applyOps(JSON.parse(JSON.stringify(serverReader || {})), outbox); }
-  function saveOutbox() { if (!PR.ls.set(outboxKey, outbox)) setStatus("error", "浏览器存储已满，修改只在内存里，请尽快导出"); }
+  function saveOutbox() { if (!PR.ls.set(outboxKey, outbox)) setStatus("error", PR.t("浏览器存储已满，修改只在内存里，请尽快导出")); }
   function setStatus(s, text) { PR.store.status = s; PR.emit("status", { s, text, pending: outbox.length }); }
   function statusIdle() {
-    if (mode === "static") setStatus("local", outbox.length ? "存在本浏览器" : "离线版");
-    else setStatus("saved", "已保存");
+    if (mode === "static") setStatus("local", outbox.length ? PR.t("存在本浏览器") : PR.t("离线版"));
+    else setStatus("saved", PR.t("已保存"));
   }
 
   /* 页面调用这个提交修改 */
@@ -69,7 +69,7 @@
     saveOutbox();
     rebuildReader();
     PR.emit("reader", op);
-    if (mode === "server") { if (op.op !== "progress") setStatus("saving", "保存中"); scheduleFlush(op.op === "progress" ? 3000 : 250); }
+    if (mode === "server") { if (op.op !== "progress") setStatus("saving", PR.t("保存中")); scheduleFlush(op.op === "progress" ? 3000 : 250); }
     else statusIdle();
   };
 
@@ -96,7 +96,7 @@
       retryMs = 1500;
       if (outbox.length) scheduleFlush(50); else statusIdle();
     } catch (e) {
-      setStatus("offline", "未连上本地服务，" + outbox.length + " 条修改暂存在浏览器");
+      setStatus("offline", PR.t("未连上本地服务，{n} 条修改暂存在浏览器", { n: outbox.length }));
       clearTimeout(retryT);
       retryT = setTimeout(flush, retryMs);
       retryMs = Math.min(retryMs * 2, 15000);
@@ -120,9 +120,9 @@
       serverReader = d.reader || {};
       PR.pid = PR.pid || (S.paper.meta.source_sha256 || "paper").slice(0, 12);
     } else {
-      if (!PR.pid) throw new Error("地址里没有论文 id");
+      if (!PR.pid) throw new Error(PR.t("地址里没有论文 id"));
       const r = await fetch(base() + "/state", { cache: "no-store" });
-      if (!r.ok) throw new Error(r.status === 404 ? "文献库里没有这篇论文" : "读取数据失败：" + r.status);
+      if (!r.ok) throw new Error(r.status === 404 ? PR.t("文献库里没有这篇论文") : PR.t("读取数据失败：{status}", { status: r.status }));
       const d = await r.json();
       PR.token = d.token;
       Object.assign(S, { paper: d.paper, discussion: d.discussion, layout: d.layout || {}, item: d.item || {}, job: d.job || {}, versions: d.versions, engine: d.engine });
@@ -134,7 +134,7 @@
     PR.paperKey = PR.pid;
     outbox = PR.ls.get(outboxKey, []);
     rebuildReader();
-    if (mode === "server" && outbox.length) { setStatus("saving", "补存上次未保存的 " + outbox.length + " 条修改"); scheduleFlush(300); }
+    if (mode === "server" && outbox.length) { setStatus("saving", PR.t("补存上次未保存的 {n} 条修改", { n: outbox.length })); scheduleFlush(300); }
     else statusIdle();
   };
 
@@ -150,7 +150,7 @@
       v = await (await fetch(base() + "/versions", { cache: "no-store" })).json();
       if (PR.store.status === "offline") flush();
     } catch (e) {
-      if (!outbox.length) setStatus("offline", "未连上本地服务（只读）");
+      if (!outbox.length) setStatus("offline", PR.t("未连上本地服务（只读）"));
       return;
     }
     const changed = [];

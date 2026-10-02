@@ -22,7 +22,7 @@
       if (b.type === "heading" || b.type === "references") cur = b;
       if (b.id === id) break;
     }
-    return cur ? (cur.num ? cur.num + " " : "") + PR.plain(PR.textFor(cur.id) || cur.zh) : "论文开头";
+    return cur ? (cur.num ? cur.num + " " : "") + PR.plain(PR.textFor(cur.id) || cur.zh) : PR.t("论文开头");
   }
   PR.sectionOf = sectionOf;
 
@@ -45,25 +45,25 @@
     if (el.contains(document.activeElement) && document.activeElement.matches("textarea") && editId === undefined) return; // 正在打字，不打断
     const list = items();
     const count = PR.myNotes().length + (S.discussion.entries || []).length;
-    let h = '<div class="np-head"><div class="seg"><button data-np="notes" class="' + (tab === "notes" ? "on" : "") + '">批注 ' + count + '</button><button data-np="paper" class="' + (tab === "paper" ? "on" : "") + '">论文笔记</button></div>' +
-      '<span class="grow"></span><button class="btn sm" data-np-act="md" title="导出 Markdown">导出</button><button class="btn icon" data-np-act="close" title="关闭（M）">×</button></div>';
+    let h = '<div class="np-head"><div class="seg"><button data-np="notes" class="' + (tab === "notes" ? "on" : "") + '">' + PR.t("批注 {n}", { n: count }) + '</button><button data-np="paper" class="' + (tab === "paper" ? "on" : "") + '">' + PR.t("论文笔记") + "</button></div>" +
+      '<span class="grow"></span><button class="btn sm" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.t("导出") + '</button><button class="btn icon" data-np-act="close" title="' + PR.t("关闭（M）") + '">×</button></div>';
     if (tab === "paper") {
       const body = (S.reader.paper_note || {}).body || "";
-      h += '<div class="np-paper"><div class="np-tools"><span class="hint">整篇的感悟、总结、待办。自动保存。</span><span class="grow"></span>' + PR.noteHelpButtons() +
-        '<button class="btn sm' + (preview ? " on" : "") + '" data-np-act="preview">' + (preview ? "编辑" : "预览") + "</button></div>" +
-        (preview ? '<div class="np-preview">' + (body ? PR.mdBlocks(body) : '<p class="hint">还没有写。</p>') + "</div>"
-          : '<textarea id="paperNote" placeholder="读完这篇，你怎么看？&#10;&#10;可以写：核心论点、我同意/不同意的地方、能用到哪里、还没搞懂的问题……&#10;支持 $公式$、**粗体**，空行分段。">' + PR.esc(body) + "</textarea>") + PR.noteHelpBox() + "</div>";
+      h += '<div class="np-paper"><div class="np-tools"><span class="hint">' + PR.t("整篇的感悟、总结、待办。自动保存。") + '</span><span class="grow"></span>' + PR.noteHelpButtons() +
+        '<button class="btn sm' + (preview ? " on" : "") + '" data-np-act="preview">' + (preview ? PR.t("编辑") : PR.t("预览")) + "</button></div>" +
+        (preview ? '<div class="np-preview">' + (body ? PR.mdBlocks(body) : '<p class="hint">' + PR.t("还没有写。") + "</p>") + "</div>"
+          : '<textarea id="paperNote" placeholder="' + PR.t("读完这篇，你怎么看？&#10;&#10;可以写：核心论点、我同意/不同意的地方、能用到哪里、还没搞懂的问题……&#10;支持 $公式$、**粗体**，空行分段。") + '">' + PR.esc(body) + "</textarea>") + PR.noteHelpBox() + "</div>";
     } else {
-      const chips = [["all", "全部"], ["mine", "我的笔记"], ["hl", "划线"], ["agent", "AI"], ["open", "待回答"]]
+      const chips = [["all", PR.t("全部")], ["mine", PR.t("我的笔记")], ["hl", PR.t("划线")], ["agent", "AI"], ["open", PR.t("待回答")]]
         .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + "</button>").join("");
-      h += '<div class="np-filters">' + chips + '</div><div class="np-add"><button class="btn sm line" data-np-act="add">' + PR.icon("plus", "sm") + "给当前段写笔记</button></div><div class=\"np-list\">";
+      h += '<div class="np-filters">' + chips + '</div><div class="np-add"><button class="btn sm line" data-np-act="add">' + PR.icon("plus", "sm") + PR.t("给当前段写笔记") + "</button></div><div class=\"np-list\">";
       let lastSec = null;
       for (const it of list) {
-        const sec = it.anchor === "head" ? "论文开头" : "第 " + (PR.blockById[it.anchor] || {}).page + " 页 · " + sectionOf(it.anchor);
+        const sec = it.anchor === "head" ? PR.t("论文开头") : PR.t("第 {page} 页", { page: (PR.blockById[it.anchor] || {}).page }) + " · " + sectionOf(it.anchor);
         if (sec !== lastSec) { h += '<div class="np-sec">' + PR.esc(sec) + "</div>"; lastSec = sec; }
         h += PR.cardHtml(it, editing);
       }
-      if (!list.length) h += '<p class="hint np-empty">' + (filter === "all" ? "还没有批注。选中正文文字可以划线、写笔记、提问；点一下段落也能加笔记。" : "这个分类下没有内容。") + "</p>";
+      if (!list.length) h += '<p class="hint np-empty">' + (filter === "all" ? PR.t("还没有批注。选中正文文字可以划线、写笔记、提问；点一下段落也能加笔记。") : PR.t("这个分类下没有内容。")) + "</p>";
       h += "</div>";
     }
     el.innerHTML = h;
@@ -136,22 +136,22 @@
     const link = m.url || (m.arxiv ? "https://arxiv.org/abs/" + String(m.arxiv).replace(/^arXiv:/i, "").split(/[\sv]/)[0] : "");
     const out = ["# " + (m.title_zh || m.title_en || ""), "", m.title_en ? "*" + m.title_en + "*  " : "", [m.authors, m.date, link].filter(Boolean).join(" · "), ""];
     const pn = (S.reader.paper_note || {}).body;
-    if (pick.paper && pn) out.push("## 论文笔记", "", pn, "");
+    if (pick.paper && pn) out.push("## " + PR.t("论文笔记"), "", pn, "");
     const want = (it) => it.src === "mine" ? !!pick[it.data.kind === "question" ? "question" : it.data.kind === "highlight" ? "highlight" : "note"] : !!pick.ai;
     const list = (() => { const f = filter; filter = "all"; const r = items().filter(want); filter = f; return r; })();
-    if (list.length) out.push("## 批注", "");
+    if (list.length) out.push("## " + PR.t("批注"), "");
     let lastSec = "";
     for (const it of list) {
-      const sec = it.anchor === "head" ? "论文开头" : sectionOf(it.anchor);
+      const sec = it.anchor === "head" ? PR.t("论文开头") : sectionOf(it.anchor);
       if (sec !== lastSec) { out.push("### " + sec, ""); lastSec = sec; }
       const d = it.data;
       const q = pick.quote && d.quote ? "「" + d.quote + "」" : "";
-      if (it.src === "mine") out.push("- **" + ({ question: "我的问题", highlight: "划线" }[d.kind] || "我的笔记") + "**" + q + (d.body ? "：" + d.body : ""));
-      else out.push("- **AI" + (d.kind === "reply" ? " 回答" : "") + (d.title ? "：" + d.title : "") + "**" + q + (d.q ? "（问：" + d.q + "）" : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
+      if (it.src === "mine") out.push("- **" + ({ question: PR.t("我的问题"), highlight: PR.t("划线") }[d.kind] || PR.t("我的笔记")) + "**" + q + (d.body ? "：" + d.body : ""));
+      else out.push("- **AI" + (d.kind === "reply" ? " " + PR.t("回答") : "") + (d.title ? "：" + d.title : "") + "**" + q + (d.q ? PR.t("（问：{q}）", { q: d.q }) : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
     }
     if (pick.chat && chat && chat.length) {
-      out.push("", "## 问 AI 的对话", "");
-      for (const c of chat) out.push(c.role === "user" ? "**我**：" + c.content : "**AI**（" + (c.model || "") + "）：" + c.content, "");
+      out.push("", "## " + PR.t("问 AI 的对话"), "");
+      for (const c of chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : "**AI**（" + (c.model || "") + "）：" + c.content, "");
     }
     return out.join("\n");
   };

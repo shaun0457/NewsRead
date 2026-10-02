@@ -34,8 +34,8 @@
   }
 
   function howTo() {
-    return desktop ? "下载对应系统的安装包，装上就会覆盖旧版本，论文和设置都还在。"
-      : "从源码运行的：下载新版 zip 解压后双击 start.cmd（macOS / Linux 运行 ./start.sh），或者在项目目录里 git pull；用 pip 装的：pip install -U easyread。论文和设置在数据目录里，不受影响。";
+    return desktop ? PR.t("下载对应系统的安装包，装上就会覆盖旧版本，论文和设置都还在。")
+      : PR.t("从源码运行的：下载新版 zip 解压后双击 start.cmd（macOS / Linux 运行 ./start.sh），或者在项目目录里 git pull；用 pip 装的：pip install -U easyread。论文和设置在数据目录里，不受影响。");
   }
 
   function show(u) {
@@ -43,11 +43,11 @@
     const on = !!(u && u.newer && PR.ls.get(SKIP, "") !== u.latest);
     chip.hidden = !on;
     if (!on) return;
-    chip.innerHTML = '<span class="dot"></span><span>新版本 ' + PR.esc(u.latest) + "</span>";
-    chip.title = "EasyRead " + u.latest + " 已发布，点开看更新了什么";
+    chip.innerHTML = '<span class="dot"></span><span>' + PR.t("新版本 {v}", { v: PR.esc(u.latest) }) + "</span>";
+    chip.title = PR.t("EasyRead {v} 已发布，点开看更新了什么", { v: u.latest });
     if (PR.ls.get(SEEN, "") !== u.latest) {  // 每个新版本只弹一次
       PR.ls.set(SEEN, u.latest);
-      PR.toast("EasyRead " + PR.esc(u.latest) + " 发布了", { label: "看看更新了什么", fn: PR.openUpdate }, 9000);
+      PR.toast(PR.t("EasyRead {v} 发布了", { v: PR.esc(u.latest) }), { label: PR.t("看看更新了什么"), fn: PR.openUpdate }, 9000);
     }
   }
 
@@ -56,12 +56,12 @@
     if (!u || !u.latest) return;
     const dlg = PR.$("#textDlg");
     dlg.querySelector(".dialog").innerHTML =
-      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>EasyRead " + PR.esc(u.latest) + (u.newer ? " 可以更新了" : "") + '</h2><div class="hint">你现在用的是 ' + PR.esc(u.current) +
-      (u.published ? " · " + PR.esc(u.published.slice(0, 10)) + " 发布" : "") + "</div></div></div>" +
-      '<div class="update-notes">' + (notesHtml(u.notes) || '<p class="hint">这次没写更新说明。</p>') + "</div>" +
+      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>EasyRead " + PR.esc(u.latest) + (u.newer ? PR.t(" 可以更新了") : "") + '</h2><div class="hint">' + PR.t("你现在用的是 {v}", { v: PR.esc(u.current) }) +
+      (u.published ? PR.t(" · {date} 发布", { date: PR.esc(u.published.slice(0, 10)) }) : "") + "</div></div></div>" +
+      '<div class="update-notes">' + (notesHtml(u.notes) || '<p class="hint">' + PR.t("这次没写更新说明。") + "</p>") + "</div>" +
       (u.newer ? '<p class="hint">' + howTo() + "</p>" : "") +
-      '<div class="actions">' + (u.newer ? '<button class="btn" data-up="skip">跳过这个版本</button>' : "") + '<button class="btn" data-close>关闭</button>' +
-      '<a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + (u.newer ? "去下载" : "在 GitHub 上看") + "</a></div>";
+      '<div class="actions">' + (u.newer ? '<button class="btn" data-up="skip">' + PR.t("跳过这个版本") + "</button>" : "") + '<button class="btn" data-close>' + PR.t("关闭") + "</button>" +
+      '<a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + (u.newer ? PR.t("去下载") : PR.t("在 GitHub 上看")) + "</a></div>";
     dlg.classList.add("open");
   };
 
@@ -70,7 +70,7 @@
     PR.ls.set(SKIP, PR.update.latest);
     PR.$("#textDlg").classList.remove("open");
     show(PR.update);
-    PR.toast("不再提示 " + PR.esc(PR.update.latest) + "，有更新的版本时再告诉你");
+    PR.toast(PR.t("不再提示 {v}，有更新的版本时再告诉你", { v: PR.esc(PR.update.latest) }));
   });
 
   /* 帮助里用：force 为真时马上问 GitHub */

@@ -35,7 +35,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
     log.info("EasyRead %s 已启动：%s  文献库：%s", __version__, url, app.lib.root)
-    print(f"EasyRead 已启动：{url}  文献库：{app.lib.root}", flush=True)
+    print(f"EasyRead 已启动：{url}  文献库：{app.lib.root}", flush=True)  # i18n-ok Electron 和 smoke_backend 用正则匹配这行
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url + path)).start()
     try:

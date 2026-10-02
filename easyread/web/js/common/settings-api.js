@@ -5,7 +5,7 @@
    翻译设置用 keyProp api_key（存过的显示成 ••••），模型卡片的表单用 key。 */
 (function (PR) {
   "use strict";
-  const API_KINDS = [["chat", "Chat Completions（通用）"], ["responses", "Responses（OpenAI 新接口）"]];
+  const API_KINDS = [["chat", PR.t("Chat Completions（通用）")], ["responses", PR.t("Responses（OpenAI 新接口）")]];
   const found = {};  // 接口地址 → 点“获取模型列表”拉到的模型名
   const masked = (v) => String(v || "").startsWith("••••");
   const preset = (s, id) => s.presets.find((p) => p.id === id);
@@ -16,12 +16,12 @@
 
   function tiles(s, a) {
     const tile = (p) => '<button data-af-preset="' + p.id + '" class="' + (a.preset === p.id ? "on" : "") + '">' + PR.esc(p.name) +
-      (p.free ? '<i class="free-tag">免费</i>' : "") + (hasKey(s, p.id) ? ' <span class="ok-dot" title="已存 Key"></span>' : "") + "</button>";
+      (p.free ? '<i class="free-tag">' + PR.t("免费") + "</i>" : "") + (hasKey(s, p.id) ? ' <span class="ok-dot" title="' + PR.t("已存 Key") + '"></span>' : "") + "</button>";
     return '<div class="preset-tiles grouped">' + s.groups.map(([g, label]) => {
       const ps = s.presets.filter((p) => p.region === g);
       return ps.length ? '<div class="preset-group"><span>' + PR.esc(label) + "</span>" + ps.map(tile).join("") + "</div>" : "";
-    }).join("") + '<div class="preset-group"><span>其他</span><button data-af-preset="" class="' + (!a.preset ? "on" : "") + '">自定义地址</button>' +
-      '<em class="hint">任意 OpenAI 兼容接口、中转站</em></div></div>';
+    }).join("") + '<div class="preset-group"><span>' + PR.t("其他") + '</span><button data-af-preset="" class="' + (!a.preset ? "on" : "") + '">' + PR.t("自定义地址") + "</button>" +
+      '<em class="hint">' + PR.t("任意 OpenAI 兼容接口、中转站") + "</em></div></div>";
   }
 
   /* 模型：推荐的 + 接口里拉到的，做成下拉框，最后一项“手填”；都没有（自定义、LM Studio）或选了手填时是输入框 */
@@ -30,37 +30,37 @@
     let got = found[(a.base_url || "").trim()] || [];
     if (!got.length && a.preset === "ollama" && s.found && s.found.ollama) got = s.found.ollama.models;
     if (s.apiTyping || (!rec.length && !got.length)) {
-      return '<input class="input" data-af="model" value="' + PR.esc(a.model) + '" placeholder="模型名，比如 deepseek-flash">';
+      return '<input class="input" data-af="model" value="' + PR.esc(a.model) + '" placeholder="' + PR.t("模型名，比如 deepseek-flash") + '">';
     }
     const recIds = rec.map((m) => m.id);
     let h = PR.opt(rec.map((m) => [m.id, m.name + (m.tag ? " · " + m.tag : "")]), a.model);
     const rest = got.filter((m) => !recIds.includes(m));
-    if (rest.length) h += '<optgroup label="' + (a.preset === "ollama" && !found[(a.base_url || "").trim()] ? "本机已下载" : "接口里的全部模型") + '">' + PR.opt(rest.map((m) => [m, m]), a.model) + "</optgroup>";
+    if (rest.length) h += '<optgroup label="' + (a.preset === "ollama" && !found[(a.base_url || "").trim()] ? PR.t("本机已下载") : PR.t("接口里的全部模型")) + '">' + PR.opt(rest.map((m) => [m, m]), a.model) + "</optgroup>";
     if (a.model && !recIds.includes(a.model) && !got.includes(a.model)) h = PR.opt([[a.model, a.model]], a.model) + h;
-    if (!a.model) h = '<option value="" selected>选一个模型</option>' + h;
-    return '<select class="input" data-af="model">' + h + '<option value="__type">手填模型名…</option></select>';
+    if (!a.model) h = '<option value="" selected>' + PR.t("选一个模型") + "</option>" + h;
+    return '<select class="input" data-af="model">' + h + '<option value="__type">' + PR.t("手填模型名…") + "</option></select>";
   }
 
   function html(s, a, opt) {
     const p = preset(s, a.preset);
     const kp = opt.keyProp, saved = hasKey(s, a.preset) || masked(a[kp]);
-    const addr = '<div class="grid2"><label class="field"><span>接口地址（base URL）</span><input class="input" data-af="base_url" value="' + PR.esc(a.base_url) + '" placeholder="https://…/v1"></label>' +
-      '<label class="field"><span>接口格式</span><select class="input" data-af="api">' + PR.opt(API_KINDS, a.api || "chat") + "</select></label></div>";
-    let note = p ? PR.esc(p.note || "") : "填服务商给的接口地址（一般以 /v1 结尾）。不知道选哪种接口格式就用 Chat Completions；只支持 Responses 的才换。";
+    const addr = '<div class="grid2"><label class="field"><span>' + PR.t("接口地址（base URL）") + '</span><input class="input" data-af="base_url" value="' + PR.esc(a.base_url) + '" placeholder="https://…/v1"></label>' +
+      '<label class="field"><span>' + PR.t("接口格式") + '</span><select class="input" data-af="api">' + PR.opt(API_KINDS, a.api || "chat") + "</select></label></div>";
+    let note = p ? PR.esc(p.note || "") : PR.t("填服务商给的接口地址（一般以 /v1 结尾）。不知道选哪种接口格式就用 Chat Completions；只支持 Responses 的才换。");
     if (a.preset === "ollama" && s.found) {
       const ol = s.found.ollama;
-      note = (ol && ol.running ? "Ollama 在运行，已下载 " + ol.models.length + " 个模型。" : '<span class="bad">没检测到 Ollama（127.0.0.1:11434）。</span>') + note;
+      note = (ol && ol.running ? PR.t("Ollama 在运行，已下载 {n} 个模型。", { n: ol.models.length }) : '<span class="bad">' + PR.t("没检测到 Ollama（127.0.0.1:11434）。") + "</span>") + note;
     }
-    const link = p && p.key_url ? ' <a href="' + p.key_url + '" target="_blank" rel="noopener">' + (p.key ? "获取 Key ↗" : "下载 ↗") + "</a>" : "";
+    const link = p && p.key_url ? ' <a href="' + p.key_url + '" target="_blank" rel="noopener">' + (p.key ? PR.t("获取 Key ↗") : PR.t("下载 ↗")) + "</a>" : "";
     const fetchMsg = s.fetchMsg || {};
     return tiles(s, a) + '<p class="hint preset-note">' + note + link + "</p>" + (p ? "" : addr) +
       (p && !p.key ? "" : '<label class="field"><span>API Key</span><input class="input" type="password" data-af="key" value="' + (masked(a[kp]) ? "" : PR.esc(a[kp] || "")) +
-        '" placeholder="' + (saved ? "已保存，留空不改" : "sk-…") + '" autocomplete="off"></label>') +
-      '<label class="field"><span>模型</span><div class="model-row">' + modelField(s, a, p) +
-      '<button class="btn sm line" data-fetch-models title="从接口读出它支持的全部模型">获取模型列表</button></div>' +
+        '" placeholder="' + (saved ? PR.t("已保存，留空不改") : "sk-…") + '" autocomplete="off"></label>') +
+      '<label class="field"><span>' + PR.t("模型") + '</span><div class="model-row">' + modelField(s, a, p) +
+      '<button class="btn sm line" data-fetch-models title="' + PR.t("从接口读出它支持的全部模型") + '">' + PR.t("获取模型列表") + "</button></div>" +
       (fetchMsg.text ? '<span class="test-result ' + (fetchMsg.cls || "") + '">' + PR.esc(fetchMsg.text) + "</span>" : "") + "</label>" +
-      (opt.vision ? '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-af="vision"' + (a.vision ? " checked" : "") + ">模型能看图（把原页图一起发过去，公式和表格更准）</label>" : "") +
-      (p ? '<details class="api-adv"' + (s.advOpen ? " open" : "") + "><summary>高级：接口地址、接口格式</summary>" + addr + "</details>" : "");
+      (opt.vision ? '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-af="vision"' + (a.vision ? " checked" : "") + ">" + PR.t("模型能看图（把原页图一起发过去，公式和表格更准）") + "</label>" : "") +
+      (p ? '<details class="api-adv"' + (s.advOpen ? " open" : "") + "><summary>" + PR.t("高级：接口地址、接口格式") + "</summary>" + addr + "</details>" : "");
   }
 
   function read(root, a, kp) {
@@ -98,12 +98,12 @@
         e.preventDefault();
         read(root, a, kp);
         const key = masked(a[kp]) ? (s.chatKeys || {})[a.preset] || "" : a[kp] || "";
-        s.fetchMsg = { text: "正在获取…" };
+        s.fetchMsg = { text: PR.t("正在获取…") };
         PR.settingsRender();
         try {
           const r = await PR.api("/api/models/list", { method: "POST", body: { base_url: a.base_url, preset: a.preset, api_key: key } });
-          if (r.ok && r.models.length) { found[(a.base_url || "").trim()] = r.models; s.apiTyping = false; s.fetchMsg = { cls: "ok", text: "✓ 接口里有 " + r.models.length + " 个模型，都放进下拉框了" }; }
-          else s.fetchMsg = { cls: "bad", text: r.ok ? "接口没返回模型，手填模型名" : "✗ " + r.message };
+          if (r.ok && r.models.length) { found[(a.base_url || "").trim()] = r.models; s.apiTyping = false; s.fetchMsg = { cls: "ok", text: PR.t("✓ 接口里有 {n} 个模型，都放进下拉框了", { n: r.models.length }) }; }
+          else s.fetchMsg = { cls: "bad", text: r.ok ? PR.t("接口没返回模型，手填模型名") : "✗ " + r.message };
         } catch (err) { s.fetchMsg = { cls: "bad", text: err.message }; }
         return true;
       }

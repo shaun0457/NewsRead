@@ -21,6 +21,7 @@ function reader(mode = "server") {
   }
   let reading = "head", selected = null;
   const PR = {
+    t: (s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s),
     state: { paper: { meta: { pages: [{ img: "pages/one.webp" }, { img: "pages/two.webp" }] } }, layout: {} },
     $: node, on(name, fn) { events.set(name, fn); }, store: { mode }, imageUrl: img => "/p/paper/" + img,
     pdfUrl: page => "/p/paper/source.pdf#page=" + page,

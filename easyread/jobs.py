@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from . import chat_models, config, translate, usage
 from .engines import Cancelled, EngineError
+from .i18n import tr
 from .library import Library
 from .log import log
 from .store import Workspace, now_iso
@@ -52,9 +53,9 @@ class Jobs:
         model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。"""
         def apply(job):
             if job.get("state") in ("queued", "running"):
-                raise ValueError("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。")
+                raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
             job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
-                       state="queued", message="排队中", pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
+                       state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
         with self.lock:
             ws.update("job", apply)
@@ -67,13 +68,13 @@ class Jobs:
                 ev.set()
             ws = self.lib.ws(pid)
             if ws and (ws.load("job") or {}).get("state") == "queued":
-                self._write(ws, state="cancelled", message="已取消")
+                self._write(ws, state="cancelled", message=tr("已取消"))
 
     def _resume(self):
         for ws in self.lib.all():
             job = ws.load("job") or {}
             if job.get("state") in ("queued", "running"):
-                self._write(ws, state="queued", message="排队中（服务重启后继续）")
+                self._write(ws, state="queued", message=tr("排队中（服务重启后继续）"))
                 self.bulk.put(ws.id)
 
     def _bulk_loop(self):
@@ -87,17 +88,17 @@ class Jobs:
                 if job.get("state") != "queued":
                     continue
                 cancel = self.cancels[pid] = threading.Event()
-                self._write(ws, state="running", message="正在开始任务")
+                self._write(ws, state="running", message=tr("正在开始任务"))
             try:
                 self._run_bulk(ws, job, cancel)
             except Cancelled:
-                self._write(ws, state="cancelled", message="已取消，已译的部分保留")
+                self._write(ws, state="cancelled", message=tr("已取消，已译的部分保留"))
             except Exception as e:  # noqa: BLE001
                 msg = str(e) if isinstance(e, (EngineError, KeyError, ValueError)) else f"{type(e).__name__}: {e}"
-                self._write(ws, state="error", message="出错了", error=msg[:800])
+                self._write(ws, state="error", message=tr("出错了"), error=msg[:800])
                 log.exception("后台任务出错 %s", pid)
                 try:
-                    translate.journal(ws, f"出错停止：{msg[:500]}")
+                    translate.journal(ws, tr("出错停止：{msg}", msg=msg[:500]))
                 except OSError:
                     pass
             finally:
@@ -109,23 +110,23 @@ class Jobs:
         if cancel.is_set():
             raise Cancelled()
         if not ws.load("paper").get("meta", {}).get("pages"):
-            self._write(ws, state="running", message="正在渲染原页、抽取文字")
+            self._write(ws, state="running", message=tr("正在渲染原页、抽取文字"))
             translate.prepare(ws)
         if cancel.is_set():
             raise Cancelled()
         read = bool(job.get("read"))
         if not job.get("translate") or cfg.get("engine") == "none":
-            self._write(ws, state="done", message="已导入" + ("（没有可用的模型，先放原页）" if read else "（未开启自动翻译）" if job.get("translate") else ""))
+            self._write(ws, state="done", message=tr("已导入（没有可用的模型，先放原页）") if read else tr("已导入（未开启自动翻译）") if job.get("translate") else tr("已导入"))
             return
         paper = ws.load("paper")
         all_pages = [p["n"] for p in paper["meta"]["pages"]]
-        tr = paper.get("translation", {})
+        tl = paper.get("translation", {})
         # 只读原文：跳过已经整理过（或已经译过）的页；翻译：跳过已经有译文的页，只有原文的页会补译文
-        skip = set(tr.get("done_pages", [])) if read else set(tr.get("done_pages", [])) - set(tr.get("en_pages", []))
+        skip = set(tl.get("done_pages", [])) if read else set(tl.get("done_pages", [])) - set(tl.get("en_pages", []))
         wanted = job.get("pages") or translate.scope_pages(ws, job.get("scope")) or all_pages
         pages = wanted if job.get("pages") else [n for n in wanted if n not in skip]
         if not pages:
-            self._write(ws, state="done", message="选定范围已" + ("整理完" if read else "译完"))
+            self._write(ws, state="done", message=tr("选定范围已整理完") if read else tr("选定范围已译完"))
             return
 
         meter = usage.Meter(cfg.get("engine") or "")
@@ -146,14 +147,16 @@ class Jobs:
         if failed:
             first = next(iter(failed.values()))
             self._write(ws, state="partial", failed={str(k): v for k, v in failed.items()}, error=first,
-                        message=(f"{len(pages) - len(failed)} 页好了，" if len(failed) < len(pages) else "") + f"{len(failed)} 页没" + ("整理" if read else "译") + "成功")
+                        message=(tr("{ok} 页好了，", ok=len(pages) - len(failed)) if len(failed) < len(pages) else "")
+                        + (tr("{n} 页没整理成功", n=len(failed)) if read else tr("{n} 页没译成功", n=len(failed))))
         else:
             self._write(ws, state="done", failed={}, error="",
-                        message=("原文整理完成" if read else "翻译完成") + f"（{len(pages)} 页，用时约 {minutes} 分钟）")
+                        message=tr("原文整理完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes) if read
+                        else tr("翻译完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes))
 
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:
-        job = {"id": "j" + uuid4().hex, "kind": kind, "pid": pid, "state": "queued", "message": "排队中",
+        job = {"id": "j" + uuid4().hex, "kind": kind, "pid": pid, "state": "queued", "message": tr("排队中"),
                "at": now_iso(), **kw}
         with self.lock:
             self.recent = ([job] + self.recent)[:50]
@@ -176,16 +179,16 @@ class Jobs:
             job = self.small.get()
             ws = self.lib.ws(job["pid"])
             if not ws:
-                job["state"], job["message"] = "error", "文献已移除，无法执行任务"
+                job["state"], job["message"] = "error", tr("文献已移除，无法执行任务")
                 continue
-            job["state"], job["message"] = "running", "模型思考中"
+            job["state"], job["message"] = "running", tr("模型思考中")
             try:
                 cfg = config.load()
                 if job["kind"] == "answer":
                     translate.answer(ws, cfg, job["note"], None)
                 elif job["kind"] == "retranslate":
                     translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None)
-                job["state"], job["message"] = "done", "完成"
+                job["state"], job["message"] = "done", tr("完成")
             except Exception as e:  # noqa: BLE001
                 job["state"], job["message"] = "error", str(e)[:500]
                 log.exception("小任务出错 %s", job.get("kind"))

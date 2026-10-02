@@ -7,6 +7,7 @@ const { test } = require("node:test");
 async function offlineReader() {
   const storage = new Map();
   const PR = {
+    t: (s, v) => (v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s),
     uid: () => "client", nowIso: () => "2026-10-01T00:00:00Z", emit() {},
     ls: { get: (key, fallback) => storage.get(key) || fallback, set: (key, value) => { storage.set(key, value); return true; } },
   };

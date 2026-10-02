@@ -33,7 +33,7 @@
     else syncSettings();
     relayout();
   };
-  PR.bumpFont = (d) => { PR.setPref("fs", Math.min(28, Math.max(13, PR.prefs.fs + d)), true); PR.toast("字号 " + PR.prefs.fs + " px", null, 900); };
+  PR.bumpFont = (d) => { PR.setPref("fs", Math.min(28, Math.max(13, PR.prefs.fs + d)), true); PR.toast(PR.t("字号 {n} px", { n: PR.prefs.fs }), null, 900); };
 
   function segHtml(key, opts) {
     return '<div class="seg">' + opts.map(([v, label]) => '<button data-p="' + key + '" data-v="' + v + '" class="' + (String(PR.prefs[key]) === String(v) ? "on" : "") + '">' + label + "</button>").join("") + "</div>";
@@ -43,16 +43,16 @@
   }
   PR.renderSettings = function () {
     PR.$("#settings").innerHTML =
-      slider("fs", "字号", 13, 28, 1, " px") + slider("measure", "版心", 26, 50, 1, " 字") + slider("lh", "行距", 1.5, 2.4, 0.05, "") +
-      '<div class="row"><span>显示</span>' + segHtml("mode", [["zh", "译文"], ["bi", "对照"]]) + "</div>" +
-      '<div class="row"><span>字体</span>' + segHtml("font", [["serif", "宋体"], ["sans", "黑体"]]) + "</div>" +
-      '<div class="row"><span>边注</span>' + segHtml("margin", [[true, "显示"], [false, "收起"]]) + "</div>" +
-      '<div class="row hintrow"><button class="linkish" data-reset-type>恢复默认</button><span class="grow"></span>' +
-      (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">更多设置…</button>' : "") + "</div>";
+      slider("fs", PR.t("字号"), 13, 28, 1, " px") + slider("measure", PR.t("版心"), 26, 50, 1, PR.t(" 字")) + slider("lh", PR.t("行距"), 1.5, 2.4, 0.05, "") +
+      '<div class="row"><span>' + PR.t("显示") + "</span>" + segHtml("mode", [["zh", PR.t("译文")], ["bi", PR.t("对照")]]) + "</div>" +
+      '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["serif", PR.t("宋体")], ["sans", PR.t("黑体")]]) + "</div>" +
+      '<div class="row"><span>' + PR.t("边注") + "</span>" + segHtml("margin", [[true, PR.t("显示")], [false, PR.t("收起")]]) + "</div>" +
+      '<div class="row hintrow"><button class="linkish" data-reset-type>' + PR.t("恢复默认") + '</button><span class="grow"></span>' +
+      (PR.store.mode === "server" ? '<button class="linkish" data-open-settings="reading">' + PR.t("更多设置…") + "</button>" : "") + "</div>";
   };
   function syncSettings() {
     PR.$$("#settings [data-r]").forEach((r) => { r.value = PR.prefs[r.dataset.r]; });
-    PR.$$("#settings [data-rv]").forEach((b) => { const k = b.dataset.rv; b.textContent = PR.prefs[k] + ({ fs: " px", measure: " 字" }[k] || ""); });
+    PR.$$("#settings [data-rv]").forEach((b) => { const k = b.dataset.rv; b.textContent = PR.prefs[k] + ({ fs: " px", measure: PR.t(" 字") }[k] || ""); });
   }
   PR.$("#settings").addEventListener("input", (e) => {
     const r = e.target.closest("[data-r]");
@@ -72,9 +72,9 @@
   PR.resetAllType = function (vals) {
     Object.assign(PR.prefs, vals || PR.TYPE_DEFAULTS);
     PR.setPref("fs", PR.prefs.fs);
-    if (!vals) PR.toast("排版已恢复默认", null, 1200);
+    if (!vals) PR.toast(PR.t("排版已恢复默认"), null, 1200);
   };
-  PR.resetType = () => { ["fs", "measure", "lh"].forEach((k) => (PR.prefs[k] = DEF[k])); PR.setPref("fs", DEF.fs, true); PR.toast("已恢复默认字号和版心", null, 1200); };
+  PR.resetType = () => { ["fs", "measure", "lh"].forEach((k) => (PR.prefs[k] = DEF[k])); PR.setPref("fs", DEF.fs, true); PR.toast(PR.t("已恢复默认字号和版心"), null, 1200); };
 
   /* ---------- 顶栏 ---------- */
   PR.$("#backBtn").innerHTML = PR.icon("back", "sm") + PR.logo();
@@ -82,15 +82,15 @@
   PR.setupDemo = function () {
     if (!S.demo) return;
     const back = PR.$("#backBtn");
-    back.href = S.demo.home || "../"; back.title = "EasyRead 主页"; back.style.display = "";
-    const pill = PR.el("a", { class: "demo-pill", href: S.demo.repo, target: "_blank", rel: "noopener", title: "这是在线演示；在 GitHub 上免费下载，装到自己电脑" }, "在线演示<span> · 免费下载</span>");
+    back.href = S.demo.home || "../"; back.title = PR.t("EasyRead 主页"); back.style.display = "";
+    const pill = PR.el("a", { class: "demo-pill", href: S.demo.repo, target: "_blank", rel: "noopener", title: PR.t("这是在线演示；在 GitHub 上免费下载，装到自己电脑") }, PR.t("在线演示<span> · 免费下载</span>"));
     PR.$("#bar .save-state").before(pill);
   };
   PR.$('[data-act="drawer"]').innerHTML = PR.icon("menu");
-  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>原页</span>";
+  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>" + PR.t("原页") + "</span>";
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
-  PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>笔记</span>";
-  PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>问 AI</span>";
+  PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
+  PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
   PR.applyFeatures = function () {
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
@@ -121,14 +121,14 @@
     const el = PR.$(".save-state");
     el.dataset.s = s;
     el.querySelector("span").textContent = text;
-    el.title = s === "saved" ? "修改已写入 reader.json" : text;
+    el.title = s === "saved" ? PR.t("修改已写入 reader.json") : text;
   });
   PR.renderJobState = function () {
     const j = S.job || {};
     const el = PR.$("#jobState");
-    if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || "翻译中") + (j.total ? " " + j.done + "/" + j.total : "");
-    else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? "整理原文" : "翻译") + "出错</span>";
-    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + Object.keys(j.failed || {}).length + " 页没" + (j.read ? "整理" : "译") + "成功</span>";
+    if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || PR.t("翻译中")) + (j.total ? " " + j.done + "/" + j.total : "");
+    else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
+    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
     else el.innerHTML = "";
   };
 
@@ -156,10 +156,10 @@
     if (!recent) {
       PR.api("/api/library").then((d) => { recent = d.items.filter((i) => i.last_opened).sort((a, b) => String(b.last_opened).localeCompare(String(a.last_opened))).slice(0, 15); if (tab === "recent") PR.renderDrawer(); })
         .catch(() => { recent = []; });
-      return '<p class="hint">加载中…</p>';
+      return '<p class="hint">' + PR.t("加载中…") + "</p>";
     }
     return '<nav class="toc recent-list">' + recent.map((i) => '<a href="/read/' + i.id + '" class="l1' + (i.id === PR.pid ? " on" : "") + '"><span class="cnt">' + (i.progress > 0.02 ? Math.round(i.progress * 100) + "%" : "") + "</span>" +
-      PR.esc(i.title_zh || i.title_en || "（未命名）") + "</a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">打开文献库</a>';
+      PR.esc(i.title_zh || i.title_en || PR.t("（未命名）")) + "</a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">' + PR.t("打开文献库") + "</a>";
   }
   function countByHeading() {
     const counts = {};
@@ -176,40 +176,40 @@
     const cur = PR.currentHeading && PR.currentHeading();
     let html = '<nav class="toc">', app = false;
     for (const h of PR.headings) {
-      if (h.appendix && !app) { html += '<div class="group">附录</div>'; app = true; }
+      if (h.appendix && !app) { html += '<div class="group">' + PR.t("附录") + "</div>"; app = true; }
       html += '<a href="#b-' + h.id + '" data-go="' + h.id + '" class="' + (h.level === 2 ? "l2" : "l1") + (cur === h.id ? " on" : "") + '">' +
         (counts[h.id] ? '<span class="cnt">' + counts[h.id] + "</span>" : "") + '<span class="n">' + PR.esc(h.num || "") + "</span>" + PR.esc(PR.plain(PR.textFor(h.id) || h.zh)) + "</a>";
     }
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = ((S.paper.meta || {}).pages || []).filter((p) => !done.has(p.n));
-    if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? "还没整理的页" : "未译的页") + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>原文第 ' + p.n + " 页</a>").join("");
+    if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? PR.t("还没整理的页") : PR.t("未译的页")) + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>' + PR.t("原文第 {n} 页", { n: p.n }) + "</a>").join("");
     return html + "</nav>";
   }
   function termsHtml() {
     const g = S.paper.glossary || [];
-    return '<p class="hint" style="margin:0 0 10px">译法不合心意？改右边的译法，再点“替换”，会把正文里的旧译法换成新的（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。</p>' +
-      (g.length ? '<table class="terms-t">' + g.map((t, i) => "<tr><td>" + PR.esc(t.en) + '</td><td><input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '"></td><td><button class="btn sm line" data-term="' + i + '">替换</button></td></tr>').join("") + "</table>" : '<p class="hint">这篇论文还没有术语表。</p>') +
-      '<div class="term-free"><div class="hint" style="margin:14px 0 6px">任意替换</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="原译法"><input class="input" id="tTo" placeholder="新译法"><button class="btn sm line" data-term="free">替换</button></div></div>';
+    return '<p class="hint" style="margin:0 0 10px">' + PR.t("译法不合心意？改右边的译法，再点“替换”，会把正文里的旧译法换成新的（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。") + "</p>" +
+      (g.length ? '<table class="terms-t">' + g.map((t, i) => "<tr><td>" + PR.esc(t.en) + '</td><td><input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '"></td><td><button class="btn sm line" data-term="' + i + '">' + PR.t("替换") + "</button></td></tr>").join("") + "</table>" : '<p class="hint">' + PR.t("这篇论文还没有术语表。") + "</p>") +
+      '<div class="term-free"><div class="hint" style="margin:14px 0 6px">' + PR.t("任意替换") + '</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="' + PR.t("原译法") + '"><input class="input" id="tTo" placeholder="' + PR.t("新译法") + '"><button class="btn sm line" data-term="free">' + PR.t("替换") + "</button></div></div>";
   }
   function aboutHtml() {
     const tr = S.paper.translation || {};
     const m = S.paper.meta || {};
     const pdf = PR.pdfUrl(1);
-    const status = S.demo ? "这是 EasyRead 的在线演示。你在这里做的划线和笔记只存在这个浏览器里，别人看不到。装到自己电脑上，就能导入任意论文、后台翻译、边读边问 AI。"
+    const status = S.demo ? PR.t("这是 EasyRead 的在线演示。你在这里做的划线和笔记只存在这个浏览器里，别人看不到。装到自己电脑上，就能导入任意论文、后台翻译、边读边问 AI。")
       : PR.store.mode === "server"
-      ? "你改的译文、笔记、划线写进论文目录的 reader.json（每次保存记日志，每 10 分钟留快照）。翻译方只写 paper.json 和 discussion.json，不会覆盖你的内容。"
-      : "这是离线单文件版：修改只存在当前浏览器里。要把修改带回文献库，点“导出我的修改”得到一个 JSON，再运行 easyread merge。";
+      ? PR.t("你改的译文、笔记、划线写进论文目录的 reader.json（每次保存记日志，每 10 分钟留快照）。翻译方只写 paper.json 和 discussion.json，不会覆盖你的内容。")
+      : PR.t("这是离线单文件版：修改只存在当前浏览器里。要把修改带回文献库，点“导出我的修改”得到一个 JSON，再运行 easyread merge。");
     const en = (tr.en_pages || []).length, done = (tr.done_pages || []).length;
-    return '<div class="about"><h3>' + (en ? "英文原文" : "译文") + "</h3><p>" + done + " / " + ((m.pages || []).length) + " 页" + (en ? "，其中 " + en + " 页没有翻译" : "") + "。" + PR.esc(tr.note || "") + "</p>" +
-      "<h3>保存</h3><p>" + status + "</p>" + (PR.store.pending ? "<p>还有 " + PR.store.pending + " 条修改在等待写入。</p>" : "") +
-      '<div class="row">' + (pdf ? '<a class="btn sm line" href="' + pdf + '" target="_blank" rel="noopener">打开原 PDF</a>' : "") +
-      '<button class="btn sm line" data-x="md">导出笔记…</button>' + (PR.store.mode === "static" && !S.demo ? '<button class="btn sm line" data-x="ops">导出我的修改</button>' : "") + "</div>" +
-      "<h3>怎么用</h3><p>点一下段落，上方出现操作条：笔记、提问、问 AI、原文、改译文、原页。右键段落是完整菜单。选中文字可以用四种颜色划线、写笔记、提问；打开问 AI 时，选中的文字可以直接拖进输入框，一次引用多段。双击一段直接改译文。</p>" +
-      "<h3>快捷键</h3>" + (PR.keysOn
+    return '<div class="about"><h3>' + (en ? PR.t("英文原文") : PR.t("译文")) + "</h3><p>" + (en ? PR.t("{done} / {n} 页，其中 {en} 页没有翻译。", { done, n: (m.pages || []).length, en }) : PR.t("{done} / {n} 页。", { done, n: (m.pages || []).length })) + PR.esc(tr.note || "") + "</p>" +
+      "<h3>" + PR.t("保存") + "</h3><p>" + status + "</p>" + (PR.store.pending ? "<p>" + PR.t("还有 {n} 条修改在等待写入。", { n: PR.store.pending }) + "</p>" : "") +
+      '<div class="row">' + (pdf ? '<a class="btn sm line" href="' + pdf + '" target="_blank" rel="noopener">' + PR.t("打开原 PDF") + "</a>" : "") +
+      '<button class="btn sm line" data-x="md">' + PR.t("导出笔记…") + "</button>" + (PR.store.mode === "static" && !S.demo ? '<button class="btn sm line" data-x="ops">' + PR.t("导出我的修改") + "</button>" : "") + "</div>" +
+      "<h3>" + PR.t("怎么用") + "</h3><p>" + PR.t("点一下段落，上方出现操作条：笔记、提问、问 AI、原文、改译文、原页。右键段落是完整菜单。选中文字可以用四种颜色划线、写笔记、提问；打开问 AI 时，选中的文字可以直接拖进输入框，一次引用多段。双击一段直接改译文。") + "</p>" +
+      "<h3>" + PR.t("快捷键") + "</h3>" + (PR.keysOn
         ? '<div class="keyrows">' + PR.KEY_ACTIONS.filter(([id, , , , need]) => PR.keymap[id] && (!need || PR.feature(need))).map(([id, label]) => "<kbd>" + PR.esc(PR.keyOf(id)) + "</kbd><span>" + label + "</span>").join("") +
-          "<kbd>1–4</kbd><span>选中文字后：四色划线</span><kbd>Esc</kbd><span>关闭面板、取消选中</span></div>"
-        : "<p>快捷键已关闭。</p>") +
-      '<button class="btn sm line" data-x="keys">设置快捷键和功能</button></div>';
+          "<kbd>1–4</kbd><span>" + PR.t("选中文字后：四色划线") + "</span><kbd>Esc</kbd><span>" + PR.t("关闭面板、取消选中") + "</span></div>"
+        : "<p>" + PR.t("快捷键已关闭。") + "</p>") +
+      '<button class="btn sm line" data-x="keys">' + PR.t("设置快捷键和功能") + "</button></div>";
   }
   PR.$("#drawer").addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]");
@@ -222,9 +222,9 @@
       if (t.dataset.term === "free") { from = PR.$("#tFrom").value.trim(); to = PR.$("#tTo").value.trim(); }
       else { const g = S.paper.glossary[+t.dataset.term]; from = g.zh; to = PR.$('.term-in[data-i="' + t.dataset.term + '"]').value.trim(); }
       const n = PR.replaceTerm(from, to, true);
-      if (!n) return PR.toast("正文里没找到“" + PR.esc(from) + "”");
-      PR.confirm({ title: "替换 " + n + " 处？", body: "把正文里的“" + from + "”换成“" + to + "”。", ok: "替换", at: t })
-        .then((ok) => { if (ok) { PR.replaceTerm(from, to); PR.toast("已替换 " + n + " 处"); } });
+      if (!n) return PR.toast(PR.t("正文里没找到“{s}”", { s: PR.esc(from) }));
+      PR.confirm({ title: PR.t("替换 {n} 处？", { n }), body: PR.t("把正文里的“{from}”换成“{to}”。", { from, to }), ok: PR.t("替换"), at: t })
+        .then((ok) => { if (ok) { PR.replaceTerm(from, to); PR.toast(PR.t("已替换 {n} 处", { n })); } });
       return;
     }
     const x = e.target.closest("[data-x]");
@@ -232,9 +232,9 @@
   });
 
   PR.download = function (kind) {
-    const stem = ((S.paper.meta || {}).short_zh || (S.paper.meta || {}).title_zh || "论文").replace(/[\\/:*?"<>|]/g, "");
+    const stem = ((S.paper.meta || {}).short_zh || (S.paper.meta || {}).title_zh || PR.t("论文")).replace(/[\\/:*?"<>|]/g, "");
     const text = kind === "ops" ? JSON.stringify(PR.exportOps(), null, 1) : PR.notesMarkdown();
-    const a = PR.el("a", { href: URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" })), download: stem + (kind === "ops" ? "-我的修改.json" : "-笔记.md") });
+    const a = PR.el("a", { href: URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" })), download: stem + (kind === "ops" ? PR.t("-我的修改.json") : PR.t("-笔记.md")) });
     document.body.appendChild(a); a.click(); a.remove();
   };
 

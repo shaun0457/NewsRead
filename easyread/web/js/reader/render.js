@@ -45,7 +45,7 @@
     });
   }
 
-  function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="你改过这段之后，译者稿又更新了">译者稿有更新</button>' : ""; }
+  function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="' + PR.t("你改过这段之后，译者稿又更新了") + '">' + PR.t("译者稿有更新") + "</button>" : ""; }
   function zhDiv(key) {
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + PR.esc(key) + '">' + PR.md(PR.textFor(key)) + staleTag(key) + "</div>";
@@ -88,15 +88,15 @@
     },
     figure(b) {
       const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
-        : '<button class="fig-missing" data-t="page">图见原文第 ' + b.page + " 页（点击查看）</button>";
+        : '<button class="fig-missing" data-t="page">' + PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) + "</button>";
       return img + captionHtml(b);
     },
-    note: (b) => '<div class="inline-note"><div class="lbl">阅读批注（非原文）</div>' + PR.mdBlocks(b.zh) + "</div>",
+    note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {
       const refs = (S.paper.references || []).map((r) => '<li id="ref-' + PR.esc(r.id) + '"><span class="n">[' + PR.esc(r.id) + "]</span><span>" + linkify(r.text) + "</span></li>").join("");
       if (!b.zh && b.en) return '<h2 class="zh en-main" lang="en" data-key="' + b.id + '"><span>' + PR.esc(b.en) + '</span></h2><div class="refs"><ol>' + refs + "</ol></div>";
-      return '<h2 class="zh" data-key="' + b.id + '"><span>' + PR.esc(b.zh || "参考文献") + '</span><span class="en-title" lang="en">' + PR.esc(b.en || "References") + "</span></h2>" +
-        '<div class="refs"><p class="note">条目保留原文，便于检索。</p><ol>' + refs + "</ol></div>";
+      return '<h2 class="zh" data-key="' + b.id + '"><span>' + PR.esc(b.zh || PR.t("参考文献")) + '</span><span class="en-title" lang="en">' + PR.esc(b.en || "References") + "</span></h2>" +
+        '<div class="refs"><p class="note">' + PR.t("条目保留原文，便于检索。") + "</p><ol>" + refs + "</ol></div>";
     },
   };
 
@@ -112,8 +112,8 @@
 
   function sectionHtml(b, extraClass, pageMark) {
     return '<section class="' + blockClass(b) + (extraClass || "") + '" id="b-' + PR.esc(b.id) + '" data-id="' + PR.esc(b.id) + '">' +
-      (pageMark ? '<button class="pgmark" data-t="page" title="看原文第 ' + b.page + ' 页">p.' + b.page + "</button>" : "") +
-      R[b.type](b) + (edited(b) ? '<span class="edited-dot" title="这里有你改过的译文"></span>' : "") + "</section>";
+      (pageMark ? '<button class="pgmark" data-t="page" title="' + PR.t("看原文第 {n} 页", { n: b.page }) + '">p.' + b.page + "</button>" : "") +
+      R[b.type](b) + (edited(b) ? '<span class="edited-dot" title="' + PR.t("这里有你改过的译文") + '"></span>' : "") + "</section>";
   }
 
   /* 在线演示的署名和许可（CC BY 要求写明出处），网址做成链接 */
@@ -130,19 +130,19 @@
     const kicker = [m.arxiv, m.venue, m.date].filter(Boolean).map(PR.esc).join("　·　");
     const by = [m.authors, m.affiliation].filter(Boolean).map(PR.esc).join("　·　");
     const pages = (m.pages || []).length, done = (tr.done_pages || []).length, en = (tr.en_pages || []).length;
-    const toZh = en && PR.canAsk() && !jobRunning() ? '<button class="btn sm line" data-t="translate-en">翻译成中文</button>' : "";
-    const scope = (en ? "<b>英文原文</b>　" + (done - en ? "其中 " + (done - en) + " 页已译，" : "") + en + " 页没有翻译" + toZh
-      : "<b>译文</b>　" + (pages ? (done >= pages ? "全文 " + pages + " 页" : "已译 " + done + " / " + pages + " 页") : "尚未处理")) +
+    const toZh = en && PR.canAsk() && !jobRunning() ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成中文") + "</button>" : "";
+    const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
+      : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
-      "<br>" + (en ? "没译的地方正文是英文原文" : "正文是译文") + '；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。';
+      "<br>" + (en ? PR.t("没译的地方正文是英文原文") : PR.t("正文是译文")) + PR.t('；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。');
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
-      "<h1>" + PR.esc(m.title_zh || m.title_en || "（正在识别标题）") + "</h1>" +
+      "<h1>" + PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）")) + "</h1>" +
       (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +
       (by ? '<p class="byline">' + by + "</p>" : "") + '<p class="scope">' + scope + "</p>" + creditHtml() + "</header>";
   }
 
   /* 还没译的页：放原页图，边译边读 */
-  const origFig = (p) => '<figure class="orig-page" id="orig-' + p.n + '"><figcaption>原文第 ' + p.n + ' 页</figcaption><img loading="lazy" src="' + PR.imageUrl(p.img) + '" alt="原文第 ' + p.n + ' 页"></figure>';
+  const origFig = (p) => '<figure class="orig-page" id="orig-' + p.n + '"><figcaption>' + PR.t("原文第 {n} 页", { n: p.n }) + '</figcaption><img loading="lazy" src="' + PR.imageUrl(p.img) + '" alt="' + PR.t("原文第 {n} 页", { n: p.n }) + '"></figure>';
   const failedOf = () => ((S.job || {}).state === "partial" && S.job.failed) || {};
   const jobRunning = () => ["queued", "running"].includes((S.job || {}).state);
   const reading = () => !!((S.job || {}).read || ((S.paper.translation || {}).en_pages || []).length);  // 这篇是只读原文
@@ -152,9 +152,10 @@
     const failed = failedOf();
     const bad = pages.filter((p) => failed[p.n]);
     const running = ["queued", "running"].includes((S.job || {}).state);
-    const label = pages.length > 1 ? "第 " + pages[0].n + "–" + pages[pages.length - 1].n + " 页" : "第 " + pages[0].n + " 页";
-    const head = bad.length ? label + "没" + (reading() ? "整理" : "译") + "成功：" + PR.esc(failed[bad[0].n]) + (PR.canAsk() && !running ? '<button class="btn sm line" data-t="retry-failed">重试</button>' : "")
-      : label + (running ? "还在排队" + (reading() ? "整理" : "翻译") : reading() ? "还没整理" : "还没有译文") + "，先放原页。";
+    const label = pages.length > 1 ? PR.t("第 {a}–{b} 页", { a: pages[0].n, b: pages[pages.length - 1].n }) : PR.t("第 {n} 页", { n: pages[0].n });
+    const head = bad.length ? (reading() ? PR.t("{label}没整理成功：", { label }) : PR.t("{label}没译成功：", { label })) + PR.esc(failed[bad[0].n]) + (PR.canAsk() && !running ? '<button class="btn sm line" data-t="retry-failed">' + PR.t("重试") + "</button>" : "")
+      : running ? (reading() ? PR.t("{label}还在排队整理，先放原页。", { label }) : PR.t("{label}还在排队翻译，先放原页。", { label }))
+      : reading() ? PR.t("{label}还没整理，先放原页。", { label }) : PR.t("{label}还没有译文，先放原页。", { label });
     return '<div class="pending-pages gap"><div class="pending' + (bad.length ? " bad" : "") + '">' + head + "</div>" + pages.map(origFig).join("") + "</div>";
   }
 
@@ -162,16 +163,16 @@
     const m = S.paper.meta || {};
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = (m.pages || []).filter((p) => !done.has(p.n) && p.n > lastPage);
-    if (!(m.pages || []).length) return '<div class="pending"><span class="spin"></span> 正在渲染原页、抽取文字…</div>';
+    if (!(m.pages || []).length) return '<div class="pending"><span class="spin"></span> ' + PR.t("正在渲染原页、抽取文字…") + "</div>";
     if (!miss.length) return "";
     const job = S.job || {};
     const running = ["queued", "running"].includes(job.state);
     const nFailed = miss.filter((p) => failedOf()[p.n]).length;
-    const head = running ? '<span class="spin"></span> ' + PR.esc(job.message || "翻译中") + (job.total ? "（" + job.done + "/" + job.total + " 页）" : "") + '<span class="hint">译好的页会自动出现在这里' + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
-      : reading() ? "下面 " + miss.length + " 页还没整理，先放原页。" + (nFailed ? "其中 " + nFailed + " 页上次没整理成功。" : "") +
-        (PR.canAsk() ? '<button class="btn sm line" data-t="read-rest">整理剩下的页</button>' : "")
-      : "下面 " + miss.length + " 页还没有译文，先放原页。" + (nFailed ? "其中 " + nFailed + " 页上次没译成功。" : "") +
-        (PR.canAsk() ? '<button class="btn sm line" data-t="translate-rest">翻译剩下的页</button>' : "");
+    const head = running ? '<span class="spin"></span> ' + PR.esc(job.message || PR.t("翻译中")) + (job.total ? PR.t("（{done}/{total} 页）", { done: job.done, total: job.total }) : "") + '<span class="hint">' + PR.t("译好的页会自动出现在这里") + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
+      : reading() ? PR.t("下面 {n} 页还没整理，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没整理成功。", { n: nFailed }) : "") +
+        (PR.canAsk() ? '<button class="btn sm line" data-t="read-rest">' + PR.t("整理剩下的页") + "</button>" : "")
+      : PR.t("下面 {n} 页还没有译文，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没译成功。", { n: nFailed }) : "") +
+        (PR.canAsk() ? '<button class="btn sm line" data-t="translate-rest">' + PR.t("翻译剩下的页") + "</button>" : "");
     return '<div class="pending-pages"><div class="pending">' + head + "</div>" + miss.map(origFig).join("") + "</div>";
   }
 

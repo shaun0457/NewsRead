@@ -8,7 +8,7 @@ const { test } = require("node:test");
 async function desktop(platform = "darwin", lock = true) {
   const app = new EventEmitter();
   Object.assign(app, {
-    setPath() {}, getPath: () => "/tmp", isPackaged: true,
+    setPath() {}, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: true,
     requestSingleInstanceLock: () => lock, whenReady: () => Promise.resolve(),
     quit() { this.quitCalled = true; this.emit("before-quit"); },
   });

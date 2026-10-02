@@ -27,11 +27,11 @@
   function label() {
     const s = stack[stack.length - 1];
     const sec = s && PR.blockById[s.id] && PR.sectionOf ? PR.sectionOf(s.id) : "";
-    return "返回刚才读的地方" + (sec ? "：" + sec : "");
+    return sec ? PR.t("返回刚才读的地方：{sec}", { sec }) : PR.t("返回刚才读的地方");
   }
   function show() {
     if (!btn) {
-      btn = PR.el("button", { class: "jump-back", type: "button", title: "回到跳转前的位置（浏览器后退也可以）" });
+      btn = PR.el("button", { class: "jump-back", type: "button", title: PR.t("回到跳转前的位置（浏览器后退也可以）") });
       btn.onclick = () => (history.state && history.state.easyreadBack ? history.back() : goBack());
       document.body.appendChild(btn);
     }

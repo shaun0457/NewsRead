@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from .i18n import tr
 from .paperdata import add_discussion
 from .store import Workspace, now_iso
 
@@ -26,7 +27,7 @@ def _normalize(chat: dict) -> dict:
 
 def _title(q: str) -> str:
     q = " ".join((q or "").split())
-    return (q[:22] + "…") if len(q) > 22 else (q or "新对话")
+    return (q[:22] + "…") if len(q) > 22 else (q or tr("新对话"))
 
 
 def threads(ws: Workspace) -> list[dict]:

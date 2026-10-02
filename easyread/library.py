@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import sources
+from .i18n import tr
 from .log import log
 from .store import SCHEMA, Workspace, empty_discussion, empty_reader, now_iso, read_json, write_json_atomic
 
@@ -74,7 +75,7 @@ class Library:
     def create_from_pdf(self, data: bytes, filename: str, meta: dict | None = None) -> tuple[Workspace, bool]:
         """建目录、落 PDF 和空数据文件。渲染原页、抽文字放到后台任务里做。返回 (目录, 是否新建)。"""
         if not data.startswith(b"%PDF"):
-            raise ValueError("不是 PDF 文件")
+            raise ValueError(tr("不是 PDF 文件"))
         digest = sha256_bytes(data)
         pid = digest[:12]
         ws = Workspace(self.root / pid)
@@ -88,7 +89,7 @@ class Library:
             base_meta["title_en"] = _pdf_title(ws.root / "source.pdf") or Path(filename).stem
         write_json_atomic(ws.paper_path, {
             "schema": SCHEMA, "meta": base_meta,
-            "translation": {"scope": "未开始", "done_pages": [], "note": ""},
+            "translation": {"scope": "未开始", "done_pages": [], "note": ""},  # i18n-ok 存进 paper.json
             "glossary": [], "references": [], "blocks": [],
         })
         write_json_atomic(ws.discussion_path, empty_discussion())
@@ -118,7 +119,7 @@ class Library:
                 return dest
             except PermissionError:
                 if attempt == 19:
-                    raise ValueError("这篇论文的文件还被占用着（可能正在翻译或生成图片），等几秒再删") from None
+                    raise ValueError(tr("这篇论文的文件还被占用着（可能正在翻译或生成图片），等几秒再删")) from None
                 time.sleep(0.25)
         return dest
 
@@ -147,7 +148,7 @@ def migrate_folder(src: Path, lib: Library) -> Workspace:
     pid = sha256_bytes(data)[:12]
     dest = lib.root / pid
     if not dest.exists():
-        shutil.copytree(src, dest, ignore=shutil.ignore_patterns("server.json", "*.html", "打开共读.cmd", ".write.lock"))
+        shutil.copytree(src, dest, ignore=shutil.ignore_patterns("server.json", "*.html", "打开共读.cmd", ".write.lock"))  # i18n-ok 旧版文件名
     ws = Workspace(dest)
     if not ws.item_path.exists():
         write_json_atomic(ws.item_path, {"added": now_iso(), "tags": [], "status": "reading", "starred": False})

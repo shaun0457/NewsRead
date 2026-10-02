@@ -64,7 +64,7 @@
     const src = srcOf(pvPage);
     if (img.getAttribute("src") !== src) { img.setAttribute("src", src); PR.$(".pv-page").classList.add("loading"); img.onload = () => PR.$(".pv-page").classList.remove("loading"); }
     preload(pvPage + 1); preload(pvPage - 1);
-    PR.$(".pv-label").textContent = "第 " + pvPage + " / " + list.length + " 页";
+    PR.$(".pv-label").textContent = PR.t("第 {p} / {n} 页", { p: pvPage, n: list.length });
     const pdf = PR.$('[data-pv="pdf"]');
     const url = PR.pdfUrl(pvPage);
     pdf.style.display = url ? "" : "none";
@@ -154,7 +154,7 @@
     if (act === "close") { PR.togglePages(false); pair(null); }
     if (act === "prev") showPage(pvPage - 1, pvBlock);
     if (act === "next") showPage(pvPage + 1, pvBlock);
-    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? "适宽" : "放大"; showPage(pvPage, pvBlock); }
+    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? PR.t("适宽") : PR.t("放大"); showPage(pvPage, pvBlock); }
   });
   PR.pageStep = (d) => showPage(pvPage + d, pvBlock);
 })(window.PR);

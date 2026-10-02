@@ -7,6 +7,7 @@ window.PR = window.PR || {};
   let dict = {};
   try { dict = JSON.parse((document.getElementById("pr-i18n") || {}).textContent || "{}"); } catch (e) { dict = {}; }
   PR.lang = document.documentElement.lang === "en" ? "en" : "zh";
+  PR.langChoice = document.documentElement.dataset.langChoice || "auto";  // 设置里选的：auto 跟随系统
 
   const fill = (s, vars) => vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) : s;
   PR.t = (zh, vars) => fill(PR.lang === "en" ? dict[zh] || zh : zh, vars);

@@ -50,7 +50,7 @@ class I18nTest(unittest.TestCase):
         self.assertNotIn("pr-i18n", i18n.inject(page, "zh"))
         with mock.patch.object(i18n, "en_dict", lambda: {"设置": "Settings</script>"}):
             out = i18n.inject(page, "en")
-        self.assertIn('<html lang="en">', out)
+        self.assertIn('<html lang="en"', out)
         self.assertIn('id="pr-i18n"', out)
         self.assertNotIn("Settings</script>", out)  # 词典里的 < 要转义，不能提前结束 script
 

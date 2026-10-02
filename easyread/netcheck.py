@@ -19,12 +19,20 @@ from . import http
 from .log import log
 from .presets import NEEDS_VPN, PRESETS
 
+def tr(text: str, **kw) -> str:  # config 间接导入了本文件，i18n 又导入 config，所以用到时再导入
+    from .i18n import tr as _tr
+    return _tr(text, **kw)
+
+
 _OK_TTL = 120  # 通过一次后两分钟内不再测，一篇论文几十批不用每批都测
 _ok: dict[str, float] = {}
 _LOCAL = {"localhost", "127.0.0.1", "::1"}
 _NET = re.compile(r"ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|EAI_AGAIN|fetch failed|connection error|unable to connect"
-                  r"|error sending request|stream disconnected|timed out|getaddrinfo|连不上", re.I)
+                  r"|error sending request|stream disconnected|timed out|getaddrinfo|连不上|can't connect", re.I)  # i18n-ok 匹配报错
 _REGION = re.compile(r"unsupported_country|not available in your (country|region)|request not allowed", re.I)
+# 自己给出的连不上 / 证书提示里一定带的词（中英文各一套），见到就不再追加建议
+_MARKS = ("梯子", "先把它打开", "VPN", "start it first")  # i18n-ok
+_CERT_MARKS = ("证书校验失败", "certificate verification failed")  # i18n-ok
 _CERT = re.compile(r"CERTIFICATE_VERIFY_FAILED|certificate verify failed|self.signed certificate|unknown issuer", re.I)
 
 
@@ -60,11 +68,11 @@ def target(cfg: dict) -> dict | None:
     if e == "claude":
         url = _claude_base()
         official = "anthropic.com" in url
-        return {"name": "Claude" if official else "Claude Code 配置的中转地址", "url": url, "vpn": official}
+        return {"name": "Claude" if official else tr("Claude Code 配置的中转地址"), "url": url, "vpn": official}
     if e == "codex":
         url = _codex_base()
         official = "chatgpt.com" in url or "openai.com" in url
-        return {"name": "OpenAI（Codex）" if official else "Codex 配置的中转地址", "url": url, "vpn": official}
+        return {"name": tr("OpenAI（Codex）") if official else tr("Codex 配置的中转地址"), "url": url, "vpn": official}
     if e == "openai":
         o = cfg.get("openai") or {}
         url = (o.get("base_url") or "").strip().rstrip("/")
@@ -72,27 +80,26 @@ def target(cfg: dict) -> dict | None:
             return None
         p = next((x for x in PRESETS if x["id"] == o.get("preset")), None) \
             or next((x for x in PRESETS if x["base_url"].rstrip("/") == url), None)
-        return {"name": p["name"] if p else "接口", "url": url, "vpn": bool(p and p["id"] in NEEDS_VPN)}
+        return {"name": p["name"] if p else tr("接口"), "url": url, "vpn": bool(p and p["id"] in NEEDS_VPN)}
     return None
 
 
 def _advice(t: dict) -> str:
     host = urlparse(t["url"]).hostname or t["url"]
     if host in _LOCAL:
-        return f"连不上 {t['name']}（{urlparse(t['url']).netloc}）：先把它打开，再点重试。"
+        return tr("连不上 {name}（{host}）：先把它打开，再点重试。", name=t["name"], host=urlparse(t["url"]).netloc)
     if t["vpn"]:
-        return (f"连不上 {t['name']}（{host}）。在国内要先打开梯子（VPN）再点重试；开着还不行，把梯子切到 TUN 或全局模式。"
-                "不想开梯子，可以在设置里换成国内引擎（DeepSeek、智谱 GLM、硅基流动等）。")
-    return f"连不上 {t['name']}（{host}）：检查网络和地址有没有填对；开着梯子的话，试试让国内网站直连。"
+        return tr("连不上 {name}（{host}）。在国内要先打开梯子（VPN）再点重试；开着还不行，把梯子切到 TUN 或全局模式。不想开梯子，可以在设置里换成国内引擎（DeepSeek、智谱 GLM、硅基流动等）。", name=t["name"], host=host)
+    return tr("连不上 {name}（{host}）：检查网络和地址有没有填对；开着梯子的话，试试让国内网站直连。", name=t["name"], host=host)
 
 
 def _region(t: dict) -> str:
-    return f"{t['name']} 拒绝了当前地区的访问：梯子节点在它不支持的地区（比如香港），换成美国、日本、新加坡等节点再重试。"
+    return tr("{name} 拒绝了当前地区的访问：梯子节点在它不支持的地区（比如香港），换成美国、日本、新加坡等节点再重试。", name=t["name"])
 
 
 def _certificate(t: dict) -> str:
     host = urlparse(t["url"]).hostname or t["url"]
-    return f"{t['name']}（{host}）证书校验失败：请检查系统信任的根证书；使用代理时，也检查代理证书是否已获系统信任。"
+    return tr("{name}（{host}）证书校验失败：请检查系统信任的根证书；使用代理时，也检查代理证书是否已获系统信任。", name=t["name"], host=host)
 
 
 def problem(cfg: dict, timeout: float = 6) -> str | None:
@@ -124,7 +131,7 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
 
 def explain(cfg: dict, msg: str) -> str:
     t = target(cfg)
-    if not t or "梯子" in msg or "先把它打开" in msg:
+    if not t or any(k in msg for k in _MARKS):
         return msg
     if _REGION.search(msg):
         return msg + "\n" + _region(t)
@@ -139,7 +146,7 @@ def explain(cfg: dict, msg: str) -> str:
 
 def offline(msg: str) -> bool:
     """这条报错是不是网络 / 地区问题（是的话剩下的页不用再试了）。"""
-    return "梯子" in msg or "先把它打开" in msg or "证书校验失败" in msg
+    return any(k in msg for k in _MARKS + _CERT_MARKS)
 
 
 def proxy_env() -> dict | None:

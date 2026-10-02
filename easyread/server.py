@@ -15,6 +15,7 @@ from . import __version__, chat, chat_models, chat_store, cli_models, config, de
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
+from .i18n import tr
 from .store import now_iso
 
 WEB = config.WEB
@@ -82,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         """流式回答：一行一个 JSON，{"t": 片段} … 最后 {"done": true, "id": …} 或 {"error": …}。"""
         text = (body.get("text") or "").strip()
         if not text:
-            raise ValueError("问题是空的")
+            raise ValueError(tr("问题是空的"))
         cfg = config.load()
         ecfg, m = chat_models.engine_cfg(cfg, body.get("model"))
         model = chat_models.label(m)
@@ -123,7 +124,7 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
             if pieces:
-                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n（已停止）", m["id"], model, meter.snapshot())
+                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot())
         except engines.Cancelled:
             pass
         except Exception as e:  # noqa: BLE001
@@ -136,7 +137,7 @@ class Handler(BaseHTTPRequestHandler):
     def _body(self) -> bytes:
         n = int(self.headers.get("Content-Length", "0"))
         if n > MAX_UPLOAD:
-            raise ValueError("文件太大")
+            raise ValueError(tr("文件太大"))
         return self.rfile.read(n) if n else b""
 
     def _import_result(self, ws, fresh, translate_after, scope, read=False, model=""):
@@ -199,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.split("/")  # ['', 'api', 'p', id, action, name?]
             ws = lib.ws(parts[3]) if len(parts) > 4 else None
             if not ws:
-                return self._json(404, {"error": "没有这篇论文"})
+                return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
             if action == "state":
                 opened = {"last_opened": now_iso()}
@@ -299,7 +300,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self._body() or b"{}")
             act, name = body.get("action"), body.get("name", "")
             if act not in ("restore", "purge", "empty"):
-                raise ValueError("action 只能是 restore / purge / empty")
+                raise ValueError(tr("action 只能是 restore / purge / empty"))
             if act == "restore":
                 return self._json(200, {"id": trash.restore(lib.root, name)})
             return self._json(200, {"deleted": trash.purge(lib.root, name) if act == "purge" else trash.empty(lib.root)})
@@ -308,7 +309,7 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.split("/")
             ws = lib.ws(parts[3]) if len(parts) > 4 else None
             if not ws:
-                return self._json(404, {"error": "没有这篇论文"})
+                return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
             body = json.loads(self._body() or b"{}")
             if action == "chat" and len(parts) > 5:
@@ -329,7 +330,7 @@ class Handler(BaseHTTPRequestHandler):
             if action == "ops":
                 ops = body.get("ops") or []
                 if not isinstance(ops, list):
-                    raise ValueError("ops 必须是数组")
+                    raise ValueError(tr("ops 必须是数组"))
                 res = ws.apply_reader_ops(ops, client=str(body.get("client", ""))[:40])
                 res["versions"] = ws.versions()
                 return self._json(200, res)

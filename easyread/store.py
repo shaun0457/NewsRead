@@ -66,7 +66,8 @@ def dir_lock(folder: Path, name: str = ".write.lock", timeout: float = 15.0):
             except FileNotFoundError:
                 continue
             if time.time() - start > timeout:
-                raise TimeoutError(f"等锁超时：{lock}")
+                from .i18n import tr
+                raise TimeoutError(tr("等锁超时：{lock}", lock=lock))
             time.sleep(0.05)
     try:
         yield

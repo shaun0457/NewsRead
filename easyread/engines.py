@@ -19,6 +19,11 @@ from pathlib import Path
 from . import netcheck, usage
 
 
+def tr(text: str, **kw) -> str:  # config 间接导入了本文件，i18n 又导入 config，所以用到时再导入
+    from .i18n import tr as _tr
+    return _tr(text, **kw)
+
+
 class EngineError(RuntimeError):
     pass
 
@@ -27,7 +32,11 @@ class Cancelled(RuntimeError):
     pass
 
 
-ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "openai": "API", "none": "不翻译"}
+ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "openai": "API", "none": "不翻译"}  # i18n-ok 显示时用 engine_name()
+
+
+def engine_name(engine: str | None) -> str:
+    return tr("不翻译") if engine == "none" else ENGINE_NAMES.get(engine, engine or "")
 
 
 def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None,
@@ -50,7 +59,7 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
         return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
     if engine == "openai":
         return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
-    raise EngineError("没有配置翻译引擎（设置 → 模型）")
+    raise EngineError(tr("没有配置翻译引擎（设置 → 模型）"))
 
 
 def image_mode(cfg: dict) -> str:
@@ -94,7 +103,7 @@ def _popen(args: list[str], cwd: Path):
 def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     exe = claude_path(c)
     if not exe:
-        raise EngineError(f"找不到 Claude Code 命令：{c.get('command') or 'claude'}（先装好并登录 Claude Code）")
+        raise EngineError(tr("找不到 Claude Code 命令：{cmd}（先装好并登录 Claude Code）", cmd=c.get("command") or "claude"))
     args = [exe, "-p", *_CLAUDE_ARGS]
     if c.get("model"):
         args += ["--model", c["model"]]
@@ -103,21 +112,21 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     events = _json_lines(out)
     res = next((e for e in reversed(events) if e.get("type") == "result"), None)
     if res is None:
-        raise EngineError(f"Claude Code 输出不是 JSON：{out[:300]}")
+        raise EngineError(tr("Claude Code 输出不是 JSON：{out}", out=out[:300]))
     if meter is not None:
         meter.add(**usage.from_claude(res, next((e for e in reversed(events) if e.get("type") == "rate_limit_event"), None)))
     if res.get("is_error") or res.get("subtype", "success") != "success":
         msg = str(res.get("result") or res.get("terminal_reason") or res.get("subtype"))
         if "limit" in msg.lower():
-            msg += "（用量到上限了，等额度恢复后点“重试”，或在设置里换个引擎）"
-        raise EngineError(f"Claude Code 出错：{msg}")
+            msg += tr("（用量到上限了，等额度恢复后点“重试”，或在设置里换个引擎）")
+        raise EngineError(tr("Claude Code 出错：{msg}", msg=msg))
     return res.get("result") or ""
 
 
 def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, meter=None) -> str:
     exe = codex_path(c)
     if not exe:
-        raise EngineError(f"找不到 Codex 命令：{c.get('command') or 'codex'}（先装好并登录 Codex CLI）")
+        raise EngineError(tr("找不到 Codex 命令：{cmd}（先装好并登录 Codex CLI）", cmd=c.get("command") or "codex"))
     fd, last = tempfile.mkstemp(suffix=".txt", prefix="easyread-codex-")
     os.close(fd)
     args = [exe, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never", "--json", "-o", last]
@@ -138,7 +147,7 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, 
                 meter.add(**usage.from_codex(e))
     if not text:
         errs = [str(e.get("message") or (e.get("error") or {}).get("message") or "") for e in events if e.get("type") in ("error", "turn.failed")]
-        raise EngineError("Codex 没有给出结果：" + (next((m for m in reversed(errs) if m), "") or (out or "")[-300:]))
+        raise EngineError(tr("Codex 没有给出结果：{msg}", msg=(next((m for m in reversed(errs) if m), "") or (out or "")[-300:])))
     return text
 
 
@@ -172,9 +181,9 @@ def _communicate(proc, stdin_text: str, timeout: int, cancel) -> str:
             raise Cancelled()
         if waited > timeout:
             proc.kill()
-            raise EngineError(f"超过 {timeout} 秒没有结果")
+            raise EngineError(tr("超过 {n} 秒没有结果", n=timeout))
     if proc.returncode not in (0, None) and not result.get("out"):
-        raise EngineError((result.get("err") or "")[-500:] or f"退出码 {proc.returncode}")
+        raise EngineError((result.get("err") or "")[-500:] or tr("退出码 {code}", code=proc.returncode))
     return result.get("out", "")
 
 
@@ -194,7 +203,7 @@ def parse_json(text: str):
         if start >= 0:
             bodies.append(s[start:max(s.rfind("}"), s.rfind("]")) + 1])
     if not bodies:
-        raise EngineError("模型输出里没有 JSON：" + text[:200])
+        raise EngineError(tr("模型输出里没有 JSON：{text}", text=text[:200]))
     first = None
     for body in bodies:
         try:
@@ -207,7 +216,7 @@ def parse_json(text: str):
     try:
         return json.loads(fixed, strict=False)
     except json.JSONDecodeError:
-        raise EngineError(f"模型输出的 JSON 格式有错（{first}），会自动重试")
+        raise EngineError(tr("模型输出的 JSON 格式有错（{err}），会自动重试", err=first))
 
 
 def _version(exe: str) -> str:
@@ -224,12 +233,12 @@ def test(cfg: dict) -> dict:
     if engine in ("claude", "codex"):
         exe = (claude_path if engine == "claude" else codex_path)(cfg[engine])
         if not exe:
-            return {"ok": False, "message": f"找不到 {engine} 命令，先安装并登录"}
+            return {"ok": False, "message": tr("找不到 {engine} 命令，先安装并登录", engine=engine)}
     if engine == "none":
-        return {"ok": True, "message": "未启用自动翻译"}
+        return {"ok": True, "message": tr("未启用自动翻译")}
     try:
-        out = run(cfg, '只回复 JSON，不要别的文字：{"ok": true}', Path(tempfile.gettempdir()), None, None)
+        out = run(cfg, '只回复 JSON，不要别的文字：{"ok": true}', Path(tempfile.gettempdir()), None, None)  # i18n-ok
         parse_json(out)
-        return {"ok": True, "message": "可以用：" + out.strip()[:40]}
+        return {"ok": True, "message": tr("可以用：{out}", out=out.strip()[:40])}
     except (EngineError, Cancelled) as e:
         return {"ok": False, "message": str(e)[:300]}

@@ -14,12 +14,12 @@
     const edited = !!PR.editOf(key);
     PR.editingKey = key;
     const wrapEl = PR.el("div", { class: "editor-wrap" });
-    const ta = PR.el("textarea", { class: "editor", spellcheck: "false", "aria-label": "编辑译文" });
+    const ta = PR.el("textarea", { class: "editor", spellcheck: "false", "aria-label": PR.t("编辑译文") });
     ta.value = draft != null && draft !== current ? draft : current;
     const bar = PR.el("div", { class: "editor-bar" },
-      "<span>" + (draft != null && draft !== current ? "已恢复上次没保存的草稿 · " : "") + "Ctrl+Enter 保存 · Esc 取消 · 支持 $公式$、**粗体**</span>" +
-      '<span class="grow"></span>' + (edited ? '<button data-e="revert">恢复译者稿</button>' : "") +
-      '<button data-e="cancel">取消</button><button data-e="save" class="primary">保存</button>');
+      "<span>" + (draft != null && draft !== current ? PR.t("已恢复上次没保存的草稿 · ") : "") + PR.t("Ctrl+Enter 保存 · Esc 取消 · 支持 $公式$、**粗体**") + "</span>" +
+      '<span class="grow"></span>' + (edited ? '<button data-e="revert">' + PR.t("恢复译者稿") + "</button>" : "") +
+      '<button data-e="cancel">' + PR.t("取消") + '</button><button data-e="save" class="primary">' + PR.t("保存") + "</button>");
     wrapEl.append(ta, bar);
     zh.replaceChildren(wrapEl);
     PR.autosize(ta);
@@ -60,9 +60,9 @@
   PR.showStale = function (zh) {
     const key = zh.dataset.key;
     const agent = PR.agentText(key);
-    PR.popover(zh, '<div class="hd">译者稿（更新后）</div><div class="cap">' + PR.md(agent) + "</div>" +
-      '<div class="hd" style="margin-top:10px">你的版本</div><div class="cap">' + PR.md(PR.textFor(key)) + "</div>" +
-      '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm line" data-st="agent">换成译者稿</button><button class="btn sm line" data-st="mine">保留我的</button></div>', { sticky: true, wide: true });
+    PR.popover(zh, '<div class="hd">' + PR.t("译者稿（更新后）") + '</div><div class="cap">' + PR.md(agent) + "</div>" +
+      '<div class="hd" style="margin-top:10px">' + PR.t("你的版本") + '</div><div class="cap">' + PR.md(PR.textFor(key)) + "</div>" +
+      '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm line" data-st="agent">' + PR.t("换成译者稿") + '</button><button class="btn sm line" data-st="mine">' + PR.t("保留我的") + "</button></div>", { sticky: true, wide: true });
     PR.$("#popover").onclick = (ev) => {
       const b = ev.target.closest("[data-st]");
       if (!b) return;

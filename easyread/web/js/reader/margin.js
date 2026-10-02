@@ -3,7 +3,7 @@
 (function (PR) {
   "use strict";
   const S = PR.state;
-  const KIND_LABEL = { explain: "AI · 解释", qa: "AI · 问答", insight: "AI · 补充", reply: "AI · 回答你的问题", check: "原文核对提示" };
+  const KIND_LABEL = { explain: PR.t("AI · 解释"), qa: PR.t("AI · 问答"), insight: PR.t("AI · 补充"), reply: PR.t("AI · 回答你的问题"), check: PR.t("原文核对提示") };
   const expanded = new Set();
   PR.editingNote = null;
   PR.asking = new Set();   // 正在等模型回答的问题
@@ -41,23 +41,23 @@
         (d.title ? '<div class="ttl">' + PR.md(d.title, { xref: false }) + "</div>" : "") +
         (d.q ? '<div class="q">' + PR.md(d.q) + "</div>" : "") +
         '<div class="body">' + PR.mdBlocks(d.body) + "</div>" +
-        (PR.store.mode !== "server" ? "" : '<div class="acts">' + (d.reply_to && (S.reader.notes || {})[d.reply_to] && PR.canChat && PR.canChat() ? '<button data-a="regen">重新回答</button>' : "") +
-        '<button data-a="adel">删除</button></div>') + "</div>";
+        (PR.store.mode !== "server" ? "" : '<div class="acts">' + (d.reply_to && (S.reader.notes || {})[d.reply_to] && PR.canChat && PR.canChat() ? '<button data-a="regen">' + PR.t("重新回答") + "</button>" : "") +
+        '<button data-a="adel">' + PR.t("删除") + "</button></div>") + "</div>";
     }
     const answered = PR.repliesTo(d.id).length > 0;
     const asking = PR.asking.has(d.id);
-    const lbl = d.kind === "question" ? "我的问题 · " + (answered ? "已回复" : asking ? "模型思考中" : "待回答") : d.kind === "highlight" ? "我的划线" : "我的笔记";
+    const lbl = d.kind === "question" ? PR.t("我的问题") + " · " + (answered ? PR.t("已回复") : asking ? PR.t("模型思考中") : PR.t("待回答")) : d.kind === "highlight" ? PR.t("我的划线") : PR.t("我的笔记");
     const lost = d.quote && PR.quoteLost && PR.quoteLost(d.id) ? " lost" : "";
     const editing = (editingId !== undefined ? editingId : PR.editingNote) === d.id;
-    const askLabel = d.kind === "question" ? (answered ? "追问 AI" : "让 AI 回答") : "让 AI 点评";
+    const askLabel = d.kind === "question" ? (answered ? PR.t("追问 AI") : PR.t("让 AI 回答")) : PR.t("让 AI 点评");
     const ask = d.kind !== "highlight" && d.body && PR.canChat && PR.canChat() && PR.feature("chat")
-      ? '<button data-a="ask" class="ask"' + (asking ? " disabled" : "") + ">" + (asking ? '<span class="spin"></span> 正在回答' : PR.icon("sparkle", "sm") + askLabel) + "</button>" : "";
+      ? '<button data-a="ask" class="ask"' + (asking ? " disabled" : "") + ">" + (asking ? '<span class="spin"></span> ' + PR.t("正在回答") : PR.icon("sparkle", "sm") + askLabel) + "</button>" : "";
     const body = editing
-      ? '<textarea placeholder="' + (d.kind === "question" ? "想问什么？可以点“让模型回答”，也可以留给下次和 agent 讨论" : "写下你的理解、疑问或联想…（支持 $公式$、**粗体**）") + '">' + PR.esc(d.body || "") + "</textarea>" +
-        '<div class="kinds"><button data-k="note" class="' + (d.kind !== "question" ? "on" : "") + '">笔记</button><button data-k="question" class="' + (d.kind === "question" ? "on" : "") + '">问题</button>' +
-        colorDots(d) + '<span class="hint">自动保存 · Esc 收起</span></div>'
+      ? '<textarea placeholder="' + (d.kind === "question" ? PR.t("想问什么？可以点“让模型回答”，也可以留给下次和 agent 讨论") : PR.t("写下你的理解、疑问或联想…（支持 $公式$、**粗体**）")) + '">' + PR.esc(d.body || "") + "</textarea>" +
+        '<div class="kinds"><button data-k="note" class="' + (d.kind !== "question" ? "on" : "") + '">' + PR.t("笔记") + '</button><button data-k="question" class="' + (d.kind === "question" ? "on" : "") + '">' + PR.t("问题") + "</button>" +
+        colorDots(d) + '<span class="hint">' + PR.t("自动保存 · Esc 收起") + "</span></div>"
       : '<div class="body">' + PR.mdBlocks(d.body) + "</div>" + (ask ? '<div class="ask-row">' + ask + "</div>" : "") +
-        '<div class="acts"><button data-a="edit">编辑</button><button data-a="kind">' + (d.kind === "question" ? "改成笔记" : "改成问题") + '</button><button data-a="del">删除</button></div>';
+        '<div class="acts"><button data-a="edit">' + PR.t("编辑") + '</button><button data-a="kind">' + (d.kind === "question" ? PR.t("改成笔记") : PR.t("改成问题")) + '</button><button data-a="del">' + PR.t("删除") + "</button></div>";
     return '<div class="card mine' + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       '<div class="lbl"><span>' + lbl + '</span><span class="meta">' + PR.shortTime(d.updated || d.created) + "</span></div>" +
       (d.quote ? '<div class="quote' + lost + '">「' + PR.md(d.quote, { cite: false, xref: false }) + "」</div>" : "") + body + "</div>";
@@ -67,7 +67,7 @@
   function colorDots(d) {
     if (!d.quote) return "";
     return '<span class="dots">' + ["yellow", "green", "blue", "pink"].map((c) =>
-      '<button data-color="' + c + '" class="dot-' + c + ((d.color || "yellow") === c ? " on" : "") + '" title="换颜色"></button>').join("") + "</span>";
+      '<button data-color="' + c + '" class="dot-' + c + ((d.color || "yellow") === c ? " on" : "") + '" title="' + PR.t("换颜色") + '"></button>').join("") + "</span>";
   }
 
   PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches &&
@@ -87,7 +87,7 @@
       if (wide) margin.insertAdjacentHTML("beforeend", html);
       else {
         const mine = items.every((i) => i.src === "mine");
-        host.appendChild(PR.el("button", { class: "note-pin" + (mine ? " mine" : ""), title: "讨论与笔记", "data-t": "pin", text: String(items.length) }));
+        host.appendChild(PR.el("button", { class: "note-pin" + (mine ? " mine" : ""), title: PR.t("讨论与笔记"), "data-t": "pin", text: String(items.length) }));
         host.appendChild(PR.el("div", { class: "inline-notes" }, html));
       }
     }
@@ -101,7 +101,7 @@
     const id = card.dataset.card || card.dataset.note;
     if (body && !expanded.has(id) && body.scrollHeight > 220) {
       card.classList.add("clamp");
-      card.insertAdjacentHTML("beforeend", '<button class="more" data-a="more">展开全文</button>');
+      card.insertAdjacentHTML("beforeend", '<button class="more" data-a="more">' + PR.t("展开全文") + "</button>");
     }
     const ta = card.querySelector("textarea");
     if (ta) PR.autosize(ta);
@@ -193,13 +193,13 @@
     if (!n) return;
     const answered = PR.repliesTo(nid).length > 0;
     if (n.kind === "question" && answered) return PR.chatAsk({ anchor: n.anchor, quote: n.quote, draft: "" });
-    const text = n.kind === "question" ? n.body : "这是我读这里时写的笔记，请点评：我理解得对不对、有没有漏掉或想错的地方、还可以往哪想。\n\n我的笔记：" + n.body;
+    const text = n.kind === "question" ? n.body : "这是我读这里时写的笔记，请点评：我理解得对不对、有没有漏掉或想错的地方、还可以往哪想。\n\n我的笔记：" + n.body;  // i18n-ok 发给模型的提示词
     PR.chatAsk({ anchor: n.anchor, quote: n.quote, text, note: nid });
   };
   PR.on("job-finished", (j) => {
     if (j.kind !== "answer") return;
     PR.asking.delete(j.note);
-    if (j.state === "error") PR.toast("模型回答失败：" + PR.esc(j.message));
+    if (j.state === "error") PR.toast(PR.t("模型回答失败：{msg}", { msg: PR.esc(j.message) }));
     PR.renderMargin(); PR.notesPanelOpen && PR.notesPanelOpen() && PR.renderNotesPanel();
   });
 
@@ -238,7 +238,7 @@
       else if (a.dataset.a === "del") {
         PR.commit({ op: "note_del", id: nid });
         PR.renderMargin(); PR.applyMarks(); inPanel && PR.renderNotesPanel();
-        PR.toast("已删除这条笔记", { label: "撤销", fn: () => { PR.saveNote(Object.assign({}, n, { deleted: false })); PR.renderMargin(); PR.applyMarks(); inPanel && PR.renderNotesPanel(); } });
+        PR.toast(PR.t("已删除这条笔记"), { label: PR.t("撤销"), fn: () => { PR.saveNote(Object.assign({}, n, { deleted: false })); PR.renderMargin(); PR.applyMarks(); inPanel && PR.renderNotesPanel(); } });
       }
       return true;
     }
@@ -261,10 +261,10 @@
   async function delAgent(id, regen, btn) {
     const e = (S.discussion.entries || []).find((x) => x.id === id);
     if (!e) return;
-    if (!regen && !(await PR.confirm({ title: "删除这条 AI 内容？", body: "删了不能撤销。", ok: "删除", danger: true, at: btn }))) return;
+    if (!regen && !(await PR.confirm({ title: PR.t("删除这条 AI 内容？"), body: PR.t("删了不能撤销。"), ok: PR.t("删除"), danger: true, at: btn }))) return;
     try {
       await PR.api("/api/p/" + PR.pid + "/discussion_del", { method: "POST", body: { id } });
-    } catch (err) { return PR.toast("删除失败：" + PR.esc(err.message)); }
+    } catch (err) { return PR.toast(PR.t("删除失败：{msg}", { msg: PR.esc(err.message) })); }
     S.discussion.entries = S.discussion.entries.filter((x) => x.id !== id);
     PR.renderMargin(); PR.applyMarks();
     if (PR.notesPanelOpen && PR.notesPanelOpen()) PR.renderNotesPanel();

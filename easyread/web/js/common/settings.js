@@ -53,6 +53,10 @@
       PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), st.type));
       if (PR.resetAllType) PR.resetAllType(st.type); else PR.savePrefs("reader", st.type);
     }
+    if (st.lang && st.lang !== PR.langChoice) {  // 换界面语言：存好后刷新，页面由后端按新语言重新生成
+      await PR.api("/api/prefs", { method: "POST", body: { ui: { lang: st.lang } } });
+      return location.reload();
+    }
     dlg().classList.remove("open");
     PR.toast(PR.t("设置已保存"));
     PR.onSettingsSaved && PR.onSettingsSaved();

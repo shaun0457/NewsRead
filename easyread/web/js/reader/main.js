@@ -105,8 +105,8 @@
     const first = fresh[0];
     fresh.forEach((e) => PR.flashCard(e.id));
     const what = PR.plain(first.title || first.q || first.body || "").slice(0, 28);
-    PR.toast("新增 " + fresh.length + " 条：" + PR.esc(what) + (what.length >= 28 ? "…" : ""), {
-      label: "去看看", fn: () => { PR.jumpTo("b-" + PR.anchorOfEntry(first)); setTimeout(() => PR.flashCard(first.id), 400); },
+    PR.toast(PR.t("新增 {n} 条：{what}", { n: fresh.length, what: PR.esc(what) + (what.length >= 28 ? "…" : "") }), {
+      label: PR.t("去看看"), fn: () => { PR.jumpTo("b-" + PR.anchorOfEntry(first)); setTimeout(() => PR.flashCard(first.id), 400); },
     }, 7000);
   }
 
@@ -114,7 +114,7 @@
   async function boot() {
     PR.applyPrefs();
     try { await PR.load(); } catch (e) {
-      PR.$("#paper").innerHTML = '<div class="pending">读不到论文：' + PR.esc(e.message) + '。<a href="/">回文献库</a></div>';
+      PR.$("#paper").innerHTML = '<div class="pending">' + PR.t("读不到论文：{msg}。", { msg: PR.esc(e.message) }) + '<a href="/">' + PR.t("回文献库") + "</a></div>";
       return;
     }
     if (PR.store.mode === "server") {  // 以本机 prefs.json 为准
@@ -125,7 +125,7 @@
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";
     PR.applyFeatures();
     const m = S.paper.meta || {};
-    document.title = (m.short_zh || m.title_zh || m.title_en || "论文") + " · EasyRead";
+    document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · EasyRead";
     PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));
@@ -158,14 +158,14 @@
       if (b && scrollY < 50) {
         let h = null;
         for (const x of S.paper.blocks) { if (x.type === "heading") h = x; if (x.id === b.id) break; }
-        PR.toast("上次读到" + (h ? "「" + (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id)) + "」" : "第 " + b.page + " 页"),
-          { label: "接着读", fn: () => PR.jumpTo("b-" + b.id, { noBack: true }) }, 8000);
+        PR.toast(h ? PR.t("上次读到「{sec}」", { sec: (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id)) }) : PR.t("上次读到第 {page} 页", { page: b.page }),
+          { label: PR.t("接着读"), fn: () => PR.jumpTo("b-" + b.id, { noBack: true }) }, 8000);
       } else if (!PR.ls.get("easyread-hint-seen", false)) {
         PR.ls.set("easyread-hint-seen", true);
         const touch = matchMedia("(pointer: coarse)").matches;  // 手机上没有右键和键盘
-        const tip = S.demo ? "在线演示：点段落、选中文字试试划线和笔记；顶栏“问 AI”里有一段真实的 AI 对话。"
-          : touch ? "点一下段落出现操作条；长按选中文字，可以划线、写笔记。"
-          : "点一下段落出现操作条，右键有完整菜单；选中文字可以划线、写笔记。" + (PR.keysOn ? "<kbd>=</kbd> <kbd>-</kbd> 调字号" : "");
+        const tip = S.demo ? PR.t("在线演示：点段落、选中文字试试划线和笔记；顶栏“问 AI”里有一段真实的 AI 对话。")
+          : touch ? PR.t("点一下段落出现操作条；长按选中文字，可以划线、写笔记。")
+          : PR.t("点一下段落出现操作条，右键有完整菜单；选中文字可以划线、写笔记。") + (PR.keysOn ? PR.t("<kbd>=</kbd> <kbd>-</kbd> 调字号") : "");
         setTimeout(() => PR.toast(tip, null, 9000), 800);
       }
     }

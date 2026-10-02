@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 
+from .i18n import tr
 from .store import Workspace, now_iso
 
 BLOCK_TYPES = {"heading", "para", "list", "math", "table", "figure", "references", "note"}
@@ -31,7 +32,7 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         data = {"blocks": data}
     for b in data.get("blocks", []):
         if not b.get("id") or b.get("type") not in BLOCK_TYPES:
-            raise ValueError(f"块缺 id 或类型不对：{str(b)[:120]}")
+            raise ValueError(tr("块缺 id 或类型不对：{block}", block=str(b)[:120]))
 
     def apply(paper):
         blocks = paper.setdefault("blocks", [])
@@ -84,7 +85,7 @@ def _scope(paper: dict) -> None:
     tr = paper.setdefault("translation", {})
     total = paper.get("meta", {}).get("page_count") or 0
     n = len(set(tr.get("done_pages", [])) - set(tr.get("en_pages", [])))
-    tr["scope"] = "全文" if total and n >= total else f"已译 {n} / {total} 页"
+    tr["scope"] = "全文" if total and n >= total else f"已译 {n} / {total} 页"  # i18n-ok 存进 paper.json
 
 
 def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list[str]:
@@ -133,13 +134,13 @@ def add_discussion(ws: Workspace, items) -> tuple[int, int]:
     notes = ws.load("reader").get("notes", {})
     for it in items:
         if it.get("kind", "explain") not in DISCUSSION_KINDS:
-            raise ValueError(f"kind 只能是 {sorted(DISCUSSION_KINDS)}")
+            raise ValueError(tr("kind 只能是 {kinds}", kinds=sorted(DISCUSSION_KINDS)))
         if it.get("anchor") and it["anchor"] not in block_ids:
-            raise ValueError(f"锚点块不存在：{it['anchor']}")
+            raise ValueError(tr("锚点块不存在：{anchor}", anchor=it["anchor"]))
         if it.get("reply_to") and it["reply_to"] not in notes:
-            raise ValueError(f"要回复的用户笔记不存在：{it['reply_to']}")
+            raise ValueError(tr("要回复的用户笔记不存在：{note}", note=it["reply_to"]))
         if not (it.get("body") or "").strip():
-            raise ValueError("body 不能为空")
+            raise ValueError(tr("body 不能为空"))
 
     def merge(disc):
         entries = disc.setdefault("entries", [])

@@ -9,6 +9,7 @@ import json
 import threading
 
 from . import chat, chat_models, config, engines
+from .i18n import tr
 from .log import log
 from .prompts import _block_text
 from .store import Workspace
@@ -16,12 +17,12 @@ from .store import Workspace
 PAPER_BUDGET = 14000  # 不能自己读文件的引擎：随提示词附上的译文字数上限
 
 ASK = {
-    "review": ("请点评这份笔记：哪些理解是准确的；哪些地方和论文不符或理解有误（说清论文实际怎么说、在哪一节）；"
-               "漏掉了哪些重要内容；还可以往哪想。直接、具体，分条写，不要客套，不要重写整份笔记。"),
-    "revise": ("请帮读者修改这份笔记：保留他的观点、结构和口吻，修正和论文不符的地方，补上明显漏掉的要点，把表达理顺。"
-               "只输出修改后的完整笔记（Markdown，公式写 $TeX$），不要解释改了什么。"),
-    "draft": ("读者还没写笔记。请帮他起一个读书笔记草稿，留出他自己思考的空间：核心问题、方法要点、主要结论、"
-              "局限或疑问（这一项只列问题，不替他下结论）。用 Markdown，简洁，公式写 $TeX$。只输出笔记本身。"),
+    "review": ("请点评这份笔记：哪些理解是准确的；哪些地方和论文不符或理解有误（说清论文实际怎么说、在哪一节）；"  # i18n-ok 提示词
+               "漏掉了哪些重要内容；还可以往哪想。直接、具体，分条写，不要客套，不要重写整份笔记。"),  # i18n-ok
+    "revise": ("请帮读者修改这份笔记：保留他的观点、结构和口吻，修正和论文不符的地方，补上明显漏掉的要点，把表达理顺。"  # i18n-ok
+               "只输出修改后的完整笔记（Markdown，公式写 $TeX$），不要解释改了什么。"),  # i18n-ok
+    "draft": ("读者还没写笔记。请帮他起一个读书笔记草稿，留出他自己思考的空间：核心问题、方法要点、主要结论、"  # i18n-ok
+              "局限或疑问（这一项只列问题，不替他下结论）。用 Markdown，简洁，公式写 $TeX$。只输出笔记本身。"),  # i18n-ok
 }
 
 
@@ -34,7 +35,7 @@ def _paper_text(ws: Workspace) -> str:
         if not t:
             continue
         if used + len(t) > PAPER_BUDGET:
-            out.append("……（后面的内容略）")
+            out.append("……（后面的内容略）")  # i18n-ok 提示词
             break
         out.append(t)
         used += len(t)
@@ -44,10 +45,10 @@ def _paper_text(ws: Workspace) -> str:
 def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     meta = ws.load("paper").get("meta", {})
     title = meta.get("title_zh") or meta.get("title_en") or ""
-    paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"
-             if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))
-    return (f"你在帮读者整理读论文《{title}》的笔记。用中文。{ASK[mode]}\n\n{paper}\n\n"
-            + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))
+    paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"  # i18n-ok 提示词
+             if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))  # i18n-ok
+    return (f"你在帮读者整理读论文《{title}》的笔记。用中文。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
+            + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
 
 
 def handle(handler, ws: Workspace, body: dict) -> None:
@@ -55,9 +56,9 @@ def handle(handler, ws: Workspace, body: dict) -> None:
     mode = body.get("mode")
     note = str(body.get("note") or "")[:20000]
     if mode not in ASK:
-        raise ValueError("mode 只能是 review / revise / draft")
+        raise ValueError(tr("mode 只能是 review / revise / draft"))
     if mode != "draft" and not note.strip():
-        raise ValueError("笔记还是空的")
+        raise ValueError(tr("笔记还是空的"))
     ecfg, m = chat_models.engine_cfg(config.load(), body.get("model"))
     text = prompt(ws, mode, note, ecfg["engine"])
     handler.send_response(200)
