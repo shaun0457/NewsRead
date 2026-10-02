@@ -145,9 +145,6 @@
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
       '<label class="field"><span>' + PR.t("同时几批") + '</span><select class="input" data-k="concurrency">' + PR.opt([[1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"]], c.concurrency) + "</select></label></div>" +
       '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>';
-    if (e === "claude" || e === "codex") {
-      h += '<details class="api-adv"><summary>' + PR.t("高级") + '</summary><label class="field"><span>' + PR.t("{name} 命令", { name: e === "claude" ? "Claude Code" : "Codex" }) + '</span><input class="input" data-k="' + e + '.command" value="' + PR.esc(c[e].command) + '"></label></details>';
-    }
     return h;
   }
   /* 页面上翻译那几项的值读回 cfg（存的时候 settings.js 从 cfg 取） */

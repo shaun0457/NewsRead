@@ -155,6 +155,8 @@
 .imp-opts[hidden] { display: none; }
 .imp-lbl { font-size: 13px; color: var(--ink-3); min-width: 3em; }
 #impModel { width: auto; max-width: 340px; height: 30px; font-size: 13px; }
+#impTarget { width: auto; height: 30px; font-size: 13px; margin-left: -4px; }  /* 紧跟在“翻译成”后面 */
+#impTarget[hidden] { display: none; }
 .imp-opts.dim { opacity: .4; pointer-events: none; }  /* 先不处理：范围用不上，留着位置不让对话框跳 */
 .seg button:disabled { opacity: .45; cursor: not-allowed; }
 .first-n { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }

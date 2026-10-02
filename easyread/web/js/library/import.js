@@ -5,7 +5,7 @@
   const dlg = PR.$("#importDlg");
   const SCOPES = [["all", PR.t("全文")], ["body", PR.t("正文（到参考文献为止）")], ["range", PR.t("指定页")]];
   // 导入后做什么：翻译成中文 / 只读英文原文（模型把版面排好，不翻译）/ 只放原页图
-  const AFTER = [["translate", PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }), PR.t("后台逐页翻译成{lang}，随时对照原文", { lang: PR.targetName(PR.target) })],
+  const AFTER = [["translate", PR.t("翻译成"), PR.t("后台逐页翻译，随时对照原文；译成哪种语言在右边选")],
     ["read", PR.t("读英文原文"), PR.t("不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看译文了随时点“翻译成{lang}”", { lang: PR.targetName(PR.target) })],
     ["none", PR.t("先不处理"), PR.t("不用模型，阅读页先放原页图片")]];
 
@@ -29,7 +29,8 @@
       '<div class="or">' + PR.t("或者") + "</div>" +
       '<label class="field"><span>' + PR.t("链接、arXiv 编号、DOI 或论文标题") + '</span><div class="inline"><input class="input" id="arxivRef" placeholder="' + PR.t("2411.00640 · 10.18653/v1/N19-1423 · 论文网页链接 · 论文标题") + '">' +
       '<button class="btn accent" id="arxivGo">' + PR.t("导入") + "</button></div></label>" +
-      '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div></div>" +
+      '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div>" +
+        '<select class="input imp-target" id="impTarget" title="' + PR.t("译成哪种语言") + '"' + (after === "translate" ? "" : " hidden") + ">" + PR.opt(PR.TARGETS, PR.target) + "</select></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">' + PR.t("模型") + '</span><select class="input" id="impModel">' +
@@ -60,8 +61,9 @@
     const after = L.engine === "none" ? "none" : p.after;
     const from = Math.max(1, +p.from || 1), to = Math.max(1, +p.to || from);
     const scope = p.scope === "range" ? "range:" + Math.min(from, to) + "-" + Math.max(from, to) : p.scope;
-    const sel = PR.$("#impModel");
-    return { translate: after !== "none", read: after === "read", scope, model: after === "none" ? "" : sel ? sel.value : "" };
+    const sel = PR.$("#impModel"), tgt = PR.$("#impTarget");  // 拖进来导入时对话框没开，用设置里的译文语言
+    return { translate: after !== "none", read: after === "read", scope, model: after === "none" ? "" : sel ? sel.value : "",
+      target: after === "translate" ? (tgt ? tgt.value : PR.target) : "" };
   }
 
   dlg.addEventListener("click", (e) => {
@@ -75,6 +77,7 @@
       PR.$$("[data-after]", dlg).forEach((b) => b.classList.toggle("on", b === a));
       PR.$("#scopeRow").classList.toggle("dim", a.dataset.after === "none");
       PR.$("#modelRow").classList.toggle("dim", a.dataset.after === "none");
+      PR.$("#impTarget").hidden = a.dataset.after !== "translate";
     }
     const s = e.target.closest("[data-scope]");
     if (s) {
@@ -101,7 +104,7 @@
     for (const [k, f] of pdfs.entries()) {
       PR.toast(PR.t("正在导入 {i}/{n}：{name}", { i: k + 1, n: pdfs.length, name: PR.esc(f.name) }), null, 60000);
       try {
-        const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&read=" + (o.read ? 1 : 0) + "&model=" + encodeURIComponent(o.model) + "&scope=" + encodeURIComponent(o.scope) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
+        const r = await PR.api("/api/import?translate=" + (o.translate ? 1 : 0) + "&read=" + (o.read ? 1 : 0) + "&model=" + encodeURIComponent(o.model) + "&target=" + encodeURIComponent(o.target) + "&scope=" + encodeURIComponent(o.scope) + "&name=" + encodeURIComponent(f.name), { method: "POST", body: f });
         last = r.id;
         if (!r.new) PR.toast(r.queued ? PR.t("《{name}》已重新加入准备队列", { name: PR.esc(f.name) }) : PR.t("《{name}》已经在库里了", { name: PR.esc(f.name) }));
       } catch (e) { PR.toast(PR.t("导入失败：{msg}", { msg: PR.esc(e.message) })); }
@@ -118,7 +121,7 @@
     else PR.toast('<span class="spin"></span> ' + PR.t("正在查找并下载 {ref}", { ref: PR.esc(ref) }), null, 60000);
     const o = opts();
     try {
-      const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope } });
+      const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope, target: o.target } });
       close();
       await L.load();
       L.select(r.id);

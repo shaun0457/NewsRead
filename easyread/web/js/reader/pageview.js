@@ -48,28 +48,73 @@
     const need = (PR.$(".pv-scroll").clientWidth || 480) * (body.classList.contains("pv-zoom") ? 1.65 : 1) * (devicePixelRatio || 1);
     return need <= 1000 ? base + "?w=1000" : need <= 1600 ? base + "?w=1600" : base;  // 1000 宽的服务端已提前生成好
   }
-  const preloaded = new Set();
-  function preload(n) {
-    const s = srcOf(n);
-    if (s && !preloaded.has(s)) { preloaded.add(s); const im = new Image(); im.decoding = "async"; im.src = s; }
+  let pageNodes = [], pageSource = null;
+  const scroller = PR.$(".pv-scroll");
+  function loadPage(n) {
+    const entry = pageNodes[n - 1];
+    if (!entry) return;
+    const src = srcOf(n);
+    if (entry.img.getAttribute("src") === src) return;
+    entry.node.classList.add("loading");
+    entry.img.onload = () => entry.node.classList.remove("loading");
+    entry.img.setAttribute("src", src);
   }
-  PR.preloadPage = () => { const b = PR.blockById[PR.readingBlock()]; if (b && b.page) preload(b.page); };
+  function loadNearby(n) {
+    for (let i = Math.max(1, n - 2); i <= Math.min(pages().length, n + 2); i++) loadPage(i);
+  }
+  function ensurePages() {
+    if (pageSource === pages()) return;
+    pageSource = pages();
+    pageNodes = pageSource.map((p, i) => {
+      const node = document.createElement("div"), img = document.createElement("img"), hl = document.createElement("div");
+      node.className = "pv-page";
+      node.dataset.n = String(i + 1);
+      node.style.aspectRatio = (p.w || 612) + " / " + (p.h || 792);
+      img.alt = "Page " + (i + 1); img.decoding = "async";
+      hl.className = "pv-hl";
+      node.replaceChildren(img, hl);
+      node.addEventListener("click", (e) => pickPage(e, i + 1));
+      node.addEventListener("mousemove", (e) => {
+        const r = node.getBoundingClientRect();
+        node.classList.toggle("pickable", !!blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, i + 1));
+      });
+      return { node, img, hl };
+    });
+    scroller.replaceChildren(...pageNodes.map(p => p.node));
+  }
+  PR.preloadPage = () => {}; // Images are loaded near the panel viewport.
+  function updatePageLabel() {
+    PR.$(".pv-label").textContent = PR.t("第 {p} / {n} 页", { p: pvPage, n: pages().length });
+    const pdf = PR.$('[data-pv="pdf"]'), url = PR.pdfUrl(pvPage);
+    pdf.style.display = url ? "" : "none";
+    if (url) pdf.href = url;
+  }
+  function pageTop(node) {
+    return node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  }
+  let panelInput = false;
+  ["wheel", "pointerdown", "touchstart", "keydown"].forEach(type => scroller.addEventListener(type, () => {
+    panelInput = true;
+    holdUntil = Date.now() + 2000;
+  }, { passive: true }));
+  scroller.addEventListener("scroll", () => {
+    if (!pageNodes.length || PR.side !== "pages") return;
+    if (panelInput) holdUntil = Date.now() + 2000;
+    const middle = scroller.getBoundingClientRect().top + scroller.clientHeight / 2;
+    const entry = pageNodes.find(p => p.node.getBoundingClientRect().bottom > middle) || pageNodes[pageNodes.length - 1];
+    pvPage = Number(entry.node.dataset.n);
+    updatePageLabel(); loadNearby(pvPage);
+  }, { passive: true });
 
   function showPage(page, blockId) {
     const list = pages();
     if (!list.length) return;
     pvPage = Math.min(list.length, Math.max(1, page));
-    const img = PR.$(".pv-page img");
-    img.decoding = "async";
-    const src = srcOf(pvPage);
-    if (img.getAttribute("src") !== src) { img.setAttribute("src", src); PR.$(".pv-page").classList.add("loading"); img.onload = () => PR.$(".pv-page").classList.remove("loading"); }
-    preload(pvPage + 1); preload(pvPage - 1);
-    PR.$(".pv-label").textContent = PR.t("第 {p} / {n} 页", { p: pvPage, n: list.length });
-    const pdf = PR.$('[data-pv="pdf"]');
-    const url = PR.pdfUrl(pvPage);
-    pdf.style.display = url ? "" : "none";
-    if (url) pdf.href = url;
-    const hl = PR.$(".pv-hl");
+    ensurePages();
+    panelInput = false;
+    const { node, hl } = pageNodes[pvPage - 1];
+    loadNearby(pvPage); updatePageLabel();
+    pageNodes.forEach(p => p.hl.classList.remove("on"));
     const loc = blockId && S.layout[blockId];
     pair(loc && loc.page === pvPage ? blockId : null);
     if (loc && loc.page === pvPage) {
@@ -81,12 +126,11 @@
         return region;
       }));
       hl.classList.add("on");
-      const scroller = PR.$(".pv-scroll");
-      const doScroll = () => { const h = PR.$(".pv-page").offsetHeight;  // 原页里框出的那段也放在面板中间
-        const [, y0, , y1] = boxes[0];
-        scroller.scrollTo({ top: Math.max(0, ((y0 + y1) / 2) * h + 18 - scroller.clientHeight / 2), behavior: "smooth" }); };
-      img.complete ? doScroll() : img.addEventListener("load", doScroll, { once: true });
-    } else hl.classList.remove("on");
+      const [, y0, , y1] = boxes[0];
+      scroller.scrollTo({ top: Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2), behavior: "smooth" });
+    } else {
+      scroller.scrollTo({ top: Math.max(0, pageTop(node) - 18), behavior: "smooth" });
+    }
   }
 
   /* 译文里和原页框对应的那段也标出来（同一个颜色），一眼看出左右是哪两段 */
@@ -104,11 +148,11 @@
   PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock); });
 
   /* 点原页上的某一段 → 正文跳到那段译文（排版特殊、看不出语序时，从原文找回去） */
-  function blockAt(x, y) {
+  function blockAt(x, y, page = pvPage) {
     let best = null, area = Infinity;
     for (const id in S.layout) {
       const l = S.layout[id];
-      if (l.page !== pvPage || !PR.blockById[id]) continue;
+      if (l.page !== page || !PR.blockById[id]) continue;
       for (const [x0, y0, x1, y1] of boxesOf(l)) {
         const a = (x1 - x0) * (y1 - y0);
         if (x >= x0 - 0.01 && x <= x1 + 0.01 && y >= y0 - 0.006 && y <= y1 + 0.006 && a < area) { best = id; area = a; }
@@ -116,19 +160,16 @@
     }
     return best;
   }
-  PR.$(".pv-page").addEventListener("click", (e) => {
+  function pickPage(e, page) {
     const r = e.currentTarget.getBoundingClientRect();
-    const id = blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    const id = blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, page);
     if (!id) return;
+    pvPage = page;
     pvBlock = id;
     holdUntil = Date.now() + 1500;  // 跳过去的滚动会触发“跟随阅读位置”，别让它把刚点的段换掉
     showPage(pvPage, id);
     PR.jumpTo("b-" + id);
-  });
-  PR.$(".pv-page").addEventListener("mousemove", (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    e.currentTarget.classList.toggle("pickable", !!blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height));
-  });
+  }
 
   PR.syncPage = function (force) {
     if (PR.side !== "pages") return;
@@ -152,9 +193,9 @@
     if (!b) return;
     const act = b.dataset.pv;
     if (act === "close") { PR.togglePages(false); pair(null); }
-    if (act === "prev") showPage(pvPage - 1, pvBlock);
-    if (act === "next") showPage(pvPage + 1, pvBlock);
-    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? PR.t("适宽") : PR.t("放大"); showPage(pvPage, pvBlock); }
+    if (act === "prev") showPage(pvPage - 1);
+    if (act === "next") showPage(pvPage + 1);
+    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? PR.t("适宽") : PR.t("放大"); showPage(pvPage); }
   });
-  PR.pageStep = (d) => showPage(pvPage + d, pvBlock);
+  PR.pageStep = (d) => showPage(pvPage + d);
 })(window.PR);
