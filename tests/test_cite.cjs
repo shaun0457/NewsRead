@@ -158,7 +158,7 @@ function dialog() {
     return nodes.get(key);
   };
   Object.assign(PR, {
-    lib: { select(id) { this.selected = id; }, filtered: () => [journal] },
+    lib: { select(id) { this.selected = id; }, filtered: () => [journal], items: [journal], cats: () => [] },
     $: node, $$: () => [], esc: (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
     icon: () => "", toast: (s) => copied.push(s), ls: { get: (k, d) => memory.get(k) || d, set: (k, v) => memory.set(k, v) },
   });
@@ -194,4 +194,18 @@ test("citation warnings use the selected UI language without altering citation m
   const PR = formatter((key) => en[key] || key);
   assert.deepEqual(Array.from(PR.citeMissing({ ...journal, year: "" }, "gb")), ["Year"]);
   assert.equal(PR.cite(journal, "gb"), formatter().cite(journal, "gb"));
+});
+
+test("the export dialog switches between the opened list, all papers and a category", () => {
+  const r = dialog();
+  const tagged = { ...preprint, id: "tagged", tags: ["毕业论文"] };
+  Object.assign(r.PR.lib, { items: [journal, tagged], cats: () => ["毕业论文"] });
+  r.PR.openCiteExport([journal], "在读");
+  assert.match(r.node(".dialog").innerHTML, /value="c:毕业论文"/);
+  const change = (value) => r.node("#citeExportDlg").listeners.change({ target: { dataset: { scope: "" }, value } });
+  change("c:毕业论文");
+  assert.equal(r.node("textarea").value.split("\n").filter((l) => l.startsWith("[")).length, 1);
+  assert.match(r.node("textarea").value, new RegExp(tagged.title_en.slice(0, 20)));
+  change("all");
+  assert.equal(r.node("textarea").value.split("\n").filter((l) => l.startsWith("[")).length, 2);
 });

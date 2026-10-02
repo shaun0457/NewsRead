@@ -11,3 +11,5 @@
 .cite-note { margin-bottom: 0; }
 #citeExportBtn { flex: none; }
 @media (max-width: 640px) { .list-head { flex-wrap: wrap; } }
+.cite-scope { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; font: 12.5px var(--ui); color: var(--ink-3); }
+.cite-scope select { width: auto; min-width: 160px; }

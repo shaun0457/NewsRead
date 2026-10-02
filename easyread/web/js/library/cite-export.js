@@ -3,7 +3,7 @@
   "use strict";
   const L = PR.lib, dlg = PR.$("#citeExportDlg");
   const styles = [["gb", "GB/T 7714"], ["apa", "APA"], ["bibtex", "BibTeX"]];
-  let items = [], selected = new Set(), style = "gb", title = "", previousFocus = null;
+  let items = [], selected = new Set(), style = "gb", title = "", previousFocus = null, scope = "view", viewItems = [], viewTitle = "";
   const $ = (selector) => PR.$(selector, dlg);
   const close = () => { dlg.classList.remove("open"); if (previousFocus && previousFocus.isConnected) previousFocus.focus(); };
 
@@ -22,13 +22,33 @@
     preview();
   }
 
-  PR.openCiteExport = function (papers, viewTitle) {
-    items = papers.slice(); selected = new Set(items.map((i, index) => index)); title = viewTitle;
+  /* 范围：打开时的列表 / 全部论文 / 某个分类，在对话框里直接切换 */
+  function scopes() {
+    const out = [["view", viewTitle]];
+    if (viewTitle !== PR.t("全部论文")) out.push(["all", PR.t("全部论文")]);
+    L.cats().filter((c) => c !== viewTitle).forEach((c) => out.push(["c:" + c, c]));
+    return out;
+  }
+  function useScope(key) {
+    scope = key;
+    const all = L.items.filter((i) => !i.deleted);
+    items = key === "view" ? viewItems.slice() : key === "all" ? all : all.filter((i) => (i.tags || []).includes(key.slice(2)));
+    title = (scopes().find(([k]) => k === key) || [, viewTitle])[1];
+    selected = new Set(items.map((i, index) => index));
+    const h = $("#citeExportTitle");
+    if (h) h.textContent = PR.t("导出引用 · {title}（{n} 篇）", { title, n: items.length });
+  }
+
+  PR.openCiteExport = function (papers, fromTitle) {
+    viewItems = papers.slice(); viewTitle = fromTitle;
+    items = viewItems.slice(); selected = new Set(items.map((i, index) => index)); title = viewTitle; scope = "view";
     const saved = PR.ls.get("easyread-cite-style", "gb");
     style = styles.some(([key]) => key === saved) ? saved : "gb";
     previousFocus = document.activeElement;
     $(".dialog").innerHTML = '<h2 id="citeExportTitle">' + PR.esc(PR.t("导出引用 · {title}（{n} 篇）", { title, n: items.length })) + '</h2><div class="seg">' +
-      styles.map(([key, name]) => '<button data-style="' + key + '" class="' + (key === style ? "on" : "") + '" aria-pressed="' + (key === style) + '">' + name + "</button>").join("") + '</div><div class="cite-items"></div>' +
+      styles.map(([key, name]) => '<button data-style="' + key + '" class="' + (key === style ? "on" : "") + '" aria-pressed="' + (key === style) + '">' + name + "</button>").join("") + '</div>' +
+      '<label class="cite-scope"><span>' + PR.t("范围") + '</span><select class="input" data-scope>' + scopes().map(([k, name]) => '<option value="' + PR.esc(k) + '"' + (k === scope ? " selected" : "") + ">" + PR.esc(name) + "</option>").join("") + "</select></label>" +
+      '<div class="cite-items"></div>' +
       '<label class="field"><span>' + PR.t("预览") + '</span><textarea class="input cite-preview" rows="9" readonly spellcheck="false"></textarea></label>' +
       '<div class="actions"><button class="btn accent" data-copy>' + PR.t("复制") + '</button><button class="btn line" data-save>' + PR.t("保存为文件") + '</button><button class="btn" data-close>' + PR.t("关闭") + '</button></div><p class="hint cite-note">' +
       PR.t("引用由论文信息按格式规则生成，不经过 AI。提交前请核对作者、年份和出处。") + "</p>";
@@ -46,6 +66,7 @@
   }
 
   dlg.addEventListener("change", (e) => {
+    if ((e.target.dataset || {}).scope !== undefined) { useScope(e.target.value); renderRows(); return; }
     if (e.target.dataset.item === undefined) return;
     const index = Number(e.target.dataset.item);
     if (e.target.checked) selected.add(index); else selected.delete(index);
