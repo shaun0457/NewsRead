@@ -11,7 +11,8 @@ function setup() {
     t: (s, args = {}) => (en[s] || s).replace(/\{(\w+)\}/g, (_, k) => args[k]),
     api: async (url, opts) => calls.push({ url, ...opts }) };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/page-cap.js"), "utf8"), { window: { PR } });
-  const job = { state: "confirm", total: 80, page_cap: 30, scope: "body", read: true, model: { kind: "codex", model: "chosen" }, target: "ja" };
+  const job = { state: "confirm", total: 80, page_cap: 30, scope: "body", read: true, model: { kind: "codex", model: "chosen" }, target: "ja",
+    pages: Array.from({ length: 80 }, (_, i) => i + 1), cap_check: true };
   const button = (action) => ({ dataset: { pageCap: action }, closest: () => ({ querySelectorAll: () => [] }) });
   return { PR, calls, job, button };
 }
@@ -45,4 +46,18 @@ test("first-pages submits a range and deferring only calls cancel", async () => 
   await PR.handlePageCap(button("skip"), "paper1", job, async () => {});
   assert.equal(calls[1].url, "/api/p/paper1/cancel");
   assert.equal(Object.keys(calls[1].body).length, 0);
+});
+
+test("shared confirmation hides first-pages when the frozen plan has no pages before the limit", async () => {
+  const { PR, job, button, calls } = setup();
+  job.pages = Array.from({ length: 80 }, (_, i) => i + 31);
+  for (const read of [true, false]) {
+    job.read = read;
+    const html = PR.pageCapHtml(job);
+    assert.match(html, /data-page-cap="all"/);
+    assert.match(html, /data-page-cap="skip"/);
+    assert.doesNotMatch(html, /data-page-cap="first"/);
+  }
+  await PR.handlePageCap(button("first"), "paper1", job, async () => {});
+  assert.equal(calls.length, 0);
 });
