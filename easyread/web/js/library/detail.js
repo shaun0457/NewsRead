@@ -11,6 +11,7 @@
 
   function jobHtml(i) {
     const j = i.job || {};
+    if (j.state === "confirm") return PR.pageCapHtml(j);
     const running = ["queued", "running"].includes(j.state);
     const pct = j.total ? Math.round((j.done / j.total) * 100) : 0;
     let h = '<div class="jobbox">';
@@ -105,6 +106,8 @@
   box.addEventListener("click", async (e) => {
     const i = L.byId(L.selected);
     if (!i) return;
+    const cap = e.target.closest("[data-page-cap]");
+    if (cap) return PR.handlePageCap(cap, i.id, i.job, () => L.load());
     const st = e.target.closest("[data-status]");
     if (st) return L.patch(i.id, { status: st.dataset.status });
     const ct = e.target.closest("[data-cattoggle]");

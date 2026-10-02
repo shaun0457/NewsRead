@@ -64,6 +64,7 @@
   }
   L.jobLine = function (i) {
     const j = i.job;
+    if (j && j.state === "confirm") return '<span class="stat">' + PR.t("等你确认") + "</span>";
     if (j && ["queued", "running"].includes(j.state)) {
       const pct = j.total ? " " + PR.t("{done}/{total} 页", { done: j.done, total: j.total }) : "";
       return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中"))) + pct + "</span>";

@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from . import chat_models, config, engines, langs, openai_api
+from .i18n import tr
 
 
 def save_config(patch: dict) -> dict:
     patch.pop("library_dir", None)
+    if "page_cap" in patch and (type(patch["page_cap"]) is not int or patch["page_cap"] < 0):
+        raise ValueError(tr("页数确认上限必须是非负整数"))
     if "target" in patch:
         patch["target"] = langs.valid(patch["target"])
     if isinstance(patch.get("openai"), dict):

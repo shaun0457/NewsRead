@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, updates, usage, wsock
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -353,17 +353,7 @@ class Handler(BaseHTTPRequestHandler):
             if action == "item":
                 return self._json(200, ws.patch_item(body))
             if action == "translate":
-                pages = paperdata.parse_pages(body["pages"]) if body.get("pages") else None
-                read = bool(body.get("read"))  # 只读原文：整理成块，不翻译
-                model = ""
-                if body.get("failed"):  # 只重试上次没译成功的页，上次是只读原文就还是只读原文
-                    last = ws.load("job") or {}
-                    pages = sorted(int(k) for k in (last.get("failed") or {})) or None
-                    read, model = bool(last.get("read")), last.get("model") or ""  # 重试用上次的模型
-                elif body.get("en"):  # 只读原文之后“翻译成中文”：只译已经整理过的页，就地补中文
-                    pages = ws.load("paper").get("translation", {}).get("en_pages") or None
-                app.jobs.enqueue(ws, pages=pages, translate_after=True, scope=body.get("scope"), read=read, model=model)
-                return self._json(200, {"ok": True})
+                return self._json(200, translate_api.enqueue(app.jobs, ws, body))
             if action == "reveal":  # 在资源管理器 / 访达里打开这篇的文件夹
                 _reveal(ws.root)
                 return self._json(200, {"ok": True})
