@@ -192,30 +192,57 @@ def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
         yield from _strip_think(pieces)
 
 
+_DONE, _EMPTY, _PARTIAL = object(), object(), object()
+
+
+def _payload(data: list[str]):
+    """一条事件的 data 行合起来：[DONE]、空事件、还没收完整的 JSON 分别给标记，否则给解析结果。"""
+    payload = "\n".join(data).strip()
+    if payload == "[DONE]":
+        return _DONE
+    if not payload:
+        return _EMPTY
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        return _PARTIAL
+
+
 def _events(r, cancel) -> Iterator[dict | None]:
-    """按空行分隔 SSE 事件，同一事件的多个 data 行要合起来解析。"""
+    """按空行分隔 SSE 事件，同一事件的多个 data 行要合起来解析；[DONE] 给 None。
+    有的中转接口事件之间只隔一个换行，或者最后一条后面没有空行就断开：
+    已攒下的 data 本身就是完整 JSON 时，碰到下一行 data 或连接结束也照样交出去。"""
     data = []
     for raw in r:
         if cancel.is_set():
             raise Cancelled()
         line = raw.decode("utf-8", "replace").rstrip("\r\n")
-        if line.startswith("data:") or line == "data":
+        is_data = line.startswith("data:") or line == "data"
+        if data and (not line or is_data):
+            ev = _payload(data)
+            if not (ev is _PARTIAL and is_data):  # 还不完整又来了 data 行：一条事件拆成了多行，接着攒
+                data.clear()
+                if ev is _DONE:
+                    yield None
+                    return
+                if ev is not _EMPTY:
+                    yield _check_event(ev)
+        if is_data:
             data.append(line.partition(":")[2].removeprefix(" "))
-        elif not line and data:
-            payload = "\n".join(data).strip()
-            data.clear()
-            if payload == "[DONE]":
-                yield None
-                return
-            if not payload:
-                continue
-            try:
-                ev = json.loads(payload)
-            except json.JSONDecodeError as e:
-                raise EngineError("接口返回的流数据不是有效 JSON") from e
-            if not isinstance(ev, dict):
-                raise EngineError("接口返回的流数据格式不对")
-            yield ev
+    if data:
+        ev = _payload(data)
+        if ev is _DONE:
+            yield None
+        elif ev is not _EMPTY:
+            yield _check_event(ev)
+
+
+def _check_event(ev) -> dict:
+    if ev is _PARTIAL:
+        raise EngineError("接口返回的流数据不是有效 JSON")
+    if not isinstance(ev, dict):
+        raise EngineError("接口返回的流数据格式不对")
+    return ev
 
 
 def _chat_pieces(r, cancel, meter=None) -> Iterator[str]:
