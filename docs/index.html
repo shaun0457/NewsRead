@@ -110,11 +110,22 @@
   <h2>三步用起来</h2>
   <p class="lead">最省事是下载安装包，不用装 Python：Windows、macOS（Apple 芯片）、Linux 都有。</p>
   <div class="steps">
-    <div><h3>下载安装</h3><p>在 <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a> 下载 Windows 的 <code>.exe</code>、macOS 的 <code>.dmg</code> 或 Linux 的 <code>.AppImage</code>，装好打开就是独立窗口。也可以从源码运行（要 Python 3.10+）：Windows 双击 <code>start.cmd</code>，macOS / Linux 运行 <code>./start.sh</code>。</p></div>
+    <div><h3>下载安装</h3><p>在 <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a> 下载 Windows 的 <code>.exe</code>、macOS 的 <code>.dmg</code> 或 Linux 的 <code>.AppImage</code>，装好打开就是独立窗口。也可以<a href="#run-from-source">从源码运行</a>（要 Python 3.10+）。</p></div>
     <div><h3>选翻译模型</h3><p>右上角“设置”，选 Claude Code、Codex CLI 或 API 接口（DeepSeek、智谱、本机 Ollama……），点“试译一句”确认能用。</p></div>
     <div><h3>导入论文，开始读</h3><p>把 PDF 拖进窗口，或粘贴 arXiv 编号、论文链接。已译的页马上能读，没译到的先显示原页。</p></div>
   </div>
-  <p class="lead">或者用 pip：</p>
+  <details>
+    <summary>macOS 首次打开：无法验证或提示“已损坏”</summary>
+    <ol>
+      <li><p><strong>提示“无法验证开发者”或“Apple 无法验证是否包含恶意软件”</strong>：先点“完成”（不要点“移到废纸篓”），打开“系统设置 → 隐私与安全性”，向下找到安全性提示，点“仍要打开”；在确认窗口点“打开”，按提示输入登录密码或使用 Touch ID</p></li>
+      <li><p><strong>提示“已损坏，无法打开”</strong>：先从 <a href="https://github.com/Edwardxlai/easyread/releases/latest">EasyRead 官方 Releases</a> 重新下载，并把应用拖进“应用程序”；文件也可能确实损坏或被改动，不能只凭这条提示判断原因。只有确认文件来自这个官方仓库、并信任该文件后，才在“终端”执行下面的命令，再重新打开 EasyRead；这条命令移除隔离属性，不会修复损坏的文件</p>
+        <pre><code>xattr -dr com.apple.quarantine /Applications/EasyRead.app</code></pre></li>
+      <li><p><strong>为什么会出现验证提示</strong>：目前的 macOS 安装包只做了临时签名，没有 Apple 开发者证书，也没有经过公证，因此可能被系统拦截；代码完全开源，也可以<a href="#run-from-source">从源码运行</a></p></li>
+    </ol>
+    <p>如果系统提示“将损坏你的电脑”，或明确检测出恶意软件并要求移到废纸篓，请停止安装，不要用上面的步骤绕过；按 <a href="https://support.apple.com/zh-cn/102445">Apple 官方说明</a>处理</p>
+  </details>
+  <h3 id="run-from-source">从源码运行</h3>
+  <p>需要 Python 3.10+；从 <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a> 下载源码 zip 并解压，Windows 双击 <code>start.cmd</code>，macOS / Linux 在解压目录里运行 <code>./start.sh</code>；也可以用 pip：</p>
   <pre><code>pip install git+https://github.com/Edwardxlai/easyread
 easyread</code></pre>
 </div></section>

@@ -56,10 +56,25 @@ Settings auto-detect what's installed; "Test one sentence" tells you right away 
 **Easiest: download the installer** (no Python needed). From [Releases](https://github.com/Edwardxlai/easyread/releases/latest):
 
 - **Windows**: `EasyRead-Setup-x.x.x.exe`. It is not code-signed; if SmartScreen says "Windows protected your PC", click "More info → Run anyway".
-- **macOS** (Apple silicon): `EasyRead-x.x.x-arm64.dmg`, drag EasyRead into Applications. The first launch says the developer cannot be verified: open System Settings → Privacy & Security and click "Open Anyway"; after that it opens normally.
+- **macOS** (Apple silicon): `EasyRead-x.x.x-arm64.dmg`, drag EasyRead into Applications. If macOS blocks the first launch, follow the matching instructions below.
 - **Linux**: `EasyRead-x.x.x.AppImage`, `chmod +x` and run it.
 
 Papers and settings live in the `EasyRead` folder in your home directory (same place as the pip install), so reinstalling keeps them.
+
+### First launch on macOS
+
+1. **“Developer cannot be verified” or “Apple cannot check it for malicious software”**: click **Done** (not **Move to Trash**), open **System Settings → Privacy & Security**, scroll down to the security message, and click **Open Anyway**. Click **Open** in the confirmation dialog, then enter your login password or use Touch ID when prompted.
+2. **“EasyRead is damaged and can’t be opened”**: download it again from the [official EasyRead Releases](https://github.com/Edwardxlai/easyread/releases/latest) and drag the app into Applications. This warning can also mean the file is damaged or has been modified; it does not identify the cause by itself. Only after confirming that your copy came from that official repository and that you trust it, run the following in **Terminal**, then open EasyRead again. This removes the quarantine attribute; it does not repair a damaged file.
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/EasyRead.app
+   ```
+
+3. **Why verification may fail**: the macOS package currently has an ad-hoc signature, without an Apple developer certificate or notarization, so macOS may block it. The code is open source; you can also [run from source](#run-from-source).
+
+If macOS says the app **“will damage your computer”**, or explicitly detects malware and asks you to move it to the Trash, stop the installation and do not use the steps above to bypass the warning. Follow [Apple’s official guidance](https://support.apple.com/en-us/102445).
+
+<a id="run-from-source"></a>
 
 **Or run from source** (needs Python 3.10+): download the latest zip from [Releases](https://github.com/Edwardxlai/easyread/releases/latest) and unzip it (or `git clone` this repo).
 
