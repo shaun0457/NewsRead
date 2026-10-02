@@ -3,6 +3,7 @@ const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const windowState = require("./window-state.cjs");
 
 // 窗口缓存等放 %APPDATA%\EasyRead（默认会用 package.json 的 name，叫 easyread-desktop）。
 // 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
@@ -140,9 +141,9 @@ async function createWindow() {
     return;
   }
 
+  const state = windowState.options();
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 960,
+    ...state.opts,
     minWidth: 960,
     minHeight: 680,
     icon: path.join(__dirname, "assets", "icon.ico"),
@@ -169,7 +170,11 @@ async function createWindow() {
       : params.selectionText.trim() ? [{ role: "copy" }] : [];
     if (items.length) Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  windowState.track(mainWindow);
+  mainWindow.once("ready-to-show", () => {
+    if (state.maximized) mainWindow.maximize();
+    mainWindow.show();
+  });
   mainWindow.on("closed", () => { mainWindow = undefined; });
   try {
     await mainWindow.loadURL(url);
