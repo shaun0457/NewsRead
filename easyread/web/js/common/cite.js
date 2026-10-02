@@ -12,6 +12,7 @@
 
   PR.citeType = function (i) {
     const venue = text(i.venue);
+    if (/^(arxiv|openreview)\b/i.test(venue) || /^corr$/i.test(venue)) return "preprint";
     if (/\b(conference|proceedings|workshop|symposium|neurips|icml|iclr|acl|emnlp|naacl|cvpr|iccv|eccv|aaai|ijcai|kdd|sigir|www|chi)\b/i.test(venue)) return "conference";
     return !venue && arxiv(i) ? "preprint" : "journal";
   };
@@ -42,8 +43,11 @@
       "author = {" + authors(i).map(bibEscape).join(" and ") + "}",
       "year = {" + bibEscape(i.year) + "}",
     ];
-    if (text(i.venue)) fields.push((type === "conference" ? "booktitle" : "journal") + " = {" + bibEscape(i.venue) + "}");
-    if (type === "preprint") fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}");
+    if (text(i.venue) && type !== "preprint") fields.push((type === "conference" ? "booktitle" : "journal") + " = {" + bibEscape(i.venue) + "}");
+    if (type === "preprint") {
+      if (arxiv(i)) fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}");
+      else if (text(i.venue)) fields.push("howpublished = {" + bibEscape(i.venue) + "}");
+    }
     if (text(i.doi)) fields.push("doi = {" + bibEscape(i.doi) + "}");
     if (text(i.url)) fields.push("url = {" + bibEscape(i.url) + "}");
     return "@" + ({ journal: "article", conference: "inproceedings", preprint: "misc" }[type]) + "{" + key + ",\n  " + fields.join(",\n  ") + "\n}";

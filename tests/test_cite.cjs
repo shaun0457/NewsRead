@@ -40,6 +40,23 @@ test("conference identification uses venue words and whole abbreviations", () =>
   assert.equal(PR.citeType({}), "journal");
 });
 
+test("preprint repositories from metadata enrichment are not journals", () => {
+  const PR = formatter();
+  for (const venue of ["arXiv", "arXiv.org", "arXiv preprint arXiv:2301.00001", "CoRR", "OpenReview", "OpenReview.net"]) {
+    const paper = { ...preprint, venue, arxiv: "2301.00001" };
+    assert.equal(PR.citeType(paper), "preprint", venue);
+    assert.match(PR.cite(paper, "gb"), /\[EB\/OL\]/);
+    const bib = PR.cite(paper, "bibtex");
+    assert.match(bib, /^@misc\{/);
+    assert.doesNotMatch(bib, /journal =|booktitle =/);
+  }
+  assert.equal(PR.citeType({ ...preprint, venue: "ICLR 2026 (OpenReview)" }), "conference");
+  const openReview = PR.cite({ ...journal, venue: "OpenReview", arxiv: "" }, "bibtex");
+  assert.match(openReview, /^@misc\{/);
+  assert.doesNotMatch(openReview, /archivePrefix|eprint/);
+  assert.match(openReview, /howpublished = \{OpenReview\}/);
+});
+
 test("GB author truncation follows author language without changing Chinese names", () => {
   const PR = formatter();
   assert.equal(PR.cite({ ...conference, authors: "Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit" }, "gb"),
