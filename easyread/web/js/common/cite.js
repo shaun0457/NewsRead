@@ -80,6 +80,7 @@
 
   function compareAuthor(a, b, style) {
     const first = surname(authors(a)[0] || ""), second = surname(authors(b)[0] || "");
+    if (style === "gb" && !!first !== !!second) return first ? -1 : 1;
     if (style === "gb" && chinese(first) !== chinese(second)) return chinese(first) ? 1 : -1;
     return first.localeCompare(second, chinese(first) && chinese(second) ? "zh-CN-u-co-pinyin" : "en", { sensitivity: "base" }) || title(a).localeCompare(title(b), "en");
   }

@@ -129,6 +129,14 @@ test("batch GB sorts Latin surnames before Chinese pinyin; APA sorts without num
   assert.equal(papers[0].authors, "张三");
 });
 
+test("GB entries without authors follow every named entry", () => {
+  const papers = [{ ...journal, authors: "", title_en: "Anonymous work" }, { ...journal, authors: "张三" }, { ...journal, authors: "Alice Zebra" }];
+  const gb = formatter().citeBatch(papers, "gb").split("\n\n");
+  assert.match(gb[0], /^\[1\] ZEBRA A/);
+  assert.match(gb[1], /^\[2\] 张三/);
+  assert.match(gb[2], /^\[3\] Anonymous work/);
+});
+
 // 对话框只需要节点与事件的轻量桩；测试选中、格式记忆、补信息跳转和空选择。
 function dialog() {
   const PR = formatter(), nodes = new Map(), memory = new Map(), copied = [];
