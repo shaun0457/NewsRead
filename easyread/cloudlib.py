@@ -25,7 +25,7 @@ class Incomplete(ValueError):
 
     def __init__(self, root: Path):
         self.path = str(root)
-        super().__init__(tr("目标文献库迁移未完成（{path}），可以先清理这次没搬完的内容；原文献库仍然保留", path=str(root)))
+        super().__init__(tr("目标文献库迁移未完成（{path}），可以先清理未完成的迁移；原文献库仍然保留", path=str(root)))
 
 
 def _incomplete(root: Path) -> bool:
