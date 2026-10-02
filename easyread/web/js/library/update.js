@@ -84,5 +84,32 @@
     show(await PR.api("/api/update", { method: "POST", body: { enabled: on } }));
   };
 
+  /* 设置 → 阅读最下面：版本、检查更新、自动检查开关 */
+  function updateLine() {
+    const u = PR.update;
+    if (!u) return "";
+    if (u.newer) return PR.t("有新版本 {v}", { v: '<a href="#" data-help="open">' + PR.esc(u.latest) + "</a>" });
+    return u.latest ? PR.t("已经是最新版") : "";
+  }
+  PR.updateSection = () => '<h4 class="set-h">' + PR.t("版本") + '</h4><div class="help-update"><span>' + PR.esc(PR.lib.version || "") + "</span>" +
+    '<button class="btn sm line" data-help="check">' + PR.t("检查更新") + '</button><span class="hint" id="helpUpdateMsg">' + updateLine() + "</span>" +
+    '<label class="check"><input type="checkbox" data-help="auto"' + (!PR.update || PR.update.enabled !== false ? " checked" : "") + ">" + PR.t("自动检查新版本（一天一次，只问 GitHub）") + "</label></div>";
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest('[data-help="check"], [data-help="open"]');
+    if (!b) return;
+    e.preventDefault();
+    if (b.dataset.help === "open") return PR.openUpdate();
+    const msg = PR.$("#helpUpdateMsg");
+    b.disabled = true; msg.textContent = PR.t("正在检查…");
+    try {
+      const u = await PR.checkUpdate(true);
+      msg.innerHTML = u.latest ? updateLine() : PR.t("没连上 GitHub，稍后再试");
+    } catch (err) { msg.textContent = PR.t("检查失败：") + err.message; }
+    b.disabled = false;
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.dataset.help === "auto") PR.setAutoUpdate(e.target.checked).catch((err) => PR.toast(PR.t("保存失败：") + PR.esc(err.message)));
+  });
+
   setTimeout(() => PR.checkUpdate(false).catch(() => {}), 1500);  // 等文献库先显示出来
 })(window.PR);

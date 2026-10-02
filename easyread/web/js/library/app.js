@@ -8,7 +8,6 @@
 
   PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>" + PR.t("导入论文") + "</span>";
   PR.$("#settingsBtn").innerHTML = PR.icon("gear");
-  PR.$("#helpBtn").innerHTML = PR.icon("question");
   PR.$(".search .si").outerHTML = PR.icon("search", "sm");
   PR.$("#sort").value = L.sort;
 
