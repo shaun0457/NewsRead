@@ -11,3 +11,11 @@
 .cite-note { margin-bottom: 0; }
 #citeExportBtn { flex: none; }
 @media (max-width: 640px) { .list-head { flex-wrap: wrap; } }
+.cite-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 4px; }
+.cite-pick { display: flex; align-items: center; gap: 8px; font: 12.5px var(--ui); color: var(--ink-3); }
+.cite-pick select { width: auto; min-width: 128px; height: 32px; padding: 0 8px; }
+.cite-tip { margin: 8px 0 0; }
+.cite-grip { flex: none; cursor: grab; color: var(--ink-4, var(--ink-3)); letter-spacing: -2px; font-size: 12px; user-select: none; padding-right: 2px; }
+.cite-row { align-items: center; }
+.cite-row.dragging { opacity: .45; }
+.cite-t { flex: 1 1 60%; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }

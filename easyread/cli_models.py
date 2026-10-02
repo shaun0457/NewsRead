@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
 from pathlib import Path
@@ -31,13 +32,18 @@ def codex() -> dict:
     """{"default": slug, "models": [{"id", "name", "desc"}]}；Codex 没装或没登录过就是空名单。"""
     out: list[dict] = []
     try:
-        data = json.loads((Path.home() / ".codex" / "models_cache.json").read_text(encoding="utf-8"))
+        home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+        data = json.loads((home / "models_cache.json").read_text(encoding="utf-8"))
         ms = [m for m in data.get("models") or [] if m.get("visibility") == "list" and m.get("slug")]
         ms.sort(key=lambda m: m.get("priority", 99))
-        out = [{"id": m["slug"], "name": m.get("display_name") or m["slug"], "desc": m.get("description") or ""} for m in ms]
+        out = [{"id": m["slug"], "name": m.get("display_name") or m["slug"], "desc": m.get("description") or "",
+                "reasoning_levels": [r["effort"] for r in m.get("supported_reasoning_levels", []) if isinstance(r, dict) and r.get("effort")],
+                "default_reasoning": m.get("default_reasoning_level") or ""} for m in ms]
     except (OSError, ValueError, AttributeError):
         pass
-    return {"default": chat_models.codex_default_model(), "models": out}
+    return {"default": chat_models.codex_default_model(), "models": out,
+            "configured_reasoning": chat_models.codex_config_value("model_reasoning_effort"),
+            "configured_tier": chat_models.codex_config_value("service_tier")}
 
 
 def claude_default() -> str:

@@ -64,7 +64,14 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
     else:
         content = [{"type": "text", "text": prompt}] + [{"type": "image_url", "image_url": {"url": u}} for u in urls] if urls else prompt
         body = {"model": o["model"], "messages": [{"role": "user", "content": content}]}
-    if temperature is not None:
+    if o.get("reasoning_effort"):
+        if kind(o) == "responses":
+            body["reasoning"] = {"effort": o["reasoning_effort"]}
+        else:
+            body["reasoning_effort"] = o["reasoning_effort"]
+    if o.get("service_tier"):
+        body["service_tier"] = o["service_tier"]
+    if temperature is not None and not o.get("reasoning_effort"):
         body["temperature"] = temperature
     if stream:
         body["stream"] = True

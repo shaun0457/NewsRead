@@ -43,17 +43,19 @@
     saveSide(); L.render();
   };
 
-  async function patchMany(changes) {  // [[id, {tags}]]：先改界面，再逐个存
+  async function patchMany(changes) {  // [[id, {字段}]]：先改界面，再逐个存（批量操作 batch.js 也用）
     changes.forEach(([id, f]) => Object.assign(L.byId(id) || {}, f));
     L.render();
     for (const [id, f] of changes) await PR.api("/api/p/" + id + "/item", { method: "POST", body: f }).catch((e) => PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })));
     L.load();
   }
+  L.patchMany = patchMany;
   L.addCat = function (name, paperId) {
     name = (name || "").trim().slice(0, 30);
     if (!name) return L.render();
     if (!L.cats().includes(name)) { L.side.cats.push(name); saveSide(); }
-    if (paperId) { const it = L.byId(paperId); if (it && !(it.tags || []).includes(name)) return patchMany([[paperId, { tags: (it.tags || []).concat(name) }]]); }
+    const add = [].concat(paperId || []).map(L.byId).filter((it) => it && !(it.tags || []).includes(name));  // 一篇的 id，或多选拖过来的一组
+    if (add.length) return patchMany(add.map((it) => [it.id, { tags: (it.tags || []).concat(name) }]));
     L.render();
   };
   L.renameCat = function (from, to) {
@@ -163,6 +165,7 @@
         { label: PR.t("下移"), disabled: i >= L.cats().length - 1, fn: () => L.moveCat(c, 1) },
         { label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden("c:" + c, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: PR.esc(c) })); } },
         "-",
+        { label: PR.t("批量操作这个分类的论文"), icon: "check", fn: () => { L.tag = c; L.view = "all"; L.startPick(L.filtered().map((paper) => paper.id)); } },
         { label: PR.t("导出这个分类的引用"), icon: "copy", fn: () => PR.openCiteExport(L.items.filter((paper) => (paper.tags || []).includes(c)), c) },
         { label: PR.t("删除分类"), icon: "trash", fn: () => L.deleteCat(c) },
       ]);
@@ -208,7 +211,7 @@
     inp.dataset.done = "1";
     inp.blur();  // 输入框还有焦点时侧栏不重画（见 renderSide），先让它失焦，回车后新分类才会马上出现
     const val = inp.value;
-    const forPaper = typeof ui.adding === "string" ? ui.adding : null;
+    const forPaper = ui.adding === true ? null : ui.adding;
     if (inp.dataset.new !== undefined) { ui.adding = false; if (!cancel) L.addCat(val, forPaper); else L.render(); }
     else { const from = inp.dataset.rename; ui.renaming = null; if (!cancel) L.renameCat(from, val); else L.render(); }
   }
@@ -253,13 +256,17 @@
     const row = dropTarget(e);
     if (!row) return;
     e.preventDefault();
-    if (row.dataset.add !== undefined) { ui.adding = dragId; side.classList.remove("dragging"); return L.render(); }  // 拖到“新建分类”：建一个，把这篇放进去
+    if (row.dataset.add !== undefined) { ui.adding = L.picking && L.picked.has(dragId) ? Array.from(L.picked) : dragId; side.classList.remove("dragging"); return L.render(); }  // 拖到“新建分类”：建一个，把这篇放进去
     side.classList.remove("dragging"); row.classList.remove("drop");
-    const it = L.byId(dragId);
-    const v = row.dataset.view;
-    if (v === "starred") { if (!it.starred) L.patch(it.id, { starred: true }); PR.toast(PR.t("已加星标")); }
-    else if (STATUS[v]) { if (it.status !== v) L.patch(it.id, { status: v }); PR.toast(PR.t("已标为{status}", { status: STATUS[v] })); }
-    else if (!(it.tags || []).includes(row.dataset.cat)) { L.toggleInCat(it.id, row.dataset.cat); PR.toast(PR.t("已放进“{name}”", { name: PR.esc(row.dataset.cat) })); }
-    else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(row.dataset.cat) }));
+    // 多选时拖的是勾着的一篇，就把勾着的全部一起放过去
+    const its = (L.picking && L.picked.has(dragId) ? Array.from(L.picked) : [dragId]).map(L.byId).filter(Boolean);
+    const v = row.dataset.view, c = row.dataset.cat, n = its.length;
+    if (v === "starred") { L.patchMany(its.filter((i) => !i.starred).map((i) => [i.id, { starred: true }])); PR.toast(n > 1 ? PR.t("{n} 篇已加星标", { n }) : PR.t("已加星标")); }
+    else if (STATUS[v]) { L.patchMany(its.filter((i) => i.status !== v).map((i) => [i.id, { status: v }])); PR.toast(n > 1 ? PR.t("{n} 篇已标为{status}", { n, status: STATUS[v] }) : PR.t("已标为{status}", { status: STATUS[v] })); }
+    else {
+      const add = its.filter((i) => !(i.tags || []).includes(c));
+      if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c) }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
+      else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(c) }));
+    }
   });
 })(window.PR);

@@ -56,11 +56,18 @@ DEFAULT_CHAT = {"models": DEFAULT_MODELS, "default": "opus"}
 
 def codex_default_model() -> str:
     """Codex CLI 没指定模型时用它自己配置里的（~/.codex/config.toml 的 model）。"""
+    return codex_config_value("model")
+
+
+def codex_config_value(key: str) -> str:
+    """Read a top-level string for display, without exposing the full CLI config."""
+    import os
     try:
-        text = (Path.home() / ".codex" / "config.toml").read_text(encoding="utf-8")
+        home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+        text = (home / "config.toml").read_text(encoding="utf-8-sig")
     except OSError:
         return ""
-    m = re.search(r'(?m)^\s*model\s*=\s*"([^"]+)"', text.split("[", 1)[0])
+    m = re.search(r'''(?m)^\s*''' + re.escape(key) + r'''\s*=\s*["']([^"']+)["']''', re.split(r"(?m)^\s*\[", text, maxsplit=1)[0])
     return m.group(1) if m else ""
 
 
@@ -89,12 +96,15 @@ def engine_cfg(cfg: dict, mid: str | None) -> tuple[dict, dict]:
     out["engine"] = m["engine"]
     if m["engine"] in ("claude", "codex"):
         out[m["engine"]]["model"] = m.get("model") or ""
+        for key in ("reasoning_effort", "service_tier"):
+            out[m["engine"]][key] = m.get(key) or ""
     elif m["engine"] == "openai":
         p = next((x for x in PRESETS if x["id"] == m.get("preset")), None)
         out["openai"] = {**out["openai"], "preset": m.get("preset") or "", "vision": False,
                          "base_url": m.get("base_url") or (p["base_url"] if p else out["openai"].get("base_url", "")),
                          "model": m.get("model") or (p["model"] if p else ""), "api_key": _key(cfg, m.get("preset") or ""),
-                         "api": m.get("api") or (p or {}).get("api") or "chat"}
+                         "api": m.get("api") or (p or {}).get("api") or "chat",
+                         "reasoning_effort": m.get("reasoning_effort") or "", "service_tier": m.get("service_tier") or ""}
     else:
         raise engines.EngineError(tr("不认识的模型来源：{engine}", engine=m.get("engine")))
     return out, m
@@ -105,6 +115,8 @@ def translation_id(cfg: dict) -> str:
     e = cfg.get("engine")
     for m in models(cfg):
         if m.get("engine") != e:
+            continue
+        if any((m.get(k) or "") != (cfg.get(e, {}).get(k) or "") for k in ("reasoning_effort", "service_tier")):
             continue
         if e in ("claude", "codex") and (m.get("model") or "") == (cfg.get(e, {}).get("model") or ""):
             return m["id"]
@@ -162,7 +174,9 @@ def sanitize(items: list[dict]) -> list[dict]:
         seen.add(mid)
         out.append({"id": mid, "name": str(m.get("name") or m.get("model") or tr("模型"))[:40], "engine": e,
                     "model": str(m.get("model") or "")[:120], "preset": str(m.get("preset") or ""), "base_url": str(m.get("base_url") or "")[:300],
-                    "api": m.get("api") if m.get("api") in ("chat", "responses") else ""})
+                    "api": m.get("api") if m.get("api") in ("chat", "responses") else "",
+                    "reasoning_effort": m.get("reasoning_effort") if m.get("reasoning_effort") in ("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra") else "",
+                    "service_tier": m.get("service_tier") if m.get("service_tier") in ("fast", "default") else ""})
     return out or copy.deepcopy(DEFAULT_MODELS)
 
 

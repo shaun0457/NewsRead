@@ -86,6 +86,26 @@ body.ch-open #chatpanel { transform: none; }
 .ch-bar .grow { flex: 1; }
 .ch-model { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink-2); }
 .ch-model:hover { background: var(--accent-soft); color: var(--ink); }
+.ch-model { min-width: 0; max-width: 56%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ch-effort { flex: none; padding: 5px 7px; border-radius: 7px; font: 12px var(--ui); color: var(--ink-2); }
+.ch-effort:hover, .ch-effort[aria-expanded="true"] { background: var(--accent-soft); color: var(--ink); }
+.ch-effort:disabled, .ch-model:disabled { opacity: .5; cursor: wait; }
+.ch-effort-pop { position: absolute; left: 8px; width: min(300px, calc(100% - 16px)); box-sizing: border-box; bottom: 45px; z-index: 7; padding: 18px 18px 14px; border: 1px solid var(--rule-2); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); font: 13px var(--ui); }
+.ch-effort-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 23px; }
+.ch-effort-head span, .ch-effort-scale { color: var(--ink-3); }
+.ch-effort-head b { font-weight: 550; color: var(--ink); }
+.ch-effort-scale { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; }
+#chatEffortRange { width: 100%; margin: 0; height: 28px; appearance: none; background: var(--rule-2); border-radius: 9px; cursor: pointer; }
+#chatEffortRange::-webkit-slider-thumb { appearance: none; width: 22px; height: 28px; background: var(--ink); border: 3px solid var(--surface); border-radius: 8px; box-shadow: 0 1px 5px #0002; }
+#chatEffortRange::-moz-range-thumb { width: 17px; height: 24px; background: var(--ink); border: 3px solid var(--surface); border-radius: 8px; }
+#chatEffortRange:focus-visible, .ch-effort:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ch-effort-ticks { display: flex; justify-content: space-between; margin-top: 1px; }
+.ch-effort-ticks button { padding: 0; width: 22px; height: 18px; color: var(--ink-3); font-size: 16px; }
+.ch-effort-ticks .on { color: var(--accent); }
+.ch-effort-pop p { margin: 10px 0 0; color: var(--ink-3); font-size: 11px; }
+.ch-model-check { margin-left: auto; color: var(--accent); }
+.ch-menu b { display: flex; width: 100%; gap: 20px; }
+.ch-menu { max-width: calc(100% - 16px); min-width: min(250px, calc(100% - 16px)); max-height: 50vh; overflow-y: auto; }
 .ch-send { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; }
 .ch-send:hover { opacity: .88; }
 .ch-send.stop { background: var(--ink); color: var(--bg); }

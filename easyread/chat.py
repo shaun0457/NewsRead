@@ -213,6 +213,8 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
             "--allowedTools", "Read", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
     if c.get("model"):
         args += ["--model", c["model"]]
+    if c.get("reasoning_effort"):
+        args += ["--effort", c["reasoning_effort"]]
     proc = engines._popen(args, cwd)
     proc.stdin.write(text)
     proc.stdin.close()

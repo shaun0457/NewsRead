@@ -1,7 +1,7 @@
 /* 文献库：列表、筛选、排序、键盘操作、状态轮询。 */
 (function (PR) {
   "use strict";
-  const L = (PR.lib = { items: [], view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, engine: "claude" });
+  const L = (PR.lib = { items: [], view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, engine: "claude", picked: new Set(), picking: false });
   const prefs = PR.ls.get("easyread-prefs", {});
   PR.applyTheme(prefs.theme);
 
@@ -85,7 +85,9 @@
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
-    return '<div class="row' + (L.selected === i.id ? " on" : "") + '" data-id="' + i.id + '" role="option" draggable="true">' + thumb +
+    const picked = L.picked.has(i.id);
+    return '<div class="row' + (L.selected === i.id ? " on" : "") + (picked ? " picked" : "") + '" data-id="' + i.id + '" role="option" draggable="true"' + (L.picking ? ' aria-selected="' + picked + '"' : "") + ">" +
+      '<span class="pick" data-pick title="' + PR.t("勾选（批量操作）") + '">' + PR.icon("check", "sm") + "</span>" + thumb +
       '<div><div class="t1">' + (i.starred ? '<span class="star">' + PR.icon("star") + "</span>" : "") + "<span>" + PR.esc(title) + "</span></div>" + sub +
       '<div class="t3">' + bits.map((b) => "<span>" + PR.esc(String(b)) + "</span>").join("<span>·</span>") + tags + "</div></div>" +
       '<div class="side-info">' + statusPill(i) + prog + L.jobLine(i) + notes + "</div></div>";
@@ -97,7 +99,7 @@
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     PR.$("#viewTitle").textContent = L.tag ? L.tag : L.view === "all" ? PR.t("全部论文") : view[1];
     PR.$("#count").textContent = PR.t("{n} 篇", { n: list.length });
-    PR.$("#citeExportBtn").disabled = !list.length;
+    PR.renderBatch && PR.renderBatch(list);
     PR.$("#list").innerHTML = list.length ? list.map(rowHtml).join("") : emptyHtml();
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();

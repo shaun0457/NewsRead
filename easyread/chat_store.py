@@ -64,7 +64,7 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
             t = {"id": tid, "title": _title(user["content"]), "created": stamp, "messages": []}
             chat["threads"].append(t)
         t["messages"] += [{**user, "role": "user", "at": stamp, "answer_style": style}, msg]
-        t.update(updated=stamp, model=model_id, answer_style=style)
+        t.update(updated=stamp, model=model_id, answer_style=style, chat_options=user.get("chat_options", {}))
     ws.update("chat", apply)
     note_id = user.get("note")
     if note_id and answer.strip():

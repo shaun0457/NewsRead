@@ -106,6 +106,8 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     if c.get("model"):
         args += ["--model", c["model"]]
     args += list(c.get("extra_args") or [])
+    if c.get("reasoning_effort"):
+        args += ["--effort", c["reasoning_effort"]]
     out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
     events = _json_lines(out)
     res = next((e for e in reversed(events) if e.get("type") == "result"), None)
@@ -132,7 +134,11 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, 
         args += ["--model", c["model"]]
     for img in images:
         args += ["-i", str(img)]
-    args += list(c.get("extra_args") or []) + ["-"]
+    args += list(c.get("extra_args") or [])
+    for field, key in (("reasoning_effort", "model_reasoning_effort"), ("service_tier", "service_tier")):
+        if c.get(field):
+            args += ["-c", key + "=" + json.dumps(c[field])]
+    args += ["-"]
     try:
         out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
         text = Path(last).read_text(encoding="utf-8", errors="replace").strip()
