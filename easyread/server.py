@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, notehelp, paperdata, pdfwork, prefs, settings_api, trash, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -65,6 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
         self._send(200, path.read_bytes(), ctype, cache)
+
+    def _page(self, path: Path):
+        self._send(200, i18n.inject(path.read_text(encoding="utf-8")).encode("utf-8"), "text/html; charset=utf-8")
 
     def _download(self, body: bytes, filename: str, ctype: str):
         self.send_response(200)
@@ -162,9 +165,9 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(url.path)
         app, lib = self.app, self.app.lib
         if path in ("/", "/index.html"):
-            return self._file(WEB / "library.html")
+            return self._page(WEB / "library.html")
         if path.startswith("/read/"):
-            return self._file(WEB / "reader.html")
+            return self._page(WEB / "reader.html")
         if path.startswith("/web/"):
             return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
         if path == "/api/presence" and wsock.is_upgrade(self.headers):

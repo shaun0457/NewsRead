@@ -6,7 +6,7 @@
   PR.applyTheme(prefs.theme);
 
 
-  PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>导入论文</span>";
+  PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>" + PR.t("导入论文") + "</span>";
   PR.$("#settingsBtn").innerHTML = PR.icon("gear");
   PR.$("#helpBtn").innerHTML = PR.icon("question");
   PR.$(".search .si").outerHTML = PR.icon("search", "sm");
@@ -18,7 +18,7 @@
     const it = L.byId(id);
     if (it) { Object.assign(it, fields.meta_override ? {} : fields); L.render(); }  // 先改界面，再存盘
     try { await PR.api("/api/p/" + id + "/item", { method: "POST", body: fields }); }
-    catch (e) { PR.toast("保存失败：" + PR.esc(e.message)); }
+    catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); }
     await L.load();
   };
 
@@ -57,31 +57,31 @@
   }
 
   function statusPill(i) {
-    const m = { unread: "未读", reading: "在读", done: "已读" };
-    return '<span class="pill ' + (i.status || "unread") + '">' + (m[i.status] || "未读") + "</span>";
+    const m = { unread: PR.t("未读"), reading: PR.t("在读"), done: PR.t("已读") };
+    return '<span class="pill ' + (i.status || "unread") + '">' + (m[i.status] || m.unread) + "</span>";
   }
   L.jobLine = function (i) {
     const j = i.job;
     if (j && ["queued", "running"].includes(j.state)) {
-      const pct = j.total ? " " + j.done + "/" + j.total + " 页" : "";
-      return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? "排队中" : (j.message || "处理中")) + pct + "</span>";
+      const pct = j.total ? " " + PR.t("{done}/{total} 页", { done: j.done, total: j.total }) : "";
+      return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中"))) + pct + "</span>";
     }
-    if (j && j.state === "error") return '<span class="stat err">翻译出错</span>';
-    if (j && j.state === "partial") return '<span class="stat err">' + Object.keys(j.failed || {}).length + " 页没译成功</span>";
+    if (j && j.state === "error") return '<span class="stat err">' + PR.t("翻译出错") + "</span>";
+    if (j && j.state === "partial") return '<span class="stat err">' + PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length }) + "</span>";
     const tr = i.done_pages - (i.en_pages || 0);
-    if (i.en_pages && !tr) return '<span class="stat">英文原文</span>';
-    if (i.pages && tr < i.pages) return '<span class="stat">已译 ' + tr + "/" + i.pages + " 页</span>";
+    if (i.en_pages && !tr) return '<span class="stat">' + PR.t("英文原文") + "</span>";
+    if (i.pages && tr < i.pages) return '<span class="stat">' + PR.t("已译 {done}/{total} 页", { done: tr, total: i.pages }) + "</span>";
     return "";
   };
 
   function rowHtml(i) {
-    const title = i.title_zh || i.title_en || "（未命名）";
+    const title = i.title_zh || i.title_en || PR.t("（未命名）");
     const sub = i.title_zh && i.title_en ? '<div class="t2" lang="en">' + PR.esc(i.title_en) + "</div>" : "";
-    const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? " 等" : "")), i.year, i.venue || i.arxiv].filter(Boolean);
+    const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
     const tags = (i.tags || []).map((t) => '<span class="chip cat">' + PR.icon("folder", "sm") + PR.esc(t) + "</span>").join("");
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
-    const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + i.open_questions + " 问待答" : "") + "</span>" : "";
-    const prog = i.progress ? '<div class="meter" title="阅读进度 ' + Math.round(i.progress * 100) + '%"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
+    const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
+    const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
     return '<div class="row' + (L.selected === i.id ? " on" : "") + '" data-id="' + i.id + '" role="option" draggable="true">' + thumb +
       '<div><div class="t1">' + (i.starred ? '<span class="star">' + PR.icon("star") + "</span>" : "") + "<span>" + PR.esc(title) + "</span></div>" + sub +
       '<div class="t3">' + bits.map((b) => "<span>" + PR.esc(String(b)) + "</span>").join("<span>·</span>") + tags + "</div></div>" +
@@ -92,23 +92,23 @@
     PR.renderSide();
     const list = filtered();
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
-    PR.$("#viewTitle").textContent = L.tag ? L.tag : view[1] + (L.view === "all" ? "论文" : "");
-    PR.$("#count").textContent = list.length + " 篇";
+    PR.$("#viewTitle").textContent = L.tag ? L.tag : L.view === "all" ? PR.t("全部论文") : view[1];
+    PR.$("#count").textContent = PR.t("{n} 篇", { n: list.length });
     PR.$("#list").innerHTML = list.length ? list.map(rowHtml).join("") : emptyHtml();
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
   };
   function emptyHtml() {
-    if (L.items.length) return '<div class="empty-state"><div class="big">没有符合条件的论文</div>换个关键词或筛选试试。</div>';
+    if (L.items.length) return '<div class="empty-state"><div class="big">' + PR.t("没有符合条件的论文") + "</div>" + PR.t("换个关键词或筛选试试。") + "</div>";
     const ok = L.engineReady;
-    return '<div class="welcome">' + PR.logo("hero") + "<h2>把英文论文，读成舒服的中文</h2>" +
-      '<p class="sub">导入 PDF，后台逐页翻译；公式、表格照原文排好，随时对照原文，边读边划线、记笔记、提问。</p>' +
+    return '<div class="welcome">' + PR.logo("hero") + "<h2>" + PR.t("把英文论文，读成舒服的中文") + "</h2>" +
+      '<p class="sub">' + PR.t("导入 PDF，后台逐页翻译；公式、表格照原文排好，随时对照原文，边读边划线、记笔记、提问。") + "</p>" +
       '<ol class="steps">' +
-      '<li class="' + (ok ? "done" : "") + '"><b>选一个翻译引擎</b><span>' + (ok === undefined ? '<span class="spin"></span> 正在检测本机…' : ok ? "已就绪：" + PR.esc(L.engineLabel) : "当前引擎还不能用，" + (L.engineHint || "去设置里选一个")) + '</span><button class="btn sm ' + (ok ? "line" : "accent") + '" onclick="PR.openSettings()">' + (ok ? "换一个" : "去设置") + "</button></li>" +
-      "<li><b>导入论文</b><span>拖进 PDF、粘贴 arXiv 链接，或者直接在这个页面按 Ctrl+V</span>" +
-      '<button class="btn sm accent" onclick="PR.openImport()">' + PR.icon("plus", "sm") + "导入</button></li>" +
-      '<li><b>开始读</b><span>点段落出操作条，选中文字能划线、写笔记、提问；按 <kbd>?</kbd> 看快捷键</span></li></ol>' +
-      '<p class="try">没有现成的论文？试试 <button class="linkish" onclick="PR.importRef(&quot;1706.03762&quot;)">Attention Is All You Need</button></p></div>';
+      '<li class="' + (ok ? "done" : "") + '"><b>' + PR.t("选一个翻译引擎") + "</b><span>" + (ok === undefined ? '<span class="spin"></span> ' + PR.t("正在检测本机…") : ok ? PR.t("已就绪：{name}", { name: PR.esc(L.engineLabel) }) : PR.t("当前引擎还不能用，{hint}", { hint: L.engineHint || PR.t("去设置里选一个") })) + '</span><button class="btn sm ' + (ok ? "line" : "accent") + '" onclick="PR.openSettings()">' + (ok ? PR.t("换一个") : PR.t("去设置")) + "</button></li>" +
+      "<li><b>" + PR.t("导入论文") + "</b><span>" + PR.t("拖进 PDF、粘贴 arXiv 链接，或者直接在这个页面按 Ctrl+V") + "</span>" +
+      '<button class="btn sm accent" onclick="PR.openImport()">' + PR.icon("plus", "sm") + PR.t("导入") + "</button></li>" +
+      '<li><b>' + PR.t("开始读") + "</b><span>" + PR.t("点段落出操作条，选中文字能划线、写笔记、提问；按 <kbd>?</kbd> 看快捷键") + "</span></li></ol>" +
+      '<p class="try">' + PR.t("没有现成的论文？试试") + ' <button class="linkish" onclick="PR.importRef(&quot;1706.03762&quot;)">Attention Is All You Need</button></p></div>';
   }
 
   /* 顶栏上的引擎状态：一眼看出现在用什么翻译、能不能用 */
@@ -121,11 +121,11 @@
       engineChip.pending = false;
       L.engineReady = r ? r.ready : true;
       const f = r && r.found && r.found[L.engine];
-      L.engineHint = f && !f.found ? "本机没找到 " + L.engineLabel : L.engine === "openai" ? "API 还没填 Key" : "";
+      L.engineHint = f && !f.found ? PR.t("本机没找到 {name}", { name: L.engineLabel }) : L.engine === "openai" ? PR.t("API 还没填 Key") : "";
       L.render();
     }
     chip.classList.toggle("bad", L.engineReady === false);
-    chip.title = L.engineReady === false ? "翻译引擎还不能用：" + (L.engineHint || "") + "（点这里设置）" : "翻译引擎（点这里设置）";
+    chip.title = L.engineReady === false ? PR.t("翻译引擎还不能用：{hint}（点这里设置）", { hint: L.engineHint || "" }) : PR.t("翻译引擎（点这里设置）");
   }
   PR.$("#engineChip").onclick = () => PR.openSettings();
 
@@ -179,6 +179,6 @@
   // 等侧栏、详情这些脚本都加载完再取数据：数据先到、脚本还没到时会出错
   document.addEventListener("DOMContentLoaded", () => {
     PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); });
-    L.load().catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">连不上本地服务</div>' + PR.esc(e.message) + "</div>"; });
+    L.load().catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
   });
 })(window.PR);

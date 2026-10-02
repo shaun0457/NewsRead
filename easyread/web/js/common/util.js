@@ -44,16 +44,16 @@ window.PR = window.PR || {};
     const d = new Date(iso);
     if (isNaN(d)) return "";
     const pad = (n) => String(n).padStart(2, "0");
-    return (d.getMonth() + 1) + "月" + d.getDate() + "日 " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    return PR.t("{m}月{d}日 {time}", { m: d.getMonth() + 1, d: d.getDate(), time: pad(d.getHours()) + ":" + pad(d.getMinutes()) });
   };
   PR.relTime = function (iso) {
     if (!iso) return "";
     const s = (Date.now() - new Date(iso)) / 1000;
-    if (s < 60) return "刚刚";
-    if (s < 3600) return Math.floor(s / 60) + " 分钟前";
-    if (s < 86400) return Math.floor(s / 3600) + " 小时前";
-    if (s < 86400 * 30) return Math.floor(s / 86400) + " 天前";
-    return new Date(iso).toLocaleDateString("zh-CN");
+    if (s < 60) return PR.t("刚刚");
+    if (s < 3600) return PR.t("{n} 分钟前", { n: Math.floor(s / 60) });
+    if (s < 86400) return PR.t("{n} 小时前", { n: Math.floor(s / 3600) });
+    if (s < 86400 * 30) return PR.t("{n} 天前", { n: Math.floor(s / 86400) });
+    return new Date(iso).toLocaleDateString(PR.lang === "en" ? "en-US" : "zh-CN");
   };
 
   PR.uid = (p) => (p || "n") + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -151,7 +151,7 @@ window.PR = window.PR || {};
     sparkle: "M10 3v4M10 13v4M3 10h4M13 10h4M5.5 5.5l2 2M12.5 12.5l2 2M14.5 5.5l-2 2M7.5 12.5l-2 2",
     question: "M7.5 7.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8M10 14.5v.01M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
   };
-  PR.HL_COLORS = [["yellow", "黄"], ["green", "绿"], ["blue", "蓝"], ["pink", "红"]];  // pink 历史上叫粉，现在画成红
+  PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
   PR.logo = (cls) => '<svg class="' + (cls || "mark") + '" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#2d6173"/><path d="M16 10.5C13.6 8.8 10.4 8.3 7 8.6v14.2c3.4-.3 6.6.2 9 1.9 2.4-1.7 5.6-2.2 9-1.9V8.6c-3.4-.3-6.6.2-9 1.9z" fill="#f6f3ec"/><path d="M16 10.5v14.2" stroke="#2d6173" stroke-width="1.2"/><path d="M9.4 13.4h4M9.4 16.4h4M9.4 19.4h2.6" stroke="#9fb7bf" stroke-width="1.6" stroke-linecap="round"/><path d="M18.6 13.4h4M18.6 16.4h4M18.6 19.4h2.6" stroke="#e0a84f" stroke-width="1.6" stroke-linecap="round"/></svg>';
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 20 20" aria-hidden="true"><path d="' + (P[name] || "") + '"/></svg>';
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
@@ -179,7 +179,7 @@ window.PR = window.PR || {};
     if (opts.method && opts.method !== "GET") headers["X-Token"] = PR.token || "";
     const r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || "请求失败 " + r.status);
+    if (!r.ok) throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
     return data;
   };
 

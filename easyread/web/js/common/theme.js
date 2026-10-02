@@ -11,7 +11,7 @@ window.PR = window.PR || {};
 
   function paint(btn) {
     btn.innerHTML = svg(dark() ? SUN : MOON);
-    btn.title = dark() ? "换成浅色" : "换成深色";
+    btn.title = dark() ? PR.t("换成浅色") : PR.t("换成深色");
   }
 
   PR.toggleTheme = function () {

@@ -5,7 +5,7 @@
 (function (PR) {
   "use strict";
   const dlg = () => PR.$("#settingsDlg");
-  const ALL_TABS = [["chat", "模型"], ["reading", "阅读"], ["library", "侧边栏"], ["keys", "快捷键"]];
+  const ALL_TABS = [["chat", PR.t("模型")], ["reading", PR.t("阅读")], ["library", PR.t("侧边栏")], ["keys", PR.t("快捷键")]];
   const tabs = () => ALL_TABS.filter(([k]) => PR.settingsTabs[k]);  // “侧边栏”页只在文献库页面有
   PR.settingsTabs = PR.settingsTabs || {};
   const st = (PR.settingsState = { tab: "chat", cfg: null, presets: [], groups: [], found: null, chat: null, ui: null });
@@ -34,9 +34,9 @@
   function render() {
     const t = PR.settingsTabs[st.tab];
     dlg().querySelector(".dialog").innerHTML =
-      '<div class="set-head"><h2>设置</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div></div>" +
+      '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div></div>" +
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
-      '<div class="actions set-foot"><button class="linkish" id="showLog">运行日志</button><span class="grow"></span><button class="btn" id="setCancel">取消</button><button class="btn primary" id="setSave">保存</button></div>';
+      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button><span class="grow"></span><button class="btn" id="setCancel">' + PR.t("取消") + '</button><button class="btn primary" id="setSave">' + PR.t("保存") + "</button></div>";
   }
 
   async function save() {
@@ -54,14 +54,14 @@
       if (PR.resetAllType) PR.resetAllType(st.type); else PR.savePrefs("reader", st.type);
     }
     dlg().classList.remove("open");
-    PR.toast("设置已保存");
+    PR.toast(PR.t("设置已保存"));
     PR.onSettingsSaved && PR.onSettingsSaved();
     PR.emit("settings-saved", st);
   }
 
   PR.showText = function (title, text) {
     const d = PR.$("#textDlg");
-    d.querySelector(".dialog").innerHTML = "<h2>" + PR.esc(title) + '</h2><pre class="logview">' + PR.esc(text || "（还没有记录）") + '</pre><div class="actions"><button class="btn" data-close>关闭</button></div>';
+    d.querySelector(".dialog").innerHTML = "<h2>" + PR.esc(title) + '</h2><pre class="logview">' + PR.esc(text || PR.t("（还没有记录）")) + '</pre><div class="actions"><button class="btn" data-close>' + PR.t("关闭") + "</button></div>";
     d.classList.add("open");
     const pre = d.querySelector("pre"); pre.scrollTop = pre.scrollHeight;
   };
@@ -72,8 +72,8 @@
     if (e.target === dlg() || e.target.closest("#setCancel")) { st.recording = null; return dlg().classList.remove("open"); }
     const tb = e.target.closest("[data-set-tab]");
     if (tb) { sync(); st.tab = tb.dataset.setTab; st.recording = null; st.editing = null; render(); return; }
-    if (e.target.closest("#showLog")) { const r = await PR.api("/api/log"); PR.showText("运行日志", r.text + "\n\n（完整日志：" + r.path + "）"); return; }
-    if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast("保存失败：" + PR.esc(err.message)); } return; }
+    if (e.target.closest("#showLog")) { const r = await PR.api("/api/log"); PR.showText(PR.t("运行日志"), r.text + "\n\n" + PR.t("（完整日志：{path}）", { path: r.path })); return; }
+    if (e.target.closest("#setSave")) { try { await save(); } catch (err) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(err.message) })); } return; }
     const t = PR.settingsTabs[st.tab];
     if (t && t.click && (await t.click(e, st, dlg()))) render();
   });

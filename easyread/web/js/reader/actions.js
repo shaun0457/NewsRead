@@ -21,15 +21,15 @@
     const keys = PR.blockKeys(b);
     const hasEn = PR.hasZh(b) && (b.en || b.caption_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
     const list = [
-      { k: "note", label: "笔记", icon: "note", fn: () => PR.startNote({ anchor: id }) },
-      { k: "question", label: "提问", icon: "question", fn: () => PR.startNote({ anchor: id, kind: "question" }) },
+      { k: "note", label: PR.t("笔记"), icon: "note", fn: () => PR.startNote({ anchor: id }) },
+      { k: "question", label: PR.t("提问"), icon: "question", fn: () => PR.startNote({ anchor: id, kind: "question" }) },
     ];
-    if (PR.canChat() && PR.feature("chat")) list.push({ k: "chat", label: PR.chatOpen && PR.chatOpen() ? "引用到对话" : "问 AI", icon: "sparkle", fn: () => PR.chatAsk({ anchor: id }) });
-    if (hasEn && PR.feature("en")) list.push({ k: "en", label: "原文", icon: "en", fn: () => PR.toggleEn(id) });
-    if (keys.length && PR.feature("edit")) list.push({ k: "edit", label: "改译文", icon: "edit", fn: () => { const zh = PR.$("#b-" + CSS.escape(id) + " .zh[data-key]"); zh && PR.editZh(zh); } });
-    if (b.page && PR.feature("pages")) list.push({ k: "page", label: "原页 p." + b.page, icon: "page", fn: () => PR.openPage(b.page, id) });
+    if (PR.canChat() && PR.feature("chat")) list.push({ k: "chat", label: PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI"), icon: "sparkle", fn: () => PR.chatAsk({ anchor: id }) });
+    if (hasEn && PR.feature("en")) list.push({ k: "en", label: PR.t("原文"), icon: "en", fn: () => PR.toggleEn(id) });
+    if (keys.length && PR.feature("edit")) list.push({ k: "edit", label: PR.t("改译文"), icon: "edit", fn: () => { const zh = PR.$("#b-" + CSS.escape(id) + " .zh[data-key]"); zh && PR.editZh(zh); } });
+    if (b.page && PR.feature("pages")) list.push({ k: "page", label: PR.t("原页 p.{page}", { page: b.page }), icon: "page", fn: () => PR.openPage(b.page, id) });
     // 重译花 token、容易误点：默认关，开了也只放在“⋯”菜单里
-    if (keys.length && PR.canAsk() && PR.feature("retranslate")) list.push({ k: "redo", label: "让模型重译这段…", icon: "redo", menuOnly: true, fn: () => retranslate(id) });
+    if (keys.length && PR.canAsk() && PR.feature("retranslate")) list.push({ k: "redo", label: PR.t("让模型重译这段…"), icon: "redo", menuOnly: true, fn: () => retranslate(id) });
     list.forEach((a) => { a.kbd = PR.keyOf ? PR.keyOf(a.k) : ""; });
     return list;
   }
@@ -47,8 +47,8 @@
 
   function showBar() {
     const acts = actionsFor(current).filter((a) => !a.menuOnly);
-    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" title="' + a.label + (a.kbd ? "（" + a.kbd + "）" : "") + '">' + PR.icon(a.icon, "sm") + "<span>" + PR.esc(a.label) + "</span></button>").join("") +
-      '<button data-i="more" title="更多（右键段落也可以）">⋯</button>';
+    bar().innerHTML = acts.map((a, i) => '<button data-i="' + i + '" title="' + PR.esc(a.label) + (a.kbd ? "（" + a.kbd + "）" : "") + '">' + PR.icon(a.icon, "sm") + "<span>" + PR.esc(a.label) + "</span></button>").join("") +
+      '<button data-i="more" title="' + PR.t("更多（右键段落也可以）") + '">⋯</button>';
     bar().onclick = (e) => {
       const b = e.target.closest("[data-i]");
       if (!b) return;
@@ -77,21 +77,21 @@
     const b = PR.blockById[id];
     const items = actionsFor(id).map((a) => ({ label: a.label, icon: a.icon, kbd: a.kbd, fn: a.fn }));
     items.push("-",
-      { label: "复制译文", icon: "copy", kbd: PR.keyOf("copy"), fn: () => copyBlock(id, "zh") },
-      { label: "复制英文原文", icon: "copy", fn: () => copyBlock(id, "en") },
+      { label: PR.t("复制译文"), icon: "copy", kbd: PR.keyOf("copy"), fn: () => copyBlock(id, "zh") },
+      { label: PR.t("复制英文原文"), icon: "copy", fn: () => copyBlock(id, "en") },
       // 贴进 Obsidian / Notion 是一条 Markdown 链接，点开（EasyRead 开着时）直接回到这一段
-      { label: "复制段落链接（贴进笔记软件）", icon: "link", fn: () => {
+      { label: PR.t("复制段落链接（贴进笔记软件）"), icon: "link", fn: () => {
         const sec = PR.sectionOf ? PR.sectionOf(id) : "";  // 用“论文 · 章节 · 页码”当链接文字，正文里可能有公式，不好截
-        const title = [(S.paper.meta || {}).short_zh || (S.paper.meta || {}).title_zh || "论文", sec, b && b.page ? "p." + b.page : ""].filter(Boolean).join(" · ");
-        navigator.clipboard.writeText("[" + title.replace(/[[\]]/g, "") + "](" + location.origin + location.pathname + "#b-" + id + ")").then(() => PR.toast("已复制 Markdown 链接，贴进笔记里点开就回到这一段"));
+        const title = [(S.paper.meta || {}).short_zh || (S.paper.meta || {}).title_zh || PR.t("论文"), sec, b && b.page ? "p." + b.page : ""].filter(Boolean).join(" · ");
+        navigator.clipboard.writeText("[" + title.replace(/[[\]]/g, "") + "](" + location.origin + location.pathname + "#b-" + id + ")").then(() => PR.toast(PR.t("已复制 Markdown 链接，贴进笔记里点开就回到这一段")));
       } });
-    if (b && PR.blockKeys(b).some((k) => PR.editOf(k))) items.push("-", { label: "恢复译者稿", icon: "redo", fn: () => { PR.blockKeys(b).forEach((k) => PR.editOf(k) && PR.commit({ op: "edit", block: k, zh: null })); PR.renderBlock(id); PR.applyMarks(id); } });
+    if (b && PR.blockKeys(b).some((k) => PR.editOf(k))) items.push("-", { label: PR.t("恢复译者稿"), icon: "redo", fn: () => { PR.blockKeys(b).forEach((k) => PR.editOf(k) && PR.commit({ op: "edit", block: k, zh: null })); PR.renderBlock(id); PR.applyMarks(id); } });
     PR.menu(where, items);
   }
   function copyBlock(id, lang) {
     const b = PR.blockById[id];
     const t = lang === "en" ? (b.en || b.caption_en || (b.items || []).map((i) => i.en).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
-    navigator.clipboard.writeText(PR.plain(t || (b.tex ? "$$" + b.tex + "$$" : ""))).then(() => PR.toast("已复制"));
+    navigator.clipboard.writeText(PR.plain(t || (b.tex ? "$$" + b.tex + "$$" : ""))).then(() => PR.toast(PR.t("已复制")));
   }
 
   /* 点击段落 = 设为当前段并出操作条；再点一次收起 */
@@ -123,18 +123,18 @@
     if (t.dataset.t === "page" && b) PR.openPage(b.page, id);
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
-    if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast("正在重试，译好后自动替换"); PR.poll(); });
-    if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast("已开始翻译，译好的页就地换成中文，笔记和划线都保留"); PR.poll(); });
-    if (t.dataset.t === "read-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { read: true } }).then(() => { PR.toast("已开始整理，整理好的页会自动出现"); PR.poll(); });
-    if (t.dataset.t === "translate-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: {} }).then(() => { PR.toast("已开始翻译，译好的页会自动出现"); PR.poll(); });
+    if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast(PR.t("正在重试，译好后自动替换")); PR.poll(); });
+    if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast(PR.t("已开始翻译，译好的页就地换成中文，笔记和划线都保留")); PR.poll(); });
+    if (t.dataset.t === "read-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { read: true } }).then(() => { PR.toast(PR.t("已开始整理，整理好的页会自动出现")); PR.poll(); });
+    if (t.dataset.t === "translate-rest") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: {} }).then(() => { PR.toast(PR.t("已开始翻译，译好的页会自动出现")); PR.poll(); });
   });
 
   /* ---------- 重译 ---------- */
   function retranslate(id) {
     const el = document.getElementById("b-" + id);
-    PR.popover(el.querySelector(".zh") || el, '<div class="hd">让模型重译这段</div>' +
-      '<textarea class="input" id="rtHint" rows="3" placeholder="哪里译得不好？比如“standard error 应译标准误差”“太生硬”（可留空）"></textarea>' +
-      '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px"><button class="btn sm" data-rt="cancel">取消</button><button class="btn sm accent" data-rt="go">重译</button></div>', { sticky: true, wide: true });
+    PR.popover(el.querySelector(".zh") || el, '<div class="hd">' + PR.t("让模型重译这段") + '</div>' +
+      '<textarea class="input" id="rtHint" rows="3" placeholder="' + PR.esc(PR.t("哪里译得不好？比如“standard error 应译标准误差”“太生硬”（可留空）")) + '"></textarea>' +
+      '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px"><button class="btn sm" data-rt="cancel">' + PR.t("取消") + '</button><button class="btn sm accent" data-rt="go">' + PR.t("重译") + '</button></div>', { sticky: true, wide: true });
     setTimeout(() => PR.$("#rtHint").focus(), 30);
     PR.$("#popover").onclick = async (ev) => {
       const b = ev.target.closest("[data-rt]");
@@ -145,8 +145,8 @@
       el.classList.add("busy");
       try {
         for (const key of PR.blockKeys(PR.blockById[id])) await PR.ask("retranslate", { key, hint });
-        PR.toast("正在重译，好了会自动替换（你改过的段落会提示对比）");
-      } catch (err) { el.classList.remove("busy"); PR.toast("没能提交：" + PR.esc(err.message)); }
+        PR.toast(PR.t("正在重译，好了会自动替换（你改过的段落会提示对比）"));
+      } catch (err) { el.classList.remove("busy"); PR.toast(PR.t("没能提交：{msg}", { msg: PR.esc(err.message) })); }
     };
   }
   PR.on("job-finished", (j) => {
@@ -154,8 +154,8 @@
     const id = (j.key || "").split("#")[0];
     const el = document.getElementById("b-" + id);
     el && el.classList.remove("busy");
-    if (j.state === "error") PR.toast("重译失败：" + PR.esc(j.message));
-    else { PR.toast("这段已重译"); setTimeout(() => { const n = document.getElementById("b-" + id); n && n.classList.add("flash"); }, 300); }
+    if (j.state === "error") PR.toast(PR.t("重译失败：{msg}", { msg: PR.esc(j.message) }));
+    else { PR.toast(PR.t("这段已重译")); setTimeout(() => { const n = document.getElementById("b-" + id); n && n.classList.add("flash"); }, 300); }
   });
 
   /* ---------- 引用、交叉引用悬停 ---------- */
@@ -181,9 +181,9 @@
     }
     const b = PR.blockById[PR.xindex[a.dataset.kind][a.dataset.key]];
     if (!b) return "";
-    if (b.type === "math") return '<div class="hd">公式 (' + PR.esc(b.tag) + ") · 第 " + b.page + ' 页</div><div class="eq">' + PR.tex(b.tex, true) + "</div>";
-    if (b.type === "table" || b.type === "figure") return '<div class="hd">第 ' + b.page + ' 页</div><div class="cap">' + PR.md(PR.textFor(b.id + "#caption"), { xref: false }) + "</div>";
-    return '<div class="hd">跳到</div><div class="cap">' + PR.esc((b.num ? b.num + "　" : "") + PR.plain(PR.textFor(b.id))) + "</div>";
+    if (b.type === "math") return '<div class="hd">' + PR.t("公式 ({tag}) · 第 {page} 页", { tag: PR.esc(b.tag), page: b.page }) + '</div><div class="eq">' + PR.tex(b.tex, true) + "</div>";
+    if (b.type === "table" || b.type === "figure") return '<div class="hd">' + PR.t("第 {page} 页", { page: b.page }) + '</div><div class="cap">' + PR.md(PR.textFor(b.id + "#caption"), { xref: false }) + "</div>";
+    return '<div class="hd">' + PR.t("跳到") + '</div><div class="cap">' + PR.esc((b.num ? b.num + "　" : "") + PR.plain(PR.textFor(b.id))) + "</div>";
   }
 
   /* 所有跳转都用这个：目标放在屏幕正中（比一屏还高的才顶到上面），不被顶栏挡住 */

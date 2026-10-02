@@ -2,7 +2,7 @@
    名单来自 /api/engines 的 models（后端 cli_models.py）：Codex 就是它 /model 里列的那些；Claude 的别名带上实际版本。 */
 (function (PR) {
   "use strict";
-  const FALLBACK = { claude: { models: [{ id: "opus", name: "Opus", desc: "最强" }, { id: "sonnet", name: "Sonnet", desc: "快、省" }, { id: "haiku", name: "Haiku", desc: "最快最省" }] },
+  const FALLBACK = { claude: { models: [{ id: "opus", name: "Opus", desc: PR.t("最强") }, { id: "sonnet", name: "Sonnet", desc: PR.t("快、省") }, { id: "haiku", name: "Haiku", desc: PR.t("最快最省") }] },
     codex: { default: "", models: [] } };
   const lists = (s) => (s.models || FALLBACK);
 
@@ -14,7 +14,7 @@
       opts = L.models.map((m) => [m.id, m.actual || "Claude " + m.name]);
     } else {
       opts = L.models.map((m) => [m.id, m.name]);
-      if (!opts.length) opts.unshift(["", "Codex 默认"]);
+      if (!opts.length) opts.unshift(["", PR.t("Codex 默认")]);
     }
     if (value && !opts.some(([v]) => v === value)) opts.push([value, value]);
     return opts;

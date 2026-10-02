@@ -9,23 +9,23 @@
 
   /* [id, 名字, 默认开关, 说明] */
   PR.FEATURES = [
-    ["chat", "问 AI", true, "阅读页右侧边读边问；段落操作条、选中文字、笔记卡片上的“问 AI”"],
-    ["edit", "改译文", true, "段落操作条里的“改译文”（也可以双击段落）"],
-    ["en", "展开英文原文", true, "段落操作条里的“原文”"],
-    ["pages", "原页面板", true, "右上角“原页”，对照 PDF 原页"],
-    ["retranslate", "让模型重译一段", false, "会花 token，容易误点，默认关；开了之后在段落的“⋯”菜单里"],
+    ["chat", PR.t("问 AI"), true, PR.t("阅读页右侧边读边问；段落操作条、选中文字、笔记卡片上的“问 AI”")],
+    ["edit", PR.t("改译文"), true, PR.t("段落操作条里的“改译文”（也可以双击段落）")],
+    ["en", PR.t("展开英文原文"), true, PR.t("段落操作条里的“原文”")],
+    ["pages", PR.t("原页面板"), true, PR.t("右上角“原页”，对照 PDF 原页")],
+    ["retranslate", PR.t("让模型重译一段"), false, PR.t("会花 token，容易误点，默认关；开了之后在段落的“⋯”菜单里")],
   ];
   /* [id, 名字, 默认键, 分组, 依赖的功能] */
   PR.KEY_ACTIONS = [
-    ["next", "下一段", "j", "阅读"], ["prev", "上一段", "k", "阅读"],
-    ["mode", "译文 / 对照原文", "b", "阅读"], ["toc", "目录", "t", "阅读"],
-    ["fontUp", "字号变大", "=", "阅读"], ["fontDown", "字号变小", "-", "阅读"], ["fontReset", "恢复默认字号", "0", "阅读"],
-    ["notes", "笔记面板", "m", "面板"], ["chat", "问 AI（带当前段）", "a", "面板", "chat"],
-    ["pages", "原页面板", "o", "面板", "pages"], ["pagePrev", "原页上一页", "[", "面板", "pages"], ["pageNext", "原页下一页", "]", "面板", "pages"],
-    ["note", "给当前段写笔记", "n", "当前段"], ["question", "给当前段提问", "q", "当前段"],
-    ["en", "展开这段英文", "y", "当前段", "en"], ["edit", "改译文", "e", "当前段", "edit"],
-    ["redo", "让模型重译这段", "", "当前段", "retranslate"],
-    ["page", "看这段的原页", "p", "当前段", "pages"], ["copy", "复制这段译文", "c", "当前段"],
+    ["next", PR.t("下一段"), "j", PR.t("阅读")], ["prev", PR.t("上一段"), "k", PR.t("阅读")],
+    ["mode", PR.t("译文 / 对照原文"), "b", PR.t("阅读")], ["toc", PR.t("目录"), "t", PR.t("阅读")],
+    ["fontUp", PR.t("字号变大"), "=", PR.t("阅读")], ["fontDown", PR.t("字号变小"), "-", PR.t("阅读")], ["fontReset", PR.t("恢复默认字号"), "0", PR.t("阅读")],
+    ["notes", PR.t("笔记面板"), "m", PR.t("面板")], ["chat", PR.t("问 AI（带当前段）"), "a", PR.t("面板"), "chat"],
+    ["pages", PR.t("原页面板"), "o", PR.t("面板"), "pages"], ["pagePrev", PR.t("原页上一页"), "[", PR.t("面板"), "pages"], ["pageNext", PR.t("原页下一页"), "]", PR.t("面板"), "pages"],
+    ["note", PR.t("给当前段写笔记"), "n", PR.t("当前段")], ["question", PR.t("给当前段提问"), "q", PR.t("当前段")],
+    ["en", PR.t("展开这段英文"), "y", PR.t("当前段"), "en"], ["edit", PR.t("改译文"), "e", PR.t("当前段"), "edit"],
+    ["redo", PR.t("让模型重译这段"), "", PR.t("当前段"), "retranslate"],
+    ["page", PR.t("看这段的原页"), "p", PR.t("当前段"), "pages"], ["copy", PR.t("复制这段译文"), "c", PR.t("当前段")],
   ];
   const DEF_KEYS = Object.fromEntries(PR.KEY_ACTIONS.map(([id, , k]) => [id, k]));
   const DEF_FEATURES = Object.fromEntries(PR.FEATURES.map(([id, , on]) => [id, on]));
@@ -36,7 +36,7 @@
   PR.keymap = Object.assign({}, DEF_KEYS, PR.ls.get("easyread-keys", {}));
 
   PR.feature = (id) => PR.features[id] !== false;
-  const show = (k) => (!k ? "" : k === " " ? "空格" : k.length === 1 ? k.toUpperCase() : k);
+  const show = (k) => (!k ? "" : k === " " ? PR.t("空格") : k.length === 1 ? k.toUpperCase() : k);
   PR.keyName = show;
   PR.keyOf = (id) => (PR.keysOn ? show(PR.keymap[id]) : "");
   PR.keyAction = function (k) {

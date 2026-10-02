@@ -23,4 +23,4 @@ def build_demo(ws: Workspace, out_dir: Path, name: str = "index.html", credit: s
     reader.pop("progress", None)  # 别让看演示的人从我读到的地方开始
     extra = {"reader": reader, "chat": {"threads": chat_store.threads(ws)},
              "demo": {"home": "../", "repo": REPO, "credit": credit}}
-    return build(ws, out_dir / name, assets=out_dir / "assets", extra=extra)
+    return build(ws, out_dir / name, assets=out_dir / "assets", extra=extra, lang="zh")  # 在线试读是中文站

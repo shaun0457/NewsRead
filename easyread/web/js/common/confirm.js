@@ -35,7 +35,7 @@
         '<div class="cf-title">' + PR.esc(o.title || "") + "</div>" +
         (o.body ? '<div class="cf-body">' + PR.esc(o.body) + "</div>" : "") +
         (withInput ? '<input class="input cf-input" maxlength="' + (o.max || 60) + '" placeholder="' + PR.esc(o.placeholder || "") + '">' : "") +
-        '<div class="cf-acts"><button class="btn sm" data-cf="no">取消</button><button class="btn sm ' + (o.danger ? "danger-fill" : "accent") + '" data-cf="ok">' + PR.esc(o.ok || "确定") + "</button></div>");
+        '<div class="cf-acts"><button class="btn sm" data-cf="no">' + PR.t("取消") + '</button><button class="btn sm ' + (o.danger ? "danger-fill" : "accent") + '" data-cf="ok">' + PR.esc(o.ok || PR.t("确定")) + "</button></div>");
       document.body.appendChild(box);
       const inp = box.querySelector(".cf-input");
       if (inp) inp.value = o.value || "";

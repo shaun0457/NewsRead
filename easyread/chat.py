@@ -16,11 +16,12 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from . import engines, netcheck, openai_api, usage
+from .i18n import tr
 from .prompts import _block_text
 from .store import Workspace
 
 HISTORY = 12  # 带上最近几轮对话
-COLOR_NAMES = {"yellow": "黄", "green": "绿", "blue": "蓝", "pink": "红"}
+COLOR_NAMES = {"yellow": "黄", "green": "绿", "blue": "蓝", "pink": "红"}  # i18n-ok
 MARKS_BUDGET = 9000  # 标记部分最多带多少字
 
 
@@ -29,21 +30,21 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
-    lines = [f"论文：《{meta.get('title_zh') or ''}》{meta.get('title_en') or ''}，{meta.get('authors', '')[:200]}。"]
+    lines = [f"论文：《{meta.get('title_zh') or ''}》{meta.get('title_en') or ''}，{meta.get('authors', '')[:200]}。"]  # i18n-ok
     abstract = next((_block_text(b) for b in blocks if b.get("role") == "abstract"), "")
     if abstract:
-        lines.append("摘要：" + abstract[:1500])
+        lines.append("摘要：" + abstract[:1500])  # i18n-ok
     idx = next((i for i, b in enumerate(blocks) if b.get("id") == anchor), None)
     if idx is not None:
         h = next((b for b in reversed(blocks[:idx + 1]) if b.get("type") == "heading"), None)
         if h:
-            lines.append(f"读者正在读的章节：{h.get('num', '')} {h.get('zh') or h.get('en', '')}")
+            lines.append(f"读者正在读的章节：{h.get('num', '')} {h.get('zh') or h.get('en', '')}")  # i18n-ok
         near = blocks[max(0, idx - 3): idx + 3]
-        lines.append("附近的段落（有译文用译文，没译的是原文）：\n" + "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near))
+        lines.append("附近的段落（有译文用译文，没译的是原文）：\n" + "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near))  # i18n-ok
         focus = blocks[idx]
-        lines.append(f"读者指着的段落 [{focus['id']}]：\n译文：{_block_text(focus)}\n原文：{focus.get('en') or focus.get('caption_en') or focus.get('tex', '')}")
+        lines.append(f"读者指着的段落 [{focus['id']}]：\n译文：{_block_text(focus)}\n原文：{focus.get('en') or focus.get('caption_en') or focus.get('tex', '')}")  # i18n-ok
     if quote:
-        lines.append(f"读者选中的原话：「{quote}」")
+        lines.append(f"读者选中的原话：「{quote}」")  # i18n-ok
     extra = [r for r in (refs or []) if r.get("anchor") != anchor or (r.get("quote") or "") != quote]
     if extra:
         by_id = {b.get("id"): b for b in blocks}
@@ -51,11 +52,11 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
         for r in extra[:12]:
             b = by_id.get(r.get("anchor")) or {}
             q = (r.get("quote") or "").strip()
-            parts.append(f"[{r.get('anchor')}] " + (f"读者选中：「{q[:800]}」\n  所在段落：" if q else "") + _block_text(b)[:1200])
-        lines.append("读者引用了这几处（问题可能是在问它们之间的关系）：\n" + "\n".join(parts))
+            parts.append(f"[{r.get('anchor')}] " + (f"读者选中：「{q[:800]}」\n  所在段落：" if q else "") + _block_text(b)[:1200])  # i18n-ok
+        lines.append("读者引用了这几处（问题可能是在问它们之间的关系）：\n" + "\n".join(parts))  # i18n-ok
     gl = paper.get("glossary", [])
     if gl:
-        lines.append("术语表：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl[:80]))
+        lines.append("术语表：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl[:80]))  # i18n-ok
     return "\n\n".join(lines)
 
 
@@ -68,45 +69,45 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
     if not notes:
         return ""
     notes.sort(key=lambda n: order.get(n.get("anchor"), 1e9))
-    kinds = {"highlight": "划线", "note": "笔记", "question": "问题"}
+    kinds = {"highlight": "划线", "note": "笔记", "question": "问题"}  # i18n-ok
     groups: dict[str, list[str]] = {}
     shown: set[str] = set()
     for n in notes:
-        color = COLOR_NAMES.get(n.get("color") or "yellow", "黄") if n.get("quote") else "无颜色"
+        color = COLOR_NAMES.get(n.get("color") or "yellow", "黄") if n.get("quote") else "无颜色"  # i18n-ok
         if colors and color not in colors:
             continue
         b = blocks.get(n.get("anchor")) or {}
-        line = f"- [{n.get('anchor')}] {kinds.get(n.get('kind'), '笔记')}"
+        line = f"- [{n.get('anchor')}] {kinds.get(n.get('kind'), '笔记')}"  # i18n-ok
         if n.get("quote"):
             line += f"：「{n['quote']}」"
         if n.get("body"):
-            line += f"；读者写道：{n['body'][:300]}"
+            line += f"；读者写道：{n['body'][:300]}"  # i18n-ok
         if b and b.get("id") not in shown:
             shown.add(b["id"])
-            line += f"\n  所在段落：{_block_text(b)[:600]}"
+            line += f"\n  所在段落：{_block_text(b)[:600]}"  # i18n-ok
         groups.setdefault(color, []).append(line)
     parts, used = [], 0
-    for color in ["红", "黄", "绿", "蓝", "无颜色"]:
+    for color in ["红", "黄", "绿", "蓝", "无颜色"]:  # i18n-ok
         for line in groups.get(color, []):
             if used > MARKS_BUDGET:
                 break
             if not parts or not parts[-1].startswith(f"【{color}"):
-                parts.append(f"【{color}色】" if color != "无颜色" else "【没有颜色的笔记和问题】")
+                parts.append(f"【{color}色】" if color != "无颜色" else "【没有颜色的笔记和问题】")  # i18n-ok
             parts.append(line)
             used += len(line)
-    return ("读者在译文上做的标记（按颜色分组，读者说“红的”“黄色那些”就是指这里；每处附所在段落译文，行内公式是 $TeX$）：\n"
-            + "\n".join(parts) + ("\n（标记太多，只列了一部分；Claude Code 可以 Read reader.json 看全部）" if used > MARKS_BUDGET else ""))
+    return ("读者在译文上做的标记（按颜色分组，读者说“红的”“黄色那些”就是指这里；每处附所在段落译文，行内公式是 $TeX$）：\n"  # i18n-ok
+            + "\n".join(parts) + ("\n（标记太多，只列了一部分；Claude Code 可以 Read reader.json 看全部）" if used > MARKS_BUDGET else ""))  # i18n-ok
 
 
-MARK_WORDS = re.compile(r"标[红黄绿蓝记了过的出注]|划线|划过|划的|画线|高亮|涂|颜色|[红黄绿蓝][色的]|笔记|批注|标记|我的问题|highlight", re.I)
+MARK_WORDS = re.compile(r"标[红黄绿蓝记了过的出注]|划线|划过|划的|画线|高亮|涂|颜色|[红黄绿蓝][色的]|笔记|批注|标记|我的问题|highlight", re.I)  # i18n-ok
 
 
 def wants_marks(text: str) -> tuple[bool, set[str] | None]:
     """问题里提到“标红的”“划线”“我的笔记”这类词，才把读者的标记带上；提到具体颜色就只带那几种。"""
     if not MARK_WORDS.search(text or ""):
         return False, None
-    colors = {c for c in "红黄绿蓝" if re.search(c + "[色的]|标" + c, text)}
-    return True, (colors | {"无颜色"} if colors and re.search(r"笔记|问题|批注", text) else colors or None)
+    colors = {c for c in "红黄绿蓝" if re.search(c + "[色的]|标" + c, text)}  # i18n-ok
+    return True, (colors | {"无颜色"} if colors and re.search(r"笔记|问题|批注", text) else colors or None)  # i18n-ok
 
 
 def _marks_summary(ws: Workspace) -> str:
@@ -115,26 +116,26 @@ def _marks_summary(ws: Workspace) -> str:
         return ""
     counts: dict[str, int] = {}
     for n in notes:
-        k = COLOR_NAMES.get(n.get("color") or "yellow", "黄") + "色" if n.get("quote") else "无颜色笔记"
+        k = COLOR_NAMES.get(n.get("color") or "yellow", "黄") + "色" if n.get("quote") else "无颜色笔记"  # i18n-ok
         counts[k] = counts.get(k, 0) + 1
-    return "读者在论文上做过 " + str(len(notes)) + " 处标记（" + "、".join(f"{k} {v}" for k, v in counts.items()) + "），这次问题没提到，就没附上。"
+    return "读者在论文上做过 " + str(len(notes)) + " 处标记（" + "、".join(f"{k} {v}" for k, v in counts.items()) + "），这次问题没提到，就没附上。"  # i18n-ok
 
 
 def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, engine: str, refs: list[dict] | None = None) -> str:
     history = messages[-HISTORY:]
-    convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])
+    convo = "\n\n".join(("读者" if m["role"] == "user" else "你") + "：" + m["content"] for m in history[:-1])  # i18n-ok
     ask = history[-1]["content"] if history else ""
-    tool = ("需要看全文时，用 Read 工具读当前目录的 paper.json（blocks 里是译文和原文）；读者的全部标记在 reader.json 的 notes 里。\n"
+    tool = ("需要看全文时，用 Read 工具读当前目录的 paper.json（blocks 里是译文和原文）；读者的全部标记在 reader.json 的 notes 里。\n"  # i18n-ok
             if engine == "claude" else "")
     want, colors = wants_marks(ask)
     marks = _marks(ws, colors) if want else _marks_summary(ws)
-    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。用中文，直接、具体，能举例就举例；"
-            "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"
-            "行内公式写 $TeX$，行间公式写 $$TeX$$。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"
+    return ("你在陪读者读一篇学术论文，回答他边读边冒出来的问题。用中文，直接、具体，能举例就举例；"  # i18n-ok
+            "区分“论文里写了什么”和“你的补充解释”，论文里没有的内容不要说成是论文说的。"  # i18n-ok
+            "行内公式写 $TeX$，行间公式写 $$TeX$$。提到原文位置时说“式 5”“第 4 页那段”，不要写 [p4-5] 这类内部编号。只输出回答本身，不要客套，不要重复问题。\n" + tool + "\n"  # i18n-ok
             + _context(ws, anchor, quote, refs)
             + ("\n\n" + marks if marks else "")
-            + (f"\n\n之前的对话：\n{convo}" if convo else "")
-            + f"\n\n读者现在问：{ask}")
+            + (f"\n\n之前的对话：\n{convo}" if convo else "")  # i18n-ok
+            + f"\n\n读者现在问：{ask}")  # i18n-ok
 
 
 # ---------- 流式输出 ----------
@@ -158,7 +159,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
 def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
     exe = engines.claude_path(c)
     if not exe:
-        raise engines.EngineError("找不到 Claude Code 命令（先装好并登录 Claude Code）")
+        raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))
     args = [exe, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
             "--allowedTools", "Read", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
     if c.get("model"):
@@ -191,13 +192,13 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
                 if meter is not None:
                     meter.add(**usage.from_claude(ev, rate))
                 if ev.get("is_error"):
-                    raise engines.EngineError("Claude Code 出错：" + str(ev.get("result") or ev.get("subtype")))
+                    raise engines.EngineError(tr("Claude Code 出错：{detail}", detail=str(ev.get("result") or ev.get("subtype"))))
                 if not got and ev.get("result"):
                     yield ev["result"]
                 return
         err = proc.stderr.read()[-400:]
         if not got:
-            raise engines.EngineError(err or "Claude Code 没有输出")
+            raise engines.EngineError(err or tr("Claude Code 没有输出"))
     finally:
         if proc.poll() is None:
             proc.kill()

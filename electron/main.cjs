@@ -9,6 +9,8 @@ const windowState = require("./window-state.cjs");
 // 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
 app.setPath("userData", path.join(app.getPath("appData"), "EasyRead"));
 
+// 桌面版自己的几句报错跟系统语言走（界面语言由后端决定，见 easyread/i18n.py）
+const isZh = () => app.getLocale().toLowerCase().startsWith("zh");
 let backend;
 let mainWindow;
 let backendReady;
@@ -27,7 +29,7 @@ function backendCommand() {
   if (app.isPackaged) {
     const executable = packagedBackend();
     if (!fs.existsSync(executable)) {
-      throw new Error(`找不到打包后的 EasyRead 后端：${executable}`);
+      throw new Error(isZh() ? `找不到打包后的 EasyRead 后端：${executable}` : `Bundled EasyRead backend not found: ${executable}`);
     }
     return { command: executable, args: ["serve", "--port", "0"], cwd: os.homedir() };
   }
@@ -59,7 +61,7 @@ function startBackend() {
   // the window must reuse that backend, rather than orphaning the old one.
   if (backendReady) return backendReady;
   const launch = backendCommand();
-  const env = { ...process.env, PYTHONUTF8: "1" };
+  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 后端按它决定界面语言
   const shellPath = loginShellPath();
   if (shellPath) {
     env.PATH = [...new Set([...shellPath.split(":"), ...(env.PATH || "").split(":")].filter(Boolean))].join(":");
@@ -79,7 +81,7 @@ function startBackend() {
       fn(value);
     };
     const timer = setTimeout(() => {
-      finish(reject, new Error(`EasyRead 后端启动超时。${output.slice(-500)}`));
+      finish(reject, new Error((isZh() ? "EasyRead 后端启动超时。" : "EasyRead backend timed out while starting. ") + output.slice(-500)));
       stopBackend();
     }, 30000);
 
@@ -99,7 +101,7 @@ function startBackend() {
     });
     backend.once("error", (error) => finish(reject, error));
     backend.once("exit", (code, signal) => {
-      if (!settled) finish(reject, new Error(`EasyRead 后端退出（code=${code}, signal=${signal}）。${output.slice(-500)}`));
+      if (!settled) finish(reject, new Error((isZh() ? `EasyRead 后端退出（code=${code}, signal=${signal}）。` : `EasyRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
       backendReady = undefined;
     });
@@ -136,7 +138,7 @@ async function createWindow() {
     url = await startBackend();
   } catch (error) {
     windowOpening = false;
-    dialog.showErrorBox("EasyRead 启动失败", error.message);
+    dialog.showErrorBox(isZh() ? "EasyRead 启动失败" : "EasyRead failed to start", error.message);
     app.quit();
     return;
   }

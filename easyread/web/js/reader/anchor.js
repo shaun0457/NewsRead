@@ -111,15 +111,15 @@
     if (!pendingSel) { bar.classList.remove("open"); return; }
     PR.hideBlockbar && PR.hideBlockbar();
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
-    bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="荧光笔：涂底色">' + PR.icon("marker", "sm") + "</button>" +
-      '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="下划线">' + PR.icon("underline", "sm") + "</button></span>" +
+    bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：涂底色") + '">' + PR.icon("marker", "sm") + "</button>" +
+      '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
-      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + name + (pen === "underline" ? "色下划线" : "色荧光笔") + (PR.keysOn ? "（" + (i + 1) + "）" : "") + '"></button>').join("") + "</span>" +
-      '<button data-s="note" title="写笔记（N）">' + PR.icon("note", "sm") + "笔记</button>" +
-      '<button data-s="question" title="提问（Q）">' + PR.icon("question", "sm") + "提问</button>" +
-      (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="把这句引用到问 AI（可以引用多段）">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? "引用到对话" : "问 AI") + "</button>" : "") +
-      '<button data-s="en" title="看这段英文">' + PR.icon("en", "sm") + "原文</button>" +
-      '<button data-s="copy" title="复制">' + PR.icon("copy", "sm") + "</button>";
+      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? "（" + (i + 1) + "）" : "") + '"></button>').join("") + "</span>" +
+      '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
+      '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
+      (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
+      '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>" +
+      '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>";
     bar.classList.add("open");
     const r = pendingSel.rect, w = bar.offsetWidth;
     const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
@@ -137,7 +137,7 @@
     getSelection().removeAllRanges();
     pendingSel = null;
     if (kind === "en") { PR.toggleEn(anchor, true); return; }
-    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast("已复制")); return; }
+    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
     if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
     const note = { anchor, key, quote, prefix, suffix, kind, color: color || "yellow" };
     if (PR.prefs.pen === "underline") note.style = "underline";
@@ -145,7 +145,7 @@
       Object.assign(note, { id: PR.uid("n"), body: "", created: PR.nowIso() });
       PR.saveNote(note);
       PR.applyMarks(anchor);
-      PR.toast("已划线　点划线可以写笔记或改颜色", { label: "撤销", fn: () => { PR.commit({ op: "note_del", id: note.id }); PR.applyMarks(anchor); } }, 2600);
+      PR.toast(PR.t("已划线　点划线可以写笔记或改颜色"), { label: PR.t("撤销"), fn: () => { PR.commit({ op: "note_del", id: note.id }); PR.applyMarks(anchor); } }, 2600);
     } else PR.startNote(note);
   };
   selbar().addEventListener("mousedown", (e) => e.preventDefault()); // 点按钮时别丢掉选区
@@ -169,10 +169,10 @@
     e.stopPropagation();
     if (n.kind !== "highlight") { PR.openNoteEditor(n.id); return; }
     const ul = n.style === "underline";
-    PR.popover(m, '<div class="hd">我的划线</div><div class="hl-edit"><span class="pens"><button data-hl-style="marker" class="' + (ul ? "" : "on") + '" title="荧光笔">' + PR.icon("marker", "sm") + '</button><button data-hl-style="underline" class="' + (ul ? "on" : "") + '" title="下划线">' + PR.icon("underline", "sm") + "</button></span>" +
+    PR.popover(m, '<div class="hd">' + PR.t("我的划线") + '</div><div class="hl-edit"><span class="pens"><button data-hl-style="marker" class="' + (ul ? "" : "on") + '" title="' + PR.t("荧光笔") + '">' + PR.icon("marker", "sm") + '</button><button data-hl-style="underline" class="' + (ul ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + (ul ? "underline" : "marker") + '">' + PR.HL_COLORS.map(([c, name]) =>
       '<button data-hl-color="' + c + '" title="' + name + '" class="dot-' + c + ((n.color || "yellow") === c ? " on" : "") + '"></button>').join("") + "</span></div>" +
-      '<div style="display:flex;gap:6px"><button class="btn sm line" data-hl="note">写笔记</button><button class="btn sm line" data-hl="question">提问</button><button class="btn sm danger" data-hl="del">删除划线</button></div>', { sticky: true });
+      '<div style="display:flex;gap:6px"><button class="btn sm line" data-hl="note">' + PR.t("写笔记") + '</button><button class="btn sm line" data-hl="question">' + PR.t("提问") + '</button><button class="btn sm danger" data-hl="del">' + PR.t("删除划线") + '</button></div>', { sticky: true });
     PR.$("#popover").onclick = (ev) => {
       const c = ev.target.closest("[data-hl-color]"), b = ev.target.closest("[data-hl]");
       if (c) { PR.saveNote(Object.assign({}, n, { color: c.dataset.hlColor })); PR.applyMarks(n.anchor); PR.hidePopover(); return; }

@@ -7,23 +7,24 @@ window.PR = window.PR || {};
   function tokens(n) {
     n = Number(n) || 0;
     if (n < 10000) return n.toLocaleString();
-    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + " 万";
+    return (n / 10000).toFixed(n < 1e6 ? 1 : 0).replace(/\.0$/, "") + PR.t(" 万");
   }
   PR.fmtTokens = tokens;
 
-  const WINDOWS = [["five_hour", "5 小时额度"], ["seven_day", "本周额度"]];
+  const WINDOWS = [["five_hour", PR.t("5 小时额度")], ["seven_day", PR.t("本周额度")]];
   const pct = (x) => Math.round(x * 100) + "%";
   const level = (x) => (x >= 0.95 ? "full" : x >= 0.8 ? "high" : "");
 
   function resetText(ts) {
     if (!ts) return "";
     const ms = ts * 1000 - Date.now();
-    if (ms <= 0) return "已重置";
+    if (ms <= 0) return PR.t("已重置");
     const h = Math.floor(ms / 3.6e6), m = Math.round((ms % 3.6e6) / 6e4);
-    if (h < 24) return (h ? h + " 小时 " : "") + m + " 分钟后重置";
+    if (h < 24) return h ? PR.t("{h} 小时 {m} 分钟后重置", { h, m }) : PR.t("{m} 分钟后重置", { m });
     const d = new Date(ts * 1000);
-    return (d.getMonth() + 1) + " 月 " + d.getDate() + " 日 周" + "日一二三四五六"[d.getDay()] + " " +
-      String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + " 重置";
+    const time = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    if (PR.lang === "en") return "Resets " + ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()] + ", " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()] + " " + d.getDate() + " " + time;
+    return (d.getMonth() + 1) + " 月 " + d.getDate() + " 日 周" + "日一二三四五六"[d.getDay()] + " " + time + " 重置";  // i18n-ok
   }
 
   /* 额度进度条（Claude 订阅才有），排版学 Claude 桌面端：名字在左，“几小时后重置 + 百分比”在右，下面一根细条。
@@ -33,7 +34,7 @@ window.PR = window.PR || {};
       const w = limits[k];
       const stale = w.resets_at && w.resets_at * 1000 <= Date.now();  // 记下的是重置前的数，已经不准了
       return '<div class="us-limit ' + (stale ? "stale" : level(w.used)) + '"><div class="us-row"><span>' + name + "</span>" +
-        "<em>" + (stale ? "已重置，当时 " + pct(w.used) : resetText(w.resets_at) + "<b>" + pct(w.used) + "</b>") + "</em></div>" +
+        "<em>" + (stale ? PR.t("已重置，当时 {pct}", { pct: pct(w.used) }) : resetText(w.resets_at) + "<b>" + pct(w.used) + "</b>") + "</em></div>" +
         '<div class="us-bar"><i style="width:' + (stale ? 0 : Math.min(100, w.used * 100)) + '%"></i></div></div>';
     });
     return rows.length ? '<div class="us-limits">' + (title ? '<div class="us-head">' + title + "</div>" : "") + rows.join("") + "</div>" : "";
@@ -41,30 +42,30 @@ window.PR = window.PR || {};
 
   function ago(at) {
     const m = Math.round((Date.now() / 1000 - at) / 60);
-    return m < 1 ? "刚刚" : m < 60 ? m + " 分钟前" : m < 1440 ? Math.round(m / 60) + " 小时前" : Math.round(m / 1440) + " 天前";
+    return m < 1 ? PR.t("刚刚") : m < 60 ? PR.t("{n} 分钟前", { n: m }) : m < 1440 ? PR.t("{n} 小时前", { n: Math.round(m / 60) }) : PR.t("{n} 天前", { n: Math.round(m / 1440) });
   }
 
   /* token 明细：右边大数字，下面一行小字 */
   PR.usageTokens = function (label, u) {
     if (!u || !u.calls) return "";
     return '<div class="us-tokens"><div class="us-row"><span>' + label + "</span><b>" + tokens(u.input + u.output) + " token</b></div>" +
-      '<div class="us-split">输入 ' + tokens(u.input) + (u.cached ? "（缓存命中 " + tokens(u.cached) + "）" : "") + " · 输出 " + tokens(u.output) +
-      (u.cost_usd != null && !u.limits ? " · 按官方价约 $" + u.cost_usd.toFixed(2) : "") + "</div></div>";
+      '<div class="us-split">' + PR.t("输入 {n}", { n: tokens(u.input) }) + (u.cached ? PR.t("（缓存命中 {n}）", { n: tokens(u.cached) }) : "") + " · " + PR.t("输出 {n}", { n: tokens(u.output) }) +
+      (u.cost_usd != null && !u.limits ? " · " + PR.t("按官方价约 ${n}", { n: u.cost_usd.toFixed(2) }) : "") + "</div></div>";
   };
 
   /* 翻译进度旁边的一句话：“已用 12.3 万 token · 5 小时额度用到 24%” */
   PR.usageShort = function (u) {
     if (!u || !u.calls) return "";
     const five = u.limits && u.limits.five_hour;
-    return "已用 " + tokens(u.input + u.output) + " token" + (five && five.used != null ? " · 5 小时额度用到 " + pct(five.used) : "");
+    return PR.t("已用 {n} token", { n: tokens(u.input + u.output) }) + (five && five.used != null ? " · " + PR.t("5 小时额度用到 {pct}", { pct: pct(five.used) }) : "");
   };
 
   /* 论文详情里的用量卡片：上次翻译、这篇累计、译完时的额度 */
   PR.usageCard = function (u, total) {
     if (!u || !u.calls) return "";
-    return '<div class="us-card">' + PR.usageTokens("上次翻译", u) +
-      (total && total.calls > u.calls ? PR.usageTokens("这篇累计", total) : "") +
-      PR.usageBars(u.limits, "Claude 订阅用量（译完时，整个账号共用）") + "</div>";
+    return '<div class="us-card">' + PR.usageTokens(PR.t("上次翻译"), u) +
+      (total && total.calls > u.calls ? PR.usageTokens(PR.t("这篇累计"), total) : "") +
+      PR.usageBars(u.limits, PR.t("Claude 订阅用量（译完时，整个账号共用）")) + "</div>";
   };
 
   /* 问 AI：整个对话的合计 */
@@ -84,14 +85,14 @@ window.PR = window.PR || {};
     const cls = "us-chip" + (open ? " on" : "");
     if (live) {
       const r = 6, c = 2 * Math.PI * r, v = Math.min(1, five.used);
-      return '<button class="' + cls + " " + level(v) + '" data-c="usage" title="用量">' +
+      return '<button class="' + cls + " " + level(v) + '" data-c="usage" title="' + PR.t("用量") + '">' +
         '<svg viewBox="0 0 16 16" width="16" height="16"><circle cx="8" cy="8" r="' + r + '" class="track"/>' +
         '<circle cx="8" cy="8" r="' + r + '" class="fill" stroke-dasharray="' + (c * v).toFixed(2) + " " + c.toFixed(2) + '" transform="rotate(-90 8 8)"/></svg>' +
         "<span>" + pct(v) + "</span></button>";
     }
     const sum = threadSum(msgs);
-    if (sum) return '<button class="' + cls + '" data-c="usage" title="用量"><span>' + tokens(sum.input + sum.output) + " token</span></button>";
-    return latest && latest.limits ? '<button class="' + cls + '" data-c="usage" title="用量"><span>用量</span></button>' : "";
+    if (sum) return '<button class="' + cls + '" data-c="usage" title="' + PR.t("用量") + '"><span>' + tokens(sum.input + sum.output) + " token</span></button>";
+    return latest && latest.limits ? '<button class="' + cls + '" data-c="usage" title="' + PR.t("用量") + '"><span>' + PR.t("用量") + "</span></button>" : "";
   };
 
   /* 上下文条（学 Claude 的 Context window）：最近一次回答时发给模型的全部内容。每次提问都会连同之前的对话一起发，
@@ -99,19 +100,19 @@ window.PR = window.PR || {};
      不知道模型上下文多大时（API、Codex），条按 20 万算，右边只写 token 数 */
   function contextHtml(msgs) {
     const last = (msgs || []).map((m) => m.usage).filter((u) => u && u.calls && u.context).pop();
-    if (!last) return '<div class="us-ctx"><div class="us-row"><span>上下文</span><em>还没提问</em></div><div class="us-bar"></div></div>';
+    if (!last) return '<div class="us-ctx"><div class="us-row"><span>' + PR.t("上下文") + "</span><em>" + PR.t("还没提问") + '</em></div><div class="us-bar"></div></div>';
     const c = last.context, total = c.cached + c.fresh + c.output, win = last.context_window;
     const scale = win || Math.max(200000, total);
     const seg = (n, cls, name) => n > 0 ? '<i class="' + cls + '" style="width:' + Math.max(0.6, (n / scale) * 100) + '%" title="' + name + " " + tokens(n) + '"></i>' : "";
-    return '<div class="us-ctx"><div class="us-row"><span>上下文</span><em>' + tokens(total) + (win ? " / " + tokens(win) + "（" + Math.max(1, Math.round((total / win) * 100)) + "%）" : " token") + "</em></div>" +
-      '<div class="us-bar us-stack">' + seg(c.cached, "cached", "缓存命中（系统提示、之前的对话）") + seg(c.fresh, "fresh", "这次新发的（问题、引用的段落）") + seg(c.output, "out", "回答") + "</div>" +
-      '<div class="us-legend"><span><i class="cached"></i>缓存命中</span><span><i class="fresh"></i>新发送</span><span><i class="out"></i>回答</span></div></div>';
+    return '<div class="us-ctx"><div class="us-row"><span>' + PR.t("上下文") + "</span><em>" + tokens(total) + (win ? " / " + tokens(win) + PR.t("（{pct}%）", { pct: Math.max(1, Math.round((total / win) * 100)) }) : " token") + "</em></div>" +
+      '<div class="us-bar us-stack">' + seg(c.cached, "cached", PR.t("缓存命中（系统提示、之前的对话）")) + seg(c.fresh, "fresh", PR.t("这次新发的（问题、引用的段落）")) + seg(c.output, "out", PR.t("回答")) + "</div>" +
+      '<div class="us-legend"><span><i class="cached"></i>' + PR.t("缓存命中") + '</span><span><i class="fresh"></i>' + PR.t("新发送") + '</span><span><i class="out"></i>' + PR.t("回答") + "</span></div></div>";
   }
 
   /* 点圆环弹出的用量面板 */
   PR.usagePop = function (latest, msgs) {
-    const bars = latest && latest.limits ? PR.usageBars(latest.limits, "Claude 订阅用量") : "";
+    const bars = latest && latest.limits ? PR.usageBars(latest.limits, PR.t("Claude 订阅用量")) : "";
     return '<div class="us-pop">' + contextHtml(msgs) + bars +
-      (bars ? '<div class="us-foot">整个账号共用，含其他用途 · 更新于 ' + ago(latest.at) + "</div>" : "") + "</div>";
+      (bars ? '<div class="us-foot">' + PR.t("整个账号共用，含其他用途 · 更新于 {ago}", { ago: ago(latest.at) }) + "</div>" : "") + "</div>";
   };
 })(window.PR);

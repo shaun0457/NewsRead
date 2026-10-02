@@ -12,7 +12,7 @@
     try {
       html = katex.renderToString(tex, { displayMode: !!display, throwOnError: false, strict: "ignore", trust: false });
     } catch (e) {
-      html = '<code title="公式渲染失败">' + PR.esc(tex) + "</code>";
+      html = '<code title="' + PR.t("公式渲染失败") + '">' + PR.esc(tex) + "</code>";
     }
     mathCache.set(key, html);
     return html;
@@ -57,13 +57,13 @@
     return s.replace(/\[([a-z]+\d*(?:-[\w-]+)?)\]/g, (m, id) => {
       const b = PR.blockById && PR.blockById[id];
       if (!b) return m;
-      return b.type === "math" && b.tag ? "（式 " + b.tag + "）" : b.page ? "（第 " + b.page + " 页）" : m;
+      return b.type === "math" && b.tag ? PR.t("（式 {tag}）", { tag: b.tag }) : b.page ? PR.t("（第 {page} 页）", { page: b.page }) : m;
     });
   }
 
   function inline(text, opts) {
     let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
-    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");  // i18n-ok
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     if (opts.cite !== false) s = citeLinks(s);
