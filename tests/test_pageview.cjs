@@ -130,3 +130,29 @@ test("continuous pages load nearby images and scrollbar updates the page without
   assert.equal(scroller.scroll.top, 7 * 1018);
 });
 
+test("right scrollbar moves text and highlights, respects follow, and hands control back", () => {
+  const r = reader();
+  r.node("b-first"); r.node("b-second");
+  r.PR.state.layout.first = { page: 1, box: [0.1, 0.1, 0.9, 0.8] };
+  r.PR.state.layout.second = { page: 2, box: [0.1, 0.1, 0.9, 0.8] };
+  r.PR.togglePages(true);
+  const scroller = r.node(".pv-scroll");
+  scroller.scrollTop = 1018;
+  scroller.listeners.scroll();
+  assert.equal(r.scrolls.length, 0, "programmatic scrolling must not move text");
+  scroller.listeners.scrollend();
+  scroller.listeners.scroll();
+  assert.equal(r.scrolls.length, 1, "native scrollbar must work without pointerdown");
+  assert.equal(r.node(".pv-hl").children.length, 1);
+  assert.equal(r.scrolls[0].behavior, "instant");
+  const position = scroller.scroll;
+  r.read("first"); r.PR.syncPage(false);
+  assert.equal(scroller.scroll, position, "reverse sync must not pull the panel back");
+  r.node(".pv-follow input").checked = false;
+  scroller.scrollTop = 0; scroller.listeners.scroll();
+  assert.equal(r.scrolls.length, 1, "unchecked follow must not move text");
+  r.node(".pv-follow input").checked = true;
+  r.documentEvents.get("wheel")({ target: { closest: () => null } });
+  r.PR.syncPage(false);
+  assert.notEqual(scroller.scroll, position, "left scrolling immediately resumes forward sync");
+});

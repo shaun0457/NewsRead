@@ -25,7 +25,8 @@
           PR.opt([["auto", PR.t("跟随系统")], ["zh", PR.t("中文")], ["en", PR.t("英文")]], s.lang || PR.langChoice) + "</select></label>") +
         (location.protocol === "file:" ? "" : '<label class="field"><span>' + PR.t("论文译成") + '</span><select class="input" id="targetSel">' +
           PR.opt(PR.TARGETS, s.target || PR.target) + "</select></label>") + "</div>" +
-        (location.protocol === "file:" ? "" : '<p class="set-lead">' + PR.t("新翻译的论文用这个语言；已经译过的论文保持原来的语言。不需要译文的话，导入时选“读英文原文”。") + "</p>");
+        (location.protocol === "file:" ? "" : '<p class="set-lead">' + PR.t("新翻译的论文用这个语言；已经译过的论文保持原来的语言。不需要译文的话，导入时选“读英文原文”。") + "</p>") +
+        (PR.updateSection ? PR.updateSection() : "");  // 版本和检查更新，只有文献库页有（update.js）
     },
     click(e, s) {
       if (!e.target.closest("[data-type-reset]")) return false;

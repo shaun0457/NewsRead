@@ -92,32 +92,60 @@
   function pageTop(node) {
     return node.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
   }
-  let panelInput = false;
+  let panelInput = false, programmaticUntil = 0;
   ["wheel", "pointerdown", "touchstart", "keydown"].forEach(type => scroller.addEventListener(type, () => {
     panelInput = true;
     holdUntil = Date.now() + 2000;
   }, { passive: true }));
+  scroller.addEventListener("scrollend", () => { programmaticUntil = 0; });
+  // Switching back to the text must immediately return control to that pane.
+  ["wheel", "pointerdown", "touchstart", "keydown"].forEach(type => document.addEventListener(type, (e) => {
+    if (e.target.closest("#pageview")) return;
+    panelInput = false;
+    holdUntil = 0;
+  }, { passive: true, capture: true }));
+  function followPanel(entry, middle) {
+    if (!PR.$(".pv-follow input").checked) return;
+    const r = entry.node.getBoundingClientRect();
+    const y = Math.max(0, Math.min(1, (middle - r.top) / r.height));
+    let best = null, bestBox = null, distance = Infinity;
+    for (const id in S.layout) {
+      const loc = S.layout[id];
+      if (loc.page !== pvPage || !PR.blockById[id]) continue;
+      for (const box of boxesOf(loc)) {
+        if (!box) continue;
+        const d = Math.max(box[1] - y, y - box[3], 0);
+        if (d < distance) { best = id; bestBox = box; distance = d; }
+      }
+    }
+    // Older imports may have page numbers but no paragraph coordinates.
+    if (!best) best = Object.keys(PR.blockById).find(id => PR.blockById[id].page === pvPage);
+    const node = best && document.getElementById("b-" + best);
+    if (!node) return;
+    pvBlock = best;
+    highlightBlock(pvPage, best);
+    const rect = node.getBoundingClientRect();
+    const fraction = bestBox ? Math.max(0, Math.min(1, (y - bestBox[1]) / Math.max(0.001, bestBox[3] - bestBox[1]))) : 0;
+    window.scrollTo({ top: Math.max(0, window.scrollY + rect.top + fraction * rect.height - window.innerHeight * 0.3), behavior: "instant" });
+  }
   scroller.addEventListener("scroll", () => {
     if (!pageNodes.length || PR.side !== "pages") return;
+    // Native scrollbar drags can emit scroll without a DOM pointerdown.
+    if (Date.now() >= programmaticUntil) panelInput = true;
     if (panelInput) holdUntil = Date.now() + 2000;
     const middle = scroller.getBoundingClientRect().top + scroller.clientHeight / 2;
     const entry = pageNodes.find(p => p.node.getBoundingClientRect().bottom > middle) || pageNodes[pageNodes.length - 1];
     pvPage = Number(entry.node.dataset.n);
     updatePageLabel(); loadNearby(pvPage);
+    if (panelInput) followPanel(entry, middle);
   }, { passive: true });
 
-  function showPage(page, blockId) {
-    const list = pages();
-    if (!list.length) return;
-    pvPage = Math.min(list.length, Math.max(1, page));
-    ensurePages();
-    panelInput = false;
-    const { node, hl } = pageNodes[pvPage - 1];
-    loadNearby(pvPage); updatePageLabel();
+  function highlightBlock(page, blockId) {
     pageNodes.forEach(p => p.hl.classList.remove("on"));
+    const hl = pageNodes[page - 1].hl;
     const loc = blockId && S.layout[blockId];
-    pair(loc && loc.page === pvPage ? blockId : null);
-    if (loc && loc.page === pvPage) {
+    pair(loc && loc.page === page ? blockId : null);
+    if (loc && loc.page === page) {
       const boxes = boxesOf(loc);
       hl.replaceChildren(...boxes.map(([x0, y0, x1, y1]) => {
         const region = document.createElement("div");
@@ -126,6 +154,22 @@
         return region;
       }));
       hl.classList.add("on");
+    }
+  }
+
+  function showPage(page, blockId) {
+    const list = pages();
+    if (!list.length) return;
+    pvPage = Math.min(list.length, Math.max(1, page));
+    ensurePages();
+    panelInput = false;
+    programmaticUntil = Date.now() + 1500;
+    const { node } = pageNodes[pvPage - 1];
+    loadNearby(pvPage); updatePageLabel();
+    highlightBlock(pvPage, blockId);
+    const loc = blockId && S.layout[blockId];
+    if (loc && loc.page === pvPage) {
+      const boxes = boxesOf(loc);
       const [, y0, , y1] = boxes[0];
       scroller.scrollTo({ top: Math.max(0, pageTop(node) + ((y0 + y1) / 2) * node.offsetHeight - scroller.clientHeight / 2), behavior: "smooth" });
     } else {
@@ -193,9 +237,15 @@
     if (!b) return;
     const act = b.dataset.pv;
     if (act === "close") { PR.togglePages(false); pair(null); }
-    if (act === "prev") showPage(pvPage - 1);
-    if (act === "next") showPage(pvPage + 1);
+    if (act === "prev") PR.pageStep(-1);
+    if (act === "next") PR.pageStep(1);
     if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? PR.t("适宽") : PR.t("放大"); showPage(pvPage); }
   });
-  PR.pageStep = (d) => showPage(pvPage + d);
+  PR.pageStep = (d) => {
+    showPage(pvPage + d);
+    const entry = pageNodes[pvPage - 1];
+    if (!entry) return;
+    holdUntil = Date.now() + 2000;
+    followPanel(entry, entry.node.getBoundingClientRect().top);
+  };
 })(window.PR);

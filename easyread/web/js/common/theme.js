@@ -27,9 +27,9 @@ window.PR = window.PR || {};
     PR.$$(".theme-btn").forEach(paint);
   };
 
-  /* 放在顶栏的帮助 / 阅读设置按钮前面 */
+  /* 放在顶栏的语言 / 阅读设置按钮前面 */
   document.addEventListener("DOMContentLoaded", () => {
-    const before = document.querySelector("#helpBtn, #bar [data-act='settings']");
+    const before = document.querySelector("#langBtn, #bar [data-act='settings']");
     if (!before) return;
     const btn = document.createElement("button");
     btn.className = "btn icon theme-btn";
