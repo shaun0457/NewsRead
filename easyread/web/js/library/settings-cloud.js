@@ -33,10 +33,10 @@
     const name = item.label || PR.t("自选文件夹");
     if (item.incomplete) return card("cloud", "", name, item.path, PR.t("上次迁移到这里没有完成，原文献库不受影响"), button("cleanup", PR.t("清理未完成的迁移"), item.path, busy), "warn");
     const using = item.path === s.cloud.path, off = disabled(s) || !item.writable || using;
-    const stateText = using ? PR.t("正在用") : !item.writable ? PR.t("不可写") : item.papers ? PR.t("里面已有 {n} 篇", { n: item.papers }) : PR.t("空文件夹，可以迁移到这里");
+    const stateText = using ? PR.t("正在用") : !item.writable ? PR.t("不可写") : item.papers ? PR.t("里面已有 {n} 篇", { n: item.papers }) : PR.t("空文件夹");
     const acts = using ? "" : item.papers
-      ? button("use", PR.t("切换到这里"), item.path, off, true) + button("merge", PR.t("合并到这里"), item.path, off)
-      : button("copy", PR.t("迁移到这里"), item.path, off, true);
+      ? button("use", PR.t("切换"), item.path, off, true) + button("merge", PR.t("合并"), item.path, off)
+      : button("copy", PR.t("迁移"), item.path, off, true);
     const forget = item.custom ? '<button class="cloud-x" data-cloud="forget" title="' + PR.t("移除") + '" aria-label="' + PR.t("移除") + '">' + PR.icon("x", "sm") + "</button>" : "";
     return card(item.label ? "cloud" : "folder", "", name, item.path, stateText, acts + forget);
   }
@@ -70,8 +70,8 @@
         '<p class="set-lead">' + PR.t("网盘的同步文件夹也在电脑上，网盘客户端会把里面的文件自动传到云端。把文献库迁移到那里，换台电脑登录同一个网盘，论文、译文、笔记都还在。") + "</p>" +
         (s.cloudError ? '<p class="bad">' + PR.esc(s.cloudError) + "</p>" : "") + result(s) +
         '<h4 class="set-h">' + PR.t("本机") + "</h4>" +
-        card(inCloud ? "cloud" : "folder", PR.t("现在的文献库"), inCloud ? PR.t("在 {name} 里，会自动同步", { name: inCloud.label }) : PR.t("在本机，不会同步"), d.path,
-          d.temp ? PR.t("当前是临时文献库，不能更改位置。") : PR.t("{n} 篇论文", { n: d.papers || 0 }), button("reveal", PR.t("打开文件夹"), "", busy)) +
+        card(inCloud ? "cloud" : "folder", "", inCloud ? PR.t("在 {name} 里，会自动同步", { name: inCloud.label }) : PR.t("在本机，不会同步"), d.path,
+          d.temp ? PR.t("当前是临时文献库，不能更改位置。") : "", button("reveal", PR.t("打开文件夹"), "", busy) + button("custom", PR.t("迁移…"), "", disabled(s), true)) +
         '<div class="cloud-head"><h4 class="set-h">' + PR.t("网盘") + '</h4><button class="linkish" data-cloud="refresh"' + (busy || d.restart_required ? " disabled" : "") + ">" + PR.t("重新检测") + "</button></div>" +
         '<div class="cloud-cards">' + others.map((c) => target(s, c)).join("") + (s.cloudCustom && s.cloudCustom.path !== d.path ? target(s, Object.assign({ custom: true }, s.cloudCustom)) : "") +
         card("plus", "", PR.t("其他网盘"), "", (d.candidates || []).length ? PR.t("坚果云、Google Drive 等：选它们的同步文件夹") : PR.t("没检测到 OneDrive、Dropbox、iCloud。坚果云、Google Drive 等：选它们的同步文件夹"),
@@ -117,28 +117,13 @@
                 PR.t("普通目录会使用其下的 EasyRead 子文件夹；已有文献库直接使用。"), max: 4096,
             });
           }
-          if (path) {
-            busy = true; redraw();
-            s.cloudCustom = await PR.api("/api/library/inspect", { method: "POST", body: { path } });
-          }
-          return true;
+          if (!path) return true;
+          const picked = await PR.api("/api/library/inspect", { method: "POST", body: { path } });
+          if (picked.incomplete || picked.papers || !picked.writable) { s.cloudCustom = picked; return true; }
+          return await migrate(s, "copy", picked.path);
         }
         if (!["copy", "use", "merge"].includes(action)) return false;
-        busy = true; redraw();
-        const d = await PR.api("/api/library/location");
-        s.cloud = d;
-        const dest = await PR.api("/api/library/inspect", { method: "POST", body: { path: b.dataset.path } });
-        const path = dest.path || b.dataset.path;
-        const text = action === "use" ? PR.t("将使用 {path} 中的 {n} 篇论文，本机原来的文献库保留不动。", { path, n: dest.papers })
-          : action === "merge" ? PR.t("会把本机 {n} 篇论文（{size}）合并到 {path}；重复论文和同名目录会跳过，原文献库保留不删。", { n: d.papers, size: size(d.bytes || 0), path })
-          : PR.t("会把 {n} 篇论文（{size}）复制到 {path}，原来的文件夹保留不删。", { n: d.papers, size: size(d.bytes || 0), path });
-        const yes = await PR.confirm({ title: PR.t("更改文献库位置"), body: text + "\n\n" +
-          PR.t("请确认其他阅读窗口的笔记已保存并关闭。完成后需要重启 EasyRead。"), ok: PR.t("继续") });
-        if (!yes) return true;
-        s.cloudResult = await PR.api("/api/library/move", { method: "POST", body: { path, mode: action } });
-        if (s.cloudResult.ok === false) throw new Error(s.cloudResult.message);
-        s.cloud.restart_required = true;
-        PR.libraryLocationNotice({ library_status: "restart_required" });
+        return await migrate(s, action, b.dataset.path);
       } catch (err) {
         s.cloudError = err.message;
         PR.toast(err.message);
@@ -146,6 +131,28 @@
       return true;
     },
   };
+
+  /* 确认 → 迁移（复制并核对，成功后以后都存到新位置）/ 切换 / 合并 */
+  async function migrate(s, action, target) {
+    try {
+        busy = true; redraw();
+        const d = await PR.api("/api/library/location");
+        s.cloud = d;
+        const dest = await PR.api("/api/library/inspect", { method: "POST", body: { path: target } });
+        const path = dest.path || target;
+        const text = action === "use" ? PR.t("将使用 {path} 中的 {n} 篇论文，本机原来的文献库保留不动。", { path, n: dest.papers })
+          : action === "merge" ? PR.t("会把本机 {n} 篇论文（{size}）合并到 {path}；重复论文和同名目录会跳过，原文献库保留不删。", { n: d.papers, size: size(d.bytes || 0), path })
+          : PR.t("会把 {n} 篇论文（{size}）复制到 {path}，核对无误后以后都存在那里；原来的文件夹保留不删。", { n: d.papers, size: size(d.bytes || 0), path });
+        const yes = await PR.confirm({ title: PR.t("更改文献库位置"), body: text + "\n\n" +
+          PR.t("请确认其他阅读窗口的笔记已保存并关闭。完成后需要重启 EasyRead。"), ok: PR.t("继续") });
+        if (!yes) return true;
+        s.cloudResult = await PR.api("/api/library/move", { method: "POST", body: { path, mode: action } });
+        if (s.cloudResult.ok === false) throw new Error(s.cloudResult.message);
+        s.cloud.restart_required = true; s.cloudCustom = null;
+        PR.libraryLocationNotice({ library_status: "restart_required" });
+    } finally { busy = false; redraw(); }
+    return true;
+  }
 
   PR.libraryLocationNotice = function (data) {
     let node = PR.$("#cloudNotice");
