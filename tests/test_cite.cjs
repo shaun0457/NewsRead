@@ -80,6 +80,15 @@ test("BibTeX protects title case and escapes special characters in metadata", ()
   assert.ok(out.includes("journal = {R\\&D}"));
 });
 
+test("BibTeX preserves DOI and URL identifiers without TeX escapes", () => {
+  const doi = "10.1000/a_b", url = "https://example.org/a_b?query=50%25#section_1";
+  const out = formatter().cite({ ...journal, doi, url, venue: "R&D" }, "bibtex");
+  assert.ok(out.includes("doi = {" + doi + "}"));
+  assert.ok(out.includes("url = {" + url + "}"));
+  assert.ok(out.includes("journal = {R\\&D}"));
+  assert.doesNotMatch(out, /doi = \{[^\n]*\\|url = \{[^\n]*\\/);
+});
+
 test("batch BibTeX keys are unique, including generated suffix collisions and over 26 duplicates", () => {
   const PR = formatter();
   const two = PR.citeBatch([journal, journal], "bibtex");

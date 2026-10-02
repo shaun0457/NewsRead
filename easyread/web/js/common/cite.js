@@ -48,8 +48,9 @@
       if (arxiv(i)) fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}");
       else if (text(i.venue)) fields.push("howpublished = {" + bibEscape(i.venue) + "}");
     }
-    if (text(i.doi)) fields.push("doi = {" + bibEscape(i.doi) + "}");
-    if (text(i.url)) fields.push("url = {" + bibEscape(i.url) + "}");
+    // DOI 和 URL 是标识符，不是 TeX 正文；转义会改变导入后的真实值。
+    if (text(i.doi)) fields.push("doi = {" + text(i.doi) + "}");
+    if (text(i.url)) fields.push("url = {" + text(i.url) + "}");
     return "@" + ({ journal: "article", conference: "inproceedings", preprint: "misc" }[type]) + "{" + key + ",\n  " + fields.join(",\n  ") + "\n}";
   }
 
