@@ -164,6 +164,63 @@ print(json.dumps({"errors": errors, "times": times, "status": location.status, "
         self.assertEqual(config.load()["library_dir"], str(self.src))
         self.assertEqual(self.location.status, "idle")
 
+    def assert_successful_switch_is_read_only(self, result):
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["restart_required"])
+        self.assertEqual(config.load()["library_dir"], str(self.dst))
+        self.assertEqual(self.location.status, "restart_required")
+        self.assertTrue(result["warnings"])
+        with self.assertRaises(ValueError), self.location.request("POST", "/api/p/paper001/ops"):
+            pass
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 1)
+
+    def test_staging_cleanup_error_reports_success_and_keeps_old_library_read_only(self):
+        paper(self.src, "paper001")
+        with patch("easyread.cloudlib.shutil.rmtree", side_effect=OSError("sync client locks cleanup")), \
+                self.assertLogs("easyread", level="WARNING"):
+            result = self.migrate()
+        self.assert_successful_switch_is_read_only(result)
+        self.assertIn("临时目录", result["message"])
+
+    def test_marker_cleanup_error_reports_success_and_new_library_can_open(self):
+        paper(self.src, "paper001")
+        unlink = Path.unlink
+
+        def locked(path, *args, **kwargs):
+            if path.name == cloudlib.MIGRATION_MARKER:
+                raise PermissionError("sync client locks marker")
+            return unlink(path, *args, **kwargs)
+        with patch.object(Path, "unlink", locked), self.assertLogs("easyread", level="WARNING"):
+            result = self.migrate()
+        self.assert_successful_switch_is_read_only(result)
+        reopened = LibraryLocation(SimpleNamespace(lib=Library(self.dst), jobs=self.app.jobs, presence=None))
+        self.assertEqual(reopened.location()["papers"], 1)
+
+    def test_configuration_failure_rolls_back_before_reusing_target(self):
+        paper(self.src, "paper001")
+        with patch("easyread.cloudlib.config.save", side_effect=OSError("configuration is locked")), \
+                self.assertRaisesRegex(OSError, "configuration"):
+            self.migrate()
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 0)
+        self.assertEqual(config.load()["library_dir"], str(self.src))
+        self.assertEqual(self.location.status, "idle")
+
+    def test_locked_rollback_marker_preserves_complete_ready_target(self):
+        paper(self.src, "paper001")
+        write = cloudlib.write_json_atomic
+
+        def locked(path, value):
+            if value.get("state") == "rollback":
+                raise OSError("rollback marker is locked")
+            return write(path, value)
+        with patch("easyread.cloudlib.write_json_atomic", side_effect=locked), \
+                patch("easyread.cloudlib.config.save", side_effect=OSError("configuration is locked")), \
+                self.assertLogs("easyread", level="ERROR"), self.assertRaises(OSError):
+            self.migrate()
+        self.assertEqual(cloudlib.inspect(self.dst)["papers"], 1)
+        self.assertEqual(config.load()["library_dir"], str(self.src))
+        self.assertEqual(self.location.status, "idle")
+
     def test_mismatch_is_not_accepted(self):
         paper(self.src, "paper001")
         with patch("easyread.cloudlib.shutil.copy2", side_effect=lambda s, d: Path(d).write_bytes(b"bad")):

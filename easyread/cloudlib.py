@@ -12,8 +12,24 @@ from pathlib import Path
 from . import config
 from .cloudlib_detect import detect, target_path  # noqa: F401
 from .i18n import tr
+from .log import log
+from .store import read_json, write_json_atomic
 
 MIGRATION_MARKER = ".easyread-migration.json"
+
+
+def _incomplete(root: Path) -> bool:
+    marker = root / MIGRATION_MARKER
+    if not marker.exists() and not marker.is_symlink():
+        return False
+    try:
+        if _linked(marker):
+            return True
+        data = read_json(marker, {})
+        # ready 先于配置切换写入，表示目标已完整发布；清理锁住不影响下次打开。
+        return not (data.get("state") == "ready" and data.get("target") == str(root))
+    except (OSError, ValueError, AttributeError):
+        return True
 
 
 def _linked(path: Path) -> bool:
@@ -64,7 +80,7 @@ def _papers(root: Path) -> list[Path]:
 
 def inspect(path: str | Path, *, exact: bool = False) -> dict:
     root = Path(path).resolve() if exact else target_path(path)
-    if (root / MIGRATION_MARKER).exists():
+    if _incomplete(root):
         raise ValueError(tr("目标文献库迁移未完成，请选择其他文件夹；原文献库仍然保留：{path}", path=str(root)))
     if root.exists() and not root.is_dir():
         return {"path": str(root), "exists": True, "writable": False, "papers": 0, "bytes": 0}
@@ -177,7 +193,9 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
     staging = Path(tempfile.mkdtemp(prefix=".easyread-copy-", dir=dst))
     marker = dst / MIGRATION_MARKER
     created, parents = [], []
-    marker_owned, committed = False, False
+    marker_owned, ready, committed = False, False, False
+    transaction = {"source": str(src), "target": str(dst), "staging": staging.name,
+                   "entries": [str(relative) for _, relative in entries], "state": "publishing"}
 
     def remember(path):
         info = path.stat()
@@ -192,8 +210,7 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
         # 持久标记先于任何论文发布；崩溃或回滚被网盘锁住时，半库不能再被接管。
         with marker.open("x", encoding="utf-8") as output:
             marker_owned = True
-            json.dump({"source": str(src), "staging": staging.name,
-                       "entries": [str(relative) for _, relative in entries]}, output)
+            json.dump(transaction, output)
             output.flush()
             os.fsync(output.fileno())
         # 此时尚未改配置；目标同名项即使在复制期间出现，也不能覆盖。
@@ -221,13 +238,23 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
                     raise ValueError(tr("复制核对失败，文献库位置没有更改"))
             if relative.parts[0] != ".trash":
                 result["copied"] += 1
+        transaction["state"] = "ready"
+        write_json_atomic(marker, transaction)
+        ready = True
         config.save({"library_dir": str(dst)})
         committed = True
-        marker.unlink()
         return result
     except Exception:
         if not committed:
             rollback_failed = False
+            if ready:
+                try:
+                    transaction["state"] = "rollback"
+                    write_json_atomic(marker, transaction)
+                except OSError:
+                    # 不能把仍标记 ready 的完整目标删成半库；源库和配置仍原样保留。
+                    log.exception("回滚标记被锁住，保留完整的目标副本")
+                    raise
             # 只移除本次独占创建、身份未变的项；保留合并目标原来的每一个文件。
             for target, device, inode in reversed(created):
                 try:
@@ -246,9 +273,26 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
                 except OSError:
                     rollback_failed = True
             if marker_owned and not rollback_failed:
-                marker.unlink(missing_ok=True)
+                try:
+                    marker.unlink(missing_ok=True)
+                except OSError:
+                    log.exception("移除失败迁移的标记失败，继续阻止使用目标")
         raise
     finally:
+        def cleanup_warning(message):
+            log.warning(message, exc_info=True)
+            if committed:
+                result.setdefault("warnings", []).append(message)
+                result["message"] += "\n" + message
+
+        if committed:
+            try:
+                marker.unlink()
+            except OSError:
+                cleanup_warning(tr("迁移已完成，但临时标记 {path} 没删掉，可以手动删", path=str(marker)))
         # 只清理本次在目标下生成的随机 staging；绝不清理源库或目标已有目录。
-        if staging.parent == dst and staging.resolve().parent == dst and staging.name.startswith(".easyread-copy-") and not _linked(staging):
-            shutil.rmtree(staging)
+        try:
+            if staging.parent == dst and staging.resolve().parent == dst and staging.name.startswith(".easyread-copy-") and not _linked(staging):
+                shutil.rmtree(staging)
+        except OSError:
+            cleanup_warning(tr("临时目录 {path} 没删掉，可以手动删", path=str(staging)))
