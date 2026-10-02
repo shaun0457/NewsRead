@@ -2,7 +2,7 @@
 (function (PR) {
   "use strict";
   const text = (v) => v == null ? "" : String(v).trim();
-  const authors = (i) => text(i.authors).split(",").map(text).filter(Boolean);
+  const authors = (i) => text(i.authors).split(/,|\s+and\s+/i).map(text).filter(Boolean);
   const title = (i) => text(i.title_en) || text(i.title_zh);
   const chinese = (s) => /\p{Script=Han}/u.test(s);
   const surname = (name) => chinese(name) ? name : name.split(/\s+/).pop();

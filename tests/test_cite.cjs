@@ -137,6 +137,14 @@ test("GB entries without authors follow every named entry", () => {
   assert.match(gb[2], /^\[3\] Anonymous work/);
 });
 
+test("author names separated by and export as separate authors", () => {
+  const PR = formatter(), paper = { ...journal, authors: "A Smith and B Doe, C Jones" };
+  assert.match(PR.cite(paper, "gb"), /^SMITH A, DOE B, JONES C\./);
+  assert.match(PR.cite(paper, "apa"), /^Smith, A\., Doe, B\., & Jones, C\./);
+  assert.match(PR.cite(paper, "bibtex"), /author = \{A Smith and B Doe and C Jones\}/);
+  assert.match(PR.cite({ ...paper, authors: "Brandon Smith" }, "gb"), /^SMITH B\./);
+});
+
 // 对话框只需要节点与事件的轻量桩；测试选中、格式记忆、补信息跳转和空选择。
 function dialog() {
   const PR = formatter(), nodes = new Map(), memory = new Map(), copied = [];
