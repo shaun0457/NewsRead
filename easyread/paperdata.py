@@ -124,6 +124,8 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list
                 continue
             if field == "caption":
                 b["caption_zh"] = str(zh)
+            elif field == "image":
+                b["image_zh"] = str(zh)
             elif field == "head":
                 if not _is_matrix(zh):
                     raise ValueError(tr("{id}：译文 table.head 必须是二维数组", id=bid))

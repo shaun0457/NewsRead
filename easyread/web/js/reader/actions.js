@@ -90,7 +90,7 @@
   }
   function copyBlock(id, lang) {
     const b = PR.blockById[id];
-    const t = lang === "en" ? (b.en || b.caption_en || b.image_en || (b.items || []).map((i) => i.en).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
+    const t = lang === "en" ? ([b.en, b.caption_en, b.image_en, ...(b.items || []).map((i) => i.en)].filter(Boolean).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
     navigator.clipboard.writeText(PR.plain(t || (b.tex ? "$$" + b.tex + "$$" : ""))).then(() => PR.toast(PR.t("已复制")));
   }
 

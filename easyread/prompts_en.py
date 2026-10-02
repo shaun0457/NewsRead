@@ -13,7 +13,7 @@ RULES_EN = """整理要求（不翻译）：
 - 只把原文整理好，不翻译、不解释、不总结，不加原文没有的内容。原文的笔误照录。
 - 保留原文的阅读顺序、章节编号、引用号 [n]。双栏论文按栏读，断在行尾的连字符单词拼回去。
 - 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
-- 表格重排成 table 块，表头和单元格照原文。图用 figure 块，只写题注（src 留空）。
+- 表格重排成 table 块，表头和单元格照原文。图用 figure 块，给出归一化裁剪框 box:[x0,y0,x1,y1]（0 到 1，框住图本身、不含题注），图内可读的标题、坐标轴、图例和标签原文放 image_en。没有原页图或看不清时不猜框和文字；src 留空由程序裁图。
 - 参考文献列表：输出一个 references 块，条目放进 references 数组（id 是编号，text 是原文）。
 - 看不清的地方写“[unclear, see page N]”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
@@ -30,7 +30,7 @@ SCHEMA_EN = """输出格式：只输出一个 JSON 对象，不要任何别的�
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
 - {"id":"tab2","type":"table","page":3,"num":"2","head":[["","Questions","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …"}
-- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","caption_en":"Figure 1: …"}
+- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"image_en":"Readable labels from the figure","caption_en":"Figure 1: …"}
 - {"id":"refs","type":"references","page":10,"en":"References"}
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图放在正文第一次提到它的段落之后。"""
@@ -49,7 +49,7 @@ def structure(ws: Workspace, pages: list[int], engine: str, next_head: str) -> s
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:
-    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#序号、id#head（表头）。"""
+    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#image（图内文字）、id#序号、id#head（表头）。"""
     out: dict[str, object] = {}
     for b in blocks:
         t = b.get("type")
@@ -63,6 +63,8 @@ def todo(blocks: list[dict]) -> dict[str, object]:
             out[f"{b['id']}#caption"] = b["caption_en"]
             if t == "table" and b.get("head"):
                 out[f"{b['id']}#head"] = b["head"]
+        if t == "figure" and b.get("image_en") and not b.get("image_zh"):
+            out[f"{b['id']}#image"] = b["image_en"]
     return out
 
 

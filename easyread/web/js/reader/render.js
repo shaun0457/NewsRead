@@ -99,7 +99,7 @@
       const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
         : '<button class="fig-missing" data-t="page">' + PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) + "</button>";
       const key = b.id + "#image";
-      const imageText = b.image_zh || b.image_en ? '<div class="figure-translation"><div class="figure-translation-label">' + PR.t("图内文字") + '</div><div class="zh" data-key="' + key + '">' + PR.md(PR.textFor(key)) + staleTag(key) + '</div>' + enDiv(b.image_en) + '</div>' : '';
+      const imageText = b.image_zh || b.image_en ? '<div class="figure-translation"><div class="figure-translation-label">' + PR.t("图内文字") + '</div>' + zhDiv(key) + enIfZh(key, b.image_en) + '</div>' : "";
       return '<div class="figure-media">' + img + '</div>' + imageText + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",

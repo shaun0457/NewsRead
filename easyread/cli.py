@@ -138,7 +138,7 @@ def cmd_status(a):
     for key, e in edits.items():
         bid, _, field = key.partition("#")
         b = blocks.get(bid, {})
-        agent = b.get("caption_zh") if field == "caption" else (b.get("items", [{}] * 99)[int(field)].get("zh") if field.isdigit() else b.get("zh", ""))
+        agent = b.get("image_zh", "") if field == "image" else b.get("caption_zh") if field == "caption" else (b.get("items", [{}] * 99)[int(field)].get("zh") if field.isdigit() else b.get("zh", ""))
         stale = " [译者稿在用户修改后又变过]" if e.get("base") and e["base"] != text_hash(agent) else ""
         out(f"- {key}{stale}\n  用户：{e['zh']}\n  译者：{agent}")
     notes = [n for n in reader.get("notes", {}).values() if not n.get("deleted")]
