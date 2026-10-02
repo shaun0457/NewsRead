@@ -47,6 +47,15 @@ jobs:
         run: npm run dist
       - name: Smoke test the frozen backend
         run: python scripts/smoke_backend.py
+      - name: Check glibc floor of the bundled libpython
+        if: runner.os == 'Linux'
+        shell: bash
+        # 冒烟测试和打包在同一台机器上，查不出"打包机 glibc 比用户新"；1.2.5 就是这样在 22.04 上打不开
+        run: |
+          lib="$(python -c "import sysconfig, os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))")"
+          need="$(objdump -T "$lib" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
+          echo "$lib needs $need"
+          [ "$(printf '%s\n' "$need" GLIBC_2.35 | sort -V | tail -1)" = GLIBC_2.35 ] || { echo "::error::libpython needs $need, newer than Ubuntu 22.04"; exit 1; }
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
