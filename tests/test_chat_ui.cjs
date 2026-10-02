@@ -19,10 +19,10 @@ async function reader(threads = [], options = {}) {
       const ta = { value: (html.match(/<textarea[^>]*>(.*?)<\/textarea>/s) || [])[1] || "", focus() {} };
       nodes.set("#chatInput", ta);
       nodes.set("#chatList", { scrollHeight: 100, scrollTop: 0, clientHeight: 100 });
+      // “简明回答”开关：亮着就是 ste100
       nodes.set("#chatAnswerStyle", {
-        id: "chatAnswerStyle",
-        value: (html.match(/<option value="([^"]+)" selected/) || [])[1],
-        disabled: /id="chatAnswerStyle" disabled/.test(html),
+        value: /class="ch-pill on"/.test(html) ? "ste100" : "standard",
+        disabled: /data-c="style" disabled/.test(html),
       });
     },
   });
@@ -78,7 +78,8 @@ async function reader(threads = [], options = {}) {
   };
   PR.toggleChat(true);
   await settled();
-  return { PR, panel, nodes, requests, copied, confirmations, dispatch, click, selectThread,
+  const setStyle = async value => { if (nodes.get("#chatAnswerStyle").value !== value) await click("style"); };
+  return { PR, panel, nodes, requests, copied, confirmations, dispatch, click, selectThread, setStyle,
     emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish() };
 }
 
@@ -86,19 +87,19 @@ test("STE selection reaches the request, stays fixed during streaming, and copie
   const r = await reader();
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "standard");
   r.nodes.get("#chatInput").value = "总结论文";
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   assert.equal(r.nodes.get("#chatInput").value, "总结论文");
   const sending = r.click("send");
   await settled();
   assert.equal(r.requests[0].answer_style, "ste100");
   assert.equal(r.nodes.get("#chatAnswerStyle").disabled, true);
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "standard" });
+  await r.setStyle("standard");
   r.finish();
   await sending;
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "ste100");
   assert.equal(r.nodes.get("#chatAnswerStyle").disabled, false);
-  assert.ok(r.panel.innerHTML.includes('class="cm-style">ASD-STE100</span>'));
-  assert.ok(r.panel.innerHTML.includes("简明中文回答"));
+  assert.ok(r.panel.innerHTML.includes('class="cm-style">简明回答</span>'));
+  assert.ok(r.panel.innerHTML.includes('class="ch-pill on"'));
   assert.ok(!r.panel.innerHTML.includes("英文在前"));
   assert.ok(r.panel.innerHTML.includes(answer));
   await r.click("copy", { dataset: { id: "answer" } });
@@ -140,7 +141,7 @@ test("saved formulas render in answers, questions and thread titles without rewr
 
 test("switching conversation during a streamed answer cannot change the visible mode", async () => {
   const r = await reader([{ id: "old", title: "Old", messages: [] }]);
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   r.nodes.get("#chatInput").value = "question";
   const sending = r.click("send");
   await settled();
@@ -154,7 +155,7 @@ test("switching conversation during a streamed answer cannot change the visible 
 test("saving model settings keeps the chosen mode and unsent draft", async () => {
   const r = await reader([{ id: "old", title: "Old", answer_style: "standard", messages: [] }]);
   await r.selectThread("old");
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   r.nodes.get("#chatInput").value = "还没发送的问题";
   await r.emit("settings-saved");
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "ste100");
@@ -163,7 +164,7 @@ test("saving model settings keeps the chosen mode and unsent draft", async () =>
 
 test("saving settings during an answer cannot discard the active conversation", async () => {
   const r = await reader();
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   r.nodes.get("#chatInput").value = "正在回答的问题";
   const sending = r.click("send");
   await settled();
@@ -181,7 +182,7 @@ test("the selected model and mode return together when switching back to a conve
     { id: "second", title: "Second", model: "m", messages: [] },
   ]);
   await r.selectThread("first");
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   await r.click("model");
   r.nodes.get("#chatInput").value = "用另一模型回答";
   const sending = r.click("send");
@@ -198,7 +199,7 @@ test("the selected model and mode return together when switching back to a conve
 test("a streamed conversation cannot be deleted; stopping enables a new normal conversation", async () => {
   const r = await reader([{ id: "old", title: "Old", messages: [] }]);
   await r.selectThread("old");
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   r.nodes.get("#chatInput").value = "正在回答的问题";
   const sending = r.click("send");
   await settled();
@@ -215,7 +216,7 @@ test("a streamed conversation cannot be deleted; stopping enables a new normal c
 
 test("a failed first question can be left for a new conversation and retried without leaking a local ID", async () => {
   const r = await reader([], { failFirst: true });
-  await r.dispatch("change", { id: "chatAnswerStyle", value: "ste100" });
+  await r.setStyle("ste100");
   r.nodes.get("#chatInput").value = "失败的问题";
   await r.click("send");
   assert.ok(r.panel.innerHTML.includes("连接失败"));

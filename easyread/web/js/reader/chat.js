@@ -120,7 +120,7 @@
     }
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") +
-      (m.answer_style === "ste100" ? '<span class="cm-style">ASD-STE100</span>' : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
+      (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
@@ -145,13 +145,13 @@
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
       '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
-    const style = '<div class="ch-style"><label for="chatAnswerStyle">' + PR.t("回答方式") + '</label><select id="chatAnswerStyle"' + (st.streaming ? " disabled" : "") + '>' +
-      '<option value="standard"' + (st.answerStyle === "standard" ? " selected" : "") + '>' + PR.t("普通问答") + '</option>' +
-      '<option value="ste100"' + (st.answerStyle === "ste100" ? " selected" : "") + '>' + PR.t("ASD-STE100 问答") + '</option></select>' +
-      (st.answerStyle === "ste100" ? '<span class="ch-style-hint">' + PR.t("简明中文回答") + '</span>' : "") + '</div>';
-    return '<div class="ch-compose">' + style + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
+    // 简明回答（ASD-STE100 写作规则）：一个小开关放在模型旁边，不单独占一行
+    const brief = st.answerStyle === "ste100";
+    const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
+      PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
+    return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
-      '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型") + '">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + menu +
+      '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型") + '">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + style + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
@@ -247,6 +247,13 @@
     if (c === "close") return PR.toggleChat(false);
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
     if (c === "new") { if (st.streaming) return; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
+    if (c === "style") {
+      if (st.streaming) return;
+      st.answerStyle = st.answerStyle === "ste100" ? "standard" : "ste100";
+      const t = thread();
+      if (t) t.answer_style = st.answerStyle;
+      return render();
+    }
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
     if (c === "model") { st.model = b.dataset.m; st.menuOpen = false; return render(); }
@@ -291,13 +298,6 @@
     const t = thread();
     if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
     st.answerStyle = styleOf(t);
-    render();
-  });
-  document.addEventListener("change", (e) => {
-    if (e.target.id !== "chatAnswerStyle" || st.streaming) return;
-    st.answerStyle = e.target.value === "ste100" ? "ste100" : "standard";
-    const t = thread();
-    if (t) t.answer_style = st.answerStyle;
     render();
   });
   document.addEventListener("keydown", (e) => {
