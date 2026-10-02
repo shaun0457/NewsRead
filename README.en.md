@@ -2,13 +2,13 @@
   <img src="docs/images/logo.svg" width="72" alt="EasyRead">
 </p>
 <h1 align="center">EasyRead</h1>
-<p align="center"><b>Read English papers as comfortable, well-typeset Chinese.</b><br>
+<p align="center"><b>A more comfortable way to read papers.</b><br>
 Drop in a PDF and it gets translated page by page in the background. Equations and tables keep their original layout, the source is always one click away, and you can highlight, take notes and ask AI as you read.<br>
 Runs locally. You choose the model service and whether to keep your library in a synced folder.</p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
-<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ Try the live demo</b></a> · <a href="https://edwardxlai.github.io/easyread/en/">Homepage</a> · <a href="https://github.com/Edwardxlai/easyread/releases/latest">Download</a></p>
+<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ Try the demo · Chinese translation</b></a> · <a href="https://edwardxlai.github.io/easyread/en/">Homepage</a> · <a href="https://github.com/Edwardxlai/easyread/releases/latest">Download</a></p>
 
 <p align="center">
   <a href="https://github.com/Edwardxlai/easyread/releases/latest"><img src="https://img.shields.io/github/v/release/Edwardxlai/easyread?label=release" alt="release"></a>
@@ -17,9 +17,11 @@ Runs locally. You choose the model service and whether to keep your library in a
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
 </p>
 
-<p align="center"><img src="docs/images/pages.jpg" width="860" alt="Translation side by side with the original page"></p>
+<p align="center"><img src="docs/images/en/reading.png" width="860" alt="English paper reading with highlights and notes"></p>
 
-> **Who is this for?** EasyRead was built for Chinese-speaking students and researchers, and translates English papers into **Chinese** by default. It can also translate into **Japanese, Korean, Spanish, French or German** (Settings → Reading → Translate papers into). The interface follows your system language (Chinese, otherwise English). If you don't need a translation, choose "Read the English original" on import: you get the clean layout, highlights, notes and Ask AI on the English text.
+> **Choose your reading language.** Translate English papers into **Chinese, Japanese, Korean, Spanish, French or German**. Choose a language when importing, or set your default in Settings → Reading → Translate papers into (initially Chinese). The interface supports **English and Chinese**, independently of the translation language. You can also choose "Read the English original" on import and use the layout, highlights, notes and Ask AI without translating.
+
+<p align="center"><img src="docs/images/en/japanese.png" width="860" alt="Japanese abstract alongside the original English PDF"></p>
 
 ## How it differs from "throw the PDF into a translator"
 
@@ -31,12 +33,14 @@ Runs locally. You choose the model service and whether to keep your library in a
 - **Edit the translation.** Double-click a paragraph to edit it; change a term in the glossary and it's replaced everywhere.
 - **Not just arXiv.** Drop in any PDF, or paste an arXiv ID, DOI, paper title or paper page (OpenReview, ACL, NeurIPS, bioRxiv, PMC, journal sites). It finds the open PDF and fills in authors, year and venue.
 - **A library of your own.** Pin papers and folders, create folders and drag papers into them, recent reads, search, unread / reading / done, stars, reading progress, copy citation (GB/T 7714, APA, BibTeX), export a single-file offline HTML to share. Deleted papers go to a trash you can restore from. Custom keyboard shortcuts.
+- **Cloud library and batch citations.** Move your library to another drive or a synced folder in Settings → Cloud library; your cloud drive client handles syncing. Copy or save citations for a paper list or folder in GB/T 7714, APA or BibTeX.
+- **ASD-STE100 Chinese answers.** Choose this answer style in Ask AI for concise Chinese explanations that retain technical terms, equations and conditions. It borrows writing principles from the English standard; it does not certify Chinese answers as compliant.
 - **Know what you're spending.** Every translation and every AI answer records its token usage; with a Claude subscription you also see how much of the 5-hour / 7-day quota is used and when it resets.
 - **Doesn't lose your work.** Every edit is saved in the browser first and only cleared once the local server confirms it's on disk. If a re-translation touches a paragraph you edited, you get a notice, not an overwrite.
 
-<p align="center"><img src="docs/images/chat.jpg" width="860" alt="Ask AI while reading"></p>
+<p align="center"><img src="docs/images/en/chat.png" width="860" alt="Ask AI while reading"></p>
 
-<p align="center"><img src="docs/images/library.jpg" width="860" alt="Library"></p>
+<p align="center"><img src="docs/images/en/library.png" width="860" alt="Library"></p>
 
 ## Pick your translation model
 
@@ -147,8 +151,12 @@ MIT. Math rendering by [KaTeX](https://katex.org) (MIT).
 
 The demo paper is Rafailov et al., *Direct Preference Optimization: Your Language Model is Secretly a Reward Model* ([arXiv:2305.18290](https://arxiv.org/abs/2305.18290), CC BY 4.0). The Chinese translation was generated by EasyRead using Claude; highlights and notes in the demo are examples.
 
+Screenshots use a demonstration library. The Japanese sample translates the abstract; highlights, notes and the English AI answer are illustrative examples.
+
 ## Contributors
 
 - [@Wang-auspicious](https://github.com/Wang-auspicious) — Electron desktop packaging and release workflow
 - [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) — missing PDF dependency in desktop builds, two-column page locating; Markdown tables and blockquotes in Ask AI and notes
-- [@MeshedPoto](https://github.com/MeshedPoto) — PDFium errors during parallel translation, cross-column page highlights, macOS desktop reliability, HTTPS certificates and streaming fixes
+- [@MeshedPoto](https://github.com/MeshedPoto) — PDFium errors during parallel translation, cross-column page highlights, macOS desktop reliability, HTTPS certificates and streaming fixes; ASD-STE100 Chinese answers and math rendering in v1.3
+
+- [@Lzy22301093](https://github.com/Lzy22301093) — malformed table validation and rendering resilience ([#17](https://github.com/Edwardxlai/easyread/pull/17))

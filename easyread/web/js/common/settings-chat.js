@@ -16,6 +16,7 @@
   function sameAsTranslation(s, m) {
     const c = s.cfg, e = c.engine;
     if (m.engine !== e) return false;
+    if (["reasoning_effort", "service_tier"].some((k) => (m[k] || "") !== (c[e][k] || ""))) return false;
     if (e === "claude" || e === "codex") return (m.model || "") === (c[e].model || "");
     const o = c.openai, p = preset(s, m.preset);
     return (m.preset || "") === (o.preset || "") && (m.model || "") === (o.model || "") &&
@@ -37,7 +38,7 @@
         m.model = PR.cliPin(s, m.engine, was);
         if (!was && m.model) { const n = autoName(s, { kind: m.engine, model: m.model }); m.name = m.label = n; m.detail = m.model; }
       }
-      const key = [m.engine, m.model, m.preset || "", m.base_url || ""].join("|");
+      const key = [m.engine, m.model, m.preset || "", m.base_url || "", m.reasoning_effort || "", m.service_tier || ""].join("|");
       if (seen[key]) {
         if (s.chat.default === m.id) s.chat.default = seen[key].id;
         list.splice(i--, 1);
@@ -54,6 +55,7 @@
     const c = s.cfg, e = c.engine, o = c.openai, p = preset(s, o.preset);
     const f = e === "openai" ? { kind: "api", preset: o.preset || "", model: o.model || "", base_url: o.base_url || "", api: o.api || "chat" }
       : { kind: e, model: c[e].model || "" };
+    Object.assign(f, { reasoning_effort: c[e].reasoning_effort || "", service_tier: c[e].service_tier || "" });
     s.chat.models.unshift(Object.assign(toModel(s, f, p), { id: "m" + Date.now().toString(36) }));
   }
 
@@ -67,10 +69,13 @@
         model: m.model, api_key: typed || (PR.apiHasKey(s, m.preset) ? "••••" : ""), vision: rec ? !!rec.vision : !!c.openai.vision });
       if (c.engine !== "openai" && c.concurrency < 2) c.concurrency = 3;
     } else {
+      if (m.engine === "codex" && c.codex.model !== (m.model || "")) c.codex.reasoning_effort = "";
       c[m.engine].model = m.model || "";
       if (c.engine === "openai" && c.concurrency > 2) c.concurrency = 1;
     }
     c.engine = m.engine;
+    c[m.engine].reasoning_effort = m.reasoning_effort || "";
+    c[m.engine].service_tier = m.service_tier || "";
   }
 
   /* ---------- 卡片 ---------- */
@@ -101,6 +106,7 @@
     } else {
       h += PR.apiForm.html(s, f, { keyProp: "key", vision: false });
     }
+    h += PR.modelReasoningFields(s, f);
     return h + '<div class="cm-form-acts"><span class="grow"></span>' +
       '<button class="btn sm" data-cm="cancel">' + PR.t("取消") + '</button><button class="btn sm accent" data-cm="ok">' + (s.editing === "new" ? PR.t("添加") : PR.t("保存")) + "</button></div></div>";
   }
@@ -118,6 +124,7 @@
       base_url: api && (!p || f.base_url !== p.base_url) ? f.base_url : "", api: api && (!p || f.api !== (p.api || "chat")) ? f.api : "", model: f.model, name, label: name,
       source: api ? (p ? p.name : "自定义地址") :  // i18n-ok 存进模型名单的来源名
       f.kind === "claude" ? "Claude Code" : "Codex CLI",
+      reasoning_effort: f.reasoning_effort || "", service_tier: f.kind === "claude" ? "" : f.service_tier || "",
       detail: f.model, ready: true };
   }
   function readForm(s) {
@@ -126,6 +133,10 @@
     const v = (id) => { const el = PR.$("#" + id); return el ? el.value.trim() : null; };
     if (isApi(f.kind)) PR.apiForm.read(root(), f, "key");
     else if (v("cmModel") !== null) f.model = v("cmModel");
+    for (const key of ["reasoning_effort", "service_tier"]) {
+      const el = PR.$('[data-reasoning="' + key + '"]', root());
+      if (el) f[key] = el.value;
+    }
   }
   function startForm(s, m) {
     const p = m && preset(s, m.preset);
@@ -133,6 +144,8 @@
       name: "", key: "" }
       : { kind: "claude", model: "opus", preset: "", base_url: "", api: "", name: "", key: "" };
     s.fetchMsg = null; s.apiTyping = false;
+    s.form.reasoning_effort = m && m.reasoning_effort || "";
+    s.form.service_tier = m && m.service_tier || "";
   }
 
   /* ---------- 翻译自己的设置 ---------- */
@@ -140,6 +153,9 @@
     const c = s.cfg, ti = transIndex(s), m = s.chat.models[ti];
     const e = c.engine;
     let h = '<h4 class="set-h">' + (m ? PR.t("翻译：{name}", { name: PR.esc(m.label || m.name) }) : PR.t("翻译")) + "</h4>";
+    if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.t("跟随默认")) +
+      (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.t("跟随默认"))) +
+      ' · ' + PR.t("点模型卡片 → 修改，可单独设置；翻译和问 AI 共用这张卡片的配置") + '</p>';
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";
     h += '<div class="grid2 translation-limits">' +
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
@@ -169,8 +185,13 @@
     sync(s) { readForm(s); readTranslation(s); },
     change(e, s) {
       if (e.target.dataset.k) { readTranslation(s); return false; }
-      if (s.form && isApi(s.form.kind)) return PR.apiForm.change(e, s, s.form, "key", root());
-      if (e.target.id === "cmModel" && e.target.tagName === "SELECT") { readForm(s); return true; }  // 换了模型，默认名字跟着变
+      if (e.target.dataset.reasoning) { readForm(s); return false; }
+      if (s.form && isApi(s.form.kind)) {
+        readForm(s);
+        if (e.target.dataset.af === "model") s.form.reasoning_effort = s.form.service_tier = "";
+        return PR.apiForm.change(e, s, s.form, "key", root());
+      }
+      if (e.target.id === "cmModel" && e.target.tagName === "SELECT") { readForm(s); s.form.reasoning_effort = s.form.service_tier = ""; return true; }
       return false;
     },
     async click(e, s) {
@@ -190,7 +211,7 @@
         readForm(s);
         const f = s.form, kind = k.dataset.cmk;
         if (kind === f.kind) return false;
-        Object.assign(f, { kind, model: kind === "claude" ? "opus" : PR.cliPin(s, kind, ""), name: "", key: "", base_url: "", api: "" });
+        Object.assign(f, { kind, model: kind === "claude" ? "opus" : PR.cliPin(s, kind, ""), name: "", key: "", base_url: "", api: "", reasoning_effort: "", service_tier: "" });
         s.fetchMsg = null; s.apiTyping = false;
         if (isApi(kind)) {  // 先给一家：翻译那边用的 API，没有就 DeepSeek
           const o = s.cfg.openai;
@@ -200,6 +221,7 @@
       }
       if (s.form && isApi(s.form.kind) && e.target.closest("[data-af-preset], [data-fetch-models]")) {
         readForm(s);
+        if (e.target.closest("[data-af-preset]")) s.form.reasoning_effort = s.form.service_tier = "";
         return PR.apiForm.click(e, s, s.form, "key", root());
       }
       const b = e.target.closest("[data-cm]");
@@ -212,8 +234,7 @@
           { label: PR.t("设为翻译"), icon: "sparkle", disabled: tr, fn: () => { useForTranslation(s, m); PR.settingsRender(); } },
           { label: PR.t("设为问 AI"), icon: "note", disabled: s.chat.default === m.id, fn: () => { s.chat.default = m.id; PR.settingsRender(); } },
           "-",
-          // 本机 CLI 的卡片就是一个模型，想换模型删了再加；API 卡片才有 Key、地址可改
-          ...(m.engine === "openai" ? [{ label: PR.t("改 Key 和地址"), icon: "edit", fn: () => { readForm(s); s.editing = m.id; startForm(s, m); PR.settingsRender(); } }] : []),
+          { label: PR.t("修改"), icon: "edit", fn: () => { readForm(s); s.editing = m.id; startForm(s, m); PR.settingsRender(); } },
           "-",
           { label: PR.t("删除"), icon: "trash", disabled: tr, fn: async () => {
             if (list.length <= 1) return PR.toast(PR.t("至少留一个模型"));

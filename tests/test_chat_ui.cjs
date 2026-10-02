@@ -41,6 +41,7 @@ async function reader(threads = [], options = {}) {
   if (options.markup) vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), {
     window: { PR }, katex: require("../easyread/web/vendor/katex/katex.min.js"),
   });
+  vm.runInNewContext(source("chat-effort"), { window: { PR } });
   vm.runInNewContext(source("chat"), {
     window: { PR, addEventListener() {} },
     document: { addEventListener(name, fn) { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(fn); } },
@@ -193,7 +194,7 @@ test("the selected model and mode return together when switching back to a conve
   await r.selectThread("second");
   await r.selectThread("first");
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "ste100");
-  assert.ok(r.panel.innerHTML.includes('title="换模型">Other model'));
+  assert.ok(r.panel.innerHTML.includes('title="换模型和思考强度">Other model'));
 });
 
 test("a streamed conversation cannot be deleted; stopping enables a new normal conversation", async () => {
@@ -287,4 +288,22 @@ test("a failed chat export keeps the dialog open, creates no file, and treats th
   assert.equal(downloaded, false);
   assert.ok(notices[0].includes('&lt;img'));
   assert.ok(!notices[0].includes('<img'));
+});
+
+test("thinking effort lives in the model menu and shows on the model button once chosen", async () => {
+  const r = await reader([], {});
+  r.PR.state.models = null;
+  await r.click("menu");
+  assert.ok(r.panel.innerHTML.includes('class="ch-effort-sec"'));
+  assert.ok(!r.panel.innerHTML.includes("ch-effort-pop"));
+  assert.ok(!r.panel.innerHTML.includes("ch-model-effort"));
+  const b = { dataset: { c: "effort-level", effort: "high" }, closest: (sel) => sel === "[data-c]" ? b : sel === "#chatpanel" ? r.panel : null };
+  await r.dispatch("click", b);
+  assert.ok(r.panel.innerHTML.includes('class="ch-effort-sec"'), "menu stays open");
+  assert.match(r.panel.innerHTML, /ch-model-effort"> · 高/);
+  r.nodes.get("#chatInput").value = "问题";
+  const sending = r.click("send");
+  await settled();
+  assert.equal(r.requests[0].chat_options.reasoning_effort, "high");
+  r.finish(); await sending;
 });

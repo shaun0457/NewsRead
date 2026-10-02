@@ -85,6 +85,20 @@ body.ch-open #chatpanel { transform: none; }
 .ch-pill.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .ch-pill:disabled { opacity: .5; }
 .ch-model:hover { background: var(--accent-soft); color: var(--ink); }
+.ch-model { min-width: 0; max-width: 56%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ch-model:disabled { opacity: .5; cursor: wait; }
+.ch-model-effort { color: var(--ink-3); }
+.ch-model-check { margin-left: auto; color: var(--accent); }
+/* 模型菜单底部的思考强度：一排等宽小按钮，和“简明回答”同一种胶囊 */
+.ch-effort-sec { padding: 8px 10px 6px; border-top: 1px solid var(--rule); margin-top: 4px; }
+.ch-effort-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; font: 12.5px var(--ui); color: var(--ink-2); }
+.ch-effort-title small { font-size: 11px; color: var(--ink-3); }
+.ch-menu .ch-effort-seg { display: flex; gap: 3px; padding: 3px; border-radius: 9px; background: var(--bg); }
+.ch-menu .ch-effort-seg button { flex: 1; display: block; width: auto; padding: 4px 0; border-radius: 6px; text-align: center; font: 12px var(--ui); color: var(--ink-3); }
+.ch-menu .ch-effort-seg button:hover:not([disabled]) { background: var(--accent-soft); color: var(--ink); }
+.ch-menu .ch-effort-seg button.on { background: var(--surface); color: var(--accent); box-shadow: 0 0 0 1px var(--rule-2), 0 1px 2px rgba(0,0,0,.08); }
+.ch-menu b { display: flex; width: 100%; gap: 20px; }
+.ch-menu { max-width: calc(100% - 16px); min-width: min(250px, calc(100% - 16px)); max-height: 50vh; overflow-y: auto; }
 .ch-send { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; }
 .ch-send:hover { opacity: .88; }
 .ch-send.stop { background: var(--ink); color: var(--bg); }

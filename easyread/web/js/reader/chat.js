@@ -11,6 +11,7 @@
   const panel = () => PR.$("#chatpanel");
   const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
   const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
+  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null });
 
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */
@@ -61,10 +62,11 @@
       // 设置变更只刷新模型，不能覆盖尚未发送的模式或正在流式回答的对话。
       if (!modelsOnly) st.threads = d.threads || [];
       st.models = d.models || []; st.def = d.default; st.limits = d.limits || null;
+      if (!st.catalog) st.catalog = ((await PR.api("/api/engines").catch(() => ({}))).models || {});
       if (!st.model || !st.models.some((m) => m.id === st.model)) st.model = st.def;
       if (!modelsOnly) {
         if (st.cur && !st.threads.some((t) => t.id === st.cur)) st.cur = null;
-        if (st.cur) st.answerStyle = styleOf(thread());
+        if (st.cur) { st.answerStyle = styleOf(thread()); st.chatOptions = { ...(thread().chat_options || {}) }; }
       }
       st.loaded = true;
     } catch (e) { PR.toast(PR.t("读不到对话记录：{msg}", { msg: PR.esc(e.message) })); }
@@ -142,15 +144,15 @@
     const m = modelOf(st.model);
     const chips = st.refs.length ? st.refs.map((r, i) => refChip(r, i)).join("") : st.auto && !st.noAuto ? refChip(st.auto, 0, true) : "";
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
-      "<b>" + PR.esc(x.label) + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
-      '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
+      "<b>" + PR.esc(x.label) + (x.id === st.model ? '<span class="ch-model-check">✓</span>' : '') + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
+      PR.chatEffort.section(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
     // 简明回答（ASD-STE100 写作规则）：一个小开关放在模型旁边，不单独占一行
     const brief = st.answerStyle === "ste100";
     const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
       PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       '<textarea id="chatInput" rows="1" placeholder="' + PR.t("问点什么…") + '">' + PR.esc(st.draft) + "</textarea>" +
-      '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型") + '">' + PR.esc(m.label) + PR.icon("chevron", "sm") + "</button>" + style + menu +
+      '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
         : '<button class="ch-send" data-c="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
@@ -185,23 +187,25 @@
     const c = refs[0] || null;
     const answerStyle = st.answerStyle;
     const modelId = st.model;
+    const chatOptions = { ...st.chatOptions };
     let t = thread();
     if (!t) { t = { id: null, title: text.slice(0, 22), messages: [], updated: PR.nowIso() }; st.threads.unshift(t); }
     t.answer_style = answerStyle;
     t.model = modelId;
+    t.chat_options = chatOptions;
     const user = { role: "user", content: text, anchor: c ? c.anchor : null, quote: c ? c.quote : "", note: noteId || null, refs, answer_style: answerStyle };
     const msg = { role: "assistant", content: "", model: modelOf(modelId).label, answer_style: answerStyle };
     t.messages.push(user, msg);
     const ctrl = new AbortController();
     st.streaming = { ctrl, msg };
-    st.draft = ""; st.listOpen = false; st.menuOpen = false;
+    st.draft = ""; st.listOpen = false; st.menuOpen = false; st.effortOpen = false;
     if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
     if (noteId) { PR.asking.add(noteId); PR.renderMargin(); }
     render();
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
-        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle }),
+        body: JSON.stringify({ thread: t.local ? null : t.id, text, anchor: user.anchor, quote: user.quote, refs, note: noteId || null, model: modelId, answer_style: answerStyle, chat_options: chatOptions }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "HTTP " + res.status);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -245,7 +249,7 @@
     const row = b.closest(".ch-thread[data-t]");
     if (c === "close") return PR.toggleChat(false);
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
-    if (c === "new") { if (st.streaming) return; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
+    if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; autoContext(); render(); return focusInput(); }
     if (c === "style") {
       if (st.streaming) return;
       st.answerStyle = st.answerStyle === "ste100" ? "standard" : "ste100";
@@ -253,9 +257,10 @@
       if (t) t.answer_style = st.answerStyle;
       return render();
     }
+    if (c === "effort-level") { if (st.streaming) return; st.chatOptions.reasoning_effort = b.dataset.effort; return render(); }  // 菜单不关，模型和强度一起选
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
-    if (c === "model") { st.model = b.dataset.m; st.menuOpen = false; return render(); }
+    if (c === "model") { if (st.streaming) return; st.chatOptions = {}; st.model = b.dataset.m; st.menuOpen = false; return render(); }
     if (c === "manage") { st.menuOpen = false; render(); return PR.openSettings("chat"); }
     if (c === "send") return send(PR.$("#chatInput").value);
     if (c === "stop" && st.streaming) return st.streaming.ctrl.abort();
@@ -297,9 +302,11 @@
     const t = thread();
     if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
     st.answerStyle = styleOf(t);
+    st.chatOptions = { ...((t && t.chat_options) || {}) }; st.effortOpen = false;
     render();
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && (st.effortOpen || st.menuOpen)) { st.effortOpen = st.menuOpen = false; render(); return; }
     if (e.target.id !== "chatInput") return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(e.target.value); }
     if (e.key === "Escape") e.target.blur();
