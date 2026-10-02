@@ -7,7 +7,7 @@ const { test } = require("node:test");
 function setup(confirm = true) {
   const calls = [], s = { tab: "cloud", cloud: { path: "C:/library", papers: 3, bytes: 1024, candidates: [] } };
   const PR = {
-    settingsState: s, settingsTabs: {}, settingsRender() {}, toast() {},
+    settingsState: s, settingsTabs: {}, settingsRender() {}, toast() {}, icon: () => "",
     t: (text, vars = {}) => text.replace(/\{(\w+)\}/g, (_, k) => vars[k]),
     esc: (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
     confirm: async (args) => { calls.push(["confirm", args]); return confirm; },
@@ -54,13 +54,15 @@ test("cancelled confirmation never changes the library location", async () => {
   assert.equal(calls.filter(([url]) => url.endsWith("/move")).length, 0);
 });
 
-test("cloud settings explain automatic detection limits even when a drive is found", () => {
+test("cloud settings say where the library is now and keep other drives one click away", () => {
   const { PR, s } = setup();
-  for (const candidates of [[], [{ path: "D:/OneDrive/EasyRead", papers: 0, writable: true }]]) {
+  for (const candidates of [[], [{ label: "OneDrive", root_path: "D:/OneDrive", path: "D:/OneDrive/EasyRead", papers: 0, writable: true }]]) {
     s.cloud.candidates = candidates;
     const html = PR.settingsTabs.cloud.render(s);
-    assert.match(html, /自动检测 OneDrive、Dropbox 和 Windows 上的 iCloud/);
-    assert.match(html, /坚果云、Google Drive 及 macOS 上的 iCloud 请用“自定义文件夹”选择同步目录/);
-    assert.doesNotMatch(html, /支持坚果云、OneDrive、iCloud、Google Drive、Dropbox/);
+    assert.match(html, /在本机，不会同步/);
+    assert.match(html, /坚果云、Google Drive 选它们的同步文件夹就行/);
+    assert.match(html, /data-cloud="custom"/);
   }
+  s.cloud.path = String.raw`D:\OneDrive\EasyRead`;
+  assert.match(PR.settingsTabs.cloud.render(s), /在 OneDrive 里，会自动同步/);
 });

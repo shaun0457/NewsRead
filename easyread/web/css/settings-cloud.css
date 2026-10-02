@@ -1,17 +1,28 @@
-/* 云文献库：长路径换行，操作仍放在原来的设置页。 */
-.cloud-current, .cloud-target { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
-.cloud-current .cloud-path, .cloud-target > div:first-child { flex: 1; min-width: 0; }
-.cloud-target { border-bottom: 1px solid var(--rule); }
-.cloud-path { overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; }
-.cloud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.cloud-target .cloud-actions { flex: none; max-width: 48%; }
-.cloud-notes { padding-left: 18px; line-height: 1.8; margin-top: 18px; }
-.cloud-result { background: var(--accent-soft-2); padding: 12px; border-radius: 8px; margin: 10px 0; }
+/* 云文献库：上面一张“现在在哪”，下面每个网盘一张卡片，一个主按钮；须知折叠起来。 */
+.cloud-now, .cloud-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--rule-2); border-radius: 12px; background: var(--surface); }
+.cloud-now { margin-bottom: 6px; }
+.cloud-cards { display: grid; gap: 10px; margin: 6px 0 4px; }
+.cloud-card.warn { border-color: #ac822c; background: color-mix(in srgb, #d7a333 8%, var(--surface)); }
+.cloud-card-icon { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.cloud-card-icon .i { width: 20px; height: 20px; }
+.cloud-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cloud-card-body b { font-size: 14px; }
+.cloud-label { font: 11.5px var(--ui); color: var(--ink-3); letter-spacing: .04em; }
+.cloud-state { font-size: 12.5px; color: var(--ink-2); }
+.cloud-path { overflow-wrap: anywhere; font: 11.5px/1.5 var(--mono, ui-monospace, monospace); color: var(--ink-3); }
+.cloud-card-acts { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.cloud-card-acts .linkish { font-size: 12px; }
+.cloud-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.cloud-actions .hint { margin: 0; }
+.cloud-notes { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); }
+.cloud-notes summary { cursor: pointer; color: var(--ink-2); }
+.cloud-notes ul { padding-left: 18px; line-height: 1.8; margin: 6px 0 0; }
+.cloud-result { background: var(--accent-soft-2); padding: 12px 14px; border-radius: 10px; margin: 10px 0; }
 .cloud-result p { margin: 6px 0; }
 .cloud-progress { display: flex; align-items: center; gap: 8px; }
 .cloud-notice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 12px 0; border: 1px solid #ac822c; border-radius: 8px; font-size: 13px; color: var(--ink); background: color-mix(in srgb, #d7a333 12%, var(--bg)); }
 .cloud-notice span { flex: 1; }
 @media (max-width: 600px) {
-  .cloud-target { align-items: flex-start; flex-direction: column; }
-  .cloud-target .cloud-actions { max-width: 100%; }
+  .cloud-now, .cloud-card { flex-wrap: wrap; }
+  .cloud-card-acts { width: 100%; align-items: stretch; }
 }
