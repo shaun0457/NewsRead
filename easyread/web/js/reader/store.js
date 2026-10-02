@@ -91,7 +91,8 @@
       saveOutbox();
       serverReader = applyOps(JSON.parse(JSON.stringify(serverReader || {})), batch);
       serverReader.rev = res.rev;
-      S.versions = Object.assign(S.versions, res.versions || {});
+      // 只认 reader 的新版本：paper / layout 等要由轮询去取内容，这里提前记上版本号，轮询就以为没变、不再重画
+      if (res.versions && res.versions.reader) S.versions.reader = res.versions.reader;
       rebuildReader();
       retryMs = 1500;
       if (outbox.length) scheduleFlush(50); else statusIdle();

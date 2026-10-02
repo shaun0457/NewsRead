@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -222,10 +222,13 @@ class Handler(BaseHTTPRequestHandler):
                     ws.patch_item(opened)
                     _warm(ws.root, app.location)
                     _refresh_layout(ws)
-                return self._json(200, {
-                    **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
-                    "versions": ws.versions(), "token": app.token, "id": ws.id, "library_status": app.location.status,
-                    "engine": config.load().get("engine")})
+                state = {**{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
+                         "versions": ws.versions(), "token": app.token, "id": ws.id, "library_status": app.location.status,
+                         "engine": config.load().get("engine")}
+                # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
+                if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
+                    figures.fill_later(ws, app.location)
+                return self._json(200, state)
             if action == "versions":
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})
             if action == "chat":
