@@ -156,6 +156,19 @@ class SkipHeadTest(unittest.TestCase):
         self.assertEqual(paper["glossary"], [{"en": "error bar", "zh": "误差线"}])
         self.assertIn("术语统一", (self.ws.root / "job.log").read_text(encoding="utf-8"))
 
+    def test_prev_paragraph_skips_footnote_and_flags_unfinished(self):
+        def add(*blocks):
+            self.ws.update("paper", lambda p: p["blocks"].extend(blocks))
+        add({"id": "p4-7", "type": "para", "page": 4, "en": "3) SAIL-PIW preserves knowledge."},
+            {"id": "p4-8", "type": "para", "page": 4, "en": "$^1$https://example.org/data/."})
+        ctx = prompts._context(self.ws, [5, 6])
+        self.assertIn("p4-7", ctx)  # 脚注排在最后也不拿它当上一段
+        self.assertIn("不要再输出这段续文", ctx)
+        add({"id": "p4-9", "type": "para", "page": 4, "en": "Then the eval will need to contain at least"})
+        ctx = prompts._context(self.ws, [5, 6])
+        self.assertIn("停在了半句", ctx)  # 上一批没补完：续文要由这批译
+        self.assertNotIn("不要再输出这段续文", ctx)
+
     def test_prev_paragraph_only_from_adjacent_pages(self):
         self.ws.update("paper", lambda p: p["blocks"].append({"id": "p1-1", "type": "para", "page": 1, "en": "far away"}))
         self.assertNotIn("far away", prompts._context(self.ws, [5, 6]))

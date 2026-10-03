@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from . import langs
 from .store import Workspace
@@ -78,6 +79,10 @@ def schema(target: str = "zh") -> str:
     return _swap(SCHEMA, _SCHEMA_SWAP, target)
 
 
+_NOTE = re.compile(r"^\s*(\$\^|[¹²³⁴⁵⁶⁷⁸⁹*†‡]|\d{1,2}\s*https?:)|^\S*https?://\S*\s*$")
+_ENDS = (".", "?", "!", ":", ";", "。", "？", "！", "：", ")", "]", "\"", "”", "’")
+
+
 def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head: bool = False) -> str:
     """new_blocks=False：只给已有的块补译文（只读原文之后再翻译），不用提块 id 和上一批的续文。
     skip_head：上一页由另一段同时在译（分段并行的交界），跨页那段由它补完整，这批跳过页首续文。"""
@@ -103,10 +108,17 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
                      f"从第 {p} 页第一个新段落、标题、公式或图表开始。")
         return "\n".join(lines)
     # 只看紧挨着的前两页：再往前的段落不可能续到本批（分段并行时更早的页可能是别的段译的）
-    prev = next((b for b in reversed(blocks) if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and b.get("en")), None)
+    # 脚注不算：模型常把脚注排在页的最后一块，拿它当“上一段”会让下一批误把页首正文当续文跳过
+    prev = next((b for b in reversed(blocks) if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and b.get("en")
+                 and not _NOTE.search(b["en"])), None)
     if prev:
-        lines.append(f"上一批最后一段（{prev['id']}，第 {prev['page']} 页）的英文结尾：……{prev['en'][-300:]}\n"
-                     "如果本批第一页开头是这一段的续文，不要再输出这段续文。")
+        end = prev["en"].rstrip()
+        lines.append(f"上一批最后一段（{prev['id']}，第 {prev['page']} 页）的英文结尾：……{end[-300:]}")
+        if end.endswith(_ENDS):
+            lines.append("如果本批第一页开头是这一段的续文，不要再输出这段续文。")
+        else:  # 上一批没能把这段补完（下一页开头的抽取文字里常先排着表格、公式），续文得由这批译
+            lines.append("这一段在上一批停在了半句，没有补完。本批第一页开头接着这段的续文要译出来：单独成一段并加 \"cont\": true，"
+                         "从续文的第一个词开始，不要重复上一批已经译了的部分。")
     return "\n".join(lines)
 
 
