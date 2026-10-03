@@ -109,12 +109,14 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
         return "\n".join(lines)
     # 只看紧挨着的前两页：再往前的段落不可能续到本批（分段并行时更早的页可能是别的段译的）
     # 脚注不算：模型常把脚注排在页的最后一块，拿它当“上一段”会让下一批误把页首正文当续文跳过
-    prev = next((b for b in reversed(blocks) if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and b.get("en")
-                 and not _NOTE.search(b["en"])), None)
+    near = [b for b in blocks if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and not _NOTE.search(b.get("en") or "")]
+    prev = next((b for b in reversed(near) if b.get("en") and b.get("type") != "references"), None)
     if prev:
         end = prev["en"].rstrip()
         lines.append(f"上一批最后一段（{prev['id']}，第 {prev['page']} 页）的英文结尾：……{end[-300:]}")
-        if end.endswith(_ENDS):
+        # 只有最后一块就是这个段落、而且停在半句时才算没补完；后面跟着公式、表、图、标题的，那段已经结束了
+        tail = end[:-1].rstrip() if end.endswith("$") and end.count("$") % 2 == 0 else end  # “…$x=1.$”看公式里面的句号
+        if near[-1] is not prev or prev.get("type") != "para" or tail.endswith(_ENDS) or end.endswith("$$"):
             lines.append("如果本批第一页开头是这一段的续文，不要再输出这段续文。")
         else:  # 上一批没能把这段补完（下一页开头的抽取文字里常先排着表格、公式），续文得由这批译
             lines.append("这一段在上一批停在了半句，没有补完。本批第一页开头接着这段的续文要译出来：单独成一段并加 \"cont\": true，"
@@ -136,6 +138,8 @@ def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
     if engine not in ("claude", "attached"):
         return ""
     out = []
+    if engine == "attached" and peek:  # 附图不带页码：说清楚顺序（translate 里按页码排好了）
+        out.append("附上的原页图按页码排，依次是第 " + "、".join(map(str, sorted({*pages, *peek}))) + " 页。")
     for n in peek:
         img = f"Read 看 extract/page-{n:03d}.jpg" if engine == "claude" else f"看附上的第 {n} 页原页图"
         if n > pages[-1]:

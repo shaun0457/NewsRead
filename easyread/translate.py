@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -139,7 +140,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     with _merge_lock:
-        _unify_terms(ws, data, batch, {k: v for k, v in items.items() if isinstance(v, str)})
+        _unify_terms(ws, data, batch, {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in items.items()})
         missing = fill_zh(ws, data, batch, set(items))
         _save_checks(ws, data.get("checks"), batch)
     if missing:
@@ -151,7 +152,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。
     peek：分段交界处顺便看一眼的相邻页（见 prompts.peek_note）。"""
     mode = engines.image_mode(cfg)
-    images = [pdfwork.engine_image(ws.root, n) for n in [*batch, *peek]] if mode != "text" else []
+    images = [pdfwork.engine_image(ws.root, n) for n in sorted({*batch, *peek})] if mode != "text" else []
     nxt = batch[-1] + 1
     head = _next_head(ws, nxt) if nxt <= total_pages else ""
     prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head, skip_head, peek)
@@ -178,8 +179,8 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
         prepare_figures(ws.root, data["blocks"], total_pages)
         _unify_terms(ws, data, batch)
-        _one_references(ws, data, batch)
-        merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read)
+        drop = _one_references(ws, data, batch)
+        merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read, drop_ids=drop)
         _save_checks(ws, data.get("checks"), batch)
         try:
             pdfwork.locate(ws.root)
@@ -187,22 +188,23 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
             log.exception("locate 失败 %s", ws.id)
 
 
-def _one_references(ws: Workspace, data: dict, batch: list[int]) -> None:
+def _one_references(ws: Workspace, data: dict, batch: list[int]) -> list[str]:
     """全文只留一个“参考文献”块（页面上它会把整张参考文献表画出来，两个就画两遍）。
-    参考文献跨了几批（分段并行时可能两段各起一个）时留页码最早的那个。在合并锁里调。"""
+    参考文献跨了几批（分段并行时可能两段各起一个）时留页码最早的那个；这批的更早，就接过已有那块的 id
+    （挂在上面的笔记还挂得住），返回要在合并时一并删掉的旧块 id。在合并锁里调。"""
     mine = [b for b in data["blocks"] if b.get("type") == "references"]
     if not mine:
-        return
+        return []
     others = [b for b in ws.load("paper").get("blocks", []) if b.get("type") == "references" and b.get("page") not in batch]
-    first = min(b.get("page") or 0 for b in mine)
-    if others and min(b.get("page") or 0 for b in others) <= first:
-        data["blocks"] = [b for b in data["blocks"] if b.get("type") != "references"]
-        return
-    keep = mine[0]["id"]
-    data["blocks"] = [b for b in data["blocks"] if b.get("type") != "references" or b["id"] == keep]
-    if others:
-        drop = {b["id"] for b in others}
-        ws.update("paper", lambda p: p.__setitem__("blocks", [b for b in p.get("blocks", []) if b.get("id") not in drop]))
+    keep = min(mine, key=lambda b: b.get("page") or 0)
+    data["blocks"] = [b for b in data["blocks"] if b.get("type") != "references" or b is keep]
+    if not others:
+        return []
+    if min(b.get("page") or 0 for b in others) <= (keep.get("page") or 0):
+        data["blocks"].remove(keep)
+        return []
+    keep["id"] = others[0]["id"]
+    return [b["id"] for b in others]
 
 
 def _unify_terms(ws: Workspace, data: dict, batch: list[int], en_of: dict | None = None) -> None:

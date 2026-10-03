@@ -169,6 +169,7 @@ class SkipHeadTest(unittest.TestCase):
         paper = self.ws.load("paper")
         refs = [b for b in paper["blocks"] if b["type"] == "references"]
         self.assertEqual([b["page"] for b in refs], [3])  # 两段各起了一个，留页码早的
+        self.assertEqual(refs[0]["id"], "refs")  # 晚并进来的更早那块接过原来的 id，挂在上面的笔记不丢
         self.assertEqual(len(paper["references"]), 4)
 
     def test_prev_paragraph_skips_footnote_and_flags_unfinished(self):
@@ -183,6 +184,22 @@ class SkipHeadTest(unittest.TestCase):
         ctx = prompts._context(self.ws, [5, 6])
         self.assertIn("停在了半句", ctx)  # 上一批没补完：续文要由这批译
         self.assertNotIn("不要再输出这段续文", ctx)
+
+    def test_prev_followed_by_math_or_ending_in_math_is_finished(self):
+        add = lambda *bs: self.ws.update("paper", lambda p: p["blocks"].extend(bs))  # noqa: E731
+        add({"id": "p4-1", "type": "para", "page": 4, "en": "Combining, we have"}, {"id": "eq3", "type": "math", "page": 4, "tex": "x"})
+        self.assertNotIn("停在了半句", prompts._context(self.ws, [5, 6]))  # 后面跟着公式：那段已经结束
+        add({"id": "p4-2", "type": "para", "page": 4, "en": "so the value is $x=1.$"})
+        self.assertNotIn("停在了半句", prompts._context(self.ws, [5, 6]))
+        add({"id": "p4-3", "type": "heading", "page": 4, "en": "3 Method"})
+        self.assertNotIn("停在了半句", prompts._context(self.ws, [5, 6]))
+
+    def test_fill_prompt_has_no_continuation_rules(self):
+        from easyread import prompts_en
+        self.ws.update("paper", lambda p: p["blocks"].append({"id": "p4-1", "type": "para", "page": 4, "en": "stops in the"}))
+        text = prompts_en.fill(self.ws, [5], {"p5-1": "x"})
+        self.assertNotIn("停在了半句", text)
+        self.assertNotIn("上一批最后一段", text)
 
     def test_prev_paragraph_only_from_adjacent_pages(self):
         self.ws.update("paper", lambda p: p["blocks"].append({"id": "p1-1", "type": "para", "page": 1, "en": "far away"}))

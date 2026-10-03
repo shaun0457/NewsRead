@@ -42,10 +42,11 @@ def parse_pages(spec) -> list[int]:
     return out
 
 
-def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_only: bool = False) -> dict:
+def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_only: bool = False, drop_ids=None) -> dict:
     """并入一批块。同 id 整块替换；新块按 _after 或页码顺序插入。
     replace_pages：先删掉这些页上已有的块（重新翻译某几页时用）。
-    en_only：这批是“只读原文”整理出来的、只有英文的块，done 的页记进 translation.en_pages；否则从 en_pages 里去掉。"""
+    en_only：这批是“只读原文”整理出来的、只有英文的块，done 的页记进 translation.en_pages；否则从 en_pages 里去掉。
+    drop_ids：顺便删掉这几个别的页上的块（全文只留一个参考文献块时用），和合并在同一次写入里。"""
     if isinstance(data, list):
         data = {"blocks": data}
     for b in data.get("blocks", []):
@@ -60,6 +61,8 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         if replace_pages:
             drop = set(replace_pages)
             blocks[:] = [b for b in blocks if b.get("page") not in drop]
+        if drop_ids:
+            blocks[:] = [b for b in blocks if b.get("id") not in set(drop_ids)]
         n_new = n_upd = 0
         last = None  # 同一批的新块保持给定顺序，接在上一个新块后面
         for b in data.get("blocks", []):
