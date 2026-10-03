@@ -327,7 +327,6 @@
  "可以一次选多个；同一个文件不会重复导入": "You can pick several at once; duplicates are skipped",
  "可以用：{out}": "Works: {out}",
  "右上角“原页”，对照 PDF 原页": "“Page” at the top right, to compare with the PDF page",
- "同时几批": "Parallel batches",
  "后台逐页翻译，随时对照原文；译成哪种语言在右边选": "Translates page by page in the background; compare with the original anytime. Pick the language on the right",
  "启用快捷键": "Enable keyboard shortcuts",
  "哪里译得不好？比如“standard error 应译标准误差”“太生硬”（可留空）": "What's wrong with it? E.g. “standard error should be 标准误差”, “too stiff” (optional)",
@@ -1076,5 +1075,10 @@
  "重试更新": "Retry update",
  "下载更新": "Download update",
  "在应用内下载更新，完成后点击重启安装。更新前请先完成正在进行的翻译或编辑。": "Download the update here, then restart to install it. Finish any translations or edits before updating.",
- "可以直接在此下载并重启更新；也可以前往 GitHub 手动下载安装包。论文和设置保留。": "Download and restart to update here, or get the installer from GitHub. Your papers and settings are kept."
+ "可以直接在此下载并重启更新；也可以前往 GitHub 手动下载安装包。论文和设置保留。": "Download and restart to update here, or get the installer from GitHub. Your papers and settings are kept.",
+ "同时译几段": "Parallel segments",
+ "自动": "Auto",
+ "把全文切成几段同时译，段内按顺序译；自动按篇幅最多 4 段": "Split the paper into segments translated at the same time, in order within each segment; Auto uses up to 4 by length",
+ "分 {n} 段同时译：{ranges}": "Translating {n} segments in parallel: {ranges}",
+ "第 {page} 页起术语统一：{en} 的“{mine}”改成已有的“{old}”": "Terms unified from page {page}: \"{mine}\" for {en} changed to the existing \"{old}\""
 }

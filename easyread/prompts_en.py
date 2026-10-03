@@ -36,7 +36,7 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图放在正文第一次提到它的段落之后。"""
 
 
-def structure(ws: Workspace, pages: list[int], engine: str, next_head: str) -> str:
+def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False) -> str:
     see = ""
     if engine == "claude":
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
@@ -45,7 +45,7 @@ def structure(ws: Workspace, pages: list[int], engine: str, next_head: str) -> s
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要输出）=====\n" + next_head) if next_head else ""
     return (f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages)}\n\n{RULES_EN}\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{RULES_EN}\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:

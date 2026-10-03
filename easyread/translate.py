@@ -8,7 +8,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, sources
+from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, segments, sources, terms
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
@@ -139,19 +139,21 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     with _merge_lock:
+        _unify_terms(ws, data, batch)
         missing = fill_zh(ws, data, batch, set(items))
         _save_checks(ws, data.get("checks"), batch)
     if missing:
         raise engines.EngineError(tr("漏译了 {n} 处（{ids}）", n=len(missing), ids=", ".join(missing[:5])))
 
 
-def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False) -> None:
-    """read：只读原文，整理成块但不翻译。"""
+def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False,
+               skip_head=False) -> None:
+    """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。"""
     mode = engines.image_mode(cfg)
     images = [pdfwork.engine_image(ws.root, n) for n in batch] if mode != "text" else []
     nxt = batch[-1] + 1
     head = _next_head(ws, nxt) if nxt <= total_pages else ""
-    prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head)
+    prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head, skip_head)
     text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
     try:
         data = engines.parse_json(text)
@@ -174,12 +176,19 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     with _merge_lock:
         data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
         prepare_figures(ws.root, data["blocks"], total_pages)
+        _unify_terms(ws, data, batch)
         merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read)
         _save_checks(ws, data.get("checks"), batch)
         try:
             pdfwork.locate(ws.root)
         except Exception:  # noqa: BLE001 —— 定位失败不影响阅读
             log.exception("locate 失败 %s", ws.id)
+
+
+def _unify_terms(ws: Workspace, data: dict, batch: list[int]) -> None:
+    """这批新报的术语和术语表里已有的译法不同（分段并行时几段各自先定了译法）：译文改成已有的说法。在合并锁里调。"""
+    for en, mine, old in terms.unify(ws.load("paper").get("glossary", []), data):
+        journal(ws, tr("第 {page} 页起术语统一：{en} 的“{mine}”改成已有的“{old}”", page=batch[0], en=en, mine=mine, old=old))
 
 
 def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
@@ -217,10 +226,13 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     total_pages = paper.get("meta", {}).get("page_count") or 0
     en_pages = set() if read else set(paper.get("translation", {}).get("en_pages", []))
     size = max(1, int(cfg.get("batch_pages") or 2))
-    batches = _batches(pages, size, en_pages)
+    # 分段并行：切成几段连续的页同时译，段内一批接一批（见 segments.py）
+    lanes = [_batches(seg, size, en_pages) for seg in segments.plan(pages, size, segments.workers(cfg.get("concurrency")), ws.root)]
+    batches = [b for lane in lanes for b in lane]
     verb = tr("正在整理原文") if read else tr("正在翻译")
-    workers = max(1, min(8, int(cfg.get("concurrency") or 1)))
-    state = {"done": 0, "active": set(), "quota": ""}
+    workers = max(1, len(lanes))
+    job_pages = set(pages)
+    state = {"done": 0, "active": set(), "quota": "", "ok": set()}  # ok：这次已经做成的页
     failed: dict[int, str] = {}
     lock = threading.Lock()
     bad = netcheck.problem(cfg)
@@ -234,6 +246,9 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
 
     def label(batch):
         return tr("第 {a}–{b} 页", a=batch[0], b=batch[-1]) if len(batch) > 1 else tr("第 {page} 页", page=batch[0])
+
+    if workers > 1:
+        journal(ws, tr("分 {n} 段同时译：{ranges}", n=workers, ranges=tr("、").join(label(sorted({lane[0][0], lane[-1][-1]})) for lane in lanes)))
 
     def say(msg=None):
         with lock:
@@ -252,6 +267,8 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             return
         with lock:
             state["active"].add(tuple(batch))
+            p = batch[0] - 1  # 上一页这次也要译、还没译好（在别的段里同时译）：跨页那段归它，这批跳过页首续文
+            skip_head = p in job_pages and p not in state["ok"] and p not in en_pages
         say()
         err = None
         for attempt in range(2):
@@ -259,7 +276,9 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                 if batch[0] in en_pages:
                     _fill_batch(ws, cfg, batch, cancel, say, meter)
                 else:
-                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read)
+                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head)
+                with lock:
+                    state["ok"].update(batch)
                 journal(ws, tr("{pages} 完成", pages=label(batch)))
                 err = None
                 break
@@ -283,8 +302,14 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                     failed[n] = err[:300]
         say()
 
+    def run_lane(lane):
+        for batch in lane:
+            if cancel.is_set():
+                return
+            work(batch)
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(work, b) for b in batches]
+        futures = [pool.submit(run_lane, lane) for lane in lanes]
         for f in futures:
             f.result()  # Cancelled 在这里抛出去
     if cancel.is_set():

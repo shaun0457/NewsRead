@@ -31,7 +31,8 @@ DEFAULTS = {
     "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数
     "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
-    "concurrency": 1,            # 同时翻译几批
+    "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，最多 4 段
+    "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "reasoning_effort": "", "service_tier": "", "extra_args": [], "timeout": 1200},
     # api：chat（/chat/completions）| responses（/responses），见 openai_api.py
@@ -51,8 +52,18 @@ def is_first_run() -> bool:
     return not CONFIG_PATH.exists()
 
 
+def _saved() -> dict:
+    raw = read_json(CONFIG_PATH, {}) or {}
+    if raw.get("concurrency_v") != 2 and raw.get("concurrency") == 1:
+        # 以前默认 1，而且切到本机 CLI 时设置页会强制改回 1，旧配置里的 1 多半不是自己选的：当成自动。
+        # 存过一次之后带上 concurrency_v，再选 1 就是真的要一段一段译
+        raw["concurrency"] = 0
+    raw["concurrency_v"] = 2
+    return raw
+
+
 def load() -> dict:
-    cfg = _merge(DEFAULTS, read_json(CONFIG_PATH, {}) or {})
+    cfg = _merge(DEFAULTS, _saved())
     lib = os.environ.get("EASYREAD_LIBRARY") or os.environ.get("COREAD_LIBRARY")
     if lib:  # 测试或多库时临时指定文献库
         cfg["library_dir"] = lib
@@ -64,7 +75,7 @@ def temp_library() -> bool:
 
 
 def save(patch: dict) -> dict:
-    cfg = _merge(_merge(DEFAULTS, read_json(CONFIG_PATH, {}) or {}), patch)
+    cfg = _merge(_merge(DEFAULTS, _saved()), patch)
     write_json_atomic(CONFIG_PATH, cfg)
     return load()
 

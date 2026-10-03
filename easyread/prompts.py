@@ -78,8 +78,9 @@ def schema(target: str = "zh") -> str:
     return _swap(SCHEMA, _SCHEMA_SWAP, target)
 
 
-def _context(ws: Workspace, pages: list[int], new_blocks: bool = True) -> str:
-    """new_blocks=False：只给已有的块补译文（只读原文之后再翻译），不用提块 id 和上一批的续文。"""
+def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head: bool = False) -> str:
+    """new_blocks=False：只给已有的块补译文（只读原文之后再翻译），不用提块 id 和上一批的续文。
+    skip_head：上一页由另一段同时在译（分段并行的交界），跨页那段由它补完整，这批跳过页首续文。"""
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
@@ -95,7 +96,14 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True) -> str:
     ids = [b["id"] for b in blocks]
     if ids:
         lines.append("已用过的块 id（不要重复）：" + ", ".join(ids[-60:]))
-    prev = next((b for b in reversed(blocks) if (b.get("page") or 0) < pages[0] and b.get("en")), None)
+    if skip_head:
+        p = pages[0]
+        lines.append(f"第 {p - 1} 页由另一批同时在译，从第 {p - 1} 页跨到第 {p} 页的那一段由它补完整。"
+                     f"所以第 {p} 页开头如果是接着上一页没写完的句子（不是新段落或新标题的开头），这半段不要输出，"
+                     f"从第 {p} 页第一个新段落、标题、公式或图表开始。")
+        return "\n".join(lines)
+    # 只看紧挨着的前两页：再往前的段落不可能续到本批（分段并行时更早的页可能是别的段译的）
+    prev = next((b for b in reversed(blocks) if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and b.get("en")), None)
     if prev:
         lines.append(f"上一批最后一段（{prev['id']}，第 {prev['page']} 页）的英文结尾：……{prev['en'][-300:]}\n"
                      "如果本批第一页开头是这一段的续文，不要再输出这段续文。")
@@ -110,7 +118,7 @@ def _page_texts(ws: Workspace, pages: list[int]) -> str:
     return "\n\n".join(texts)
 
 
-def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> str:
+def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False) -> str:
     look = ""
     if next_head:
         look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要翻译）=====\n" + next_head)
@@ -122,7 +130,7 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str) -> s
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     target = langs.of_paper(ws.load("paper").get("meta"))
     return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + _page_texts(ws, pages) + look)
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + _page_texts(ws, pages) + look)
 
 
 def repair(original_json: str, problems: list[str]) -> str:
