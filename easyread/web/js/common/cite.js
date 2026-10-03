@@ -9,6 +9,7 @@
   const arxiv = (i) => text(i.arxiv).replace(/^arxiv:\s*/i, "").split(/\s/)[0];
   const source = (i) => text(i.venue) || (arxiv(i) ? "arXiv:" + arxiv(i) : "");
   const sentence = (s) => s ? s + (/[.!?]$/.test(s) ? "" : ".") : "";
+  PR.normalizeDoi = (value) => text(value).replace(/^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, "");
 
   PR.citeType = function (i) {
     const venue = text(i.venue);
@@ -45,12 +46,12 @@
     ];
     if (text(i.venue) && type !== "preprint") fields.push((type === "conference" ? "booktitle" : "journal") + " = {" + bibEscape(i.venue) + "}");
     if (type === "preprint") {
-      if (arxiv(i)) fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}");
+      if (arxiv(i)) fields.push("eprint = {" + bibEscape(arxiv(i)) + "}", "archivePrefix = {arXiv}", "eprinttype = {arxiv}");
       else if (text(i.venue)) fields.push("howpublished = {" + bibEscape(i.venue) + "}");
     }
     // DOI 和 URL 是标识符，不是 TeX 正文；转义会改变导入后的真实值。只去掉会破坏条目结构的花括号和换行。
     const ident = (s) => text(s).replace(/[{}\r\n]/g, "");
-    if (ident(i.doi)) fields.push("doi = {" + ident(i.doi) + "}");
+    if (ident(i.doi)) fields.push("doi = {" + ident(PR.normalizeDoi(i.doi)) + "}");
     if (ident(i.url)) fields.push("url = {" + ident(i.url) + "}");
     return "@" + ({ journal: "article", conference: "inproceedings", preprint: "misc" }[type]) + "{" + key + ",\n  " + fields.join(",\n  ") + "\n}";
   }
@@ -75,7 +76,7 @@
     if (!authors(i).length) missing.push(PR.t("作者"));
     if (!text(i.year)) missing.push(PR.t("年份"));
     if (!title(i)) missing.push(PR.t("题名"));
-    if (style !== "bibtex" && !source(i)) missing.push(PR.t("出处"));
+    if (style !== "bibtex" && style !== "zotero" && !source(i)) missing.push(PR.t("出处"));
     return missing;
   };
 
@@ -95,6 +96,7 @@
   /* 按第一作者排序（著者-出版年制的顺序）；导出框里选了别的顺序时传 order = "keep" 原样输出 */
   PR.citeSort = (items, style) => items.slice().sort((a, b) => compareAuthor(a, b, style));
   PR.citeBatch = function (items, style, order) {
+    if (style === "zotero") return PR.citeZotero(items);
     if (style !== "bibtex") return (order === "keep" ? items.slice() : PR.citeSort(items, style))
       .map((i, n) => (style === "gb" ? "[" + (n + 1) + "] " : "") + PR.cite(i, style)).join("\n\n");
     const keys = items.map(citeKey), counts = new Map(), used = new Set(keys), next = new Map();

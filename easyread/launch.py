@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
@@ -21,8 +22,11 @@ class _Server(ThreadingHTTPServer):
 def serve(port: int | None = None, open_browser: bool = False, path: str = "/", exit_on_close: bool = False):
     """exit_on_close：start.cmd / start.sh 启动时为真，页面都关了、后台任务也做完了就退出。"""
     setup_log(config.LOG_PATH)
+    started = time.monotonic()
     cfg = config.load()
+    log.info("startup config-ready +%.0fms", (time.monotonic() - started) * 1000)
     app = App(cfg)
+    log.info("startup library-jobs-ready +%.0fms", (time.monotonic() - started) * 1000)
     Handler.app = app
     detect.warm(cfg)
     port = cfg["port"] if port is None else port
@@ -31,6 +35,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     except OSError:
         httpd = _Server(("127.0.0.1", 0), Handler)
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
+    log.info("startup http-bound +%.0fms", (time.monotonic() - started) * 1000)
     app.shutdown = httpd.shutdown
     app.location.marker.start()
     app.presence = Presence(app.jobs.busy, httpd.shutdown, exit_on_close)

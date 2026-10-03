@@ -16,6 +16,7 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
+    "publish": [{ "provider": "github", "owner": "Edwardxlai", "repo": "easyread" }],
     "appId": "com.edwardxlai.easyread",
     "productName": "EasyRead",
     "asar": true,
@@ -74,5 +75,8 @@
       ],
       "category": "Office"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

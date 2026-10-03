@@ -123,6 +123,7 @@
       PR.useServerUi(p);
     }
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";
+    else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
     const m = S.paper.meta || {};
     document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · EasyRead";

@@ -9,6 +9,7 @@ const translate = (s, values) => values ? s.replace(/\{(\w+)\}/g, (match, key) =
 function formatter(t = translate) {
   const PR = { t };
   vm.runInNewContext(script("common/cite.js"), { window: { PR } });
+  vm.runInNewContext(script("common/cite-zotero.js"), { window: { PR } });
   return PR;
 }
 const preprint = { id: "pre", authors: "Evan Miller", title_en: "Adding Error Bars", year: "2024", arxiv: "arXiv:2411.00640 [stat.AP]", url: "https://arxiv.org/abs/2411.00640" };
@@ -22,7 +23,7 @@ const exact = [
   [preprint, "apa", "Miller, E. (2024). Adding Error Bars. arXiv:2411.00640. https://arxiv.org/abs/2411.00640"],
   [conference, "apa", "Vaswani, A., & Shazeer, N. (2017). Attention Is All You Need. NeurIPS"],
   [journal, "apa", "Lovelace, A. (1843). Notes on Computing. Scientific Memoirs"],
-  [preprint, "bibtex", "@misc{miller2024adding,\n  title = {{Adding Error Bars}},\n  author = {Evan Miller},\n  year = {2024},\n  eprint = {2411.00640},\n  archivePrefix = {arXiv},\n  url = {https://arxiv.org/abs/2411.00640}\n}"],
+  [preprint, "bibtex", "@misc{miller2024adding,\n  title = {{Adding Error Bars}},\n  author = {Evan Miller},\n  year = {2024},\n  eprint = {2411.00640},\n  archivePrefix = {arXiv},\n  eprinttype = {arxiv},\n  url = {https://arxiv.org/abs/2411.00640}\n}"],
   [conference, "bibtex", "@inproceedings{vaswani2017attention,\n  title = {{Attention Is All You Need}},\n  author = {Ashish Vaswani and Noam Shazeer},\n  year = {2017},\n  booktitle = {NeurIPS},\n  doi = {10.1234/attention}\n}"],
   [journal, "bibtex", "@article{lovelace1843notes,\n  title = {{Notes on Computing}},\n  author = {Ada Lovelace},\n  year = {1843},\n  journal = {Scientific Memoirs}\n}"],
 ];
@@ -89,6 +90,28 @@ test("BibTeX preserves DOI and URL identifiers without TeX escapes", () => {
   assert.doesNotMatch(out, /doi = \{[^\n]*\\|url = \{[^\n]*\\/);
   const broken = formatter().cite({ ...journal, doi: "10.1000/{x}\n", url: "" }, "bibtex");
   assert.ok(broken.includes("doi = {10.1000/x}"));
+});
+
+test("DOI input accepts resolver links without exporting them as DOI identifiers", () => {
+  const PR = formatter();
+  assert.equal(PR.normalizeDoi(" https://doi.org/10.1000/a_b "), "10.1000/a_b");
+  assert.equal(PR.normalizeDoi("doi: 10.1000/a_b"), "10.1000/a_b");
+  assert.match(PR.cite({ ...journal, doi: "https://doi.org/10.1000/a_b" }, "bibtex"), /doi = \{10.1000\/a_b\}/);
+});
+
+test("Zotero RDF preserves preprint, conference and journal types and structured identifiers", () => {
+  const PR = formatter();
+  const out = PR.citeBatch([{ ...preprint, arxiv: "2411.00640v1", title_en: 'A&B <C> "quoted"', doi: "10.1234/a_b" }, conference, journal], "zotero");
+  assert.equal((out.match(/<bib:Article /g) || []).length, 3);
+  assert.match(out, /<z:itemType>preprint<\/z:itemType>/);
+  assert.match(out, /<z:itemType>conferencePaper<\/z:itemType>/);
+  assert.match(out, /<z:itemType>journalArticle<\/z:itemType>/);
+  assert.match(out, /<z:repository>arXiv<\/z:repository>/);
+  assert.match(out, /<z:archiveID>2411.00640v1<\/z:archiveID>/);
+  assert.match(out, /<z:DOI>10.1234\/a_b<\/z:DOI>/);
+  assert.match(out, /<z:proceedingsTitle>NeurIPS<\/z:proceedingsTitle>/);
+  assert.match(out, /A&amp;B &lt;C&gt; &quot;quoted&quot;/);
+  assert.ok(out.indexOf("Vaswani</foaf:surname>") < out.indexOf("Shazeer</foaf:surname>"));
 });
 
 test("batch BibTeX keys are unique, including generated suffix collisions and over 26 duplicates", () => {

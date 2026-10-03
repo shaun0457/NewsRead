@@ -12,7 +12,24 @@
   PR.$("#sort").value = L.sort;
 
   L.byId = (id) => L.items.find((i) => i.id === id);
-  L.openReader = (id) => { location.href = "/read/" + id; };
+  function readerUrl(id) {
+    const main = PR.$(".main"), row = PR.$$(".row").find((r) => r.dataset.id === id);
+    const bounds = main.getBoundingClientRect(), rect = row && row.getBoundingClientRect();
+    const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
+    return PR.libraryNav.readerUrl(id, {
+      view: L.view, tag: L.tag, q: L.q, sort: L.sort, label: view[1],
+      scroll: main.scrollTop,
+      offset: rect && rect.top >= bounds.top && rect.bottom <= bounds.bottom ? rect.top - bounds.top : null,
+    });
+  }
+  L.openReader = (id) => { location.href = readerUrl(id); };
+  function prepareReaderLink(e) {
+    const link = e.target.closest("a[href]");
+    if (!link || !link.closest("#detail, #side")) return;
+    const match = (link.getAttribute("href") || "").match(/^\/read\/([a-zA-Z0-9_-]+)(?:\?|$)/);
+    if (match) link.href = readerUrl(match[1]);
+  }
+  ["click", "auxclick", "contextmenu"].forEach((name) => document.addEventListener(name, prepareReaderLink, true));
   L.patch = async function (id, fields) {
     const it = L.byId(id);
     if (it) { Object.assign(it, fields.meta_override ? {} : fields); L.render(); }  // 先改界面，再存盘
@@ -69,8 +86,8 @@
       const pct = j.total ? " " + PR.t("{done}/{total} 页", { done: j.done, total: j.total }) : "";
       return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中"))) + pct + "</span>";
     }
-    if (j && j.state === "error") return '<span class="stat err">' + PR.t("翻译出错") + "</span>";
-    if (j && j.state === "partial") return '<span class="stat err">' + PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length }) + "</span>";
+    if (j && j.state === "error") return '<span class="stat err">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
+    if (j && j.state === "partial") return '<span class="stat err">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
     const tr = i.done_pages - (i.en_pages || 0);
     if (i.en_pages && !tr) return '<span class="stat">' + PR.t("英文原文") + "</span>";
     if (i.pages && tr < i.pages) return '<span class="stat">' + PR.t("已译 {done}/{total} 页", { done: tr, total: i.pages }) + "</span>";
@@ -142,6 +159,29 @@
     PR.renderDetail && PR.renderDetail();
   };
 
+  function restoreReturn() {
+    const state = PR.libraryNav.restore();
+    if (!state) return;
+    L.view = L.VIEWS.some((v) => v[0] === state.view) ? state.view : "all";
+    L.tag = state.tag && L.cats().includes(state.tag) ? state.tag : null;
+    L.q = state.q;
+    L.sort = ["opened", "added", "year", "title"].includes(state.sort) ? state.sort : "opened";
+    PR.$("#q").value = L.q;
+    PR.$("#sort").value = L.sort;
+    L.selected = filtered().some((i) => i.id === state.paper) ? state.paper : null;
+    PR.$(".lib").classList.toggle("has-detail", !!L.selected);
+    L.render();
+    requestAnimationFrame(() => {
+      const main = PR.$(".main"), row = PR.$$(".row").find((r) => r.dataset.id === state.paper);
+      main.scrollTop = state.scroll;
+      if (!row) return;
+      if (state.offset !== null) main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top - state.offset;
+      const rect = row.getBoundingClientRect(), bounds = main.getBoundingClientRect(), head = PR.$(".list-head");
+      if (rect.top < bounds.top + head.offsetHeight || rect.bottom > bounds.bottom) row.scrollIntoView({ block: "center" });
+      PR.$("#list").focus({ preventScroll: true });
+    });
+  }
+
   /* ---------- 事件 ---------- */
   PR.$("#list").addEventListener("click", (e) => {
     const r = e.target.closest(".row");
@@ -181,15 +221,15 @@
 
   PR.onSettingsSaved = () => L.load();
   // 从阅读页按“返回”回来时浏览器可能直接用缓存的旧页面：重新取一次，在读状态、进度马上更新
-  window.addEventListener("pageshow", (e) => { if (e.persisted) L.load().catch(() => {}); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) L.load().then(restoreReturn).catch(() => {}); });
   // 等侧栏、详情这些脚本都加载完再取数据：数据先到、脚本还没到时会出错
   document.addEventListener("DOMContentLoaded", () => {
-    PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); });
+    const prefsReady = PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); }).catch(() => {});
     try {
       const snap = JSON.parse(sessionStorage.getItem("easyread-lib-snap") || "null");
       sessionStorage.removeItem("easyread-lib-snap");
       if (snap && Date.now() - snap.t < 15000) apply(snap.d);
     } catch (e) { /* 没有就等下面取 */ }
-    L.load().catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
+    Promise.all([prefsReady, L.load()]).then(restoreReturn).catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
   });
 })(window.PR);

@@ -5,6 +5,31 @@
   "use strict";
   const SKIP = "easyread-skip-update", SEEN = "easyread-seen-update";
   const desktop = /Electron/i.test(navigator.userAgent);
+  const bridge = window.easyreadDesktop;
+  let nativeUpdate = { supported: false, phase: "idle" };
+  function renderNativeUpdate() {
+    const panel = document.querySelector("#nativeUpdate");
+    if (!panel) return;
+    panel.hidden = !nativeUpdate.supported;
+    const phase = nativeUpdate.phase;
+    const working = ["checking", "downloading", "installing"].includes(phase);
+    const labels = { checking: "正在检查…", downloading: "正在下载更新", downloaded: "重启并更新", installing: "正在重启安装…", error: "重试更新", current: "已经是最新版" };
+    panel.innerHTML = '<p class="hint">' + PR.t("在应用内下载更新，完成后点击重启安装。更新前请先完成正在进行的翻译或编辑。") + '</p>' +
+      '<button class="btn accent" data-native-update' + (working ? " disabled" : "") + '>' +
+      PR.t(labels[phase] || "下载更新") + (phase === "downloading" ? " " + Math.floor(nativeUpdate.percent || 0) + "%" : "") + '</button>' +
+      (nativeUpdate.error ? '<p class="hint">' + PR.esc(nativeUpdate.error) + '</p>' : "");
+  }
+  function acceptNativeUpdate(state) { nativeUpdate = state; renderNativeUpdate(); }
+  if (bridge && bridge.updateState) {
+    bridge.onUpdateState(acceptNativeUpdate);
+    bridge.updateState().then(acceptNativeUpdate).catch(() => {});
+  }
+  document.addEventListener("click", async event => {
+    if (!event.target.closest("[data-native-update]")) return;
+    try {
+      acceptNativeUpdate(await (nativeUpdate.phase === "downloaded" ? bridge.installUpdate() : bridge.downloadUpdate()));
+    } catch (error) { acceptNativeUpdate({ ...nativeUpdate, phase: "error", error: error.message }); }
+  });
   PR.update = null;
 
   const chip = PR.el("button", { class: "engine-chip update-chip", id: "updateChip", hidden: "" });
@@ -34,6 +59,7 @@
   }
 
   function howTo() {
+    if (nativeUpdate.supported) return PR.t("可以直接在此下载并重启更新；也可以前往 GitHub 手动下载安装包。论文和设置保留。");
     return desktop ? PR.t("下载对应系统的安装包，装上就会覆盖旧版本，论文和设置都还在。")
       : PR.t("从源码运行的：下载新版 zip 解压后双击 start.cmd（macOS / Linux 运行 ./start.sh），或者在项目目录里 git pull；用 pip 装的：pip install -U easyread。论文和设置在数据目录里，不受影响。");
   }
@@ -60,9 +86,11 @@
       (u.published ? PR.t(" · {date} 发布", { date: PR.esc(u.published.slice(0, 10)) }) : "") + "</div></div></div>" +
       '<div class="update-notes">' + (notesHtml(u.notes) || '<p class="hint">' + PR.t("这次没写更新说明。") + "</p>") + "</div>" +
       (u.newer ? '<p class="hint">' + howTo() + "</p>" : "") +
+      (u.newer ? '<div id="nativeUpdate" hidden></div>' : "") +
       '<div class="actions">' + (u.newer ? '<button class="btn" data-up="skip">' + PR.t("跳过这个版本") + "</button>" : "") + '<button class="btn" data-close>' + PR.t("关闭") + "</button>" +
       '<a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + (u.newer ? PR.t("去下载") : PR.t("在 GitHub 上看")) + "</a></div>";
     dlg.classList.add("open");
+    renderNativeUpdate();
   };
 
   PR.$("#textDlg").addEventListener("click", (e) => {

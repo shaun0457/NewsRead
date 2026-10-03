@@ -34,12 +34,13 @@
         : "<div>" + PR.t("译文：{s}", { s: i.pages ? PR.t("{done} / {total} 页", { done: i.done_pages, total: i.pages }) : PR.t("尚未处理") }) + (full ? PR.t(" · 全文") : "") + "</div>";
       const failed = Object.keys(j.failed || {}).map(Number).sort((a, b) => a - b);
       if (j.state === "error") h += '<div class="err">' + (j.read ? PR.t("上次整理原文出错：") : PR.t("上次翻译出错：")) + PR.esc(j.error || j.message) + "</div>";
+      if (j.read && j.state === "error") h += '<p class="hint">' + PR.t("整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。") + '</p><button class="btn sm line" data-d="model-settings">' + PR.t("模型设置") + "</button>";
       h += PR.usageCard(j.usage, j.usage_total);
       if (j.state === "partial" && failed.length) h += '<div class="err">' + (j.read ? PR.t("第 {pages} 页没整理成功：", { pages: PR.esc(pageList(failed)) }) : PR.t("第 {pages} 页没译成功：", { pages: PR.esc(pageList(failed)) })) + PR.esc(j.error || "") + "</div>";
       h += '<div class="row2" style="margin-top:8px">' +
         (j.state === "partial" && failed.length ? '<button class="btn sm accent" data-d="retry-failed">' + PR.t("重试这 {n} 页", { n: failed.length }) + "</button>" : "") +
         (en ? '<button class="btn sm accent" data-d="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }) + "</button>" : "") +
-        (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : i.done_pages ? PR.t("继续翻译剩下的页") : PR.t("开始翻译")) + "</button>" : "") +
+        (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? (j.state === "error" ? PR.t("重试整理原文") : PR.t("继续整理剩下的页")) : i.done_pages ? PR.t("继续翻译剩下的页") : PR.t("开始翻译")) + "</button>" : "") +
         (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : PR.t("继续翻译剩下的页")) + "</button>" : "") +
         (j.state ? '<button class="btn sm" data-d="log">' + PR.icon("log", "sm") + PR.t("翻译记录") + "</button>" : "") + "</div>" +
         (L.engine === "none" ? '<div class="hint" style="margin-top:6px">' + PR.t("当前没有开启翻译引擎，去设置里选一个。") + "</div>" : "");
@@ -80,6 +81,7 @@
       '<span>' + PR.t("年份") + '</span><span contenteditable="plaintext-only" data-meta="year">' + PR.esc(i.year) + "</span>" +
       '<span>' + PR.t("出处") + '</span><span contenteditable="plaintext-only" data-meta="venue">' + PR.esc(i.venue || i.arxiv) + "</span>" +
       '<span>' + PR.t("链接") + '</span><span contenteditable="plaintext-only" data-meta="url">' + PR.esc(i.url) + "</span>" +
+      '<span>DOI</span><span contenteditable="plaintext-only" data-meta="doi" aria-label="DOI" title="' + PR.t("可粘贴 DOI 编号或 doi.org 链接") + '">' + PR.esc(i.doi) + "</span>" +
       "<span>" + PR.t("添加于") + "</span><span>" + PR.esc(PR.relTime(i.added)) + (i.last_opened ? PR.t("　·　上次打开 {t}", { t: PR.esc(PR.relTime(i.last_opened)) }) : "") + "</span></div>" +
       "<h4>" + PR.t("翻译") + "</h4>" + jobHtml(i) +
       (i.notes + i.highlights + i.open_questions ? '<p class="mine-line">' + [i.notes && PR.t("{n} 条笔记", { n: i.notes }), i.highlights && PR.t("{n} 处划线", { n: i.highlights }), i.open_questions && PR.t("{n} 个问题待回答", { n: i.open_questions })].filter(Boolean).join(" · ") + "</p>" : "") +
@@ -89,7 +91,14 @@
 
   async function saveMeta(el) {
     const i = L.byId(L.selected);
-    const key = el.dataset.meta, val = el.textContent.trim();
+    const key = el.dataset.meta;
+    const val = key === "doi" ? PR.normalizeDoi(el.textContent) : el.textContent.trim();
+    if (key === "doi" && val && !/^10\.\d{4,9}\/[^\s{}]+$/.test(val)) {
+      PR.toast(PR.t("DOI 格式不正确，请填写 10. 开头的编号或 doi.org 链接"));
+      el.textContent = i.doi || "";
+      return;
+    }
+    if (key === "doi") el.textContent = val;
     if ((i[key] || "") === val) return;
     const override = Object.assign({}, { [key]: val });
     await L.patch(i.id, { meta_override: Object.assign({}, i.meta_override || {}, override) });
@@ -125,11 +134,13 @@
     if (act === "close") L.select(null);
     else if (act === "star") L.patch(i.id, { starred: !i.starred });
     else if (act === "read") L.openReader(i.id);
+    else if (act === "model-settings") PR.openSettings("chat");
     else if (act === "abs") { PR.$("#abs").classList.toggle("open"); d.textContent = PR.$("#abs").classList.contains("open") ? PR.t("收起") : PR.t("展开全文"); }
     else if (act === "cite") PR.menu(d, [
       { label: PR.t("GB/T 7714 · 中文论文、学位论文"), icon: "copy", fn: () => copy(PR.cite(i, "gb"), PR.t(" GB/T 7714 引用")) },
       { label: PR.t("APA · 英文论文常用"), icon: "copy", fn: () => copy(PR.cite(i, "apa"), PR.t(" APA 引用")) },
-      { label: PR.t("BibTeX · LaTeX / Overleaf、Zotero 导入"), icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
+      { label: "BibTeX · LaTeX / Overleaf", icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
+      { label: PR.t("Zotero RDF · 保留预印本类型"), icon: "download", fn: () => PR.openCiteExport([i], i.title_en || i.title_zh, "zotero") },
       "-",
       { label: PR.t("标题 + 链接 · 发给别人"), icon: "link", fn: () => copy((i.title_zh ? PR.t("{a}（{b}）", { a: i.title_zh, b: i.title_en }) : i.title_en) + "\n" + (i.url || ""), PR.t("标题和链接")) },
     ]);
@@ -139,7 +150,12 @@
     else if (act === "log") { const r = await PR.api("/api/p/" + i.id + "/log"); PR.showText(PR.t("翻译记录"), r.text); }
     else if (act === "translate") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: {} }); PR.toast(PR.t("已开始翻译")); L.load(); }
     else if (act === "translate-en") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { en: true } }); PR.toast(PR.t("已开始翻译，笔记和划线都保留")); L.load(); }
-    else if (act === "read-rest") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { read: true } }); PR.toast(PR.t("已开始整理原文")); L.load(); }
+    else if (act === "read-rest") {
+      try {
+        await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { read: true, ...((i.job || {}).state === "error" ? { scope: i.job.scope || "all" } : {}) } });
+        PR.toast(PR.t("已开始整理原文")); L.load();
+      } catch (error) { PR.toast(PR.esc(error.message)); }
+    }
   });
   async function retranslateAll(i) {
     if (!(await PR.confirm({ title: PR.t("全部重新翻译？"), body: PR.t("会消耗模型额度。你改过的译文、笔记都保留。"), ok: PR.t("重新翻译") }))) return;

@@ -1059,5 +1059,22 @@
  "勾选几篇论文，一起放进分类、翻译、导出引用（Ctrl/⌘ + 点论文也行）": "Pick several papers to file, translate or cite together (or Ctrl/⌘ + click a paper)",
  "移出“{name}”": "Remove from “{name}”",
  "切换状态": "Set status",
- "切换状态…": "Set status…"
+ "切换状态…": "Set status…",
+ "返回“{name}”": "Back to “{name}”",
+ "可粘贴 DOI 编号或 doi.org 链接": "Paste a DOI or a doi.org link",
+ "DOI 格式不正确，请填写 10. 开头的编号或 doi.org 链接": "Enter a DOI beginning with 10. or a doi.org link",
+ "Zotero RDF · 保留预印本类型": "Zotero RDF · preserve preprint types",
+ "保存为 .rdf 文件，再到 Zotero 的“文件 → 导入”中选择它，保留预印本类型、仓库编号和 DOI。": "Save the .rdf file, then choose it in Zotero under File → Import to preserve preprint types, repository identifiers and DOIs.",
+ "BibTeX 可用于 LaTeX / Overleaf；导入 Zotero 并保留预印本类型时，请选 Zotero RDF。": "Use BibTeX for LaTeX / Overleaf. Choose Zotero RDF to preserve preprint types when importing into Zotero.",
+ "读英文原文仍需可用模型整理段落、公式和表格，会消耗模型额度；只看 PDF 可选“先不处理”。": "Reading the English original still uses a working model to arrange paragraphs, equations and tables, and consumes model usage. Choose “Don't process yet” to view only the PDF.",
+ "整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。": "Preparing the original needs a working model. Check your model settings, then retry with the current translation model. Existing content is kept.",
+ "模型设置": "Model settings",
+ "重试整理原文": "Retry preparing the original",
+ "正在下载更新": "Downloading update",
+ "重启并更新": "Restart and update",
+ "正在重启安装…": "Restarting to install…",
+ "重试更新": "Retry update",
+ "下载更新": "Download update",
+ "在应用内下载更新，完成后点击重启安装。更新前请先完成正在进行的翻译或编辑。": "Download the update here, then restart to install it. Finish any translations or edits before updating.",
+ "可以直接在此下载并重启更新；也可以前往 GitHub 手动下载安装包。论文和设置保留。": "Download and restart to update here, or get the installer from GitHub. Your papers and settings are kept."
 }

@@ -39,7 +39,7 @@ class Library:
         paper = ws.load("paper") or {}
         meta = dict(paper.get("meta", {}))
         item = ws.load("item") or {}
-        meta.update({k: v for k, v in (item.get("meta_override") or {}).items() if v})
+        meta.update({k: v for k, v in (item.get("meta_override") or {}).items() if v or k == "doi"})
         reader = ws.load("reader") or {}
         disc = ws.load("discussion") or {}
         job = ws.load("job") or {}

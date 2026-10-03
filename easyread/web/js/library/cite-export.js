@@ -2,7 +2,7 @@
 (function (PR) {
   "use strict";
   const L = PR.lib, dlg = PR.$("#citeExportDlg");
-  const styles = [["gb", "GB/T 7714"], ["apa", "APA"], ["bibtex", "BibTeX"]];
+  const styles = [["gb", "GB/T 7714"], ["apa", "APA"], ["bibtex", "BibTeX"], ["zotero", "Zotero RDF"]];
   // 学位论文多用顺序编码制：按正文里第一次引用的先后编号，所以要能自己排
   const ORDERS = [["author", PR.t("按作者")], ["year", PR.t("按年份")], ["custom", PR.t("自己排（拖动）")]];
   let items = [], style = "gb", order = "author", title = "", previousFocus = null, dragging = -1;
@@ -17,6 +17,10 @@
   function preview() {
     $("textarea").value = PR.citeBatch(items, style, "keep");
     $("[data-copy]").disabled = $("[data-save]").disabled = !items.length;
+    $(".cite-note").textContent = style === "zotero"
+      ? PR.t("保存为 .rdf 文件，再到 Zotero 的“文件 → 导入”中选择它，保留预印本类型、仓库编号和 DOI。")
+      : style === "bibtex" ? PR.t("BibTeX 可用于 LaTeX / Overleaf；导入 Zotero 并保留预印本类型时，请选 Zotero RDF。")
+      : PR.t("引用由论文信息按格式规则生成，不经过 AI。提交前请核对作者、年份和出处。");
   }
 
   function renderRows() {
@@ -31,9 +35,9 @@
 
   const select = (attr, list, cur) => '<select class="input" ' + attr + ">" + list.map(([k, name]) => '<option value="' + PR.esc(k) + '"' + (k === cur ? " selected" : "") + ">" + PR.esc(name) + "</option>").join("") + "</select>";
 
-  PR.openCiteExport = function (papers, fromTitle) {
+  PR.openCiteExport = function (papers, fromTitle, preferredStyle) {
     items = papers.slice(); title = fromTitle;
-    const saved = PR.ls.get("easyread-cite-style", "gb");
+    const saved = preferredStyle || PR.ls.get("easyread-cite-style", "gb");
     style = styles.some(([key]) => key === saved) ? saved : "gb";
     const savedOrder = PR.ls.get("easyread-cite-order", "author");
     order = ORDERS.some(([key]) => key === savedOrder) ? savedOrder : "author";
@@ -53,8 +57,8 @@
     const date = new Date(), pad = (n) => String(n).padStart(2, "0");
     const day = date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
     const name = String(title || "references").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 80).replace(/[. ]+$/, "") || "references";
-    const url = URL.createObjectURL(new Blob([$("textarea").value], { type: "text/plain;charset=utf-8" }));
-    const link = PR.el("a", { href: url, download: name + "-" + day + (style === "bibtex" ? ".bib" : ".txt") });
+    const url = URL.createObjectURL(new Blob([$("textarea").value], { type: style === "zotero" ? "application/rdf+xml;charset=utf-8" : "text/plain;charset=utf-8" }));
+    const link = PR.el("a", { href: url, download: name + "-" + day + (style === "zotero" ? ".rdf" : style === "bibtex" ? ".bib" : ".txt") });
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

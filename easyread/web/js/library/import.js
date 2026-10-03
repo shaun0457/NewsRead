@@ -31,6 +31,7 @@
       '<button class="btn accent" id="arxivGo">' + PR.t("导入") + "</button></div></label>" +
       '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div>" +
         '<select class="input imp-target" id="impTarget" title="' + PR.t("译成哪种语言") + '"' + (after === "translate" ? "" : " hidden") + ">" + PR.opt(PR.TARGETS, PR.target) + "</select></div>" +
+      '<p class="hint" id="originalModelHint"' + (after === "read" ? "" : " hidden") + '>' + PR.t("读英文原文仍需可用模型整理段落、公式和表格，会消耗模型额度；只看 PDF 可选“先不处理”。") + "</p>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="modelRow"><span class="imp-lbl">' + PR.t("模型") + '</span><select class="input" id="impModel">' +
@@ -78,6 +79,7 @@
       PR.$("#scopeRow").classList.toggle("dim", a.dataset.after === "none");
       PR.$("#modelRow").classList.toggle("dim", a.dataset.after === "none");
       PR.$("#impTarget").hidden = a.dataset.after !== "translate";
+      PR.$("#originalModelHint").hidden = a.dataset.after !== "read";
     }
     const s = e.target.closest("[data-scope]");
     if (s) {

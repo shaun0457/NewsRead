@@ -16,7 +16,8 @@ class ReleaseI18nTest(unittest.TestCase):
 
     def test_new_feature_translations_preserve_named_parameters(self):
         en = json.loads((ROOT / "easyread/web/i18n/en.json").read_text(encoding="utf-8"))
-        sources = ["common/page-cap.js", "library/settings-cloud.js", "library/cite-export.js", "common/cite.js"]
+        sources = ["common/page-cap.js", "library/settings-cloud.js", "library/cite-export.js", "common/cite.js",
+                   "common/library-nav.js", "library/import.js", "library/detail.js"]
         for source in sources:
             code = (ROOT / "easyread/web/js" / source).read_text(encoding="utf-8")
             for key in re.findall(r'PR\.t\("([^"\n]+)"', code):

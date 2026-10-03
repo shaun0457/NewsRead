@@ -63,6 +63,7 @@
 - **Windows**：`EasyRead-Setup-x.x.x.exe`，双击安装。没有代码签名，如果弹出“Windows 已保护你的电脑”，点“更多信息 → 仍要运行”。
 - **macOS**（Apple 芯片）：`EasyRead-x.x.x-arm64.dmg`，把 EasyRead 拖进“应用程序”；第一次打开被系统拦截时，按下面对应的提示处理
 - **Linux**：`EasyRead-x.x.x.AppImage`，`chmod +x` 后运行。
+- 如果 Linux 提示缺少 `libfuse.so.2`，可按 [AppImage 官方说明](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)配置 FUSE，或在独立目录运行 `./EasyRead-x.x.x.AppImage --appimage-extract`，再运行 `./squashfs-root/AppRun`；无需关闭沙箱
 
 安装版的论文和设置存在用户目录下的 `EasyRead` 文件夹（和 pip 安装版同一个位置），卸载重装不会丢。
 

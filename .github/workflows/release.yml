@@ -65,6 +65,8 @@ jobs:
             dist/electron/*.exe
             dist/electron/*.dmg
             dist/electron/*.AppImage
+            dist/electron/*.blockmap
+            dist/electron/latest*.yml
           if-no-files-found: error
 
   release:
@@ -86,4 +88,6 @@ jobs:
             release-assets/**/*.exe
             release-assets/**/*.dmg
             release-assets/**/*.AppImage
+            release-assets/**/*.blockmap
+            release-assets/**/latest*.yml
           generate_release_notes: false  # 发版说明手写，只往已有的 Release 上挂安装包

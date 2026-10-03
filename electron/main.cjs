@@ -6,10 +6,13 @@ const path = require("path");
 const windowState = require("./window-state.cjs");
 const { URL } = require("url");
 const http = require("http");
+const startup = require("./startup-feedback.cjs");
+const { registerUpdates } = require("./desktop-updates.cjs");
 
 // 窗口缓存等放 %APPDATA%\EasyRead（默认会用 package.json 的 name，叫 easyread-desktop）。
 // 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
 app.setPath("userData", path.join(app.getPath("appData"), "EasyRead"));
+startup.mark(app, "electron-entry");
 
 // 桌面版自己的几句报错跟系统语言走（界面语言由后端决定，见 easyread/i18n.py）
 const isZh = () => app.getLocale().toLowerCase().startsWith("zh");
@@ -48,25 +51,17 @@ function backendCommand() {
 
 // macOS / Linux 从启动台、桌面图标打开时，拿不到终端里配的 PATH（Homebrew、npm 全局目录），
 // 后端会找不到 claude / codex。向用户的登录 shell 要一份 PATH 补上。
-function loginShellPath() {
-  if (process.platform === "win32") return "";
-  try {
-    const out = execFileSync(process.env.SHELL || "/bin/zsh", ["-ilc", 'printf "__PATH__%s__PATH__" "$PATH"'],
-      { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] });
-    const m = out.match(/__PATH__(.*)__PATH__/);
-    return m ? m[1] : "";
-  } catch (_) {
-    return "";
-  }
-}
-
 function startBackend() {
   // On macOS an app can stay alive after its last window closes. Reopening
   // the window must reuse that backend, rather than orphaning the old one.
   if (backendReady) return backendReady;
+  backendReady = (async () => {
   const launch = backendCommand();
   const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 后端按它决定界面语言
-  const shellPath = loginShellPath();
+  startup.mark(app, "shell-path-start");
+  const shellPath = await startup.loginShellPath(process.platform);
+  startup.mark(app, "shell-path-ready");
+  if (quitting) throw new Error(isZh() ? "启动已取消" : "Startup cancelled");
   if (shellPath) {
     env.PATH = [...new Set([...shellPath.split(":"), ...(env.PATH || "").split(":")].filter(Boolean))].join(":");
   }
@@ -75,7 +70,7 @@ function startBackend() {
     env.PATH = [...new Set([...(env.PATH || "").split(":"), ...fallback.filter(p => fs.existsSync(p))].filter(Boolean))].join(":");
   }
 
-  backendReady = new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     let output = "";
     const finish = (fn, value) => {
@@ -89,6 +84,7 @@ function startBackend() {
       stopBackend();
     }, 30000);
 
+    startup.mark(app, "backend-spawn");
     backend = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
       env,
@@ -98,7 +94,7 @@ function startBackend() {
     backend.stdout.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
       const match = output.match(/EasyRead\s+已启动：\s*(http:\/\/127\.0\.0\.1:\d+)/);
-      if (match) { backendUrl = match[1]; finish(resolve, match[1]); }
+      if (match && !settled) { startup.mark(app, "backend-http-ready"); backendUrl = match[1]; finish(resolve, match[1]); }
     });
     backend.stderr.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
@@ -111,6 +107,8 @@ function startBackend() {
       backendUrl = undefined;
     });
   });
+  })();
+  backendReady.catch(() => { backendReady = undefined; });
   return backendReady;
 }
 
@@ -194,16 +192,6 @@ function stopBackend() {
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
-  let url;
-  try {
-    url = await startBackend();
-  } catch (error) {
-    windowOpening = false;
-    dialog.showErrorBox(isZh() ? "EasyRead 启动失败" : "EasyRead failed to start", error.message);
-    app.quit();
-    return;
-  }
-
   const state = windowState.options();
   mainWindow = new BrowserWindow({
     ...state.opts,
@@ -234,13 +222,28 @@ async function createWindow() {
     if (items.length) Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
   windowState.track(mainWindow);
+  const openingWindow = mainWindow;
   mainWindow.once("ready-to-show", () => {
-    if (state.maximized) mainWindow.maximize();
-    mainWindow.show();
+    if (mainWindow !== openingWindow) return;
+    if (state.maximized) openingWindow.maximize();
+    openingWindow.show();
   });
   mainWindow.on("closed", () => { mainWindow = undefined; });
   try {
-    await mainWindow.loadURL(url);
+    await openingWindow.loadURL(startup.loadingUrl(isZh()));
+    if (mainWindow !== openingWindow || quitting) return;
+    if (state.maximized) openingWindow.maximize();
+    openingWindow.show();
+    startup.mark(app, "startup-window-visible");
+    const url = await startBackend();
+    if (mainWindow !== openingWindow || quitting) return;
+    await openingWindow.loadURL(url);
+    startup.mark(app, "library-loaded");
+  } catch (error) {
+    if (mainWindow !== openingWindow || quitting) return;
+    startup.mark(app, "startup-failed");
+    dialog.showErrorBox(isZh() ? "EasyRead 启动失败" : "EasyRead failed to start", error.message);
+    app.quit();
   } finally {
     windowOpening = false;
   }
@@ -256,11 +259,23 @@ if (!app.requestSingleInstanceLock()) {
   Menu.setApplicationMenu(process.platform === "darwin"
     ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
     : null);
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => {
+    registerUpdates({
+      app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
+      getWindow: () => mainWindow,
+      prepareInstall: stopBackendGracefully,
+      recover: async () => {
+        const url = await startBackend();
+        if (mainWindow) await mainWindow.loadURL(url);
+      },
+    });
+    return createWindow();
+  });
   app.on("before-quit", event => {
-    if (quitting || !backend) return;
-    event.preventDefault();
+    if (quitting) return;
     quitting = true;
+    if (!backend) return;
+    event.preventDefault();
     stopBackendGracefully().catch(stopBackend).finally(() => app.quit());
   });
   app.on("window-all-closed", () => {
