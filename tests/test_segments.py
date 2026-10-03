@@ -93,6 +93,7 @@ class TermsTest(unittest.TestCase):
         self.assertEqual(terms.conflicts([{"en": "error", "zh": "标准误差"}], [{"en": "error", "zh": "误差"}]), [])
         self.assertEqual(terms.conflicts([{"en": "x", "zh": "甲乙"}], [{"en": "x", "zh": "丙"}]), [])
         self.assertEqual(terms.conflicts([{"en": "x", "zh": "甲乙"}], [{"en": "x", "zh": "甲乙"}]), [])
+        self.assertEqual(terms.conflicts([{"en": "unlikelihood", "zh": "Unlikelihood（非似然训练）"}], [{"en": "unlikelihood", "zh": "非似然"}]), [])
 
 
 class SkipHeadTest(unittest.TestCase):

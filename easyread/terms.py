@@ -18,13 +18,15 @@ def _key(en) -> str:
 
 def conflicts(glossary: list[dict], new: list[dict]) -> list[tuple[str, str, str]]:
     """[(英文, 这批的译法, 已有译法)]。太短的译法不换，免得误伤别的词：一个字的不换；
-    是已有译法一部分的（“标准误”和“标准误差”），三个字以上才换。"""
+    是已有译法一部分的（“标准误”和“标准误差”），三个字以上才换；带括号注释的不换。"""
     have = {_key(g.get("en")): str(g.get("zh") or "").strip() for g in glossary or [] if isinstance(g, dict)}
     out = []
     for g in new or []:
         if not isinstance(g, dict):
             continue
         old, mine = have.get(_key(g.get("en"))), str(g.get("zh") or "").strip()
+        if any(c in s for s in (old or "", mine) for c in "（()）"):
+            continue  # “Unlikelihood（非似然训练）”这种带注释的写法拿来替换正文会到处重复注释，不换
         if old and mine and old != mine and len(mine) >= (3 if mine in old else 2):
             out.append((str(g.get("en")), mine, old))
     return out
