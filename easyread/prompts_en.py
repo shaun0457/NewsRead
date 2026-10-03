@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 from . import langs
-from .prompts import _context, _page_texts, rules
+from .prompts import _context, _page_texts, peek_note, rules
 from .store import Workspace
 
 RULES_EN = """整理要求（不翻译）：
@@ -36,13 +36,14 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图放在正文第一次提到它的段落之后。"""
 
 
-def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False) -> str:
+def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
     see = ""
     if engine == "claude":
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
         see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
+    see += peek_note(engine, pages, list(peek))
     look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要输出）=====\n" + next_head) if next_head else ""
     return (f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
             f"{_context(ws, pages, skip_head=skip_head)}\n\n{RULES_EN}\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)

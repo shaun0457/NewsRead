@@ -25,6 +25,15 @@ def workers(setting) -> int:
     return AUTO_MAX if cap <= 0 else min(8, cap)
 
 
+_WORD = re.compile(r"[A-Za-z]{2,}")
+_CAPTION = re.compile(r"^\s*(Table|Figure|Fig\.|Algorithm)\s*\d", re.I)  # i18n-ok
+_FOOTNOTE = re.compile(r"^\s*([¹²³⁴⁵⁶⁷⁸⁹*†‡]|\d{1,2}\s*(https?|www\.)|\d{1,2}[A-Z][a-z])|https?://")
+
+
+def _body(line: str) -> bool:
+    return len(_WORD.findall(line)) >= 4 and not _FOOTNOTE.search(line)
+
+
 def _lines(root: Path, n: int) -> list[str]:
     p = root / "extract" / f"page-{n:03d}.txt"
     try:
@@ -38,7 +47,9 @@ def seam_cost(root: Path, prev: int, nxt: int) -> float:
     """在 prev 页和 nxt 页之间切开的代价：0 干净（新章节开头），1 句子写完了，2 看不出来，3 明显断在句子中间。"""
     if nxt != prev + 1:
         return 0.0  # 中间隔着没要译的页，本来就接不上
-    tail, head = _lines(root, prev), _lines(root, nxt)
+    # 只看正文行：脚注、网址、表格里的数字、图表题注都不算（脚注末尾的句号骗不了人，页首先排的表格也不算开头）
+    tail = [s for s in _lines(root, prev) if _body(s)]
+    head = [s for s in _lines(root, nxt) if (_HEADING.match(s) and len(s) < 80) or (_body(s) and not _CAPTION.match(s))]
     if not tail or not head:
         return 2.0
     first, last = head[0], tail[-1]

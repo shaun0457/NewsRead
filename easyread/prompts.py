@@ -118,7 +118,22 @@ def _page_texts(ws: Workspace, pages: list[int]) -> str:
     return "\n\n".join(texts)
 
 
-def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False) -> str:
+def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
+    """分段并行的交界：两边的批次都看一眼相邻那页的原页图，按同一张图判断跨页那段在哪结束。
+    只靠抽取文字不行：下一页的抽取文字常常先排着表格或图，开头 1500 字里可能根本没有那段的后半句。"""
+    if engine not in ("claude", "attached"):
+        return ""
+    out = []
+    for n in peek:
+        img = f"Read 看 extract/page-{n:03d}.jpg" if engine == "claude" else f"看附上的第 {n} 页原页图"
+        if n > pages[-1]:
+            out.append(f"另外用 {img} 的开头：只用来把本批最后一段补完整（那段可能接着写到第 {n} 页，页首也可能先排着表格或图），第 {n} 页其余内容不要输出。")
+        else:
+            out.append(f"另外用 {img} 的末尾：只用来判断第 {pages[0]} 页开头哪些是第 {n} 页那段的续文，第 {n} 页的内容不要输出。")
+    return "\n" + "\n".join(out) if out else ""
+
+
+def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
     look = ""
     if next_head:
         look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要翻译）=====\n" + next_head)
@@ -128,6 +143,7 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
         see = f"\n先用 Read 工具看原页图 {imgs}，以原页为准核对公式、表格、上下标和阅读顺序（双栏论文按栏读）。抽取的文字只作参考。"
     elif engine == "attached":
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
+    see += peek_note(engine, pages, list(peek))
     target = langs.of_paper(ws.load("paper").get("meta"))
     return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
             f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + _page_texts(ws, pages) + look)

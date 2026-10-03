@@ -44,15 +44,21 @@ class PlanTest(unittest.TestCase):
 
     def test_cut_moves_to_clean_seam(self):
         # 第 4 页断在句子中间，第 5 页从新章节开始：有余量时切在 4|5，不切在 3|4
-        write_pages(self.ws, {3: "End of a sentence.", 4: "this continues the sentence and stops in the", 5: "3 Method\nWe do things."})
+        write_pages(self.ws, {3: "This is the end of the sentence.", 4: "this continues the sentence and stops in the", 5: "3 Method\nWe do things."})
         plan = segments.plan(list(range(1, 9)), 2, 2, self.ws.root)  # 4 批 2 段，每段最多 4 页
         self.assertEqual(plan, [[1, 2, 3, 4], [5, 6, 7, 8]])
-        write_pages(self.ws, {4: "Done here.", 5: "lower case continuation of the paragraph"})
+        write_pages(self.ws, {4: "We are done with this part here.", 5: "lower case continuation of the paragraph"})
         self.assertEqual(segments.seam_cost(self.ws.root, 4, 5), 3.0)
         self.assertEqual(segments.seam_cost(self.ws.root, 2, 5), 0.0)  # 中间隔着不译的页
 
+    def test_footnote_and_leading_table_ignored(self):
+        # 脚注末尾的句号不算句子写完；下一页先排的表格和题注不算开头（f8eeac73f437 第 8|9 页就是这样漏了半段）
+        write_pages(self.ws, {4: "3) SAIL-PIW Wang et al. (2023) preserves historical knowledge\n1https://example.org/data/.\n8",
+                              5: "Table 1 Main results on three datasets.\nReplay 0.0616 0.0386\n4) PISA models continual recommendation through updates"})
+        self.assertEqual(segments.seam_cost(self.ws.root, 4, 5), 2.0)
+
     def test_page_numbers_ignored(self):
-        write_pages(self.ws, {4: "The end of the section.\n4\n", 5: "2.1 Setup\nText"})
+        write_pages(self.ws, {4: "The end of the whole section here.\n4\n", 5: "2.1 Setup\nText"})
         self.assertEqual(segments.seam_cost(self.ws.root, 4, 5), 0.0)
 
 
@@ -124,6 +130,17 @@ class SkipHeadTest(unittest.TestCase):
         for p in (1, 3, 7):
             self.assertNotIn("由另一批负责", seen[p])
         self.assertIn("上一批最后一段", seen[7])  # 段内照旧接上一批
+        self.assertNotIn("另外用", seen[1])  # openai 不看图：不提相邻页
+
+    def test_seam_batches_peek_neighbour_image(self):
+        cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 2, "claude": {}}
+        with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"page-{n}.jpg"), \
+                mock.patch.object(translate.netcheck, "problem", lambda cfg: None):
+            seen = self.run_job(cfg, list(range(1, 9)))
+        self.assertIn("extract/page-005.jpg 的开头", seen[3])  # 前一段最后一批看下一页开头
+        self.assertIn("extract/page-004.jpg 的末尾", seen[5])  # 后一段第一批看上一页末尾
+        self.assertNotIn("另外用", seen[1])
+        self.assertNotIn("另外用", seen[7])
 
     def test_serial_and_range_never_skip(self):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}

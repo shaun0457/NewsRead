@@ -147,13 +147,14 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
 
 
 def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False,
-               skip_head=False) -> None:
-    """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。"""
+               skip_head=False, peek=()) -> None:
+    """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。
+    peek：分段交界处顺便看一眼的相邻页（见 prompts.peek_note）。"""
     mode = engines.image_mode(cfg)
-    images = [pdfwork.engine_image(ws.root, n) for n in batch] if mode != "text" else []
+    images = [pdfwork.engine_image(ws.root, n) for n in [*batch, *peek]] if mode != "text" else []
     nxt = batch[-1] + 1
     head = _next_head(ws, nxt) if nxt <= total_pages else ""
-    prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head, skip_head)
+    prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head, skip_head, peek)
     text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
     try:
         data = engines.parse_json(text)
@@ -232,6 +233,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     verb = tr("正在整理原文") if read else tr("正在翻译")
     workers = max(1, len(lanes))
     job_pages = set(pages)
+    lane_of = {n: i for i, lane in enumerate(lanes) for b in lane for n in b}
     state = {"done": 0, "active": set(), "quota": "", "ok": set()}  # ok：这次已经做成的页
     failed: dict[int, str] = {}
     lock = threading.Lock()
@@ -269,6 +271,10 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             state["active"].add(tuple(batch))
             p = batch[0] - 1  # 上一页这次也要译、还没译好（在别的段里同时译）：跨页那段归它，这批跳过页首续文
             skip_head = p in job_pages and p not in state["ok"] and p not in en_pages
+            # 交界两边都看一眼相邻页的原页图：后一段第一批看上一页末尾，前一段最后一批看下一页开头
+            q = batch[-1] + 1
+            owner = q in lane_of and lane_of[q] != lane_of[batch[-1]] and q not in en_pages
+            peek = ([p] if skip_head else []) + ([q] if owner else [])
         say()
         err = None
         for attempt in range(2):
@@ -276,7 +282,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                 if batch[0] in en_pages:
                     _fill_batch(ws, cfg, batch, cancel, say, meter)
                 else:
-                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head)
+                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek)
                 with lock:
                     state["ok"].update(batch)
                 journal(ws, tr("{pages} 完成", pages=label(batch)))
