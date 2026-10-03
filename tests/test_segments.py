@@ -156,6 +156,21 @@ class SkipHeadTest(unittest.TestCase):
         self.assertEqual(paper["glossary"], [{"en": "error bar", "zh": "误差线"}])
         self.assertIn("术语统一", (self.ws.root / "job.log").read_text(encoding="utf-8"))
 
+    def test_only_one_references_block(self):
+        cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
+
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+            page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+            blocks = [{"id": "refs", "type": "references", "page": page, "en": "References", "zh": "参考文献"}] if page >= 3 else \
+                [{"id": f"p{page}-1", "type": "para", "page": page, "en": "x", "zh": "译文"}]
+            return json.dumps({"blocks": blocks, "references": [{"id": str(page), "text": f"ref {page}"}]})
+        with mock.patch.object(engines, "run", run):
+            translate.translate_pages(self.ws, cfg, list(range(1, 9)), threading.Event(), lambda *a: None)
+        paper = self.ws.load("paper")
+        refs = [b for b in paper["blocks"] if b["type"] == "references"]
+        self.assertEqual([b["page"] for b in refs], [3])  # 两段各起了一个，留页码早的
+        self.assertEqual(len(paper["references"]), 4)
+
     def test_prev_paragraph_skips_footnote_and_flags_unfinished(self):
         def add(*blocks):
             self.ws.update("paper", lambda p: p["blocks"].extend(blocks))

@@ -178,12 +178,31 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
         prepare_figures(ws.root, data["blocks"], total_pages)
         _unify_terms(ws, data, batch)
+        _one_references(ws, data, batch)
         merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read)
         _save_checks(ws, data.get("checks"), batch)
         try:
             pdfwork.locate(ws.root)
         except Exception:  # noqa: BLE001 —— 定位失败不影响阅读
             log.exception("locate 失败 %s", ws.id)
+
+
+def _one_references(ws: Workspace, data: dict, batch: list[int]) -> None:
+    """全文只留一个“参考文献”块（页面上它会把整张参考文献表画出来，两个就画两遍）。
+    参考文献跨了几批（分段并行时可能两段各起一个）时留页码最早的那个。在合并锁里调。"""
+    mine = [b for b in data["blocks"] if b.get("type") == "references"]
+    if not mine:
+        return
+    others = [b for b in ws.load("paper").get("blocks", []) if b.get("type") == "references" and b.get("page") not in batch]
+    first = min(b.get("page") or 0 for b in mine)
+    if others and min(b.get("page") or 0 for b in others) <= first:
+        data["blocks"] = [b for b in data["blocks"] if b.get("type") != "references"]
+        return
+    keep = mine[0]["id"]
+    data["blocks"] = [b for b in data["blocks"] if b.get("type") != "references" or b["id"] == keep]
+    if others:
+        drop = {b["id"] for b in others}
+        ws.update("paper", lambda p: p.__setitem__("blocks", [b for b in p.get("blocks", []) if b.get("id") not in drop]))
 
 
 def _unify_terms(ws: Workspace, data: dict, batch: list[int], en_of: dict | None = None) -> None:
