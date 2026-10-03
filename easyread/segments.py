@@ -12,7 +12,7 @@ from pathlib import Path
 
 AUTO_MAX = 4  # “自动”最多同时几段
 
-_NOISE = re.compile(r"^\s*(\d{1,4}|[ivxlc]{1,6}|page \d+.*|arxiv:.*)\s*$", re.I)  # i18n-ok 页码、arXiv 水印这类
+_NOISE = re.compile(r"^\s*(\d{1,4}|[ivxl]{1,5}|(?i:page \d+.*|arxiv:.*))\s*$")  # i18n-ok 页码、arXiv 水印这类
 _HEADING = re.compile(r"^\s*((\d+(\.\d+)*\.?|[A-Z]\.?)\s+[A-Z][a-z]|\[\d+\]\s|(?i:appendix|references|abstract|acknowledg)\b)")  # i18n-ok 章节标题、新的参考文献条目
 
 

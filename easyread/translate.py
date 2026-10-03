@@ -139,7 +139,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     with _merge_lock:
-        _unify_terms(ws, data, batch)
+        _unify_terms(ws, data, batch, {k: v for k, v in items.items() if isinstance(v, str)})
         missing = fill_zh(ws, data, batch, set(items))
         _save_checks(ws, data.get("checks"), batch)
     if missing:
@@ -185,9 +185,9 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
             log.exception("locate 失败 %s", ws.id)
 
 
-def _unify_terms(ws: Workspace, data: dict, batch: list[int]) -> None:
+def _unify_terms(ws: Workspace, data: dict, batch: list[int], en_of: dict | None = None) -> None:
     """这批新报的术语和术语表里已有的译法不同（分段并行时几段各自先定了译法）：译文改成已有的说法。在合并锁里调。"""
-    for en, mine, old in terms.unify(ws.load("paper").get("glossary", []), data):
+    for en, mine, old in terms.unify(ws.load("paper").get("glossary", []), data, en_of):
         journal(ws, tr("第 {page} 页起术语统一：{en} 的“{mine}”改成已有的“{old}”", page=batch[0], en=en, mine=mine, old=old))
 
 

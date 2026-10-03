@@ -59,19 +59,28 @@ class PlanTest(unittest.TestCase):
 class TermsTest(unittest.TestCase):
     def test_unify_rewrites_this_batch(self):
         data = {"glossary": [{"en": "Error bar", "zh": "误差棒"}, {"en": "eval", "zh": "评测"}],
-                "blocks": [{"type": "para", "zh": "误差棒很重要"}, {"type": "list", "items": [{"zh": "画误差棒"}]},
-                           {"type": "table", "head": [["误差棒", "x"]], "caption_zh": "表 1：误差棒"}]}
+                "blocks": [{"type": "para", "en": "Error bars matter", "zh": "误差棒很重要"}, {"type": "list", "items": [{"en": "draw an error bar", "zh": "画误差棒"}]},
+                           {"type": "table", "head": [["误差棒", "x"]], "caption_en": "Table 1: error bars", "caption_zh": "表 1：误差棒"},
+                           {"type": "para", "en": "no such term here", "zh": "误差棒"}]}
         found = terms.unify([{"en": "error bar", "zh": "误差线"}], data)
         self.assertEqual(found, [("Error bar", "误差棒", "误差线")])
         self.assertEqual(data["blocks"][0]["zh"], "误差线很重要")
         self.assertEqual(data["blocks"][1]["items"][0]["zh"], "画误差线")
         self.assertEqual(data["blocks"][2]["head"], [["误差线", "x"]])
         self.assertEqual(data["blocks"][2]["caption_zh"], "表 1：误差线")
+        self.assertEqual(data["blocks"][3]["zh"], "误差棒")  # 原文没有这个术语的块不动
         self.assertEqual(data["glossary"], [{"en": "eval", "zh": "评测"}])
 
     def test_substring_protected(self):
+        data = {"glossary": [{"en": "variance", "zh": "方差"}],
+                "blocks": [{"type": "para", "en": "covariance and variance", "zh": "协方差和方差，$x_{方差}$"}]}
+        terms.unify([{"en": "variance", "zh": "变异"}, {"en": "covariance", "zh": "协方差"}], data)
+        self.assertEqual(data["blocks"][0]["zh"], "协方差和变异，$x_{方差}$")  # 别的术语里的、公式里的不换
+        data = {"glossary": [{"en": "mean", "zh": "media"}], "blocks": [{"type": "para", "en": "the mean", "zh": "multimedia media"}]}
+        terms.unify([{"en": "mean", "zh": "promedio"}], data)
+        self.assertEqual(data["blocks"][0]["zh"], "multimedia promedio")  # 拉丁字母只换整词
         data = {"glossary": [{"en": "standard error", "zh": "标准误"}], "zh": {"p1": "标准误和标准误差", "t#head": [["标准误"]]}}
-        terms.unify([{"en": "standard error", "zh": "标准误差"}], data)
+        terms.unify([{"en": "standard error", "zh": "标准误差"}], data, {"p1": "standard errors", "t#head": "standard error"})
         self.assertEqual(data["zh"], {"p1": "标准误差和标准误差", "t#head": [["标准误差"]]})
 
     def test_short_terms_left_alone(self):
@@ -101,8 +110,8 @@ class SkipHeadTest(unittest.TestCase):
             page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
             with lock:
                 seen[page] = prompt
-            return json.dumps({"glossary": gl(page), "blocks": [{"id": f"p{page}-1", "type": "para", "page": page, "en": "x",
-                                                                  "zh": "误差棒" if page > 4 else "误差线"}]}, ensure_ascii=False)
+            return json.dumps({"glossary": gl(page), "blocks": [{"id": f"p{page}-1", "type": "para", "page": page,
+                                                                  "en": "error bar", "zh": "误差棒" if page > 4 else "误差线"}]}, ensure_ascii=False)
         with mock.patch.object(engines, "run", run):
             self.assertEqual(translate.translate_pages(self.ws, cfg, pages, threading.Event(), lambda *a: None), {})
         return seen
@@ -111,15 +120,15 @@ class SkipHeadTest(unittest.TestCase):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
         seen = self.run_job(cfg, list(range(1, 9)))
         self.assertEqual(sorted(seen), [1, 3, 5, 7])
-        self.assertIn("第 4 页由另一批同时在译", seen[5])  # 第二段开头
+        self.assertIn("第 4 页由另一批负责", seen[5])  # 第二段开头
         for p in (1, 3, 7):
-            self.assertNotIn("由另一批同时在译", seen[p])
+            self.assertNotIn("由另一批负责", seen[p])
         self.assertIn("上一批最后一段", seen[7])  # 段内照旧接上一批
 
     def test_serial_and_range_never_skip(self):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}
         seen = self.run_job(cfg, [5, 6, 7, 8])  # 第 4 页不在这次范围里：页首续文要译
-        self.assertTrue(all("由另一批同时在译" not in p for p in seen.values()))
+        self.assertTrue(all("由另一批负责" not in p for p in seen.values()))
 
     def test_conflicting_terms_unified_on_merge(self):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}

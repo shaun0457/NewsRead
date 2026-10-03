@@ -98,7 +98,7 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
         lines.append("已用过的块 id（不要重复）：" + ", ".join(ids[-60:]))
     if skip_head:
         p = pages[0]
-        lines.append(f"第 {p - 1} 页由另一批同时在译，从第 {p - 1} 页跨到第 {p} 页的那一段由它补完整。"
+        lines.append(f"第 {p - 1} 页由另一批负责（同时在译，或者稍后重试），从第 {p - 1} 页跨到第 {p} 页的那一段由它补完整。"
                      f"所以第 {p} 页开头如果是接着上一页没写完的句子（不是新段落或新标题的开头），这半段不要输出，"
                      f"从第 {p} 页第一个新段落、标题、公式或图表开始。")
         return "\n".join(lines)
