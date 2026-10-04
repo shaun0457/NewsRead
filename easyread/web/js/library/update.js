@@ -1,42 +1,37 @@
 /* 新版本提示：打开文献库时问一次服务（服务一天最多问一次 GitHub），有新版本就在顶栏放一个“新版本 x.y.z”，
-   第一次看到这个版本时再弹一条提示。点开看这次更新了什么、去哪下载；可以跳过这个版本。
+   第一次看到这个版本时再弹一条提示。点开看这次更新了什么，Windows 安装版直接点“更新”。
    帮助里有“检查更新”和“自动检查新版本”开关。 */
 (function (PR) {
   "use strict";
-  const SKIP = "easyread-skip-update", SEEN = "easyread-seen-update";
+  const SEEN = "easyread-seen-update";
   const desktop = /Electron/i.test(navigator.userAgent);
   const bridge = window.easyreadDesktop;
   let nativeUpdate = { supported: false, phase: "idle" };
-  const mb = (n) => (n / 1048576).toFixed(1);
-  /* 弹窗下半部分：状态行（进度条 / 出错）+ 按钮。能在应用内更新时主按钮跟着阶段变，GitHub 退成文字链接 */
+  /* 弹窗下半部分。Windows 安装版：只有“稍后”和“更新”，按钮自己显示进度；其他平台没有应用内更新，给下载链接 */
   function renderNativeUpdate() {
     const status = document.querySelector("#upStatus"), foot = document.querySelector("#upFoot");
     if (!status || !foot) return;
     const u = PR.update, n = nativeUpdate, phase = n.phase;
-    let s = "";
-    if (n.supported && phase === "downloading") {
-      const pct = Math.floor(n.percent || 0);
-      s = '<div class="up-bar"><i style="width:' + pct + '%"></i></div><div class="hint">' +
-        (n.total ? PR.t("正在下载 {p}% · {a} / {b} MB", { p: pct, a: mb(n.transferred || 0), b: mb(n.total) }) : PR.t("正在下载 {p}%", { p: pct })) + "</div>";
-    } else if (n.supported && phase === "downloaded") s = '<div class="hint">' + PR.t("已经下载好了，重启后完成更新。") + "</div>";
-    if (n.error) s += '<div class="hint up-err">' + PR.esc(n.error) + "</div>";
-    status.innerHTML = s;
-    status.hidden = !s;
-    const gh = '<a href="' + PR.esc(u.url) + '" target="_blank" rel="noopener"';
-    let main;
-    if (n.supported) {
-      const labels = { checking: PR.t("正在检查…"), downloading: PR.t("正在下载…"), downloaded: PR.t("重启并更新"), installing: PR.t("正在重启安装…"), error: PR.t("重试"), current: PR.t("已经是最新版") };
-      const off = ["checking", "downloading", "installing", "current"].includes(phase);
-      main = '<a class="linkish" ' + gh.slice(3) + ">" + PR.t("在 GitHub 下载") + "</a>" + '<button class="btn" data-close>' + PR.t("关闭") + "</button>" +
-        '<button class="btn accent" data-native-update' + (off ? " disabled" : "") + ">" + (labels[phase] || PR.t("下载并更新")) + "</button>";
-    } else main = '<button class="btn" data-close>' + PR.t("关闭") + "</button>" + gh + ' class="btn accent">' + PR.t("去下载") + "</a>";
-    foot.innerHTML = '<button class="linkish up-skip" data-up="skip">' + PR.t("跳过这个版本") + "</button>" + main;
+    const pct = Math.floor(n.percent || 0);
+    status.hidden = !n.supported || phase !== "downloading";
+    status.innerHTML = '<div class="up-bar"><i style="width:' + pct + '%"></i></div>';
+    if (!n.supported) {
+      foot.innerHTML = '<p class="hint up-how">' + howTo() + '</p><button class="btn" data-close>' + PR.t("关闭") + '</button><a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + PR.t("去下载") + "</a>";
+      return;
+    }
+    const labels = { checking: PR.t("正在检查…"), downloading: PR.t("正在下载 {p}%", { p: pct }), downloaded: PR.t("重启并更新"), installing: PR.t("正在重启…"), error: PR.t("重试"), current: PR.t("已经是最新版") };
+    const off = ["checking", "downloading", "installing", "current"].includes(phase);
+    foot.innerHTML = (n.error ? '<p class="hint up-err">' + PR.esc(n.error) + "</p>" : "") +
+      '<button class="btn" data-close>' + PR.t("稍后") + '</button><button class="btn accent" data-native-update' + (off ? " disabled" : "") + ">" + (labels[phase] || PR.t("更新")) + "</button>";
   }
-  function acceptNativeUpdate(state) {
-    nativeUpdate = state;
-    const how = document.querySelector("#upHow");
-    if (how) how.textContent = howTo();
-    renderNativeUpdate();
+  function acceptNativeUpdate(state) { nativeUpdate = state; renderNativeUpdate(); }
+  /* 点一次“更新”：下载完直接重启安装（等下载那次调用返回再装，主进程那时才空出来）；
+     后台正在翻译等原因装不了，会带着原因停在“重启并更新” */
+  async function runUpdate() {
+    try {
+      if (nativeUpdate.phase !== "downloaded") acceptNativeUpdate(await bridge.downloadUpdate());
+      if (nativeUpdate.phase === "downloaded") acceptNativeUpdate(await bridge.installUpdate());
+    } catch (error) { acceptNativeUpdate({ ...nativeUpdate, phase: "error", error: error.message }); }
   }
   if (bridge && bridge.updateState) {
     bridge.onUpdateState(acceptNativeUpdate);
@@ -44,9 +39,7 @@
   }
   document.addEventListener("click", async event => {
     if (!event.target.closest("[data-native-update]")) return;
-    try {
-      acceptNativeUpdate(await (nativeUpdate.phase === "downloaded" ? bridge.installUpdate() : bridge.downloadUpdate()));
-    } catch (error) { acceptNativeUpdate({ ...nativeUpdate, phase: "error", error: error.message }); }
+    runUpdate();
   });
   PR.update = null;
 
@@ -77,14 +70,13 @@
   }
 
   function howTo() {
-    if (nativeUpdate.supported) return PR.t("论文和设置都会保留；重启前先等正在进行的翻译完成。");
     return desktop ? PR.t("下载对应系统的安装包，装上就会覆盖旧版本，论文和设置都还在。")
       : PR.t("从源码运行的：下载新版 zip 解压后双击 start.cmd（macOS / Linux 运行 ./start.sh），或者在项目目录里 git pull；用 pip 装的：pip install -U easyread。论文和设置在数据目录里，不受影响。");
   }
 
   function show(u) {
     PR.update = u;
-    const on = !!(u && u.newer && PR.ls.get(SKIP, "") !== u.latest);
+    const on = !!(u && u.newer);
     chip.hidden = !on;
     if (!on) return;
     chip.innerHTML = '<span class="dot"></span><span>' + PR.t("新版本 {v}", { v: PR.esc(u.latest) }) + "</span>";
@@ -103,24 +95,15 @@
       '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>EasyRead " + PR.esc(u.latest) + (u.newer ? PR.t(" 可以更新了") : "") + '</h2><div class="hint">' + PR.t("你现在用的是 {v}", { v: PR.esc(u.current) }) +
       (u.published ? PR.t(" · {date} 发布", { date: PR.esc(u.published.slice(0, 10)) }) : "") + "</div></div></div>" +
       '<div class="update-notes">' + (notesHtml(u.notes) || '<p class="hint">' + PR.t("这次没写更新说明。") + "</p>") + "</div>" +
-      (u.newer ? '<p class="hint" id="upHow">' + howTo() + '</p><div class="up-status" id="upStatus" hidden></div><div class="actions up-foot" id="upFoot"></div>'
+      (u.newer ? '<div class="up-status" id="upStatus" hidden></div><div class="actions up-foot" id="upFoot"></div>'
         : '<div class="actions"><button class="btn" data-close>' + PR.t("关闭") + '</button><a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + PR.t("在 GitHub 上看") + "</a></div>");
     dlg.classList.add("open");
     renderNativeUpdate();
   };
 
-  PR.$("#textDlg").addEventListener("click", (e) => {
-    if (!e.target.closest('[data-up="skip"]')) return;
-    PR.ls.set(SKIP, PR.update.latest);
-    PR.$("#textDlg").classList.remove("open");
-    show(PR.update);
-    PR.toast(PR.t("不再提示 {v}，有更新的版本时再告诉你", { v: PR.esc(PR.update.latest) }));
-  });
-
   /* 帮助里用：force 为真时马上问 GitHub */
   PR.checkUpdate = async function (force) {
     const u = await PR.api("/api/update" + (force ? "?force=1" : ""));
-    if (force) PR.ls.set(SKIP, "");  // 手动检查：之前跳过的版本也重新提示
     show(u);
     return u;
   };

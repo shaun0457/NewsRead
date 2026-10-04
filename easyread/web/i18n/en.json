@@ -207,7 +207,6 @@
  "下载对应系统的安装包，装上就会覆盖旧版本，论文和设置都还在。": "Download the installer for your system. Installing it replaces the old version; your papers and settings stay.",
  "下面 {n} 页还没整理，先放原页。": "The {n} pages below aren't processed yet. Showing the original pages for now.",
  "下面 {n} 页还没有译文，先放原页。": "The {n} pages below aren't translated yet. Showing the original pages for now.",
- "不再提示 {v}，有更新的版本时再告诉你": "Won't remind you about {v}. You'll be told when a newer version is out",
  "不带这段": "Don't include this",
  "不是 PDF 文件": "Not a PDF file",
  "不用模型，阅读页先放原页图片": "No model; the Reader shows original page images for now",
@@ -818,7 +817,6 @@
  "跟随默认": "Default",
  "跟随默认（{model}）": "Default ({model})",
  "跳到": "Jump to",
- "跳过这个版本": "Skip this version",
  "输入 {input}（缓存命中 {cached}），输出 {output}": "Input {input} ({cached} cached), output {output}",
  "输入 {n}": "Input {n}",
  "输出 {n}": "Output {n}",
@@ -1057,14 +1055,10 @@
  "模型设置": "Model settings",
  "重试整理原文": "Retry preparing the original",
  "重启并更新": "Restart and update",
- "下载并更新": "Download and update",
- "正在下载…": "Downloading…",
- "正在下载 {p}% · {a} / {b} MB": "Downloading {p}% · {a} / {b} MB",
- "正在下载 {p}%": "Downloading {p}%",
- "已经下载好了，重启后完成更新。": "Downloaded. Restart to finish updating.",
- "在 GitHub 下载": "Download from GitHub",
- "论文和设置都会保留；重启前先等正在进行的翻译完成。": "Your papers and settings are kept. Let running translations finish before restarting.",
- "正在重启安装…": "Restarting to install…",
+ "正在重启…": "Restarting…",
+ "更新": "Update",
+ "稍后": "Later",
+ "正在下载 {p}%": "Downloading {p}%",
  "同时译几段": "Parallel segments",
  "自动": "Auto",
  "把全文切成几段同时译，段内按顺序译；自动按篇幅每段约 2 批、最多 4 段；手动最多 8 段": "Split the paper into segments translated at the same time, in order within each segment; Auto uses about 2 batches per segment, up to 4; up to 8 when set manually",

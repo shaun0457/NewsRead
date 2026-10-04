@@ -275,10 +275,9 @@ body.resizing { cursor: col-resize; user-select: none; }
 .up-status { margin: 0 0 12px; }
 .up-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-bottom: 6px; }
 .up-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
-.up-err { color: var(--danger, #c0392b); }
 .up-foot { align-items: center; }
-.up-foot .up-skip { margin-right: auto; color: var(--ink-3); }
-.up-foot .linkish { margin-right: 6px; }
+.up-foot .hint { margin: 0 auto 0 0; }
+.up-err { color: var(--danger, #c0392b); }
 .help-update { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
 .help-update .check { margin: 0; }
 @media (max-width: 760px) { .update-chip { display: inline-flex; } }
