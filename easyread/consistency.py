@@ -91,7 +91,13 @@ def swap(zh: str, en_text: str, term: str, old: str, use: str, keep: list[str]) 
     if n == 0 or n != mentions_count(en_text, term):
         return None
     new = _swap(zh, [(old, use, guard)])
+    if _doubled(new, use) and not _doubled(zh, use):  # “监督微调（SFT）”换成 SFT 会变成“SFT（SFT）”
+        return None
     return new if new != zh else None
+
+
+def _doubled(text: str, use: str) -> bool:
+    return bool(re.search(re.escape(use) + r"\s*[（(]\s*" + re.escape(use) + r"\s*[)）]", text))  # i18n-ok 全角括号
 
 
 def resent(obj: dict | None, old: str, new: str) -> list | None:
@@ -164,6 +170,8 @@ def check(ws, cfg: dict, pages: list[int], cancel, meter, journal, lock) -> int:
     data = data if isinstance(data, dict) else {}
     asked = {t["en"]: t["want"] for it in items for t in it["terms"]}
     use = {en: _clean(v) for en, v in (data.get("use") or {}).items() if en in asked and len(_clean(v)) >= 2}
+    # 统一成纯英文缩写（supervised fine-tuning → SFT）不算译法，不换；保留原词（Transformer）的照常
+    use = {en: u for en, u in use.items() if not (u.isascii() and u.lower() != en.lower() and not asked[en].isascii())}
     by_key = {it["key"]: it for it in items}
     with lock:
         paper = ws.load("paper")

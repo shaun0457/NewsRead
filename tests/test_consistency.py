@@ -111,6 +111,15 @@ class ConsistencyTest(unittest.TestCase):
         self.assertIsNone(consistency.swap("标准误差和标准误", "standard error and standard error", "standard error", "标准误", "标准误差", []))
         self.assertEqual(consistency.swap("一个标准误", "one standard error", "standard error", "标准误", "标准误差", []), "一个标准误差")
         self.assertIsNone(consistency.swap("$x$ 的标准误", "standard error of $x$", "standard error", "x", "y", []))
+        # 换成缩写后会变成“SFT（SFT）”：不换
+        self.assertIsNone(consistency.swap("先做监督微调（SFT）。", "First, supervised fine-tuning (SFT).", "supervised fine-tuning", "监督微调", "SFT", []))
+
+    def test_plain_footnote_is_not_previous_paragraph(self):
+        # DeepSeek 把脚注写成 “3 That is, …”（不带上标），不能拿它当上一批最后一段
+        self.assertTrue(prompts._is_note({"type": "para", "en": "3 That is, the sum of the per-timestep KL-divergences."}))
+        self.assertTrue(prompts._is_note({"type": "para", "en": "7One volunteer was excluded."}))
+        self.assertFalse(prompts._is_note({"type": "heading", "en": "3 Method"}))
+        self.assertFalse(prompts._is_note({"type": "para", "en": "We train the model with " + "many words " * 30 + "here."}))
 
     def test_sentence_alignment_follows_term_swap(self):
         en = "The standard error is large. It matters."

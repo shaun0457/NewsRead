@@ -82,6 +82,17 @@ def schema(target: str = "zh") -> str:
 
 
 _NOTE = re.compile(r"^\s*(\$\^|[¹²³⁴⁵⁶⁷⁸⁹*†‡]|\d{1,2}\s*https?:)|^\S*https?://\S*\s*$")
+# 不带上标、直接写成 “3 That is, …” 的脚注（DeepSeek 常这么写）：开头 1–2 位数字接大写单词，块又很短
+_NOTE_PLAIN = re.compile(r"^\s*\d{1,2}\s?[A-Z][a-z]")
+
+
+def _is_note(b: dict) -> bool:
+    text = b.get("en") or ""
+    if _NOTE.search(text):
+        return True
+    return b.get("type") != "heading" and bool(_NOTE_PLAIN.match(text)) and len(text.split()) < 40
+
+
 _ENDS = (".", "?", "!", ":", ";", "。", "？", "！", "：", ")", "]", "\"", "”", "’")
 
 
@@ -111,7 +122,7 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
         return "\n".join(lines)
     # 只看紧挨着的前两页：再往前的段落不可能续到本批（分段并行时更早的页可能是别的段译的）
     # 脚注不算：模型常把脚注排在页的最后一块，拿它当“上一段”会让下一批误把页首正文当续文跳过
-    near = [b for b in blocks if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and not _NOTE.search(b.get("en") or "")]
+    near = [b for b in blocks if pages[0] - 2 <= (b.get("page") or 0) < pages[0] and not _is_note(b)]
     prev = next((b for b in reversed(near) if b.get("en") and b.get("type") != "references"), None)
     if prev:
         end = prev["en"].rstrip()

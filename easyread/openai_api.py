@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import math
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -110,8 +111,7 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) 
         if cancel is not None and cancel.is_set():
             raise Cancelled()
         try:
-            with _open(o, body, False) as r:
-                res = json.loads(r.read())
+            res = _fetch(o, body, cancel)
             break
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < 3:
@@ -126,6 +126,30 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) 
     if meter is not None and isinstance(res, dict):
         meter.add(**usage.from_openai(res))
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
+
+
+def _fetch(o: dict, body: dict, cancel) -> dict:
+    """发请求、读完整个回答。请求放在线程里，点取消就不再等它（这次调用的回答丢掉），不然要等接口返回，常常一两分钟。"""
+    if cancel is None:
+        with _open(o, body, False) as r:
+            return json.loads(r.read())
+    box: dict = {}
+
+    def run():
+        try:
+            with _open(o, body, False) as r:
+                box["res"] = json.loads(r.read())
+        except BaseException as e:  # 原样交回主线程，限流重试、连不上这些分支照旧
+            box["err"] = e
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    while t.is_alive():
+        t.join(0.3)
+        if cancel.is_set() and t.is_alive():
+            raise Cancelled()
+    if "err" in box:
+        raise box["err"]
+    return box["res"]
 
 
 def _chat_text(res) -> str:

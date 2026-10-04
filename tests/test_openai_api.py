@@ -31,6 +31,9 @@ class FakeAPI(BaseHTTPRequestHandler):
         SEEN.append((self.path, body))
         if not self.headers.get("x-opencode-session"):  # 像 OpenCode Go 那样要求会话 ID（#10）
             return self._send(400, {"type": "error", "error": {"type": "MissingSessionID"}})
+        if body.get("model") == "slow":
+            import time
+            time.sleep(3)
         if body.get("model") == "fixed-temp" and "temperature" in body:
             return self._send(400, {"error": {"message": "invalid temperature: only 1 is allowed for this model"}})
         if self.path.endswith("/responses"):
@@ -70,6 +73,17 @@ class OpenAIApiTest(unittest.TestCase):
     def test_responses_stream(self):
         o = {"base_url": self.base, "model": "m", "api": "responses"}
         self.assertEqual("".join(openai_api.stream(o, "问题", threading.Event())), "你好")
+
+    def test_cancel_does_not_wait_for_response(self):
+        import time
+        from easyread.engines import Cancelled
+        cancel = threading.Event()
+        self.assertEqual(openai_api.complete({"base_url": self.base, "model": "m"}, "q", [], cancel), "chat-ok")
+        threading.Timer(0.2, cancel.set).start()
+        start = time.monotonic()
+        with self.assertRaises(Cancelled):
+            openai_api.complete({"base_url": self.base, "model": "slow"}, "q", [], cancel)
+        self.assertLess(time.monotonic() - start, 1.5)  # 接口 3 秒才回，点了取消不用等它
 
     def test_chat_drops_temperature_when_rejected(self):
         self.assertEqual(openai_api.complete({"base_url": self.base, "model": "fixed-temp"}, "q", []), "chat-ok")
