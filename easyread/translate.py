@@ -241,10 +241,10 @@ def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
 
 
 def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]:
-    """分批；只读原文整理过的页（补译文）和要从头译的页不混在一批里。"""
+    """分批：只把连续的页放一批（续传时中间隔着已译的页，跨页续文对不上）；只读原文整理过的页（补译文）和要从头译的页不混在一批里。"""
     out: list[list[int]] = []
     for n in pages:
-        if out and len(out[-1]) < size and (out[-1][0] in en_pages) == (n in en_pages):
+        if out and n == out[-1][-1] + 1 and len(out[-1]) < size and (out[-1][0] in en_pages) == (n in en_pages):
             out[-1].append(n)
         else:
             out.append([n])

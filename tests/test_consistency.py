@@ -233,6 +233,9 @@ class SeamTest(unittest.TestCase):
         self.assertIn("THE-CONTINUATION", seen[3][0])  # 第 3–4 页是前一段最后一批：拿到第 5 页全文
         self.assertNotIn("THE-CONTINUATION", seen[1][0])
 
+    def test_resume_batches_only_join_consecutive_pages(self):
+        self.assertEqual(translate._batches([3, 6, 7, 10, 11, 14], 2, set()), [[3], [6, 7], [10, 11], [14]])
+
     def test_resume_seam_owner_still_peeks_next_page(self):
         ws = make_ws(6)
         self.addCleanup(shutil.rmtree, ws.root, True)
