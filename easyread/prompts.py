@@ -149,7 +149,8 @@ def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
     return "\n" + "\n".join(out) if out else ""
 
 
-def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
+def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(), front: str = "") -> str:
+    """front：分段并行时每段第一批的前文参考（见 front_context）。"""
     look = ""
     if next_head:
         look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要翻译）=====\n" + next_head)
@@ -162,7 +163,8 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     see += peek_note(engine, pages, list(peek))
     target = langs.of_paper(ws.load("paper").get("meta"))
     return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + _page_texts(ws, pages) + look)
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else "")
+            + _page_texts(ws, pages) + look)
 
 
 def repair(original_json: str, problems: list[str]) -> str:

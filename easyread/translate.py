@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, segments, sources, terms
+from . import consistency, engines, front_context, langs, netcheck, pdfwork, prompts, prompts_en, segments, sources, terms
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
@@ -148,14 +148,17 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
 
 
 def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False,
-               skip_head=False, peek=()) -> None:
+               skip_head=False, peek=(), front=False) -> None:
     """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。
-    peek：分段交界处顺便看一眼的相邻页（见 prompts.peek_note）。"""
+    peek：分段交界处顺便看一眼的相邻页（见 prompts.peek_note）。front：带上前文参考（每段第一批，见 front_context）。"""
     mode = engines.image_mode(cfg)
     images = [pdfwork.engine_image(ws.root, n) for n in sorted({*batch, *peek})] if mode != "text" else []
     nxt = batch[-1] + 1
     head = _next_head(ws, nxt) if nxt <= total_pages else ""
-    prompt = (prompts_en.structure if read else prompts.translate)(ws, batch, mode, head, skip_head, peek)
+    if read:
+        prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
+    else:
+        prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_context.build(ws.root, batch[0]) if front else "")
     text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
     try:
         data = engines.parse_json(text)
@@ -249,11 +252,13 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     en_pages = set() if read else set(paper.get("translation", {}).get("en_pages", []))
     size = max(1, int(cfg.get("batch_pages") or 2))
     # 分段并行：切成几段连续的页同时译，段内一批接一批（见 segments.py）
-    lanes = [_batches(seg, size, en_pages) for seg in segments.plan(pages, size, segments.workers(cfg.get("concurrency")), ws.root)]
+    k = segments.workers(cfg.get("concurrency"), len(_batches(pages, size, en_pages)))
+    lanes = [_batches(seg, size, en_pages) for seg in segments.plan(pages, size, k, ws.root)]
     batches = [b for lane in lanes for b in lane]
     verb = tr("正在整理原文") if read else tr("正在翻译")
     workers = max(1, len(lanes))
     job_pages = set(pages)
+    had = set(paper.get("translation", {}).get("done_pages", [])) - en_pages  # 开译前已经有译文的页
     lane_of = {n: i for i, lane in enumerate(lanes) for b in lane for n in b}
     state = {"done": 0, "active": set(), "quota": "", "ok": set()}  # ok：这次已经做成的页
     failed: dict[int, str] = {}
@@ -296,6 +301,8 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             q = batch[-1] + 1
             owner = q in lane_of and lane_of[q] != lane_of[batch[-1]] and q not in en_pages
             peek = ([p] if skip_head else []) + ([q] if owner else [])
+            # 每段第一批、上一页还没有译文（同时在别的段里译，或从没译过）：给原文的前文参考
+            front = batch is lanes[lane_of[batch[0]]][0] and batch[0] > 1 and p not in had
         say()
         err = None
         for attempt in range(2):
@@ -303,7 +310,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                 if batch[0] in en_pages:
                     _fill_batch(ws, cfg, batch, cancel, say, meter)
                 else:
-                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek)
+                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek, front)
                 with lock:
                     state["ok"].update(batch)
                 journal(ws, tr("{pages} 完成", pages=label(batch)))
@@ -341,6 +348,15 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             f.result()  # Cancelled 在这里抛出去
     if cancel.is_set():
         raise engines.Cancelled()
+    if not read and len(batches) > 1 and not state["quota"] and state["ok"]:
+        try:  # 检查失败或这时取消，都不影响已经译好的内容：照常结束，不算取消
+            report(state["done"], len(pages), tr("正在检查术语一致性"))
+            consistency.check(ws, cfg, sorted(state["ok"]), cancel, meter, journal, _merge_lock)
+        except engines.Cancelled:
+            journal(ws, tr("术语一致性检查已取消，译文保留"))
+        except Exception as e:  # noqa: BLE001
+            journal(ws, tr("术语一致性检查没做成：{err}", err=str(e)[:300]))
+            log.warning("术语一致性检查失败 %s: %s", ws.id, e)
     journal(ws, tr("结束，{n} 页失败：{pages}", n=len(failed), pages=sorted(failed)) if failed else tr("结束，全部成功"))
     return failed
 

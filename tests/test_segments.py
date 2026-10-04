@@ -22,11 +22,11 @@ class PlanTest(unittest.TestCase):
         shutil.rmtree(self.ws.root, ignore_errors=True)
 
     def test_workers_auto_and_explicit(self):
-        self.assertEqual(segments.workers(0), segments.AUTO_MAX)
-        self.assertEqual(segments.workers(None), segments.AUTO_MAX)
-        self.assertEqual(segments.workers("x"), segments.AUTO_MAX)
-        self.assertEqual(segments.workers(1), 1)
-        self.assertEqual(segments.workers(99), 8)
+        self.assertEqual(segments.workers(0, 15), 8)
+        self.assertEqual(segments.workers(None, 2), 1)
+        self.assertEqual(segments.workers("x", 100), segments.AUTO_MAX)
+        self.assertEqual(segments.workers(1, 15), 1)
+        self.assertEqual(segments.workers(99, 15), 8)
 
     def test_single_lane_keeps_order(self):
         self.assertEqual(segments.plan([1, 2, 3, 4], 2, 1, self.ws.root), [[1, 2, 3, 4]])
