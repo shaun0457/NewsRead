@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 
+from . import sentences
 from .i18n import tr
 from .store import Workspace, now_iso
 
@@ -42,12 +43,14 @@ def parse_pages(spec) -> list[int]:
     return out
 
 
-def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_only: bool = False) -> dict:
+def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_only: bool = False, drop_ids=None) -> dict:
     """并入一批块。同 id 整块替换；新块按 _after 或页码顺序插入。
     replace_pages：先删掉这些页上已有的块（重新翻译某几页时用）。
-    en_only：这批是“只读原文”整理出来的、只有英文的块，done 的页记进 translation.en_pages；否则从 en_pages 里去掉。"""
+    en_only：这批是“只读原文”整理出来的、只有英文的块，done 的页记进 translation.en_pages；否则从 en_pages 里去掉。
+    drop_ids：顺便删掉这几个别的页上的块（全文只留一个参考文献块时用），和合并在同一次写入里。"""
     if isinstance(data, list):
         data = {"blocks": data}
+    sentences.attach(data.get("blocks"))  # 去掉句子分界 ‖，记成 sents
     for b in data.get("blocks", []):
         if not isinstance(b, dict) or not b.get("id") or b.get("type") not in BLOCK_TYPES:
             raise ValueError(tr("块缺 id 或类型不对：{block}", block=str(b)[:120]))
@@ -60,6 +63,8 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         if replace_pages:
             drop = set(replace_pages)
             blocks[:] = [b for b in blocks if b.get("page") not in drop]
+        if drop_ids:
+            blocks[:] = [b for b in blocks if b.get("id") not in set(drop_ids)]
         n_new = n_upd = 0
         last = None  # 同一批的新块保持给定顺序，接在上一个新块后面
         for b in data.get("blocks", []):
@@ -109,9 +114,9 @@ def _scope(paper: dict) -> None:
     tr["scope"] = "全文" if total and n >= total else f"已译 {n} / {total} 页"  # i18n-ok 存进 paper.json
 
 
-def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list[str]:
+def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str], sents: dict | None = None) -> list[str]:
     """给只读原文整理出来的块就地补译文（块 id 不变，笔记还挂得住）。
-    data 是模型的输出 {"zh": {键: 译文}, "meta", "glossary"}；keys 是这次要译的键。
+    data 是模型的输出 {"zh": {键: 译文}, "meta", "glossary"}；keys 是这次要译的键；sents：段落和列表项的句子对齐 {键: sents}。
     返回漏译的键；这几页的键都译齐了，才把页从 en_pages 去掉。"""
     got = {k: v for k, v in (data.get("zh") or {}).items() if k in keys and v}
 
@@ -133,8 +138,10 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str]) -> list
                     b["head"] = zh
             elif field.isdigit() and int(field) < len(b.get("items", [])):
                 b["items"][int(field)]["zh"] = str(zh)
+                _set_sents(b["items"][int(field)], (sents or {}).get(key))
             else:
                 b["zh"] = str(zh)
+                _set_sents(b, (sents or {}).get(key))
         meta = paper.setdefault("meta", {})
         for k in ("title_zh", "short_zh"):
             if (data.get("meta") or {}).get(k):
@@ -197,8 +204,15 @@ def delete_discussion(ws: Workspace, did: str) -> int:
     return ws.update("discussion", drop)
 
 
-def set_block_text(ws: Workspace, key: str, zh: str) -> None:
-    """重译一段后写回译者稿。key 同页面：块 id、id#caption、id#image、id#序号。"""
+def _set_sents(obj: dict, sents) -> None:
+    if sents:
+        obj["sents"] = sents
+    else:
+        obj.pop("sents", None)  # 译文换了、没有新的对齐：旧的作废，页面按整段对应
+
+
+def set_block_text(ws: Workspace, key: str, zh: str, sents=None) -> None:
+    """重译一段后写回译者稿。key 同页面：块 id、id#caption、id#image、id#序号。sents：新译文的句子对齐。"""
     bid, _, field = key.partition("#")
 
     def apply(paper):
@@ -211,8 +225,10 @@ def set_block_text(ws: Workspace, key: str, zh: str) -> None:
                 b["image_zh"] = zh
             elif field.isdigit():
                 b["items"][int(field)]["zh"] = zh
+                _set_sents(b["items"][int(field)], sents)
             else:
                 b["zh"] = zh
+                _set_sents(b, sents)
             return
         raise KeyError(key)
     ws.update("paper", apply)

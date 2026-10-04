@@ -17,7 +17,8 @@ import threading
 from pathlib import Path
 
 from .i18n import tr
-from . import netcheck, usage
+from . import codex_lean, netcheck, usage
+from .log import log
 
 
 
@@ -108,7 +109,16 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     args += list(c.get("extra_args") or [])
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]
-    out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
+    # lean（翻译时）：只给 Read 一个工具。--allowedTools 只是免确认，别的内置工具的定义照样每次都发，
+    # 实测空调用固定上下文从约 3.2 万 token 降到约 5 千。用户设置（代理、默认模型、登录）照旧读。
+    lean = ["--tools", "Read"] if c.get("lean") else []
+    try:
+        out = _communicate(_popen(args + lean, cwd), prompt, int(c.get("timeout") or 1200), cancel)
+    except EngineError as e:
+        if not lean or not _OPTION_ERR.search(str(e)):
+            raise
+        log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
+        out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
     events = _json_lines(out)
     res = next((e for e in reversed(events) if e.get("type") == "result"), None)
     if res is None:
@@ -124,9 +134,46 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
 
 
 def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, meter=None) -> str:
+    """c["lean"]：不拉起用户 Codex 配置里的 MCP 服务（翻译时用，见 codex_lean）。
+    这些覆盖参数让 Codex 报配置错误时，去掉它们照旧再调一次。"""
     exe = codex_path(c)
     if not exe:
         raise EngineError(tr("找不到 Codex 命令：{cmd}（先装好并登录 Codex CLI）", cmd=c.get("command") or "codex"))
+    lean = codex_lean.args() if c.get("lean") else []
+    try:
+        text, out = _codex_once(exe, c, prompt, cwd, images, cancel, lean)
+    except EngineError as e:  # 配置覆盖不被认时 codex 直接退出、只写 stderr
+        if not lean or not _CONFIG_ERR.search(str(e)):
+            raise
+        text, out = "", str(e)
+    if not text and lean and _CONFIG_ERR.search(out or ""):
+        log.warning("Codex 不认关掉 MCP 的参数，照旧调用：%s", (out or "")[-300:])
+        text, out = _codex_once(exe, c, prompt, cwd, images, cancel, [])
+    events = _json_lines(out)
+    if meter is not None:
+        for e in events:
+            if e.get("type") == "turn.completed":
+                meter.add(**usage.from_codex(e))
+    if not text:
+        errs = [str(e.get("message") or (e.get("error") or {}).get("message") or "") for e in events if e.get("type") in ("error", "turn.failed")]
+        raise EngineError(tr("Codex 没有给出结果：{msg}", msg=(next((m for m in reversed(errs) if m), "") or (out or "")[-300:])))
+    return text
+
+
+_CONFIG_ERR = re.compile(r"config|mcp_servers|notify|unknown (field|key)|invalid", re.I)
+_OPTION_ERR = re.compile(r"unknown option|--tools", re.I)
+
+
+def for_translation(cfg: dict) -> dict:
+    """翻译用的引擎设置：本机 CLI 只带翻译用得到的东西（见 run_claude、run_codex）。问 AI 不走这里。"""
+    out = dict(cfg)
+    for e in ("claude", "codex"):
+        if isinstance(cfg.get(e), dict):
+            out[e] = {**cfg[e], "lean": True}
+    return out
+
+
+def _codex_once(exe: str, c: dict, prompt: str, cwd: Path, images: list[Path], cancel, extra: list[str]) -> tuple[str, str]:
     fd, last = tempfile.mkstemp(suffix=".txt", prefix="easyread-codex-")
     os.close(fd)
     args = [exe, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never", "--json", "-o", last]
@@ -138,21 +185,13 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, 
     for field, key in (("reasoning_effort", "model_reasoning_effort"), ("service_tier", "service_tier")):
         if c.get(field):
             args += ["-c", key + "=" + json.dumps(c[field])]
-    args += ["-"]
+    args += extra + ["-"]
     try:
         out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
         text = Path(last).read_text(encoding="utf-8", errors="replace").strip()
     finally:
         Path(last).unlink(missing_ok=True)
-    events = _json_lines(out)
-    if meter is not None:
-        for e in events:
-            if e.get("type") == "turn.completed":
-                meter.add(**usage.from_codex(e))
-    if not text:
-        errs = [str(e.get("message") or (e.get("error") or {}).get("message") or "") for e in events if e.get("type") in ("error", "turn.failed")]
-        raise EngineError(tr("Codex 没有给出结果：{msg}", msg=(next((m for m in reversed(errs) if m), "") or (out or "")[-300:])))
-    return text
+    return text, out
 
 
 def _json_lines(out: str) -> list[dict]:
