@@ -29,6 +29,12 @@ body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
 /* 右侧面板（原页 / 笔记，一次一个） */
 .side-panel { position: fixed; top: var(--bar-h); right: 0; bottom: 0; z-index: 40; width: var(--side-w); background: var(--surface); border-left: 1px solid var(--rule); transform: translateX(102%); transition: transform .22s cubic-bezier(.2, .8, .2, 1); display: flex; flex-direction: column; }
 body.pv-open #pageview, body.np-open #notespanel { transform: none; }
+/* 面板左边缘的拖动把手（side-resize.js）；窄屏面板是固定宽度，不显示 */
+.panel-grip { display: none; position: fixed; top: var(--bar-h); bottom: 0; right: calc(var(--side-w) - 3px); width: 6px; cursor: col-resize; z-index: 41; }
+@media (min-width: 1180px) { body.side-open .panel-grip { display: block; } }
+.panel-grip:hover, body.resizing .panel-grip { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .side-panel { transition: none; }
 @media (min-width: 1180px) {
   /* 右侧开着面板：边注收进正文（页边的小数字），版心在剩下的地方居中，放不下就变窄 */
   body.side-open #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter); width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--side-w) - 24px));
@@ -41,7 +47,6 @@ body.pv-open #pageview, body.np-open #notespanel { transform: none; }
 .pv-follow input { accent-color: var(--accent); margin: 0; }
 .pv-scroll { flex: 1; min-height: 0; overscroll-behavior: contain; overflow: auto; padding: 18px; background: color-mix(in srgb, var(--bg) 60%, var(--rule)); }
 .pv-page { position: relative; margin: 0 auto; width: 100%; max-width: 820px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 6px 24px rgba(0,0,0,.08); }
-body.pv-zoom .pv-page { width: 165%; max-width: none; }
 .pv-page + .pv-page { margin-top: 18px; }
 .pv-page img { display: block; width: 100%; height: 100%; object-fit: contain; }
 :root[data-theme="dark"] .pv-page img { filter: invert(.9) hue-rotate(180deg) contrast(.9); }

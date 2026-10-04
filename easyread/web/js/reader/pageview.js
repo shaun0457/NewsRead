@@ -45,7 +45,7 @@
     if (!p) return "";
     const base = PR.imageUrl(p.img);
     if (PR.store.mode !== "server") return base;
-    const need = (PR.$(".pv-scroll").clientWidth || 480) * (body.classList.contains("pv-zoom") ? 1.65 : 1) * (devicePixelRatio || 1);
+    const need = (PR.$(".pv-scroll").clientWidth || 480) * (devicePixelRatio || 1);
     return need <= 1000 ? base + "?w=1000" : need <= 1600 ? base + "?w=1600" : base;  // 1000 宽的服务端已提前生成好
   }
   let pageNodes = [], pageSource = null;
@@ -239,8 +239,8 @@
     if (act === "close") { PR.togglePages(false); pair(null); }
     if (act === "prev") PR.pageStep(-1);
     if (act === "next") PR.pageStep(1);
-    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? PR.t("适宽") : PR.t("放大"); showPage(pvPage); }
   });
+  PR.refreshPages = () => showPage(pvPage);  // 面板宽度变了，按新宽度换图
   PR.pageStep = (d) => {
     showPage(pvPage + d);
     const entry = pageNodes[pvPage - 1];
