@@ -100,9 +100,10 @@
   function prepCard(card) {
     const body = card.querySelector(".body");
     const id = card.dataset.card || card.dataset.note;
-    if (body && !expanded.has(id) && body.scrollHeight > 220) {
-      card.classList.add("clamp");
-      card.insertAdjacentHTML("beforeend", '<button class="more" data-a="more">' + PR.t("展开全文") + "</button>");
+    if (body && body.scrollHeight > 220) {  // 长的先收起；展开过的也留一个“收起全文”（#31）
+      const open = expanded.has(id);
+      card.classList.toggle("clamp", !open);
+      card.insertAdjacentHTML("beforeend", '<button class="more" data-a="more">' + (open ? PR.t("收起全文") : PR.t("展开全文")) + "</button>");
     }
     const ta = card.querySelector("textarea");
     if (ta) PR.autosize(ta);
@@ -231,7 +232,15 @@
     const a = e.target.closest("[data-a]"), k = e.target.closest("[data-k]"), col = e.target.closest("[data-color]");
     const nid = card.dataset.note;
     const rerender = () => (inPanel ? PR.renderNotesPanel(nid) : PR.openNoteEditor(nid));
-    if (a && a.dataset.a === "more") { expanded.add(card.dataset.card || nid); card.classList.remove("clamp"); a.remove(); PR.layoutMargin(); return true; }
+    if (a && a.dataset.a === "more") {
+      const id = card.dataset.card || nid, open = !expanded.has(id);
+      open ? expanded.add(id) : expanded.delete(id);
+      card.classList.toggle("clamp", !open);
+      a.textContent = open ? PR.t("收起全文") : PR.t("展开全文");
+      PR.layoutMargin();
+      if (!open && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "nearest" });  // 收起后卡片顶端跑到屏幕上方了，拉回来
+      return true;
+    }
     if (card.dataset.card && a && (a.dataset.a === "adel" || a.dataset.a === "regen")) { delAgent(card.dataset.card, a.dataset.a === "regen", a); return true; }
     if (nid && a) {
       const n = noteById(nid);
