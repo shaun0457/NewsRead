@@ -9,6 +9,7 @@ import re
 import threading
 import unicodedata
 from contextlib import closing, contextmanager
+from functools import lru_cache
 from pathlib import Path
 from statistics import median
 
@@ -24,7 +25,7 @@ _LAYOUT_LOCK = threading.RLock()
 def open_pdf(pdf: Path):
     """所有 PDFium 调用与资源释放共用一把锁，包括操作不同文档的线程。"""
     import pypdfium2 as pdfium
-    with _PDFIUM_LOCK, pdfium.PdfDocument(str(pdf)) as doc:
+    with _PDFIUM_LOCK, closing(pdfium.PdfDocument(str(pdf))) as doc:
         yield doc
 
 
@@ -44,22 +45,58 @@ def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84
 
 def extract_text(pdf: Path, out_dir: Path) -> int:
     """每页一份 .txt（给 agent 读）和 .chars.json（给定位用，坐标按页宽高归一化）。"""
-    import pdfplumber
+    from pypdfium2 import raw as pdfium_c
 
     out_dir.mkdir(parents=True, exist_ok=True)
     with open_pdf(pdf) as doc:
         for i in range(len(doc)):
             with closing(doc[i]) as page, closing(page.get_textpage()) as tp:
-                (out_dir / f"page-{i + 1:03d}.txt").write_text(tp.get_text_range(), encoding="utf-8")
-    with pdfplumber.open(str(pdf)) as plumb:
-        for i, page in enumerate(plumb.pages):
-            W, H = float(page.width), float(page.height)
-            chars = [
-                [c["text"], round(c["x0"] / W, 4), round(c["top"] / H, 4), round(c["x1"] / W, 4), round(c["bottom"] / H, 4)]
-                for c in page.chars
-            ]
-            (out_dir / f"page-{i + 1:03d}.chars.json").write_text(json.dumps(chars, ensure_ascii=False), encoding="utf-8")
-        return len(plumb.pages)
+                # A tiled PDF can reference the entire source document on every
+                # page. Unbounded text includes the off-page content; pdfplumber
+                # also builds and retains a full Python layout for every tile.
+                # Use one native text page for both outputs and close it eagerly.
+                text = tp.get_text_bounded()
+                bounds, rotation = page.get_bbox(), page.get_rotation()
+                chars = []
+                count = tp.count_chars()
+                for index in range(count):
+                    box = _char_box(tp.get_charbox(index, loose=True), bounds, rotation)
+                    if box is None:
+                        continue
+                    # Indexing get_text_range() is unsafe: its string indices can
+                    # differ from PDFium's character indices (generated newlines,
+                    # unmapped glyphs, and non-BMP Unicode characters).
+                    code = pdfium_c.FPDFText_GetUnicode(tp, index)
+                    if 0xD800 <= code <= 0xDBFF and index + 1 < count:
+                        low = pdfium_c.FPDFText_GetUnicode(tp, index + 1)
+                        if 0xDC00 <= low <= 0xDFFF:
+                            code = 0x10000 + ((code - 0xD800) << 10) + low - 0xDC00
+                    if not code or code > 0x10FFFF or 0xD800 <= code <= 0xDFFF:
+                        continue
+                    char = chr(code)
+                    if char in "\r\n":
+                        continue
+                    chars.append([char, *box])
+                (out_dir / f"page-{i + 1:03d}.txt").write_text(text, encoding="utf-8")
+                (out_dir / f"page-{i + 1:03d}.chars.json").write_text(json.dumps(chars, ensure_ascii=False), encoding="utf-8")
+        return len(doc)
+
+
+def _char_box(box, bounds, rotation: int) -> list[float] | None:
+    """PDF canvas -> rendered page, respecting CropBox origin and page rotation."""
+    l, b, r, t = box
+    L, B, R, T = bounds
+    if r <= L or l >= R or t <= B or b >= T:
+        return None
+    x0, y0 = (max(l, L) - L) / (R - L), (T - min(t, T)) / (T - B)
+    x1, y1 = (min(r, R) - L) / (R - L), (T - max(b, B)) / (T - B)
+    if rotation == 90:
+        x0, y0, x1, y1 = 1 - y1, x0, 1 - y0, x1
+    elif rotation == 180:
+        x0, y0, x1, y1 = 1 - x1, 1 - y1, 1 - x0, 1 - y0
+    elif rotation == 270:
+        x0, y0, x1, y1 = y0, 1 - x1, y1, 1 - x0
+    return [round(v, 4) for v in (x0, y0, x1, y1)]
 
 
 def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 3.0) -> str:
@@ -150,7 +187,12 @@ def locate(root: Path) -> dict:
 def _locate(root: Path) -> dict:
     paper = json.loads((root / "paper.json").read_text(encoding="utf-8"))
     extract_dir = root / "extract"
-    streams: dict[int, tuple] = {}
+    # Blocks may arrive out of page order during parallel translation. Keep only
+    # the current/next page streams instead of retaining a whole book's chars.
+    @lru_cache(maxsize=2)
+    def stream(n):
+        return _page_stream(extract_dir, n)
+
     layout: dict[str, dict] = {}
     cursor: dict[int, int] = {}
     for block in paper.get("blocks", []):
@@ -167,9 +209,7 @@ def _locate(root: Path) -> dict:
         if block.get("type") == "heading" and block.get("num"):
             heads.insert(0, _anchors(f"{block['num']} {block.get('en', '')}")[0])
         for pn in (page, page + 1):
-            if pn not in streams:
-                streams[pn] = _page_stream(extract_dir, pn)
-            st = streams[pn]
+            st = stream(pn)
             if not st:
                 continue
             text, idx, chars = st

@@ -53,7 +53,7 @@ def main():
         text = (ws / "extract" / "page-001.txt").read_text(encoding="utf-8")
         assert "EasyRead packaging smoke test" in text, text
         chars = json.loads((ws / "extract" / "page-001.chars.json").read_text(encoding="utf-8"))
-        assert chars, "pdfplumber did not extract coordinates"
+        assert chars, "PDFium did not extract coordinates"
         output = home / "serve.log"
         with output.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen([str(exe), "serve", "--port", "0"], env=env, stdout=log, stderr=log)

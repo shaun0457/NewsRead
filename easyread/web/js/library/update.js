@@ -13,10 +13,10 @@
     panel.hidden = !nativeUpdate.supported;
     const phase = nativeUpdate.phase;
     const working = ["checking", "downloading", "installing"].includes(phase);
-    const labels = { checking: "正在检查…", downloading: "正在下载更新", downloaded: "重启并更新", installing: "正在重启安装…", error: "重试更新", current: "已经是最新版" };
+    const labels = { checking: PR.t("正在检查…"), downloading: PR.t("正在下载更新"), downloaded: PR.t("重启并更新"), installing: PR.t("正在重启安装…"), error: PR.t("重试更新"), current: PR.t("已经是最新版") };
     panel.innerHTML = '<p class="hint">' + PR.t("在应用内下载更新，完成后点击重启安装。更新前请先完成正在进行的翻译或编辑。") + '</p>' +
       '<button class="btn accent" data-native-update' + (working ? " disabled" : "") + '>' +
-      PR.t(labels[phase] || "下载更新") + (phase === "downloading" ? " " + Math.floor(nativeUpdate.percent || 0) + "%" : "") + '</button>' +
+      (labels[phase] || PR.t("下载更新")) + (phase === "downloading" ? " " + Math.floor(nativeUpdate.percent || 0) + "%" : "") + '</button>' +
       (nativeUpdate.error ? '<p class="hint">' + PR.esc(nativeUpdate.error) + '</p>' : "");
   }
   function acceptNativeUpdate(state) { nativeUpdate = state; renderNativeUpdate(); }
