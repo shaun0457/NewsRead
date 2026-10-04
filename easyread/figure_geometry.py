@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from . import figure_pixels, page_margins
 from .log import log
 
 
@@ -64,10 +65,44 @@ def _groups(boxes, aspect, gap):
     return [_bounds(g) for g in groups.values()]
 
 
-def _graphics(page, occupied, captions):
+def _blank_fill(obj):
+    """只填充不描边、填的是白色（页面底色）的路径：PDF 常用它铺背景，页面上看不见。"""
+    color = obj.get("non_stroking_color")
+    if not obj.get("fill") or obj.get("stroke") or not isinstance(color, (tuple, list)) or not color:
+        return False
+    try:
+        color = [float(v) for v in color]
+    except (TypeError, ValueError):
+        return False
+    return all(v <= .04 for v in color) if len(color) == 4 else all(v >= .96 for v in color)
+
+
+def _separator(box):
+    width, height = box[2] - box[0], box[3] - box[1]
+    return width > .65 and height < .004 or height > .75 and width < .004
+
+
+def _separators(page):
+    """页眉横线、栏间竖线这类分隔线；渲染判断可见范围时也要抹掉，免得图片白边靠它撑到页眉。"""
+    boxes = [_box(obj, page) for obj in page.lines + page.rects]
+    return [b for b in boxes if b and _separator(b)]
+
+
+def _clear_gap(a, b, blockers):
+    """两块图形之间没有正文或别的题注隔开。"""
+    if a[3] <= b[1] or b[3] <= a[1]:
+        gap = [min(a[0], b[0]), min(a[3], b[3]), max(a[2], b[2]), max(a[1], b[1])]
+    else:
+        gap = [min(a[2], b[2]), max(a[1], b[1]), max(a[0], b[0]), min(a[3], b[3])]
+    return not any(min(gap[2], c[2]) - max(gap[0], c[0]) > .002 and min(gap[3], c[3]) - max(gap[1], c[1]) > .002
+                   for c in blockers)
+
+
+def _graphics(page, occupied, captions, visible):
     images = []
     for obj in page.images:
         box = _box(obj, page)
+        box = visible(box) if box else None  # 图片自带的白边不算图
         if box and _area(box) < .8 and box[3] > .06 and box[1] < .94 \
                 and box[2] - box[0] >= .04 and box[3] - box[1] >= .025 \
                 and not (box[2] - box[0] < .2 and box[3] - box[1] < .08 and _covered(box, occupied)):
@@ -78,20 +113,23 @@ def _graphics(page, occupied, captions):
     paths = []
     for obj in page.lines + page.rects + page.curves:
         box = _box(obj, page)
-        if not box or _area(box) >= .8 or box[3] < .06 or box[1] > .94:
+        if not box or _area(box) >= .8 or box[3] < .06 or box[1] > .94 or _blank_fill(obj):
             continue
-        width, height = box[2] - box[0], box[3] - box[1]
-        if width > .65 and height < .004 or height > .75 and width < .004:
+        if _separator(box):
             continue  # Page separators, not figure components.
         # Give lines a small area for the text/background exclusion tests.
-        box = [max(0, box[0] - .001), max(0, box[1] - .001),
-               min(1, box[2] + .001), min(1, box[3] + .001)]
+        box = visible([max(0, box[0] - .001), max(0, box[1] - .001),
+                       min(1, box[2] + .001), min(1, box[3] + .001)])
+        if not box:
+            continue  # 被裁剪路径挡住或画成底色，页面上看不见
         if _covered(box, occupied + images) or _covered(box, captions, .5) \
                 or any(_covered(cap, [box], .8) for cap in captions):
             continue
         paths.append(box)
     vectors = _groups(paths, page.width / page.height, .008)
-    return images + [b for b in vectors if b[2] - b[0] >= .045 and b[3] - b[1] >= .025]
+    large = [b for b in vectors if b[2] - b[0] >= .045 and b[3] - b[1] >= .025]
+    # 太小的组（勾叉记号、虚线分隔）不单独当图，但能像标签一样把图里分开的几块连起来。
+    return images + large, [b for b in vectors if b not in large]
 
 
 def _score(graphic, caption, aspect):
@@ -105,9 +143,17 @@ def _score(graphic, caption, aspect):
     return _distance(graphic, box, aspect)
 
 
-def _page_regions(page, captions, occupied):
+def _page_regions(page, captions, occupied, render, running=()):
     aspect = page.width / page.height
-    graphics = _graphics(page, occupied, [c["box"] for c in captions.values()])
+    all_words = [b for b in (_box(word, page) for word in page.extract_words()) if b]
+    separators = _separators(page)
+    top, bottom = page_margins.margins(separators, running)
+    masks = render(all_words + separators)
+    if masks is None:
+        return {}  # 渲染不了就无法确认哪些图形看得见，交给题注估算
+    mask, ink = masks
+    graphics, marks = _graphics(page, occupied, [c["box"] for c in captions.values()],
+                                lambda box: figure_pixels.trim(mask, box))
     assigned = {bid: [] for bid in captions}
     for graphic in graphics:
         bid = min(captions, key=lambda key: _score(graphic, captions[key], aspect))
@@ -115,7 +161,10 @@ def _page_regions(page, captions, occupied):
             assigned[bid].append(graphic)
 
     result = {}
-    words = None
+    # 页眉页脚里的字不能当图的标签。
+    words = [b for b in all_words if b[3] > top + .002 and b[1] < bottom - .002
+             and not _covered(b, occupied) and figure_pixels.inked(ink, b)]
+    marks = [b for b in marks if b[3] > top + .002 and b[1] < bottom - .002]
     for bid, candidates in assigned.items():
         caption = captions[bid]
         if caption["type"] != "figure" or not candidates:
@@ -124,23 +173,36 @@ def _page_regions(page, captions, occupied):
         if nearest > .18:
             continue
         selected = [b for b in candidates if _score(b, caption, aspect) <= nearest + .012]
+        others = [c["box"] for key, c in captions.items() if key != bid]
         # A distant top row belongs to the same figure when it connects to the
         # bottom row. Do not require every panel to be near the caption itself.
+        # 隔着空白、但中间没有正文的上一排子图也算同一张图。
         while True:
             near = [b for b in candidates if b not in selected and
-                    any(_distance(b, chosen, aspect) <= .045 for chosen in selected)]
+                    any(_distance(b, chosen, aspect) <= .045 or _distance(b, chosen, aspect) <= .2
+                        and _clear_gap(b, chosen, occupied + others) for chosen in selected)]
             if not near:
                 break
             selected.extend(near)
 
-        if words is None:
-            words = [_box(word, page) for word in page.extract_words()]
-            words = [b for b in words if b and not _covered(b, occupied)]
         # Vector plots can put labels just outside their paths. Keep those labels,
         # while excluding body paragraphs and captions belonging to other figures.
-        labels = [b for b in words if any(_distance(b, g, aspect) <= .018 for g in selected)
-                  and not _covered(b, [c["box"] for key, c in captions.items() if key != bid])]
+        # 标签可以一个挨一个连出去（图里的小标题、坐标轴说明常是 PDF 文字）。
+        labels, pending = [], [b for b in words + marks if not _covered(b, others)]
+        while True:
+            near = [b for b in pending if any(_distance(b, g, aspect) <= .03 for g in selected + labels)]
+            if not near:
+                break
+            labels.extend(near)
+            pending = [b for b in pending if b not in near]
         bounds = _bounds(selected + labels + [caption["box"]])
+        cap, drawing = caption["box"], _bounds(selected)
+        # 题注整个在图下方（或上方）时，图框不越过题注继续往外扩；侧边题注和图上下重叠，不受限。
+        if caption.get("caption_pos", "below") == "below":
+            if cap[1] >= drawing[3] - .01:
+                bounds[3] = cap[3]
+        elif cap[3] <= drawing[1] + .01:
+            bounds[1] = cap[1]
         result[bid] = [round(max(0, bounds[0] - .008), 4), round(max(0, bounds[1] - .008), 4),
                        round(min(1, bounds[2] + .008), 4), round(min(1, bounds[3] + .008), 4)]
     return result
@@ -163,13 +225,20 @@ def locate_figures(root: Path, blocks: list[dict], layout: dict) -> dict[str, li
     result = {}
     try:
         with pdfplumber.open(root / "source.pdf") as pdf:
+            running = page_margins.running_lines(root / "extract", len(pdf.pages))
             for pn, captions in by_page.items():
                 if not any(c["type"] == "figure" for c in captions.values()) or not 1 <= pn <= len(pdf.pages):
                     continue
                 occupied = [box for bid, loc in layout.items() if bid not in caption_ids and loc["page"] == pn
                             for box in loc.get("boxes") or [loc["box"]]]
+                def render(erase, pn=pn):
+                    try:
+                        return figure_pixels.visible_mask(root / "source.pdf", pn - 1, erase)
+                    except Exception:  # noqa: BLE001
+                        log.exception("渲染原页失败 %s 第 %s 页", root, pn)
+                        return None
                 try:
-                    result.update(_page_regions(pdf.pages[pn - 1], captions, occupied))
+                    result.update(_page_regions(pdf.pages[pn - 1], captions, occupied, render, running.get(pn, ())))
                 except Exception:  # noqa: BLE001
                     log.exception("读取 PDF 图形边界失败 %s 第 %s 页", root, pn)
     except Exception:  # noqa: BLE001

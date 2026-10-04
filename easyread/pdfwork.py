@@ -80,7 +80,7 @@ def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 
 
 _MATH = re.compile(r"\$[^$]*\$")
 _ALNUM = re.compile(r"[a-z0-9]")
-LOCATE_VERSION = "4"  # 图像边界不受题注所在栏限制；旧论文打开时重算。
+LOCATE_VERSION = "5"  # 图形范围按页面上看得见的像素收边；旧论文打开时重算。
 
 
 def _norm(s: str) -> str:
