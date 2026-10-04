@@ -291,6 +291,7 @@ if (!app.requestSingleInstanceLock()) {
       getWindow: () => mainWindow,
       prepareInstall: stopBackendGracefully,
       recover: async () => {
+        if (backend) return;  // 后端没停（正在翻译、拒绝关闭）：页面别刷新，弹窗留着显示原因
         const url = await startBackend();
         if (mainWindow) await mainWindow.loadURL(url);
       },
