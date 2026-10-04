@@ -5,8 +5,15 @@
   const body = document.body;
 
   /* ---------- 偏好 ---------- */
-  const DEF = Object.assign({ theme: "auto" }, PR.TYPE_DEFAULTS);
-  PR.prefs = Object.assign({}, DEF, PR.ls.get("easyread-prefs", {}));
+  const DEF = Object.assign({ theme: "auto", lead: "translation", biOrder: "translation" }, PR.TYPE_DEFAULTS);
+  /* 1.3.1 测试版存过 readingLanguage（zh / en），换成 lead；传进来的是存下的原样，还没合默认值 */
+  PR.migratePrefs = function (p) {
+    if (p.lead == null && p.readingLanguage != null) p.lead = p.readingLanguage === "en" ? "original" : "translation";
+    if (p.biOrder == null && p.readingLanguage != null) p.biOrder = p.lead;
+    delete p.readingLanguage;
+    return p;
+  };
+  PR.prefs = Object.assign({}, DEF, PR.migratePrefs(PR.ls.get("easyread-prefs", {})));
   PR.applyPrefs = function () {
     const p = PR.prefs, root = document.documentElement;
     root.style.setProperty("--fs", p.fs + "px");
@@ -16,8 +23,8 @@
     body.classList.toggle("font-sans", p.font === "sans");
     body.classList.toggle("mode-bi", p.mode === "bi");
     body.classList.toggle("no-margin", !p.margin);
-    PR.$$("#bar .seg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === p.mode));
-    PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), p));
+    if (PR.applyReadingLanguage) PR.applyReadingLanguage();
+    PR.ls.set("easyread-prefs", Object.assign(PR.migratePrefs(PR.ls.get("easyread-prefs", {})), p));
     if (PR.store.mode === "server") PR.savePrefs("reader", p);
   };
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => PR.applyPrefs());
@@ -43,8 +50,8 @@
   }
   PR.renderSettings = function () {
     PR.$("#settings").innerHTML =
+      '<div class="row view-row-narrow">' + PR.viewSegHtml(true) + "</div>" +
       slider("fs", PR.t("字号"), 13, 28, 1, " px") + slider("measure", PR.t("版心"), 26, 50, 1, PR.t(" 字")) + slider("lh", PR.t("行距"), 1.5, 2.4, 0.05, "") +
-      '<div class="row"><span>' + PR.t("显示") + "</span>" + segHtml("mode", [["zh", PR.t("译文")], ["bi", PR.t("对照")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("字体") + "</span>" + segHtml("font", [["serif", PR.t("宋体")], ["sans", PR.t("黑体")]]) + "</div>" +
       '<div class="row"><span>' + PR.t("边注") + "</span>" + segHtml("margin", [[true, PR.t("显示")], [false, PR.t("收起")]]) + "</div>" +
       '<div class="row hintrow"><button class="linkish" data-reset-type>' + PR.t("恢复默认") + '</button><span class="grow"></span>' +
@@ -62,6 +69,10 @@
     const os = e.target.closest("[data-open-settings]");
     if (os) { PR.$("#settings").classList.remove("open"); return PR.openSettings(os.dataset.openSettings); }
     if (e.target.closest("[data-reset-type]")) return PR.resetAllType();
+    const view = e.target.closest("[data-view]");
+    if (view) return PR.setView(view.dataset.view);
+    const order = e.target.closest("[data-order]");
+    if (order) return PR.setBiOrder(order.dataset.order);
     const b = e.target.closest("[data-p]");
     if (!b) return;
     let v = b.dataset.v;
@@ -87,7 +98,7 @@
     PR.$("#bar .save-state").before(pill);
   };
   PR.$('[data-act="drawer"]').innerHTML = PR.icon("menu");
-  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>" + PR.t("原页") + "</span>";
+  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>PDF</span>";
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
   PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
@@ -101,8 +112,9 @@
   };
   PR.on("ui-changed", () => { PR.applyFeatures(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });
   PR.$("#bar").addEventListener("click", (e) => {
-    const m = e.target.closest("[data-mode]");
-    if (m) return PR.setPref("mode", m.dataset.mode);
+    const v = e.target.closest("[data-view]");
+    if (v) return PR.setView(v.dataset.view);
+    if (e.target.closest("[data-order-menu]")) return PR.toggleOrderMenu();
     const a = e.target.closest("[data-act]");
     if (!a) return;
     const act = a.dataset.act;

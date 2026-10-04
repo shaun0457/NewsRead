@@ -5,11 +5,12 @@ const vm = require("node:vm");
 const { EventEmitter } = require("node:events");
 const { test } = require("node:test");
 
-async function desktop(platform = "darwin", lock = true, ready = true) {
+async function desktop(platform = "darwin", lock = true, ready = true, argv = []) {
   const app = new EventEmitter();
   Object.assign(app, {
     setPath() {}, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: true,
-    requestSingleInstanceLock: () => lock, whenReady: () => Promise.resolve(),
+    requestSingleInstanceLock: () => lock, whenReady: () => Promise.resolve(), isReady: () => true,
+    setAsDefaultProtocolClient(scheme) { this.protocol = scheme; },
     quit() { this.quitCalled = true; this.emit("before-quit", { preventDefault() {} }); },
     relaunch() { this.relaunched = true; }, exit() { this.exited = true; },
   });
@@ -40,7 +41,7 @@ async function desktop(platform = "darwin", lock = true, ready = true) {
     },
   };
   const proc = new EventEmitter();
-  Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources" });
+  Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
   const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: {} }
     : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
     : name === "http" ? { request(url, options, callback) {
@@ -53,6 +54,7 @@ async function desktop(platform = "darwin", lock = true, ready = true) {
     } }
     : name === "./startup-feedback.cjs" ? { ...require("../electron/startup-feedback.cjs"), mark(_app, stage) { stages.push(stage); }, loginShellPath: async () => "/usr/bin:/bin" }
     : name === "./desktop-updates.cjs" ? { registerUpdates() {} }
+    : name === "./deep-link.cjs" ? require("../electron/deep-link.cjs")
     : name === "electron-updater" ? { autoUpdater: {} }
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
     : require(name);
@@ -135,4 +137,34 @@ test("cloud library IPC restricts folder picking and relaunch to the local main 
   assert.equal(d.launches[0].child.killed, true);
   assert.equal(d.app.relaunched, true);
   assert.equal(d.app.exited, true);
+});
+
+const SHA = "a".repeat(64);
+
+test("easyread:// links open the paper once the backend is ready", async () => {
+  const d = await desktop("win32", true, true, [`easyread://open?sha256=${SHA}&block=p3-2`]);
+  await d.settled();
+  assert.equal(d.app.protocol, "easyread");
+  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}&block=p3-2`);
+  d.app.quit();
+});
+
+test("a link from a second instance reuses the open window", async () => {
+  const d = await desktop("win32");
+  await d.settled();
+  d.app.emit("second-instance", {}, ["EasyRead.exe", "easyread://open?id=abc123def456"]);
+  assert.equal(d.windows.length, 1);
+  assert.equal(d.windows[0].url, "http://127.0.0.1:9876/open?id=abc123def456");
+  assert.equal(d.windows[0].focused, true);
+  d.app.quit();
+});
+
+test("macOS open-url links are handled and unknown links ignored", async () => {
+  const d = await desktop();
+  await d.settled();
+  d.app.emit("open-url", { preventDefault() {} }, "easyread://other?id=abc123def456");
+  assert.equal(d.windows[0].url, "http://127.0.0.1:9876");
+  d.app.emit("open-url", { preventDefault() {} }, `easyread://open?sha256=${SHA}&block=<x>`);
+  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}`);
+  d.app.quit();
 });

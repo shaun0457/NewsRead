@@ -119,7 +119,7 @@
     }
     if (PR.store.mode === "server") {  // 以本机 prefs.json 为准
       const p = await PR.loadPrefs();
-      if (p.reader) { Object.assign(PR.prefs, p.reader); PR.applyPrefs(); }
+      if (p.reader) { Object.assign(PR.prefs, PR.migratePrefs(Object.assign({}, p.reader))); PR.applyPrefs(); }
       PR.useServerUi(p);
     }
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";

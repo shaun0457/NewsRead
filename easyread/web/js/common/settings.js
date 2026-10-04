@@ -13,10 +13,11 @@
   PR.opt = (list, val) => list.map(([v, l]) => '<option value="' + PR.esc(v) + '"' + (String(v) === String(val) ? " selected" : "") + ">" + PR.esc(l) + "</option>").join("");
 
   PR.openSettings = async function (tab) {
+    await modelSaveQueue;
     const [d, chat] = await Promise.all([PR.api("/api/config"), PR.api("/api/chat/models").catch(() => null)]);
     Object.assign(st, { tab: typeof tab === "string" && tab !== "engine" ? tab : "chat", cfg: d.config, presets: d.presets, groups: d.groups || [], chat,
       fetchMsg: null, apiTyping: false, advOpen: false, ui: { features: Object.assign({}, PR.features), keys_on: PR.keysOn, keys: Object.assign({}, PR.keymap) },
-      theme: PR.ls.get("easyread-prefs", {}).theme || "auto", recording: null, editing: null, form: null, chatKeys: null, type: null, transChecked: false });
+      theme: PR.ls.get("easyread-prefs", {}).theme || "auto", recording: null, editing: null, form: null, chatKeys: null, type: null, transChecked: false, pinned: false });
     render();
     dlg().classList.add("open");
     // 每次打开都问一次（后端有缓存，很快）：刚装好或更新了 Claude Code / Codex，版本号和模型名单马上跟上
@@ -26,6 +27,13 @@
       if (dlg().classList.contains("open")) { sync(); render(); }
     }
   };
+  window.addEventListener("focus", async () => {
+    if (!dlg().classList.contains("open")) return;
+    const r = await PR.api("/api/engines").catch(() => null);
+    if (r && JSON.stringify(r.models) !== JSON.stringify(st.models)) {
+      sync(); st.models = r.models; st.found = r.found; render();
+    }
+  });
   const btn = PR.$("#settingsBtn");
   if (btn) btn.onclick = () => PR.openSettings();
 
@@ -34,12 +42,44 @@
   function render() {
     const t = PR.settingsTabs[st.tab];
     dlg().querySelector(".dialog").innerHTML =
-      '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div></div>" +
+      '<div class="set-head"><h2>' + PR.t("设置") + '</h2><div class="set-tabs">' + tabs().map(([k, l]) => '<button data-set-tab="' + k + '" class="' + (st.tab === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" + (st.tab === "chat" ? saveStatusHtml() : "") + "</div>" +
       '<div class="set-body">' + (t ? t.render(st) : "") + "</div>" +
-      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button><span class="grow"></span><button class="btn" id="setCancel">' + PR.t("取消") + '</button><button class="btn primary" id="setSave">' + PR.t("保存") + "</button></div>";
+      '<div class="actions set-foot"><button class="linkish" id="showLog">' + PR.t("运行日志") + '</button><span class="grow"></span><button class="btn" id="setCancel">' + (st.tab === "chat" ? PR.t("关闭") : PR.t("取消")) + '</button>' + (st.tab === "chat" ? "" : '<button class="btn primary" id="setSave">' + PR.t("保存") + "</button>") + "</div>";
   }
 
+  function saveStatusHtml() {
+    return '<span id="modelSaveStatus" class="set-save-status" data-state="' + (st.modelSavePhase || "idle") + '" role="status" aria-live="polite" title="' + PR.esc(st.modelSaveDetail || "") + '">' + PR.esc(st.modelSaveStatus || "") + '</span>';
+  }
+  let statusTimer, saveRevision = 0;
+  function setSaveStatus(phase, text, detail = "") {
+    clearTimeout(statusTimer);
+    Object.assign(st, { modelSavePhase: phase, modelSaveStatus: text, modelSaveDetail: detail });
+    const el = PR.$("#modelSaveStatus");
+    if (el) { el.dataset.state = phase; el.textContent = text; el.title = detail; }
+    if (phase === "saved") statusTimer = setTimeout(() => setSaveStatus("idle", ""), 2200);
+  }
+
+  let modelSaveQueue = Promise.resolve();
+  PR.saveModelSettings = function () {
+    const config = JSON.parse(JSON.stringify(PR.settingsTabs.engine.collect(st)));
+    const chat = JSON.parse(JSON.stringify({ models: st.chat.models, default: st.chat.default, keys: st.chatKeys || {} }));
+    const revision = ++saveRevision;
+    setSaveStatus("saving", PR.t("正在保存…"));
+    modelSaveQueue = modelSaveQueue.then(async () => {
+      await PR.api("/api/chat/models", { method: "POST", body: chat });
+      await PR.api("/api/config", { method: "POST", body: config });
+      if (revision === saveRevision) setSaveStatus("saved", PR.t("已保存"));
+      PR.onSettingsSaved && PR.onSettingsSaved();
+      PR.emit("settings-saved", st);
+    }).catch((err) => {
+      if (revision === saveRevision) setSaveStatus("error", PR.t("保存失败"), err.message);
+      PR.toast(PR.t("保存失败：{msg}", { msg: err.message }));
+    });
+    return modelSaveQueue;
+  };
+
   async function save() {
+    await modelSaveQueue;
     sync();
     const r = await PR.api("/api/config", { method: "POST", body: PR.settingsTabs.engine.collect(st) });
     st.cfg = r.config;

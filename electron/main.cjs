@@ -8,6 +8,7 @@ const { URL } = require("url");
 const http = require("http");
 const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
+const deepLink = require("./deep-link.cjs");
 
 // 窗口缓存等放 %APPDATA%\EasyRead（默认会用 package.json 的 name，叫 easyread-desktop）。
 // 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
@@ -22,6 +23,7 @@ let backendReady;
 let windowOpening = false;
 let backendUrl;
 let quitting = false;
+let pendingOpen = deepLink.fromArgv(process.argv);
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -189,6 +191,20 @@ function stopBackend() {
   }
 }
 
+// 窗口还在启动时先记下，后端就绪后 createWindow 直接打开这篇
+function openLink(target) {
+  if (!target) return;
+  if (!mainWindow || windowOpening || !backendUrl) {
+    pendingOpen = target;
+    if (!mainWindow && app.isReady()) createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.loadURL(new URL(target, backendUrl).href);
+}
+
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
@@ -237,7 +253,9 @@ async function createWindow() {
     startup.mark(app, "startup-window-visible");
     const url = await startBackend();
     if (mainWindow !== openingWindow || quitting) return;
-    await openingWindow.loadURL(url);
+    const first = pendingOpen ? new URL(pendingOpen, url).href : url;
+    pendingOpen = undefined;
+    await openingWindow.loadURL(first);
     startup.mark(app, "library-loaded");
   } catch (error) {
     if (mainWindow !== openingWindow || quitting) return;
@@ -259,7 +277,13 @@ if (!app.requestSingleInstanceLock()) {
   Menu.setApplicationMenu(process.platform === "darwin"
     ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
     : null);
+  // macOS 用 open-url 传链接，可能早于 ready
+  app.on("open-url", (event, link) => {
+    event.preventDefault();
+    openLink(deepLink.openPath(link));
+  });
   app.whenReady().then(() => {
+    deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
       getWindow: () => mainWindow,
@@ -284,7 +308,9 @@ if (!app.requestSingleInstanceLock()) {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, argv) => {
+    const target = deepLink.fromArgv(argv);
+    if (target) return void openLink(target);
     if (!mainWindow) return void createWindow();
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();

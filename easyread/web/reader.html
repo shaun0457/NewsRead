@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/web/vendor/katex/katex.min.css">
 <link rel="stylesheet" href="/web/css/base.css">
 <link rel="stylesheet" href="/web/css/reader.css">
+<link rel="stylesheet" href="/web/css/reading-language.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
 <link rel="stylesheet" href="/web/css/reader-chat.css">
 <link rel="stylesheet" href="/web/css/settings.css">
@@ -27,11 +28,13 @@
   </div>
   <span class="grow"></span>
   <span class="job-state" id="jobState"></span>
-  <div class="seg mode-seg" role="group" aria-label="显示">
-    <button data-mode="zh" title="只看译文">译文</button>
-    <button data-mode="bi" title="译文下附原文（B）">对照</button>
+  <div class="seg view-seg" role="group" aria-label="正文显示">
+    <button data-view="original"></button>
+    <button data-view="translation"></button>
+    <button data-view="both"></button>
+    <button class="order-caret" data-order-menu aria-haspopup="menu" aria-expanded="false"></button>
   </div>
-  <button class="btn" data-act="pages" title="原文页，跟随阅读位置（O）"></button>
+  <button class="btn" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
   <button class="btn" data-act="settings" title="字号、版心、字体（=、- 调字号）">Aa</button>
@@ -54,7 +57,7 @@
   <aside id="margin" aria-label="讨论与笔记"></aside>
 </main>
 
-<section id="pageview" class="side-panel" aria-label="原文页">
+<section id="pageview" class="side-panel" aria-label="PDF 原页">
   <div class="pv-head">
     <button class="btn icon" data-pv="prev" title="上一页（[）">‹</button>
     <span class="pv-label"></span>
@@ -99,6 +102,7 @@
 <script src="/web/js/reader/actions.js"></script>
 <script src="/web/js/reader/editor.js"></script>
 <script src="/web/js/reader/panels.js"></script>
+<script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat-effort.js"></script>

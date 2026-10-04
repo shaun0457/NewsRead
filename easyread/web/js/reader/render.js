@@ -152,7 +152,7 @@
     const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
-      "<br>" + (en ? PR.t("没译的地方正文是英文原文") : PR.t("正文是译文")) + PR.t('；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。');
+      '<br><span class="reading-language-description">' + (en ? PR.t("没译的地方正文是英文原文") : PR.t("正文是译文")) + '</span>' + PR.t('；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。');
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
       "<h1>" + PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）")) + "</h1>" +
       (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +

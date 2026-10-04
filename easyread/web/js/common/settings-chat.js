@@ -106,7 +106,7 @@
     }
     h += PR.modelReasoningFields(s, f);
     return h + '<div class="cm-form-acts"><span class="grow"></span>' +
-      '<button class="btn sm" data-cm="cancel">' + PR.t("取消") + '</button><button class="btn sm accent" data-cm="ok">' + (s.editing === "new" ? PR.t("添加") : PR.t("保存")) + "</button></div></div>";
+      '<button class="btn sm" data-cm="cancel">' + (s.editing === "new" ? PR.t("取消") : PR.t("关闭")) + '</button>' + (s.editing === "new" ? '<button class="btn sm accent" data-cm="ok">' + PR.t("添加") + "</button>" : "") + "</div></div>";
   }
   function autoName(s, f) {
     if (f.kind === "claude" || f.kind === "codex") {  // 卡片名就是模型名
@@ -151,9 +151,8 @@
     const c = s.cfg, ti = transIndex(s), m = s.chat.models[ti];
     const e = c.engine;
     let h = '<h4 class="set-h">' + (m ? PR.t("翻译：{name}", { name: PR.esc(m.label || m.name) }) : PR.t("翻译")) + "</h4>";
-    if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.t("跟随默认")) +
-      (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.t("跟随默认"))) +
-      ' · ' + PR.t("点模型卡片 → 修改，可单独设置；翻译和问 AI 共用这张卡片的配置") + '</p>';
+    if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "reasoning_effort")) +
+      (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "service_tier"))) + '</p>';
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";
     h += '<div class="grid2 translation-limits">' +
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
@@ -171,6 +170,28 @@
     });
   }
 
+  function commitForm(s) {
+    const list = s.chat.models;
+    const f = s.form, api = isApi(f.kind), p = preset(s, f.preset);
+    if (api && !p && !f.base_url) { PR.toast(PR.t("填接口地址")); return false; }
+    if (api && !f.model) { PR.toast(PR.t("填一个模型名")); return false; }
+    const typed = f.key && !f.key.startsWith("••••") ? f.key : "";
+    if (api && p && p.key && !PR.apiHasKey(s, f.preset) && !typed) { PR.toast(PR.t("这家要填 API Key")); return false; }
+    if (api && typed) (s.chatKeys = s.chatKeys || {})[f.preset] = typed;
+    const m = toModel(s, f, p);
+    if (s.editing === "new") list.push(Object.assign(m, { id: "m" + Date.now().toString(36) }));
+    else {
+      const old = list.find((x) => x.id === s.editing), wasTr = sameAsTranslation(s, old);
+      Object.assign(old, m);
+      if (wasTr) useForTranslation(s, old);  // 改的是翻译用的那张：翻译跟着改
+    }
+    return true;
+  }
+  function autoSaveForm(s) {
+    if (!s.form || s.editing === "new") return;
+    if (commitForm(s)) PR.saveModelSettings();
+  }
+
   T.chat = {
     render(s) {
       if (!s.chat) return '<p class="hint">' + PR.t("读不到模型名单。") + "</p>";
@@ -182,14 +203,15 @@
     },
     sync(s) { readForm(s); readTranslation(s); },
     change(e, s) {
-      if (e.target.dataset.k) { readTranslation(s); return false; }
-      if (e.target.dataset.reasoning) { readForm(s); return false; }
+      if (e.target.dataset.k) { readTranslation(s); PR.saveModelSettings(); return false; }
+      if (e.target.dataset.reasoning) { readForm(s); autoSaveForm(s); return true; }
       if (s.form && isApi(s.form.kind)) {
         readForm(s);
         if (e.target.dataset.af === "model") s.form.reasoning_effort = s.form.service_tier = "";
-        return PR.apiForm.change(e, s, s.form, "key", root());
+        const changed = PR.apiForm.change(e, s, s.form, "key", root());
+        autoSaveForm(s); return changed;
       }
-      if (e.target.id === "cmModel" && e.target.tagName === "SELECT") { readForm(s); s.form.reasoning_effort = s.form.service_tier = ""; return true; }
+      if (e.target.id === "cmModel" && e.target.tagName === "SELECT") { readForm(s); s.form.reasoning_effort = s.form.service_tier = ""; autoSaveForm(s); return true; }
       return false;
     },
     async click(e, s) {
@@ -215,12 +237,15 @@
           const o = s.cfg.openai;
           PR.apiForm.pick(s, f, s.cfg.engine === "openai" && o.preset ? o.preset : "deepseek", "key");
         }
+        autoSaveForm(s);
         return true;
       }
       if (s.form && isApi(s.form.kind) && e.target.closest("[data-af-preset], [data-fetch-models]")) {
         readForm(s);
         if (e.target.closest("[data-af-preset]")) s.form.reasoning_effort = s.form.service_tier = "";
-        return PR.apiForm.click(e, s, s.form, "key", root());
+        const changed = await PR.apiForm.click(e, s, s.form, "key", root());
+        if (e.target.closest("[data-af-preset]")) autoSaveForm(s);
+        return changed;
       }
       const b = e.target.closest("[data-cm]");
       if (!b) return false;
@@ -229,8 +254,8 @@
         const m = list[i], tr = i === transIndex(s);
         readTranslation(s);
         PR.menu(b, [
-          { label: PR.t("设为翻译"), icon: "sparkle", disabled: tr, fn: () => { useForTranslation(s, m); PR.settingsRender(); } },
-          { label: PR.t("设为问 AI"), icon: "note", disabled: s.chat.default === m.id, fn: () => { s.chat.default = m.id; PR.settingsRender(); } },
+          { label: PR.t("设为翻译"), icon: "sparkle", disabled: tr, fn: () => { useForTranslation(s, m); PR.saveModelSettings(); PR.settingsRender(); } },
+          { label: PR.t("设为问 AI"), icon: "note", disabled: s.chat.default === m.id, fn: () => { s.chat.default = m.id; PR.saveModelSettings(); PR.settingsRender(); } },
           "-",
           { label: PR.t("修改"), icon: "edit", fn: () => { readForm(s); s.editing = m.id; startForm(s, m); PR.settingsRender(); } },
           "-",
@@ -240,7 +265,7 @@
             const at = list.indexOf(m); if (at >= 0) list.splice(at, 1);
             if (s.chat.default === m.id) s.chat.default = list[0].id;
             if (s.editing === m.id) { s.editing = null; s.form = null; }
-            PR.settingsRender();
+            PR.saveModelSettings(); PR.settingsRender();
           } },
         ]);
         return false;
@@ -249,19 +274,8 @@
       if (act === "cancel") { s.editing = null; s.form = null; }
       if (act === "ok") {
         readForm(s);
-        const f = s.form, api = isApi(f.kind), p = preset(s, f.preset);
-        if (api && !p && !f.base_url) { PR.toast(PR.t("填接口地址")); return false; }
-        if (api && !f.model) { PR.toast(PR.t("填一个模型名")); return false; }
-        const typed = f.key && !f.key.startsWith("••••") ? f.key : "";
-        if (api && p && p.key && !PR.apiHasKey(s, f.preset) && !typed) { PR.toast(PR.t("这家要填 API Key")); return false; }
-        if (api && typed) (s.chatKeys = s.chatKeys || {})[f.preset] = typed;
-        const m = toModel(s, f, p);
-        if (s.editing === "new") list.push(Object.assign(m, { id: "m" + Date.now().toString(36) }));
-        else {
-          const old = list.find((x) => x.id === s.editing), wasTr = sameAsTranslation(s, old);
-          Object.assign(old, m);
-          if (wasTr) useForTranslation(s, old);  // 改的是翻译用的那张：翻译跟着改
-        }
+        if (!commitForm(s)) return false;
+        PR.saveModelSettings();
         s.editing = null; s.form = null;
       }
       return true;
@@ -299,7 +313,7 @@
     list.splice(to, 0, m);
     from = -1;
     T.chat.sync(s);
-    PR.settingsRender();
+    PR.saveModelSettings(); PR.settingsRender();
   });
   root().addEventListener("dragend", () => { from = -1; clear(); });
 })(window.PR);

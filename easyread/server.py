@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -68,6 +68,13 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
         self._send(200, path.read_bytes(), ctype, cache)
+
+    def _redirect(self, location: str):
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
 
     def _page(self, path: Path):
         self._send(200, i18n.inject(path.read_text(encoding="utf-8")).encode("utf-8"), "text/html; charset=utf-8")
@@ -179,6 +186,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._page(WEB / "library.html")
         if path.startswith("/read/"):
             return self._page(WEB / "reader.html")
+        if path == "/open":  # 外部工具打开指定论文/段落；桌面版的 easyread://open 也转到这里
+            return self._redirect(open_link.target(lib, parse_qs(url.query)))
+        if path == "/api/version":
+            return self._json(200, open_link.version())
         if path.startswith("/web/"):
             return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
         if path == "/api/presence" and wsock.is_upgrade(self.headers):
