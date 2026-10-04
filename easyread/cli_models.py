@@ -60,7 +60,12 @@ def claude_default() -> str:
 
 def claude() -> dict:
     """{"default": "Claude Opus 5.5", "models": [{"id": "opus", "name": "Opus", "desc": "最强", "actual": "Claude Opus 5.5"}]}"""
-    return {"default": claude_default(), "models": [{"id": a, "name": n, "desc": _alias_desc(a), "actual": chat_models.pretty(chat_models.actual_of(a)) if chat_models.actual_of(a) else ""}
+    try:
+        settings = json.loads((Path.home() / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        settings = {}
+    effort = os.environ.get("CLAUDE_CODE_EFFORT_LEVEL") or settings.get("effortLevel") or ""
+    return {"configured_reasoning": effort, "default": claude_default(), "models": [{"id": a, "name": n, "desc": _alias_desc(a), "actual": chat_models.pretty(chat_models.actual_of(a)) if chat_models.actual_of(a) else ""}
                        for a, n, _ in CLAUDE_ALIASES]}
 
 

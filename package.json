@@ -19,6 +19,7 @@
     "publish": [{ "provider": "github", "owner": "Edwardxlai", "repo": "easyread" }],
     "appId": "com.edwardxlai.easyread",
     "productName": "EasyRead",
+    "protocols": [{ "name": "EasyRead", "schemes": ["easyread"] }],
     "asar": true,
     "directories": {
       "output": "dist/electron"
