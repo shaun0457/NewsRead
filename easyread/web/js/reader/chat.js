@@ -257,7 +257,7 @@
       if (t) t.answer_style = st.answerStyle;
       return render();
     }
-    if (c === "effort-level") { if (st.streaming) return; st.chatOptions.reasoning_effort = b.dataset.effort; return render(); }  // 菜单不关，模型和强度一起选
+    if (c === "effort-level") { if (st.streaming) return; const m = modelOf(st.model); st.chatOptions.reasoning_effort = b.dataset.effort === PR.chatEffort.fallback(st, m) && !m.reasoning_effort ? "" : b.dataset.effort; return render(); }  // 菜单不关；点的就是默认档就不传，跟着 CLI
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
     if (c === "model") { if (st.streaming) return; st.chatOptions = {}; st.model = b.dataset.m; st.menuOpen = false; return render(); }
