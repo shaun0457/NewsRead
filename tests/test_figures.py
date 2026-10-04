@@ -83,7 +83,7 @@ class FigureTest(unittest.TestCase):
         self.assertEqual(b["src"], crop)
         self.assertEqual(ws.load("paper")["translation"]["en_pages"], [])
         self.assertEqual((self.root / "reader.json").read_bytes(), before)
-        self.assertIn("Accuracy", prompts.retranslate(ws, "fig1#image", ""))
+        self.assertIn("Accuracy", prompts.retranslate(ws, "fig1#image", "")[0])
         paperdata.set_block_text(ws, "fig1#image", "revised")
         self.assertEqual(ws.load("paper")["blocks"][0]["image_zh"], "revised")
 

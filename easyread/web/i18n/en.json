@@ -1088,5 +1088,8 @@
  "PDF 原页": "PDF page",
  "双语，{what}在前（B）": "Bilingual, {what} first (B)",
  "{what}在前": "{what} first",
- "双语顺序": "Bilingual order"
+ "双语顺序": "Bilingual order",
+ "（原文）": " (original)",
+ "对应原文里的标注": "Matches an annotation on the original",
+ "对应译文里的标注": "Matches an annotation on the translation"
 }

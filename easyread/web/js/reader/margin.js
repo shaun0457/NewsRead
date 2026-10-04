@@ -60,7 +60,8 @@
         '<div class="acts"><button data-a="edit">' + PR.t("编辑") + '</button><button data-a="kind">' + (d.kind === "question" ? PR.t("改成笔记") : PR.t("改成问题")) + '</button><button data-a="del">' + PR.t("删除") + "</button></div>";
     return '<div class="card mine' + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       '<div class="lbl"><span>' + lbl + '</span><span class="meta">' + PR.shortTime(d.updated || d.created) + "</span></div>" +
-      (d.quote ? '<div class="quote' + lost + '">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") + body + "</div>";
+      (d.quote ? '<div class="quote' + lost + '"' + (d.side === "en" ? ' lang="en"' : "") + ">" + (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") +
+        PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") + body + "</div>";
   }
   PR.cardHtml = cardHtml;
   PR.collectNotes = collect;
@@ -115,7 +116,9 @@
     const cards = PR.$$(".card", margin).map((c) => {
       const host = document.getElementById("b-" + c.dataset.anchor);
       let y = host ? host.getBoundingClientRect().top - mTop : 0;
-      const mark = c.dataset.note ? PR.$('mark[data-note="' + c.dataset.note + '"]') : PR.$('mark[data-card="' + c.dataset.card + '"]');
+      // 划线所在的那边可能藏着（原文模式藏译文）：取看得见的划线，没有就取另一边的同步标记
+      const sel = c.dataset.note ? 'mark[data-note="' + c.dataset.note + '"], [data-mirror="' + c.dataset.note + '"]' : 'mark[data-card="' + c.dataset.card + '"]';
+      const mark = PR.$$(sel).find((m) => m.getClientRects().length);
       if (mark) y = Math.max(y, mark.getBoundingClientRect().top - mTop - 4);
       return { c, y };
     });
@@ -276,7 +279,7 @@
     const host = document.getElementById("b-" + card.dataset.anchor);
     host && host.classList.toggle("linked", on);
     card.classList.toggle("linked", on);
-    const sel = card.dataset.note ? 'mark[data-note="' + card.dataset.note + '"]' : 'mark[data-card="' + card.dataset.card + '"]';
+    const sel = card.dataset.note ? 'mark[data-note="' + card.dataset.note + '"], [data-mirror="' + card.dataset.note + '"]' : 'mark[data-card="' + card.dataset.card + '"]';
     PR.$$(sel).forEach((m) => m.classList.toggle("active", on));
   }
   document.addEventListener("mouseover", (e) => {

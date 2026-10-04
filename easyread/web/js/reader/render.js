@@ -49,12 +49,14 @@
   }
 
   function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="' + PR.t("你改过这段之后，译者稿又更新了") + '">' + PR.t("译者稿有更新") + "</button>" : ""; }
+  // 段落和列表项有句子对齐时一句一个 span（sentences.js），没有就整段
+  const sentMd = (key, side, text) => (PR.sentMd ? PR.sentMd(key, side, text) : PR.md(text));
   function zhDiv(key) {
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
-    return '<div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + PR.esc(key) + '">' + PR.md(PR.textFor(key)) + staleTag(key) + "</div>";
+    return '<div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + PR.esc(key) + '">' + sentMd(key, "zh", PR.textFor(key)) + staleTag(key) + "</div>";
   }
-  const enIfZh = (key, text) => (PR.isEnKey(key) ? "" : enDiv(text));  // 正文已经是英文了，就不再附一份原文
-  function enDiv(text) { return text ? '<div class="en" lang="en">' + PR.md(text) + "</div>" : ""; }
+  const enIfZh = (key, text) => (PR.isEnKey(key) ? "" : enDiv(text, key));  // 正文已经是英文了，就不再附一份原文
+  function enDiv(text, key) { return text ? '<div class="en" lang="en">' + (key ? sentMd(key, "en", text) : PR.md(text)) + "</div>" : ""; }
 
   function captionHtml(b) {
     const key = b.id + "#caption";

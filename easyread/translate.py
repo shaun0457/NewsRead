@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, segments, sources, terms
+from . import engines, langs, netcheck, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
@@ -121,11 +121,13 @@ def journal(ws: Workspace, line: str) -> None:
 
 def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=None) -> None:
     """只读原文整理过的页：不重排，只给已有的块补译文。漏译的键抛错，重试时只译剩下的。"""
-    items = prompts_en.todo([b for b in ws.load("paper").get("blocks", []) if b.get("page") in batch])
+    blocks = [b for b in ws.load("paper").get("blocks", []) if b.get("page") in batch]
+    items = prompts_en.todo(blocks)
     if not items:
         fill_zh(ws, {}, batch, set())
         return
-    text = engines.run(cfg, prompts_en.fill(ws, batch, items), ws.root, None, cancel, meter)
+    marked, ends = sentences.mark_items(blocks, items)  # 英文先按句插好 ‖，译文照着插，记句子对齐
+    text = engines.run(cfg, prompts_en.fill(ws, batch, marked), ws.root, None, cancel, meter)
     data = engines.parse_json(text)
     if not isinstance(data, dict) or not isinstance(data.get("zh"), dict):
         raise engines.EngineError(tr("模型输出的格式不对（缺 zh）"))
@@ -141,7 +143,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     with _merge_lock:
         _unify_terms(ws, data, batch, {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in items.items()})
-        missing = fill_zh(ws, data, batch, set(items))
+        missing = fill_zh(ws, data, batch, set(items), sentences.unmark_fill(data["zh"], ends))
         _save_checks(ws, data.get("checks"), batch)
     if missing:
         raise engines.EngineError(tr("漏译了 {n} 处（{ids}）", n=len(missing), ids=", ".join(missing[:5])))
@@ -220,7 +222,7 @@ def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
            if e.get("kind") == "check" and e.get("by") == "translator" and pages.get(e.get("anchor")) in batch]
     if old:
         ws.update("discussion", lambda d: d.__setitem__("entries", [e for e in d["entries"] if e.get("id") not in old]))
-    items = [{"kind": "check", "by": "translator", "anchor": c["anchor"], "quote": str(c.get("quote") or "")[:200],
+    items = [{"kind": "check", "by": "translator", "anchor": c["anchor"], "quote": sentences.strip(str(c.get("quote") or ""))[:200],
               "title": str(c.get("title") or "")[:80], "body": str(c["body"])}
              for c in (checks or []) if isinstance(c, dict) and c.get("anchor") in pages and str(c.get("body") or "").strip()]
     if items:
@@ -356,8 +358,10 @@ def answer(ws: Workspace, cfg: dict, note_id: str, cancel) -> None:
 
 
 def retranslate(ws: Workspace, cfg: dict, key: str, hint: str, cancel) -> None:
-    data = engines.parse_json(engines.run(cfg, prompts.retranslate(ws, key, hint), ws.root, None, cancel))
+    prompt, en_ends = prompts.retranslate(ws, key, hint)
+    data = engines.parse_json(engines.run(cfg, prompt, ws.root, None, cancel))
     zh = (data or {}).get("zh", "").strip() if isinstance(data, dict) else ""
     if not zh:
         raise engines.EngineError(tr("模型没有给出新译文"))
-    set_block_text(ws, key, zh)
+    zh, sents = sentences.zh_sents(*en_ends, zh) if en_ends else (sentences.strip(zh), None)
+    set_block_text(ws, key, zh, sents)

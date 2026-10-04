@@ -119,7 +119,7 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
         b = blocks.get(n.get("anchor")) or {}
         line = f"- [{n.get('anchor')}] {kinds.get(n.get('kind'), '笔记')}"  # i18n-ok
         if n.get("quote"):
-            line += f"：「{n['quote']}」"  # i18n-ok 发给模型的上下文
+            line += f"：「{n['quote']}」" + ("（英文原文）" if n.get("side") == "en" else "")  # i18n-ok 发给模型的上下文
         if n.get("body"):
             line += f"；读者写道：{n['body'][:300]}"  # i18n-ok
         if b and b.get("id") not in shown:

@@ -145,7 +145,7 @@
       const sec = it.anchor === "head" ? PR.t("论文开头") : sectionOf(it.anchor);
       if (sec !== lastSec) { out.push("### " + sec, ""); lastSec = sec; }
       const d = it.data;
-      const q = pick.quote && d.quote ? PR.t("「{q}」", { q: d.quote }) : "";
+      const q = pick.quote && d.quote ? PR.t("「{q}」", { q: d.quote }) + (it.src === "mine" && d.side === "en" ? PR.t("（原文）") : "") : "";
       if (it.src === "mine") out.push("- **" + ({ question: PR.t("我的问题"), highlight: PR.t("划线") }[d.kind] || PR.t("我的笔记")) + "**" + q + (d.body ? PR.t("：") + d.body : ""));
       else out.push("- **AI" + (d.kind === "reply" ? " " + PR.t("回答") : "") + (d.title ? PR.t("：") + d.title : "") + "**" + q + (d.q ? PR.t("（问：{q}）", { q: d.q }) : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
     }
