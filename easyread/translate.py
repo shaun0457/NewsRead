@@ -71,9 +71,13 @@ def scope_pages(ws: Workspace, scope: str | None) -> list[int] | None:
     return None
 
 
-def _next_head(ws: Workspace, n: int) -> str:
+def _next_head(ws: Workspace, n: int, whole: bool = False) -> str:
+    """下一页开头的抽取文字。whole：整页都给（不能看图的引擎在分段交界处，续文可能排在表格、图注后面）。"""
     p = ws.root / "extract" / f"page-{n:03d}.txt"
-    return p.read_text(encoding="utf-8")[:1500] if p.exists() else ""
+    if not p.exists():
+        return ""
+    text = p.read_text(encoding="utf-8")
+    return text if whole else text[:1500]
 
 
 def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
@@ -156,7 +160,8 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     mode = engines.image_mode(cfg)
     images = [pdfwork.engine_image(ws.root, n) for n in sorted({*batch, *peek})] if mode != "text" else []
     nxt = batch[-1] + 1
-    head = _next_head(ws, nxt) if nxt <= total_pages else ""
+    # 分段交界、引擎不能看图：前一段最后一批拿下一页全文补完跨页那段（后一段第一批会跳过页首续文，这里补不全就丢了）
+    head = _next_head(ws, nxt, whole=mode == "text" and nxt in peek) if nxt <= total_pages else ""
     if read:
         prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
     else:
@@ -301,10 +306,11 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             skip_head = p in job_pages and p not in state["ok"] and p not in en_pages
             # 交界两边都看一眼相邻页的原页图：后一段第一批看上一页末尾，前一段最后一批看下一页开头
             q = batch[-1] + 1
-            owner = q in lane_of and lane_of[q] != lane_of[batch[-1]] and q not in en_pages
+            # 下一页存在、不在本段（别的段在译，或者断点续传时已经译过、跳过了页首续文）：本批负责把跨页那段补完整
+            owner = q <= total_pages and lane_of.get(q) != lane_of[batch[-1]] and q not in en_pages
             peek = ([p] if skip_head else []) + ([q] if owner else [])
             # 每段第一批、上一页还没有译文（同时在别的段里译，或从没译过）：给原文的前文参考
-            front = batch is lanes[lane_of[batch[0]]][0] and batch[0] > 1 and p not in had
+            front = batch is lanes[lane_of[batch[0]]][0] and batch[0] > 1 and (p not in had or skip_head)
         say()
         err = None
         for attempt in range(2):

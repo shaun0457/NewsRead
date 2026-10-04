@@ -22,7 +22,7 @@ class PlanTest(unittest.TestCase):
         shutil.rmtree(self.ws.root, ignore_errors=True)
 
     def test_workers_auto_and_explicit(self):
-        self.assertEqual(segments.workers(0, 15), 8)
+        self.assertEqual(segments.workers(0, 15), 4)
         self.assertEqual(segments.workers(None, 2), 1)
         self.assertEqual(segments.workers("x", 100), segments.AUTO_MAX)
         self.assertEqual(segments.workers(1, 15), 1)

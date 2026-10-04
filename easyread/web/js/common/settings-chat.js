@@ -156,7 +156,7 @@
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";
     h += '<div class="grid2 translation-limits">' +
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
-      '<label class="field" title="' + PR.t("把全文切成几段同时译，段内按顺序译；自动按篇幅每段约 2 批、最多 8 段") + '"><span>' + PR.t("同时译几段") + '</span><select class="input" data-k="concurrency">' + PR.opt([[0, PR.t("自动")], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [6, "6"], [8, "8"]], c.concurrency || 0) + "</select></label>" +
+      '<label class="field" title="' + PR.t("把全文切成几段同时译，段内按顺序译；自动按篇幅每段约 2 批、最多 4 段；手动最多 8 段") + '"><span>' + PR.t("同时译几段") + '</span><select class="input" data-k="concurrency">' + PR.opt([[0, PR.t("自动")], [1, "1"], [2, "2"], [3, "3"], [4, "4"], [5, "5"], [6, "6"], [7, "7"], [8, "8"]], c.concurrency || 0) + "</select></label>" +
       '<label class="field"><span>' + PR.t("超过多少页先问我") + '</span><select class="input" data-k="page_cap">' + PR.opt([30, 60, 100, 200].map((n) => [n, PR.t("{n} 页", { n })]).concat([[0, PR.t("不限")]]), c.page_cap == null ? 60 : c.page_cap) + "</select></label></div>" +
       '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>';
     return h;

@@ -116,9 +116,15 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
     if prev:
         end = prev["en"].rstrip()
         lines.append(f"上一批最后一段（{prev['id']}，第 {prev['page']} 页）的英文结尾：……{end[-300:]}")
-        # 只有最后一块就是这个段落、而且停在半句时才算没补完；后面跟着公式、表、图、标题的，那段已经结束了
+        # 只有最后一块就是这个段落、而且停在半句时才算没补完；后面跟着标题的，那段已经结束了
         tail = end[:-1].rstrip() if end.endswith("$") and end.count("$") % 2 == 0 else end  # “…$x=1.$”看公式里面的句号
-        if near[-1] is not prev or prev.get("type") != "para" or tail.endswith(_ENDS) or end.endswith("$$"):
+        last = near[-1]
+        if last is not prev and last.get("type") in ("math", "table", "figure"):
+            # 上一页以公式、表、图结尾：本页开头常是公式后面接着的半句（where …、“… independent questions.”），
+            # 它不是上一段的续文，上一批也不会译它
+            lines.append(f"上一页最后是{'公式' if last.get('type') == 'math' else '图表'}（{last['id']}）。本批第一页开头如果是接在它后面的文字"
+                         "（比如公式后的 where …，或者公式前那句话的后半句），要译出来：单独成一段，紧接公式的加 \"cont\": true。")
+        elif last is not prev or prev.get("type") != "para" or tail.endswith(_ENDS) or end.endswith("$$"):
             lines.append("如果本批第一页开头是这一段的续文，不要再输出这段续文。")
         else:  # 上一批没能把这段补完（下一页开头的抽取文字里常先排着表格、公式），续文得由这批译
             lines.append("这一段在上一批停在了半句，没有补完。本批第一页开头接着这段的续文要译出来：单独成一段并加 \"cont\": true，"
@@ -167,6 +173,23 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
             f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else "")
             + _page_texts(ws, pages) + look)
+
+
+def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> str:
+    """译完后的术语一致性检查（见 consistency.py）：模型只判断用哪个说法、每段里哪个是另一种说法，不改写段落。"""
+    terms = {}
+    for it in items:
+        for t in it["terms"]:
+            terms[t["en"]] = {"术语表译法": t["want"], "全文用了术语表译法的段数": agree.get(t["en"], 0)}
+    rows = [{"key": it["key"], "terms": [t["en"] for t in it["terms"]], "en": it["en"], "zh": it["zh"]} for it in items]
+    return (f"下面是一篇学术论文{target_name}译文里术语可能不统一的地方。terms 里是英文术语、术语表登记的译法、全文有几段用了这个译法；"
+            "passages 是原文出现了这个术语、译文里却没用术语表译法的段落。只做判断，不要改写段落：\n"
+            "1. use：给每个术语定一个全文统一用的译法。看全文多数段落怎么译、哪个说法在这个领域最通行，不一定是术语表登记的那个。\n"
+            "2. fixes：逐段看，这段把术语译成了别的说法时，写出这段译文里那个说法的原样（from，必须是这段 zh 里一字不差的连续文字，"
+            "只包含术语本身的译法，不带前后的字）。合理的省略、代词、缩写，或者这里的英文不是那个术语的意思，就不写这段。\n"
+            '只输出一个 JSON 对象，不要任何别的文字：{"use": {"英文术语": "定下的译法"}, '
+            '"fixes": [{"key": "段的 key", "term": "英文术语", "from": "这段里的另一种说法"}]}\n\n'
+            + json.dumps({"terms": terms, "passages": rows}, ensure_ascii=False, indent=1))
 
 
 def repair(original_json: str, problems: list[str]) -> str:

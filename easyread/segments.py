@@ -10,15 +10,15 @@ import math
 import re
 from pathlib import Path
 
-AUTO_MAX = 8      # “自动”最多同时几段
-LANE_BATCHES = 2  # “自动”时每段大约几批：段数 = 总批数 / 2 向上取整（每批 2 页时每段 4 页，30 页 → 8 段）
+AUTO_MAX = 4      # “自动”最多同时几段（手动最多 8 段）
+LANE_BATCHES = 2  # “自动”时每段大约几批：段数 = 总批数 / 2 向上取整（每批 2 页时每段 4 页），最多 AUTO_MAX
 
 _NOISE = re.compile(r"^\s*(\d{1,4}|[ivxl]{1,5}|(?i:page \d+.*|arxiv:.*))\s*$")  # i18n-ok 页码、arXiv 水印这类
 _HEADING = re.compile(r"^\s*((\d+(\.\d+)*\.?|[A-Z]\.?)\s+[A-Z][a-z]|\[\d+\]\s|(?i:appendix|references|abstract|acknowledg)\b)")  # i18n-ok 章节标题、新的参考文献条目
 
 
 def workers(setting, n_batches: int) -> int:
-    """最多同时几段。setting 是设置里的“同时几段”：0 或空是自动，按篇幅每段大约 2 批，最多 8 段。"""
+    """最多同时几段。setting 是设置里的“同时几段”：0 或空是自动，按篇幅每段大约 2 批，最多 4 段；手动最多 8 段。"""
     try:
         cap = int(setting or 0)
     except (TypeError, ValueError):

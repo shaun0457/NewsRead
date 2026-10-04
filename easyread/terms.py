@@ -2,14 +2,15 @@
 
 分段并行时几段同时开译，各段第一批看不到别段的术语表，同一个词可能各译各的；
 术语表按“先并进去的为准”，后并进来的那批在这里改成同一个说法，读起来全文一致。
-只换这批自己报出来的冲突术语，只在原文确实出现这个英文术语的块里换，不动原文和 $公式$。
+只换这批自己报出来的冲突术语，只在原文确实出现这个英文术语的块里换，不动原文和 $公式$；
+这个说法在这段出现的次数要和英文术语出现的次数一样才换（“标准偏差”里的“偏差”不是 bias）；表格单元格只换整格就是这个说法的。
 """
 from __future__ import annotations
 
 import re
 
 _MATH = re.compile(r"(\$[^$]*\$)")
-_CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯]")
+_CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯]")  # i18n-ok
 
 
 def _key(en) -> str:
@@ -25,7 +26,7 @@ def conflicts(glossary: list[dict], new: list[dict]) -> list[tuple[str, str, str
         if not isinstance(g, dict):
             continue
         old, mine = have.get(_key(g.get("en"))), str(g.get("zh") or "").strip()
-        if any(c in s for s in (old or "", mine) for c in "（()）"):
+        if any(c in s for s in (old or "", mine) for c in "（()）"):  # i18n-ok
             continue  # “Unlikelihood（非似然训练）”这种带注释的写法拿来替换正文会到处重复注释，不换
         if old and mine and old != mine and len(mine) >= (3 if mine in old else 2):
             out.append((str(g.get("en")), mine, old))
@@ -49,6 +50,27 @@ def _swap_plain(text: str, mine: str, old: str, keep: list[str]) -> str:
     return text
 
 
+def occurrences(text: str, word: str, keep=()) -> int:
+    """word 在公式外出现几次；keep 里包含它的说法（“标准偏差”里的“偏差”）不算。拉丁文字按整词数。"""
+    rest = " ".join(_MATH.split(text)[0::2])
+    for k in sorted({k for k in keep if word in k and k != word}, key=len, reverse=True):
+        rest = rest.replace(k, "")
+    if _CJK.search(word):
+        return rest.count(word)
+    return len(re.findall(r"(?<!\w)" + re.escape(word) + r"(?!\w)", rest))
+
+
+def mentions_count(en_text: str, en: str) -> int:
+    return len(re.findall(r"(?<!\w)" + re.escape(en) + r"(s|es)?(?!\w)", en_text or "", re.I))
+
+
+def _fit(text: str, swaps, en_text: str):
+    """只留这段里能安全替换的：说法出现的次数和英文术语出现的次数一样。
+    对不上说明这个说法在这段还有别的意思（“偏差”也出现在 standard deviation 的“标准偏差”里），不换。"""
+    return [(mine, old, keep) for en, mine, old, keep in swaps
+            if occurrences(text, mine, keep) == mentions_count(en_text, en) > 0]
+
+
 def _swap(text: str, swaps) -> str:
     parts = _MATH.split(text)  # 奇数位是 $公式$，不碰
     for i in range(0, len(parts), 2):
@@ -57,12 +79,6 @@ def _swap(text: str, swaps) -> str:
     return "".join(parts)
 
 
-def _apply(value, swaps):
-    if isinstance(value, str):
-        return _swap(value, swaps)
-    if isinstance(value, list):
-        return [_apply(v, swaps) for v in value]
-    return value
 
 
 def _mentions(en_text: str, en: str) -> bool:
@@ -84,8 +100,22 @@ def unify(glossary: list[dict], data: dict, en_of: dict | None = None) -> list[t
 
     def swaps_for(en_text: str):
         # 已有译法包含 mine 时（“标准误差”含“标准误”）old 本身也要护住，免得换成“标准误差差”
-        return [(mine, old, [k for k in known | {old} if mine in k and k != mine])
+        return [(en, mine, old, [k for k in known | {old} if mine in k and k != mine])
                 for en, mine, old in found if _mentions(en_text, en)]
+
+    def fix(value, swaps, en_text):
+        if isinstance(value, str):
+            ok = _fit(value, swaps, en_text)
+            return _swap(value, ok) if ok else value
+        return value
+
+    def cells(value, swaps):
+        """表格单元格对不上英文：只换整格就是这个说法的（表头里的“误差棒”）。"""
+        if isinstance(value, list):
+            return [cells(v, swaps) for v in value]
+        if isinstance(value, str):
+            return next((old for _, mine, old, _ in swaps if value.strip() == mine), value)
+        return value
 
     for b in data.get("blocks") or []:
         if not isinstance(b, dict):
@@ -93,21 +123,23 @@ def unify(glossary: list[dict], data: dict, en_of: dict | None = None) -> list[t
         swaps = swaps_for(_block_en(b))
         if not swaps:
             continue
-        for f in ("zh", "caption_zh", "image_zh"):
+        # 每个字段按自己的英文数次数：段落看 en，题注看 caption_en，列表项看各自的 en
+        for f, src in (("zh", "en"), ("caption_zh", "caption_en"), ("image_zh", "image_en")):
             if isinstance(b.get(f), str):
-                b[f] = _swap(b[f], swaps)
+                b[f] = fix(b[f], swaps, str(b.get(src) or ""))
         for it in b.get("items") or []:
             if isinstance(it, dict) and isinstance(it.get("zh"), str):
-                it["zh"] = _swap(it["zh"], swaps)
+                it["zh"] = fix(it["zh"], swaps, str(it.get("en") or ""))
         if b.get("type") == "table":
             for f in ("head", "rows"):
                 if isinstance(b.get(f), list):
-                    b[f] = _apply(b[f], swaps)
+                    b[f] = cells(b[f], swaps)
     if isinstance(data.get("zh"), dict):
         for k, v in data["zh"].items():
-            swaps = swaps_for(str((en_of or {}).get(k) or ""))
+            en_text = str((en_of or {}).get(k) or "")
+            swaps = swaps_for(en_text)
             if swaps:
-                data["zh"][k] = _apply(v, swaps)
+                data["zh"][k] = fix(v, swaps, en_text) if isinstance(v, str) else cells(v, swaps)
     # 术语表里只留已有的那条，这批的冲突条目丢掉（merge 本来也会丢，这里显式一点）
     bad = {_key(en) for en, _, _ in found}
     data["glossary"] = [g for g in data.get("glossary") or [] if not (isinstance(g, dict) and _key(g.get("en")) in bad)]

@@ -31,7 +31,7 @@ DEFAULTS = {
     "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
     "batch_pages": 2,            # 每次交给模型的页数
     "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
-    "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，每段约 2 批、最多 8 段
+    "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，每段约 2 批、最多 4 段；手动最多 8 段
     "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "reasoning_effort": "", "service_tier": "", "extra_args": [], "timeout": 1200},
@@ -58,6 +58,8 @@ def _saved() -> dict:
         # 以前默认 1，而且切到本机 CLI 时设置页会强制改回 1，旧配置里的 1 多半不是自己选的：当成自动。
         # 存过一次之后带上 concurrency_v，再选 1 就是真的要一段一段译
         raw["concurrency"] = 0
+    elif raw.get("concurrency_v") != 2 and isinstance(raw.get("concurrency"), int) and raw["concurrency"] > 4:
+        raw["concurrency"] = 4  # 以前的 6 是“同时 6 批”，现在是“同时 6 段”：升级时不替老用户开到 4 段以上
     raw["concurrency_v"] = 2
     return raw
 
