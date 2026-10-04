@@ -264,6 +264,8 @@ async function createWindow() {
     app.quit();
   } finally {
     windowOpening = false;
+    // 加载文献库期间又点了 easyread:// 链接，openLink 只记下了它，这里补开
+    if (pendingOpen && mainWindow === openingWindow && !quitting) openLink(pendingOpen);
   }
 }
 

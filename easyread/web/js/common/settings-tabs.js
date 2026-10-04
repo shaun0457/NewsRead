@@ -7,12 +7,12 @@
   /* 排版：和阅读页 Aa 面板是同一份设置，这里多一个“恢复默认” */
   function typeHtml(s) {
     if (!s.type) s.type = Object.assign({}, PR.TYPE_DEFAULTS, PR.ls.get("easyread-prefs", {}));
-    const t = s.type, range = (a, b, step) => { const out = []; for (let v = a; v <= b + 1e-9; v += step) out.push([+v.toFixed(2), +v.toFixed(2)]); return out; };
+    const t = Object.assign({ view: s.type.mode === "bi" ? "both" : s.type.lead === "original" ? "original" : "translation" }, s.type), range = (a, b, step) => { const out = []; for (let v = a; v <= b + 1e-9; v += step) out.push([+v.toFixed(2), +v.toFixed(2)]); return out; };
     const sel = (key, label, list) => '<label class="field"><span>' + label + '</span><select class="input" data-type="' + key + '">' + PR.opt(list, t[key]) + "</select></label>";
     return '<h4 class="set-h">' + PR.t("排版") + '</h4><div class="settings-sec grid3">' +
       sel("fs", PR.t("字号"), range(13, 28, 1).map(([v]) => [v, PR.t("{n} px", { n: v })])) + sel("measure", PR.t("版心（每行字数）"), range(26, 50, 1).map(([v]) => [v, PR.t("{n} 字", { n: v })])) +
       sel("lh", PR.t("行距"), range(1.5, 2.4, 0.05)) + sel("font", PR.t("字体"), [["serif", PR.t("宋体")], ["sans", PR.t("黑体")]]) +
-      sel("mode", PR.t("打开时显示"), [["zh", PR.t("译文")], ["bi", PR.t("对照")]]) + sel("margin", PR.t("边注"), [["true", PR.t("显示")], ["false", PR.t("收起")]]) +
+      sel("view", PR.t("打开时显示"), [["translation", PR.t("译文")], ["original", PR.t("原文")], ["both", PR.t("双语")]]) + sel("margin", PR.t("边注"), [["true", PR.t("显示")], ["false", PR.t("收起")]]) +
       '</div><div class="keys-foot" style="margin-top:4px"><span class="hint">' + PR.t("阅读时也能在右上角 Aa 里随手调。") + '</span><button class="btn sm" data-type-reset>' + PR.t("恢复默认排版") + "</button></div>";
   }
   T.reading = {
@@ -30,12 +30,13 @@
     },
     click(e, s) {
       if (!e.target.closest("[data-type-reset]")) return false;
-      s.type = Object.assign({}, PR.TYPE_DEFAULTS);
+      s.type = Object.assign({}, s.type, PR.TYPE_DEFAULTS);  // 只重置排版，显示方式保留
       return true;
     },
     change(e, s) {
       const t = e.target.dataset.type;
-      if (t) s.type[t] = t === "margin" ? e.target.value === "true" : ["fs", "measure", "lh"].includes(t) ? +e.target.value : e.target.value;
+      if (t === "view") { s.type.mode = e.target.value === "both" ? "bi" : "zh"; if (e.target.value !== "both") s.type.lead = e.target.value; }  // 和阅读页顶栏一样：mode + lead
+      else if (t) s.type[t] = t === "margin" ? e.target.value === "true" : ["fs", "measure", "lh"].includes(t) ? +e.target.value : e.target.value;
       if (e.target.dataset.feat) s.ui.features[e.target.dataset.feat] = e.target.checked;
       if (e.target.id === "themeSel") { s.theme = e.target.value; PR.applyTheme(s.theme); }
       if (e.target.id === "langSel") s.lang = e.target.value;

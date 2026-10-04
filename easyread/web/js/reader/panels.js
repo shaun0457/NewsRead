@@ -5,7 +5,7 @@
   const body = document.body;
 
   /* ---------- 偏好 ---------- */
-  const DEF = Object.assign({ theme: "auto", lead: "translation", biOrder: "translation" }, PR.TYPE_DEFAULTS);
+  const DEF = Object.assign({ theme: "auto", mode: "zh", lead: "translation", biOrder: "translation" }, PR.TYPE_DEFAULTS);
   /* 1.3.1 测试版存过 readingLanguage（zh / en），换成 lead；传进来的是存下的原样，还没合默认值 */
   PR.migratePrefs = function (p) {
     if (p.lead == null && p.readingLanguage != null) p.lead = p.readingLanguage === "en" ? "original" : "translation";
