@@ -14,7 +14,7 @@ function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prep
     updater.allowDowngrade = false;
     updater.setFeedURL({ provider: "github", owner: "Edwardxlai", repo: "easyread" });
     updater.on("error", error => publish({ phase: "error", error: error.message }));
-    updater.on("download-progress", progress => publish({ phase: "downloading", percent: progress.percent }));
+    updater.on("download-progress", progress => publish({ phase: "downloading", percent: progress.percent, transferred: progress.transferred, total: progress.total }));
     updater.on("update-downloaded", info => publish({ phase: "downloaded", version: info.version, percent: 100 }));
   }
   ipcMain.handle("easyread:update-state", event => { trustedWindow(event); return state; });
