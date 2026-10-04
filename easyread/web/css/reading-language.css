@@ -1,0 +1,65 @@
+/* 正文显示方式（顶栏 原文 / 译文 / 双语）。.zh 始终是译文，原文在前时只调换顺序和显隐，笔记和改译文都还挂在原处。 */
+.view-seg { flex: none; }
+/* 双语右边常驻的 ▾：和“双语”贴在一起，双语选中时一起高亮 */
+.view-seg [data-view="both"] { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 7px; }
+.view-seg .order-caret { width: 20px; padding: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+.view-seg .order-caret::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; border-left: 1px solid var(--rule); }
+.view-seg .order-caret .i { width: 13px; height: 13px; }
+.view-seg .order-caret:hover, .view-seg .order-caret[aria-expanded="true"] { color: var(--ink); }
+#orderMenu { position: fixed; min-width: 150px; }
+#orderMenu .tick { display: inline-flex; width: 16px; color: var(--accent); }
+#orderMenu .tick .i { width: 15px; height: 15px; }
+body.en-only .view-seg { display: none; }
+
+/* 译文在前：标题里的原文一行放在译文下面，小一号 */
+body:not(.original-first) #paper .heading-original {
+  display: block; margin: .25em 0 0; padding: 0; border: 0;
+  font: italic .74em/1.4 var(--serif-en); color: var(--ink-3); font-weight: 400;
+}
+body:not(.original-first) #paper .heading-original .num { display: none; }
+
+/* 原文在前：原文是正文，译文是附注（和译文在前时的原文一个样式） */
+body.original-first #paper .en {
+  display: block; margin: 0; padding: 0; border: 0;
+  font-size: 1em; line-height: var(--lh); color: var(--ink);
+}
+body.original-first #paper .paired-translation { display: none; }
+body.original-first.mode-bi #paper .paired-translation,
+body.original-first #paper .show-en .paired-translation {
+  display: block; margin: .55em 0 .2em; padding-left: .9em;
+  border-left: 2px solid var(--rule); font-size: .84em; line-height: 1.66; color: var(--ink-2);
+}
+body.original-first #paper .blk-heading .heading-original { font-weight: 600; line-height: 1.5; text-align: left; }
+body.original-first #paper .h1 .heading-original { font-size: 1.28em; }
+body.original-first #paper .h2 .heading-original { font-size: 1.08em; }
+body.original-first #paper .blk-heading .paired-translation {
+  display: block; margin: .25em 0 0; padding: 0; border: 0;
+  font-size: .74em; line-height: 1.4; font-weight: 400; color: var(--ink-3);
+}
+body.original-first #paper .blk-heading .paired-translation .num { display: none; }
+body.original-first .paper-head h1 { font-family: var(--serif-en); }
+body.original-first .paper-head .title-en { font-family: inherit; font-style: normal; }
+
+/* Aa 只管排版：标签列按最长的标签自适应，中英文界面都不挤 */
+#settings.menu { width: 300px; max-width: calc(100vw - 24px); box-sizing: border-box; }
+html[lang="en"] #settings.menu { width: 330px; }
+#settings.menu .row:not(.hintrow) { display: grid; grid-template-columns: 5.2em minmax(0, 1fr); align-items: center; gap: 12px; }
+html[lang="en"] #settings.menu .row:not(.hintrow) { grid-template-columns: 6.6em minmax(0, 1fr); }
+#settings.menu .row > span { width: auto; white-space: nowrap; }
+#settings.menu .row > .seg { justify-self: end; }
+#settings.menu .slider { grid-template-columns: 5.2em minmax(0, 1fr) 4.2em !important; }
+html[lang="en"] #settings.menu .slider { grid-template-columns: 6.6em minmax(0, 1fr) 4.2em !important; }
+#settings.menu .slider input { width: 100%; min-width: 0; margin: 0; }
+#settings.menu .slider b { min-width: 0; white-space: nowrap; }
+#settings .view-row-narrow { display: none !important; }
+
+@media (max-width: 760px) {
+  #bar > .view-seg { display: none; }  /* 窄屏顶栏放不下，挪到 Aa 最上面 */
+  #settings .view-row-narrow { display: block !important; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+  #settings .view-row-narrow .view-seg { display: flex; width: 100%; box-sizing: border-box; }
+  #settings .view-row-narrow .view-seg > [data-view] { flex: 1; min-width: 0; padding: 0 6px; }
+  #settings .view-row-narrow [data-view="both"] { border-radius: 7px; padding-right: 6px; }
+  #settings .order-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+  #settings .order-line > span { color: var(--ink-3); font-size: 12.5px; white-space: nowrap; }
+  body.en-only #settings .view-row-narrow { display: none !important; }
+}

@@ -1,0 +1,20 @@
+/* 句子对齐与标注同步（sentences.js）：另一边对应的句子画虚线，没有句子对应时在段边画一道色条 */
+#paper .snt { border-radius: 2px; transition: background-color .15s; }
+#paper .snt.pair { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+#paper .snt.mir { --mc: var(--ul-yellow); text-decoration: underline dashed var(--mc); text-decoration-thickness: 1.5px; text-underline-offset: .28em; text-decoration-skip-ink: none; cursor: pointer; }
+#paper .mir-para { --mc: var(--ul-yellow); position: relative; cursor: pointer; }
+#paper .mir-para::before { content: ""; position: absolute; left: -11px; top: .3em; bottom: .3em; width: 3px; border-radius: 2px; background: var(--mc); opacity: .75; }
+#paper .mir.c-green, #paper .mir-para.c-green { --mc: var(--ul-green); }
+#paper .mir.c-blue, #paper .mir-para.c-blue { --mc: var(--ul-blue); }
+#paper .mir.c-pink, #paper .mir-para.c-pink { --mc: var(--ul-pink); }
+#paper .mir.mir-q, #paper .mir-para.mir-q { --mc: var(--mine); }
+#paper .mir.active, #paper .mir-para.active { background: color-mix(in srgb, var(--mc) 16%, transparent); }
+/* 译文在前时原文自带左边线：色条就画在边线上 */
+body:not(.original-first) #paper .blk:not(.blk-heading) .en.mir-para { border-left-color: var(--mc); }
+body:not(.original-first) #paper .blk:not(.blk-heading) .en.mir-para::before { display: none; }
+body.original-first #paper .blk:not(.blk-heading) .paired-translation.mir-para { border-left-color: var(--mc); }
+body.original-first #paper .blk:not(.blk-heading) .paired-translation.mir-para::before { display: none; }
+#paper .mir-para::after { content: ""; position: absolute; left: -16px; top: 0; bottom: 0; width: 18px; }  /* 色条两边留出好点的范围 */
+/* 卡片上标出划在原文上的标注 */
+.card .quote .side-tag { display: inline-block; margin-right: .4em; padding: 0 .4em; border: 1px solid var(--rule-2); border-radius: 4px; font: 11px/1.5 var(--sans-zh); color: var(--ink-3); vertical-align: .08em; font-style: normal; }
+.card .quote[lang="en"] { font-family: var(--serif-en); }

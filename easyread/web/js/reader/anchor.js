@@ -65,6 +65,17 @@
     if (item.key) return host.querySelector('.zh[data-key="' + CSS.escape(item.key) + '"]');
     return PR.$$(".zh", host).find((z) => fullText(z).includes(item.quote)) || host.querySelector(".zh");
   }
+  /* 标注挂在原文（side: "en"）还是译文上；找不到原话再到另一边找一次：
+     只读原文时划在英文上的旧划线没有 side，翻译后英文挪到了 .en 里 */
+  function locate(n) {
+    const zh = zhFor(n);
+    const first = PR.noteEl(zh, n.side), second = PR.noteEl(zh, n.side === "en" ? "zh" : "en");
+    for (const el of [first, second]) {
+      const i = el ? findQuote(fullText(el), n.quote, n.prefix, n.suffix) : -1;
+      if (i >= 0) return { el, i };
+    }
+    return null;
+  }
 
   PR.applyMarks = function (onlyBlock) {
     const scope = onlyBlock ? document.getElementById("b-" + onlyBlock) : PR.$("#paper");
@@ -77,12 +88,12 @@
     for (const e of S.discussion.entries || []) if (e.quote && e.anchor) items.push({ n: e, attrs: { class: "hl agent", "data-card": e.id } });
     for (const { n, attrs } of items) {
       if (onlyBlock && n.anchor !== onlyBlock) continue;
-      const zh = zhFor(n);
-      const i = zh ? findQuote(fullText(zh), n.quote, n.prefix, n.suffix) : -1;
-      if (i < 0) { lost.add(n.id); continue; }
+      const at = locate(n);
+      if (!at) { lost.add(n.id); continue; }
       lost.delete(n.id);
-      wrap(zh, i, i + n.quote.length, attrs);
+      wrap(at.el, at.i, at.i + n.quote.length, attrs);
     }
+    PR.applyMirrors && PR.applyMirrors(scope);
   };
 
   /* ---------- 选中文字 -> 浮动条 ---------- */
@@ -94,14 +105,20 @@
     if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
     const range = sel.getRangeAt(0);
     const startEl = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-    const zh = startEl && startEl.closest("#paper .zh");
-    if (!zh || !zh.contains(range.endContainer) || zh.querySelector("textarea")) return null;
-    const text = fullText(zh);
-    const s = offsetOf(zh, range.startContainer, range.startOffset);
-    const e = offsetOf(zh, range.endContainer, range.endOffset);
+    // 译文 .zh 和原文 .en 都能划：原文的记 side: "en"（只读原文没译的块，.zh 里排的就是英文）
+    const el = startEl && startEl.closest("#paper .zh, #paper .en");
+    if (!el || !el.contains(range.endContainer) || el.querySelector("textarea")) return null;
+    const zh = PR.zhOfEl(el);
+    const blk = el.closest(".blk");
+    if (!zh || !zh.dataset.key || !blk) return null;
+    const text = fullText(el);
+    const s = offsetOf(el, range.startContainer, range.startOffset);
+    const e = offsetOf(el, range.endContainer, range.endOffset);
     const quote = text.slice(s, e);
     if (!quote.trim()) return null;
-    return { anchor: zh.closest(".blk").dataset.id, key: zh.dataset.key, quote, prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32), rect: range.getBoundingClientRect() };
+    const out = { anchor: blk.dataset.id, key: zh.dataset.key, quote, prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32), rect: range.getBoundingClientRect() };
+    if (PR.isEnEl(el)) out.side = "en";
+    return out;
   }
   PR.hasPendingSelection = () => !!pendingSel && selbar().classList.contains("open");
 
@@ -118,7 +135,7 @@
       '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
       '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
       (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
-      '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>" +
+      (pendingSel.side ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
       '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>";
     bar.classList.add("open");
     const r = pendingSel.rect, w = bar.offsetWidth;
@@ -132,7 +149,7 @@
 
   PR.selectionAction = function (kind, color) {
     if (!pendingSel) return;
-    const { anchor, key, quote, prefix, suffix } = pendingSel;
+    const { anchor, key, quote, prefix, suffix, side } = pendingSel;
     selbar().classList.remove("open");
     getSelection().removeAllRanges();
     pendingSel = null;
@@ -140,6 +157,7 @@
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
     if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
     const note = { anchor, key, quote, prefix, suffix, kind, color: color || "yellow" };
+    if (side) note.side = side;
     if (PR.prefs.pen === "underline") note.style = "underline";
     if (kind === "highlight") {
       Object.assign(note, { id: PR.uid("n"), body: "", created: PR.nowIso() });
@@ -167,6 +185,10 @@
     const n = (S.reader.notes || {})[m.dataset.note];
     if (!n) return;
     e.stopPropagation();
+    PR.noteMarkClick(m, n);
+  }, true);
+  /* 点划线（或另一边的同步标记 m）：划线弹出改色菜单，笔记和问题打开编辑 */
+  PR.noteMarkClick = function (m, n) {
     if (n.kind !== "highlight") { PR.openNoteEditor(n.id); return; }
     const ul = n.style === "underline";
     PR.popover(m, '<div class="hd">' + PR.t("我的划线") + '</div><div class="hl-edit"><span class="pens"><button data-hl-style="marker" class="' + (ul ? "" : "on") + '" title="' + PR.t("荧光笔") + '">' + PR.icon("marker", "sm") + '</button><button data-hl-style="underline" class="' + (ul ? "on" : "") + '" title="' + PR.t("下划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
@@ -183,5 +205,5 @@
       if (b.dataset.hl === "del") { PR.commit({ op: "note_del", id: n.id }); PR.applyMarks(n.anchor); }
       else { PR.saveNote(Object.assign({}, n, { kind: b.dataset.hl })); PR.openNoteEditor(n.id); }
     };
-  }, true);
+  };
 })(window.PR);

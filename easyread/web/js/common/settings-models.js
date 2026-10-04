@@ -30,21 +30,28 @@
     return hit ? hit.id : "opus";
   };
 
+  PR.modelDefaultLabel = function (s, f, key) {
+    const L = lists(s)[f.kind] || {};
+    const model = (L.models || []).find((m) => m.id === (f.model || L.default));
+    const value = key === "reasoning_effort"
+      ? L.configured_reasoning || (model && model.default_reasoning) || PR.t("未知")
+      : L.configured_tier === "fast" ? PR.t("开启 Fast")
+      : L.configured_tier === "default" || (f.kind === "codex" && !L.configured_tier) ? PR.t("标准速度") : PR.t("未知");
+    return PR.t("跟随默认（{model}）", { model: value });
+  };
+
   PR.modelReasoningFields = function (s, f) {
     const L = lists(s)[f.kind] || {};
     const model = (L.models || []).find((m) => m.id === (f.model || L.default));
     let levels = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
     if (f.kind === "codex") levels = model && model.reasoning_levels && model.reasoning_levels.length ? model.reasoning_levels : ["low", "medium", "high", "xhigh", "max"];
     if (f.kind === "claude") levels = /haiku/i.test(f.model) ? [] : ["low", "medium", "high", "xhigh", "max"];
-    const opts = [["", PR.t("跟随默认")], ...levels.map((v) => [v, v])];
+    const opts = [["", PR.modelDefaultLabel(s, f, "reasoning_effort")], ...levels.map((v) => [v, v])];
     if (f.reasoning_effort && !levels.includes(f.reasoning_effort)) opts.push([f.reasoning_effort, f.reasoning_effort]);
     const field = (key, label, options) => '<label class="field"><span>' + label + '</span><select class="input" data-reasoning="' + key + '">' + PR.opt(options, f[key] || "") + '</select></label>';
     return '<div class="grid2">' + field("reasoning_effort", PR.t("推理强度"), opts) +
-      (f.kind === "claude" ? "" : field("service_tier", "Fast", [["", PR.t("跟随默认")], ["fast", PR.t("开启 Fast")], ["default", PR.t("标准速度")]])) + '</div>' +
-      '<p class="hint">' + PR.t("可显式选择并保存在 EasyRead，不修改本机 CLI 默认配置；low 通常更快，高强度通常更慢。") + '</p>' +
-      '<p class="hint">' + (f.kind === "api" ? PR.t("API 选项需模型和服务商支持；不确定时保留默认，不额外发送参数。Fast 可能增加费用。") :
-        f.kind === "claude" ? PR.t("Haiku 不支持 effort；其他模型的可用档位取决于 Claude Code 版本与账户。") :
-          PR.t("Fast 的可用性及额度消耗取决于模型和账户；未读到模型档位时请按 CLI 支持情况选择。")) + '</p>';
+      (f.kind === "claude" ? "" : field("service_tier", "Fast", [["", PR.modelDefaultLabel(s, f, "service_tier")], ["fast", PR.t("开启 Fast")], ["default", PR.t("标准速度")]])) + '</div>';
+
   };
 
 })(window.PR);

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import langs
+from . import langs, sentences
 from .store import Workspace
 
 RULES = """翻译要求：
@@ -27,13 +27,14 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
   "blocks": [ ... ]
 }
 块（每块都要 id、type、page；page 是这块在原 PDF 中开始的页码）：
-- {"id":"p3-2","type":"para","page":3,"en":"英文原文（行内数学也写成 $TeX$）","zh":"中文译文"}   摘要段落加 "role":"abstract"；紧接在公式后的半句（如 where …）加 "cont": true
+- {"id":"p3-2","type":"para","page":3,"en":"英文原文第一句. ‖ Second sentence（行内数学也写成 $TeX$）.","zh":"中文译文第一句。‖第二句。"}   摘要段落加 "role":"abstract"；紧接在公式后的半句（如 where …）加 "cont": true
 - {"id":"s2-1","type":"heading","page":2,"level":1或2,"num":"2.1","en":"Independent questions","zh":"相互独立的题目"}   附录标题加 "appendix": true，摘要标题 num 留空
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…","zh":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
 - {"id":"tab2","type":"table","page":3,"num":"2","head":[["","题目数","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
 - {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"image_en":"图内可读文字原文（没有就留空）","image_zh":"图内文字的译文（没有就留空）","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
 - {"id":"refs","type":"references","page":10,"zh":"参考文献","en":"References"}
+句子对齐：para 和 list 的每一项，en 和 zh 都在两边对应的句子交界处各插一个 ‖，两边 ‖ 个数必须相同。只在两边都断句的地方插：中文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句中文时，这两句中文之间也不插。只有一句就不插。‖ 不要放进 $公式$ 里，标题、表格、图、题注都不插。
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图放在正文第一次提到它的段落之后。"""
 
@@ -46,9 +47,10 @@ _RULES_SWAP = [
     ("看不清的地方写“此处识别不清，请核对原文第 N 页”", "看不清的地方写“[unclear, see page N]”"),
 ]
 _SCHEMA_SWAP = [
+    ("中文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句中文时，这两句中文之间也不插。", "译文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句译文时，这两句译文之间也不插。"),
     ('"short_zh": "不超过 12 字的短标题"', '"short_zh": "不超过 6 个词的短标题"'),
     ('{"en": "standard error", "zh": "标准误差"}', '{"en": "standard error", "zh": "{L}译名"}'),
-    ('"zh":"中文译文"', '"zh":"{L}译文"'),
+    ('"zh":"中文译文第一句。‖第二句。"', '"zh":"{L}译文 … ‖ …"'),
     ('"zh":"相互独立的题目"', '"zh":"…"'),
     ('"head":[["","题目数","…"]]', '"head":[["","…","…"]]'),
     ('"caption_zh":"表 2：…"', '"caption_zh":"…"'),
@@ -197,13 +199,14 @@ def answer(ws: Workspace, note: dict) -> str:
     return (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
             f"读者读到「{section}」时在 [{note.get('anchor')}] 这段提了一个问题。\n\n"
             f"上下文（译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
-            + (f"读者选中的原话：「{note.get('quote')}」\n" if note.get("quote") else "")
+            + (f"读者选中的{'英文原文' if note.get('side') == 'en' else '原话'}：「{note.get('quote')}」\n" if note.get("quote") else "")
             + f"读者的问题：{note.get('body', '')}\n\n"
             "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用" + langs.reply_lang(paper.get("meta")) + "，具体、讲清楚，能举例就举例，"
             "区分“论文里写了什么”和“你的补充解释”。行内公式用 $TeX$，段落之间空一行。只输出回答正文，不要客套。")
 
 
-def retranslate(ws: Workspace, key: str, hint: str) -> str:
+def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
+    """返回（提示词，段落和列表项的（英文, 句尾）或 None）：英文按句插好 ‖，新译文照着插，重译后句子还对得上。"""
     paper = ws.load("paper")
     bid, _, field = key.partition("#")
     blocks = paper.get("blocks", [])
@@ -217,13 +220,20 @@ def retranslate(ws: Workspace, key: str, hint: str) -> str:
         en, zh = b["items"][int(field)].get("en", ""), b["items"][int(field)].get("zh", "")
     else:
         en, zh = b.get("en", ""), b.get("zh", "")
+    src = b["items"][int(field)] if field.isdigit() else b
+    ends = None
+    if (b.get("type") == "para" and not field) or (b.get("type") == "list" and field.isdigit()):
+        marked, cut = sentences.mark_en(en, src.get("sents") if sentences.valid(src) else None)
+        if cut:
+            en, ends = marked, (src.get("en", ""), cut)
     near = "\n".join(_block_text(x) for x in blocks[max(0, idx - 2): idx + 3] if x is not b)
     gl = "；".join(f"{g['en']} = {g['zh']}" for g in paper.get("glossary", []))
     target = langs.of_paper(paper.get("meta"))
     return (f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。\n{rules(target)}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
             f"英文原文：\n{en}\n\n现在的译文：\n{zh}\n\n"
             + (f"读者觉得不好的地方：{hint}\n\n" if hint else "")
-            + '只输出 JSON：{"zh": "新译文"}')
+            + ("英文里的 ‖ 是句子分界：新译文在对应的句子交界处也插 ‖，个数和英文的一样。\n\n" if ends else "")
+            + '只输出 JSON：{"zh": "新译文"}'), ends
 
 
 def dump(obj) -> str:

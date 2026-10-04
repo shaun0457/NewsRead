@@ -141,6 +141,18 @@ class ConsistencyTest(unittest.TestCase):
             self.assertEqual(consistency.check(ws, {}, [2], None, None, lambda w, s: None, threading.Lock()), 0)
         self.assertEqual(ws.load("paper")["blocks"][0]["zh"], "标准误。")
 
+    def test_sentence_alignment_follows_term_swap(self):
+        from easyread import sentences
+        en = "The standard error is large. It matters."
+        zh = "标准误很大。这很重要。"
+        obj = {"en": en, "zh": zh, "sents": [[28, 6], [sentences.u16(en), sentences.u16(zh)]]}
+        self.assertTrue(sentences.valid(obj))
+        new = "标准误差很大。这很重要。"
+        moved = dict(obj, zh=new, sents=consistency.resent(obj, new))
+        self.assertEqual(moved["sents"], [[28, 7], [sentences.u16(en), sentences.u16(new)]])
+        self.assertTrue(sentences.valid(moved))
+        self.assertIsNone(consistency.resent(dict(obj, sents=None), new))
+
     def test_no_call_when_nothing_suspicious(self):
         ws = self.make([{"id": "a", "type": "para", "page": 1, "en": "The standard error.", "zh": "标准误差。"}])
         with mock.patch.object(engines, "run", side_effect=AssertionError("不该调模型")):

@@ -14,7 +14,7 @@ import difflib
 import json
 import re
 
-from . import engines, langs
+from . import engines, langs, sentences
 from .i18n import tr
 from .paperdata import set_block_text
 from .terms import _mentions, _swap
@@ -22,7 +22,7 @@ from .terms import _mentions, _swap
 LIMIT = 40          # 一次最多检查几段
 _MATH = re.compile(r"\$[^$]*\$")
 _CITE = re.compile(r"\[[\d,\s–-]+\]")
-_PAREN = re.compile(r"[（(].*?[）)]")
+_PAREN = re.compile(r"[（(].*?[）)]")  # i18n-ok
 
 
 def _fields(b: dict):
@@ -119,6 +119,48 @@ def _text_of(paper: dict, key: str) -> str | None:
     return next((zh for b in paper.get("blocks", []) for k, _, zh in _fields(b) if k == key), None)
 
 
+def _obj_of(paper: dict, key: str) -> dict | None:
+    """键对应的块或列表项（带 sents 的那个对象）。"""
+    bid, _, field = key.partition("#")
+    b = next((x for x in paper.get("blocks", []) if x.get("id") == bid), None)
+    if b and field.isdigit() and int(field) < len(b.get("items") or []):
+        return b["items"][int(field)]
+    return b if b and not field else None
+
+
+def resent(obj: dict | None, new: str) -> list | None:
+    """译文只换了术语：把句子对齐（sents，UTF-16 位置）跟着挪过去。句界落在改动里面就放弃，页面按整段对应。"""
+    if not obj or not sentences.valid(obj):
+        return None
+    old = obj.get("zh") or ""
+    to16 = [0]
+    for c in old:
+        to16.append(to16[-1] + sentences.u16(c))
+    py = {v: i for i, v in enumerate(to16)}
+    ops = difflib.SequenceMatcher(None, old, new, autojunk=False).get_opcodes()
+
+    def move(p16):
+        p = py.get(p16)
+        if p is None:
+            return None
+        for tag, i1, i2, j1, j2 in ops:
+            if tag == "equal" and i1 <= p <= i2:
+                return sentences.u16(new[:p - i1 + j1])
+        return None
+
+    out = []
+    for en_end, zh_end in obj["sents"][:-1]:
+        z = move(zh_end)
+        if z is None:
+            return None
+        out.append([en_end, z])
+    return out + [[obj["sents"][-1][0], sentences.u16(new)]]
+
+
+def _write(ws, key: str, zh: str) -> None:
+    set_block_text(ws, key, zh, resent(_obj_of(ws.load("paper"), key), zh))
+
+
 def _retarget(ws, en: str, old: str, use: str, edited: set[str], pages: set[int], journal) -> int:
     """定下的译法和术语表的不同：术语表改过来，原来用术语表译法的段落直接替换（只换原文有这个术语的段落）。"""
     hit = []
@@ -137,7 +179,7 @@ def _retarget(ws, en: str, old: str, use: str, edited: set[str], pages: set[int]
                     hit.append((key, _swap(zh, [(old, use, keep)])))
     ws.update("paper", apply)
     for key, zh in hit:
-        set_block_text(ws, key, zh)
+        _write(ws, key, zh)
     if hit:
         journal(ws, tr("术语一致性：{en} 全文改用“{use}”（原来是“{old}”），{n} 段", en=en, use=use, old=old, n=len(hit)))
     return len(hit)
@@ -176,7 +218,7 @@ def check(ws, cfg: dict, pages: list[int], cancel, meter, journal, lock) -> int:
         with lock:
             if _text_of(ws.load("paper"), it["key"]) != it["zh"] or _skip(it["key"], edited_now()):
                 continue  # 检查期间这段被改过了（重译、用户改译文），不覆盖
-            set_block_text(ws, it["key"], f["zh"].strip())
+            _write(ws, it["key"], f["zh"].strip())
         n += 1
         journal(ws, tr("术语一致性：第 {page} 页 {key} 统一了 {terms}", page=it["page"], key=it["key"], terms="、".join(uses)))
     journal(ws, tr("术语一致性检查：查了 {n} 段，改了 {m} 段", n=len(items), m=n))
