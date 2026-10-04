@@ -374,7 +374,7 @@ def answer(ws: Workspace, cfg: dict, note_id: str, cancel) -> None:
     note = ws.load("reader").get("notes", {}).get(note_id)
     if not note:
         raise KeyError(note_id)
-    text = engines.run(cfg, prompts.answer(ws, note), ws.root, None, cancel).strip()
+    text = engines.run(engines.for_translation(cfg), prompts.answer(ws, note), ws.root, None, cancel).strip()
     if not text:
         raise engines.EngineError(tr("模型没有给出回答"))
     add_discussion(ws, [{"reply_to": note_id, "kind": "reply", "body": text, "by": engines.who(cfg)}])
@@ -382,7 +382,7 @@ def answer(ws: Workspace, cfg: dict, note_id: str, cancel) -> None:
 
 def retranslate(ws: Workspace, cfg: dict, key: str, hint: str, cancel) -> None:
     prompt, en_ends = prompts.retranslate(ws, key, hint)
-    data = engines.parse_json(engines.run(cfg, prompt, ws.root, None, cancel))
+    data = engines.parse_json(engines.run(engines.for_translation(cfg), prompt, ws.root, None, cancel))
     zh = (data or {}).get("zh", "").strip() if isinstance(data, dict) else ""
     if not zh:
         raise engines.EngineError(tr("模型没有给出新译文"))

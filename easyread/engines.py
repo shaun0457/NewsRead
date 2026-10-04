@@ -111,11 +111,11 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
         args += ["--effort", c["reasoning_effort"]]
     # lean（翻译时）：只给 Read 一个工具。--allowedTools 只是免确认，别的内置工具的定义照样每次都发，
     # 实测空调用固定上下文从约 3.2 万 token 降到约 5 千。用户设置（代理、默认模型、登录）照旧读。
-    lean = ["--tools", "Read"] if c.get("lean") else []
+    lean = CLAUDE_LEAN if c.get("lean") else []
     try:
         out = _communicate(_popen(args + lean, cwd), prompt, int(c.get("timeout") or 1200), cancel)
     except EngineError as e:
-        if not lean or not _OPTION_ERR.search(str(e)):
+        if not lean or not option_unknown(e):
             raise
         log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
         out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
@@ -162,10 +162,16 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, 
 
 _CONFIG_ERR = re.compile(r"config|mcp_servers|notify|unknown (field|key)|invalid", re.I)
 _OPTION_ERR = re.compile(r"unknown option|--tools", re.I)
+CLAUDE_LEAN = ["--tools", "Read"]  # 只给 Read 一个工具（见 run_claude）
+
+
+def option_unknown(err) -> bool:
+    """Claude Code 版本太旧、不认 --tools 时的报错。"""
+    return bool(_OPTION_ERR.search(str(err)))
 
 
 def for_translation(cfg: dict) -> dict:
-    """翻译用的引擎设置：本机 CLI 只带翻译用得到的东西（见 run_claude、run_codex）。问 AI 不走这里。"""
+    """本机 CLI 只带用得到的东西（见 run_claude、run_codex）：整篇翻译、问 AI、回答笔记、重译一段都走这里。"""
     out = dict(cfg)
     for e in ("claude", "codex"):
         if isinstance(cfg.get(e), dict):

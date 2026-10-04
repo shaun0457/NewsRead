@@ -18,6 +18,7 @@ from pathlib import Path
 from . import answer_styles, engines, netcheck, openai_api, usage
 from . import langs
 from .i18n import tr
+from .log import log
 from .prompts import _block_text
 from .store import Workspace
 
@@ -199,13 +200,15 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
             yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
         elif e == "openai":
             yield from openai_api.stream(ecfg["openai"], text, cancel, meter)
-        else:  # codex 没有逐字输出，整段给
-            yield engines.run(ecfg, text, cwd, None, cancel, meter)
+        else:  # codex 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
+            yield engines.run(engines.for_translation(ecfg), text, cwd, None, cancel, meter)
     except engines.EngineError as err:
         raise engines.EngineError(netcheck.explain(ecfg, str(err))) from None
 
 
 def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
+    """只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
+    这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。"""
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))
@@ -215,11 +218,32 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
         args += ["--model", c["model"]]
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]
+    said = []
+    try:
+        for piece in _stream_once(args + engines.CLAUDE_LEAN, text, cwd, cancel, on_model, meter):
+            said.append(piece)
+            yield piece
+    except engines.EngineError as e:
+        if said or not engines.option_unknown(e):
+            raise
+        log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
+        yield from _stream_once(args, text, cwd, cancel, on_model, meter)
+
+
+def _stream_once(args: list[str], text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
     proc = engines._popen(args, cwd)
     proc.stdin.write(text)
     proc.stdin.close()
-    killer = threading.Thread(target=lambda: (cancel.wait(), proc.poll() is None and proc.kill()), daemon=True)
-    killer.start()
+    done = threading.Event()
+
+    def kill_on_cancel():
+        while not done.wait(0.2):
+            if cancel.is_set():
+                if proc.poll() is None:
+                    proc.kill()
+                return
+
+    threading.Thread(target=kill_on_cancel, daemon=True).start()
     got = False
     rate = None
     try:
@@ -253,4 +277,4 @@ def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=N
     finally:
         if proc.poll() is None:
             proc.kill()
-        cancel.set()  # 让 killer 线程退出
+        done.set()  # 让 kill_on_cancel 线程退出
