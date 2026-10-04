@@ -20,15 +20,25 @@ def u16(s: str) -> int:
 
 
 def _wide(c: str) -> bool:
-    return ord(c) >= 0x2E80  # 中日韩文字和全角标点：两句之间不加空格
+    """中日文字和全角标点：两句之间不加空格。韩文句间要空格，不算。"""
+    o = ord(c)
+    return o >= 0x2E80 and not (0xAC00 <= o <= 0xD7AF or 0x1100 <= o <= 0x11FF or 0x3130 <= o <= 0x318F)
+
+
+# 句界 ‖ 前面通常是句末或分句标点；原文本来就有的 ‖（范数 ‖w‖ 写在公式外）前后贴着字母，不当句界
+_BEFORE = set("‖.?!:;,)]\"'”’。？！：；，、）】」』")  # i18n-ok 标点表
 
 
 def _pieces(text: str) -> list[str]:
-    """按公式外的 ‖ 切开；公式里的 ‖ 是范数符号，不动。"""
+    """按句界 ‖ 切开：公式外、前面是标点或两边都是空白的才算；公式里的和贴着字母的是范数符号，不动。"""
     out, last = [], 0
     spans = [m.span() for m in _MATH.finditer(text)]
     for i, c in enumerate(text):
-        if c == MARK and not any(a <= i < b for a, b in spans):
+        if c != MARK or any(a <= i < b for a, b in spans):
+            continue
+        before, after = text[:i].rstrip(), text[i + 1:i + 2]
+        spaced = i > 0 and text[i - 1].isspace() and (not after or after.isspace())
+        if (before and (before[-1] in _BEFORE or before.endswith("$"))) or spaced:
             out.append(text[last:i])
             last = i + 1
     out.append(text[last:])

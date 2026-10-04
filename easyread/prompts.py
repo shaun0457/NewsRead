@@ -27,7 +27,7 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
   "blocks": [ ... ]
 }
 块（每块都要 id、type、page；page 是这块在原 PDF 中开始的页码）：
-- {"id":"p3-2","type":"para","page":3,"en":"First sentence. ‖ Second sentence with $TeX$.","zh":"第一句。‖第二句。"}   摘要段落加 "role":"abstract"；紧接在公式后的半句（如 where …）加 "cont": true
+- {"id":"p3-2","type":"para","page":3,"en":"英文原文第一句. ‖ Second sentence（行内数学也写成 $TeX$）.","zh":"中文译文第一句。‖第二句。"}   摘要段落加 "role":"abstract"；紧接在公式后的半句（如 where …）加 "cont": true
 - {"id":"s2-1","type":"heading","page":2,"level":1或2,"num":"2.1","en":"Independent questions","zh":"相互独立的题目"}   附录标题加 "appendix": true，摘要标题 num 留空
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…","zh":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
@@ -50,7 +50,7 @@ _SCHEMA_SWAP = [
     ("中文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句中文时，这两句中文之间也不插。", "译文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句译文时，这两句译文之间也不插。"),
     ('"short_zh": "不超过 12 字的短标题"', '"short_zh": "不超过 6 个词的短标题"'),
     ('{"en": "standard error", "zh": "标准误差"}', '{"en": "standard error", "zh": "{L}译名"}'),
-    ('"zh":"第一句。‖第二句。"', '"zh":"{L}译文：第一句 ‖ 第二句"'),
+    ('"zh":"中文译文第一句。‖第二句。"', '"zh":"{L}译文 … ‖ …"'),
     ('"zh":"相互独立的题目"', '"zh":"…"'),
     ('"head":[["","题目数","…"]]', '"head":[["","…","…"]]'),
     ('"caption_zh":"表 2：…"', '"caption_zh":"…"'),

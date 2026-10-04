@@ -72,10 +72,11 @@
     scope = scope || PR.$("#paper");
     if (!scope) return;
     PR.$$("[data-mirror]", scope).forEach((el) => { el.classList.remove(...MIR); el.removeAttribute("data-mirror"); el.removeAttribute("title"); });
+    const byNote = {};  // 一次取出所有划线按笔记分组，不必每条笔记查一遍全文
+    PR.$$("mark.hl[data-note]", scope).forEach((m) => (byNote[m.dataset.note] = byNote[m.dataset.note] || []).push(m));
     for (const n of PR.myNotes()) {
-      if (!n.quote) continue;
-      const marks = PR.$$('mark.hl[data-note="' + CSS.escape(n.id) + '"]', scope);
-      if (!marks.length) continue;
+      const marks = n.quote && byNote[n.id];
+      if (!marks) continue;
       const src = marks[0].closest(".zh, .en");
       const other = src && partner(src);
       if (!other) continue;
@@ -84,14 +85,20 @@
       const targets = spans.length ? spans : [other];
       const cls = [spans.length ? "mir" : "mir-para", "c-" + (n.color || "yellow")].concat(n.kind === "question" ? ["mir-q"] : []);
       const tip = isEnEl(src) ? PR.t("对应原文里的标注") : PR.t("对应译文里的标注");
-      targets.forEach((t) => { t.classList.add(...cls); t.dataset.mirror = n.id; t.title = tip; });
+      // 同一处有几条标注时留第一条（按时间排在前面的），颜色不会叠在一起
+      targets.filter((t) => !t.dataset.mirror).forEach((t) => { t.classList.add(...cls); t.dataset.mirror = n.id; t.title = tip; });
     }
   };
 
-  /* 点同步标记：和点划线一样（划线弹改色菜单，笔记和问题打开编辑） */
+  /* 点同步标记：和点划线一样（划线弹改色菜单，笔记和问题打开编辑）。
+     整段的同步标记只有段边那道色条能点，点段落其余地方照常（出操作条、双击改译文）；正在改这段时不拦 */
   document.addEventListener("click", (e) => {
     const el = e.target.closest && e.target.closest("[data-mirror]");
-    if (!el || e.target.closest("mark.hl, a, button") || getSelection().toString()) return;
+    if (!el || e.target.closest("mark.hl, a, button, textarea") || el.querySelector("textarea") || getSelection().toString()) return;
+    if (el.classList.contains("mir-para")) {
+      const r = el.getBoundingClientRect();
+      if (e.clientX > r.left + 14) return;
+    }
     const n = (S.reader.notes || {})[el.dataset.mirror];
     if (!n || n.deleted) return;
     e.stopPropagation();

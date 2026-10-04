@@ -34,6 +34,16 @@ class UnmarkTest(unittest.TestCase):
         self.assertIn("‖$", b["en"])
         self.assertEqual(len(b["sents"]), 2)
 
+    def test_norm_bars_in_text_are_not_boundaries(self):
+        self.assertEqual(sentences.unmark("‖w‖ bound"), ("‖w‖ bound", None))
+        self.assertEqual(sentences.unmark("norm ‖x‖. ‖ Next one."), ("norm ‖x‖. Next one.", [9]))
+        b = {"id": "s1", "type": "heading", "en": "Bounds on ‖w‖", "zh": "‖w‖ 的界"}
+        sentences.attach([b])
+        self.assertEqual((b["en"], b["zh"]), ("Bounds on ‖w‖", "‖w‖ 的界"))
+
+    def test_korean_keeps_space_between_sentences(self):
+        self.assertEqual(sentences.unmark("첫 문장입니다. ‖ 다음"), ("첫 문장입니다. 다음", [8]))
+
     def test_latin_target_keeps_space(self):
         self.assertEqual(sentences.unmark("Phrase un. ‖ Phrase deux."), ("Phrase un. Phrase deux.", [10]))
 
