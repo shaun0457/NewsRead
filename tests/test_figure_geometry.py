@@ -11,7 +11,9 @@ from easyread import pdfwork
 from easyread.store import write_json_atomic
 
 
-def make_pdf(path, images=(), paths=(), words=(), rotation=0):
+def make_pdf(path, images=(), paths=(), words=(), rotation=0, fills=(), framed=(), white_words=(), clipped=()):
+    """fills：只填充不描边的矩形 (框, 灰度)；framed：四周带白边的图片（内容占中间）；
+    white_words：白色（看不见）的字；clipped：被裁剪路径整个挡住的描边矩形。"""
     writer = PdfWriter()
     page = writer.add_blank_page(width=500, height=700)
     xobjects = DictionaryObject()
@@ -22,6 +24,8 @@ def make_pdf(path, images=(), paths=(), words=(), rotation=0):
         NameObject("/XObject"): xobjects,
         NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})})
     commands = []
+    for (x0, y0, x1, y1), gray in fills:  # 背景先画
+        commands.append(f"q {gray} g {x0 * 500} {(1-y1) * 700} {(x1-x0) * 500} {(y1-y0) * 700} re f Q")
     for i, (x0, y0, x1, y1) in enumerate(images):
         image = DecodedStreamObject()
         image.set_data(bytes([30, 90, 150]) * 4)
@@ -31,10 +35,26 @@ def make_pdf(path, images=(), paths=(), words=(), rotation=0):
         name = f"/Im{i}"
         xobjects[NameObject(name)] = writer._add_object(image)
         commands.append(f"q {(x1 - x0) * 500} 0 0 {(y1 - y0) * 700} {x0 * 500} {(1 - y1) * 700} cm {name} Do Q")
+    for i, (x0, y0, x1, y1) in enumerate(framed):
+        # 10x10 像素：上 3 行、下 1 行、左右各 1 列是白边，中间是深色内容。
+        pixels = bytes(v for r in range(10) for c in range(10)
+                       for v in ((255, 255, 255) if r < 3 or r > 8 or c < 1 or c > 8 else (30, 90, 150)))
+        image = DecodedStreamObject()
+        image.set_data(pixels)
+        image.update({NameObject("/Type"): NameObject("/XObject"), NameObject("/Subtype"): NameObject("/Image"),
+                      NameObject("/Width"): NumberObject(10), NameObject("/Height"): NumberObject(10),
+                      NameObject("/ColorSpace"): NameObject("/DeviceRGB"), NameObject("/BitsPerComponent"): NumberObject(8)})
+        name = f"/Fr{i}"
+        xobjects[NameObject(name)] = writer._add_object(image)
+        commands.append(f"q {(x1 - x0) * 500} 0 0 {(y1 - y0) * 700} {x0 * 500} {(1 - y1) * 700} cm {name} Do Q")
+    for x0, y0, x1, y1 in clipped:
+        commands.append(f"q 0 0 1 1 re W n {x0 * 500} {(1-y1) * 700} {(x1-x0) * 500} {(y1-y0) * 700} re S Q")
     for x0, y0, x1, y1 in paths:
         commands.append(f"{x0 * 500} {(1-y1) * 700} {(x1-x0) * 500} {(y1-y0) * 700} re S")
     for text, x, y in words:
         commands.append(f"BT /F1 10 Tf 1 0 0 1 {x * 500} {(1-y) * 700} Tm ({text}) Tj ET")
+    for text, x, y in white_words:
+        commands.append(f"q 1 g BT /F1 10 Tf 1 0 0 1 {x * 500} {(1-y) * 700} Tm ({text}) Tj ET Q")
     stream = DecodedStreamObject()
     stream.set_data("\n".join(commands).encode())
     page[NameObject("/Contents")] = writer._add_object(stream)
@@ -137,6 +157,67 @@ class FigureGeometryTest(unittest.TestCase):
         self.assertEqual(layout["fig"]["src"], "graphic")
         self.assertLess(layout["fig"]["box"][2], .5)
 
+    def test_white_background_rect_does_not_pull_body_text_below_caption(self):
+        # 白色背景矩形一直铺到题注下面的正文：页面上看不见，不能把图框撑下去。
+        layout = {"fig": loc([.1, .32, .9, .36]), "body": loc([.1, .42, .9, .85])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.3, .12, .7, .3]],
+                    fills=[([.2, .1, .8, .9], 1)], words=[("body", .1, .45)])
+        box = layout["fig"]["box"]
+        self.assertEqual(layout["fig"]["src"], "graphic")
+        self.assertGreater(box[1], .1)
+        self.assertLess(box[3], .38)
+
+    def test_white_background_rect_does_not_reach_header(self):
+        layout = {"fig": loc([.1, .32, .9, .36])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.3, .12, .7, .3]],
+                    fills=[([.06, 0, .94, .31], 1)], words=[("Journal of Tests", .1, .04)])
+        self.assertGreater(layout["fig"]["box"][1], .1)
+
+    def test_clipped_drawing_is_ignored(self):
+        layout = {"fig": loc([.1, .32, .9, .36])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.3, .12, .7, .3]],
+                    clipped=[[.05, .07, .95, .31]])
+        box = layout["fig"]["box"]
+        self.assertGreater(box[1], .1)
+        self.assertGreater(box[0], .09)
+
+    def test_image_white_margin_does_not_reach_header(self):
+        # 位图上方 30% 是白边，一直顶到页眉；按看得见的内容收边，页眉文字不进框。
+        layout = {"fig": loc([.1, .42, .9, .46])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, framed=[[.1, .03, .9, .4]],
+                    words=[("Journal of Tests", .1, .05)])
+        box = layout["fig"]["box"]
+        self.assertEqual(layout["fig"]["src"], "graphic")
+        self.assertGreater(box[1], .12)
+
+    def test_header_above_rule_is_not_a_label(self):
+        layout = {"fig": loc([.1, .42, .9, .46])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.1, .08, .9, .4]],
+                    paths=[[.05, .058, .95, .058]], words=[("Journal of Tests", .1, .05)])
+        self.assertGreater(layout["fig"]["box"][1], .065)
+
+    def test_separated_panels_join_unless_body_text_between(self):
+        panels = [[.1, .08, .9, .3], [.1, .42, .9, .66]]
+        layout = {"fig": loc([.1, .7, .9, .74])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=panels)
+        self.assertLess(layout["fig"]["box"][1], .08)
+        layout = {"fig": loc([.1, .7, .9, .74]), "body": loc([.1, .32, .9, .4])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=panels, words=[("body", .1, .35)])
+        self.assertGreater(layout["fig"]["box"][1], .4)
+
+    def test_invisible_text_is_not_a_label(self):
+        layout = {"fig": loc([.3, .62, .7, .66])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.3, .3, .7, .6]],
+                    white_words=[("hidden", .22, .45)])
+        self.assertGreater(layout["fig"]["box"][0], .28)
+
+    def test_labels_below_caption_do_not_extend_box(self):
+        # 题注在图正下方：连到题注下面的文字（正文没定位上时）不能把框往下撑。
+        layout = {"fig": loc([.1, .62, .9, .66])}
+        self.extend([{"id": "fig", "type": "figure"}], layout, images=[[.1, .3, .9, .6]],
+                    words=[("axis", .02, .625), ("more", .02, .655), ("text", .02, .685)])
+        self.assertLess(layout["fig"]["box"][3], .67)
+
     def test_rotated_pdf_uses_rendered_page_coordinates(self):
         for rotation, expected in ((90, [.35, .1, .7, .45]), (270, [.3, .55, .65, .9])):
             with self.subTest(rotation=rotation):
@@ -172,6 +253,26 @@ class FigureGeometryTest(unittest.TestCase):
         self.assertLess(new["box"][0], .08)
         self.assertGreater(new["box"][3], .86)
         self.assertEqual((self.root / "paper.json").read_bytes(), before)
+
+
+class PageMarginsTest(unittest.TestCase):
+    def test_running_header_and_page_number_are_detected(self):
+        import json
+        from easyread import page_margins
+        with tempfile.TemporaryDirectory() as temp:
+            extract = Path(temp)
+            for pn in range(1, 5):
+                chars = [[ch, .1 + i * .01, .03, .11 + i * .01, .045] for i, ch in enumerate("Journal")]
+                chars += [[ch, .5 + i * .01, .95, .51 + i * .01, .96] for i, ch in enumerate(str(pn * 7))]
+                chars += [["x", .1, .5, .11, .51]]
+                if pn == 1:
+                    chars += [[ch, .1 + i * .01, .07, .11 + i * .01, .085] for i, ch in enumerate("Title")]
+                (extract / f"page-{pn:03d}.chars.json").write_text(json.dumps(chars))
+            running = page_margins.running_lines(extract, 4)
+            self.assertEqual(len(running[1]), 2)  # 只出现一次的标题不算页眉
+            self.assertEqual(page_margins.margins([], running[1]), (.06, .94))
+            self.assertEqual(page_margins.margins([[.05, .1, .95, .1]], running[1]), (.1, .94))
+            self.assertEqual(page_margins.margins([], [[.1, .03, .2, .07], [.5, .92, .6, .93]]), (.07, .92))
 
 
 if __name__ == "__main__":
