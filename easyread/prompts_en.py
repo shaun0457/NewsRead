@@ -13,7 +13,7 @@ RULES_EN = """整理要求（不翻译）：
 - 只把原文整理好，不翻译、不解释、不总结，不加原文没有的内容。原文的笔误照录。
 - 保留原文的阅读顺序、章节编号、引用号 [n]。双栏论文按栏读，断在行尾的连字符单词拼回去。
 - 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
-- 表格重排成 table 块，表头和单元格照原文。图用 figure 块，给出归一化裁剪框 box:[x0,y0,x1,y1]（0 到 1，框住图本身、不含题注），图内可读的标题、坐标轴、图例和标签原文放 image_en。没有原页图或看不清时不猜框和文字；src 留空由程序裁图。
+- 表格重排成 table 块，数字与公式原样。图使用 figure 块，只保留 page、num 与图注（caption_en / caption_zh）；不要识别、抄写或翻译图内文字，不输出 image_en、image_zh 或裁切框，不截取图片，src 留空。读者将在原 PDF 核对图片。
 - 参考文献列表：输出一个 references 块，条目放进 references 数组（id 是编号，text 是原文）。
 - 看不清的地方写“[unclear, see page N]”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
@@ -30,7 +30,7 @@ SCHEMA_EN = """输出格式：只输出一个 JSON 对象，不要任何别的�
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
 - {"id":"tab2","type":"table","page":3,"num":"2","head":[["","Questions","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …"}
-- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"image_en":"Readable labels from the figure","caption_en":"Figure 1: …"}
+- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
 - {"id":"refs","type":"references","page":10,"en":"References"}
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
 注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图放在正文第一次提到它的段落之后。"""
@@ -64,8 +64,6 @@ def todo(blocks: list[dict]) -> dict[str, object]:
             out[f"{b['id']}#caption"] = b["caption_en"]
             if t == "table" and b.get("head"):
                 out[f"{b['id']}#head"] = b["head"]
-        if t == "figure" and b.get("image_en") and not b.get("image_zh"):
-            out[f"{b['id']}#image"] = b["image_en"]
     return out
 
 
@@ -74,7 +72,7 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     first = 1 in pages
     target = langs.of_paper(ws.load("paper").get("meta"))
     name = langs.prompt_name(target)
-    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target == "zh" else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
+    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target in ("zh", "zh-TW") else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
     return (f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
             f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target)}\n"
@@ -82,8 +80,8 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
             + (f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。\n"
                if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
             "输出格式：只输出一个 JSON 对象，不要任何别的文字。\n{\n" + meta +
-            '  "glossary": [{"en": "standard error", "zh": "' + ("标准误差" if target == "zh" else name + "译名") + '"}],   // 本批新出现的核心术语\n'
+            '  "glossary": [{"en": "standard error", "zh": "' + ("標準誤差" if target == "zh-TW" else "标准误差" if target == "zh" else name + "译名") + '"}],   // 本批新出现的核心术语\n'
             '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // 原文有问题时才写\n'
             '  "zh": {"键": "' + name + '译文", …}   // 下面每个键都要有，一个不漏\n}\n'
-            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字符串里的中文引号用“”或「」。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
+            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字串內的中文引號請用「」或『』。" if target == "zh-TW" else "字符串里的中文引号用“”或「”。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
             "要翻译的内容（键 → 英文）：\n" + json.dumps(items, ensure_ascii=False, indent=1))

@@ -14,7 +14,7 @@ from pathlib import Path
 def probe_pdf() -> bytes:
     # A real text page, generated without importing the dependencies that the
     # artifact is supposed to contain. This catches missing pdfium / Pillow.
-    content = b"BT /F1 18 Tf 72 700 Td (EasyRead packaging smoke test.) Tj ET"
+    content = b"BT /F1 18 Tf 72 700 Td (PaperRead packaging smoke test.) Tj ET"
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -51,7 +51,7 @@ def main():
         paper = json.loads((ws / "paper.json").read_text(encoding="utf-8"))
         assert len(paper["meta"]["pages"]) == 1, paper
         text = (ws / "extract" / "page-001.txt").read_text(encoding="utf-8")
-        assert "EasyRead packaging smoke test" in text, text
+        assert "PaperRead packaging smoke test" in text, text
         chars = json.loads((ws / "extract" / "page-001.chars.json").read_text(encoding="utf-8"))
         assert chars, "PDFium did not extract coordinates"
         output = home / "serve.log"
@@ -63,14 +63,14 @@ def main():
                 for _ in range(100):
                     if proc.poll() is not None:
                         raise RuntimeError(output.read_text(encoding="utf-8"))
-                    match = re.search(r"EasyRead 已启动：(http://127\.0\.0\.1:\d+)", output.read_text(encoding="utf-8"))
+                    match = re.search(r"PaperRead 已啟動：(http://127\.0\.0\.1:\d+)", output.read_text(encoding="utf-8"))
                     if match:
                         url = match[1]
                         break
                     time.sleep(0.1)
                 assert url, "frozen service failed to start"
                 with urllib.request.urlopen(url, timeout=10) as response:
-                    assert b"EasyRead" in response.read()
+                    assert b"PaperRead" in response.read()
                 rel = paper["meta"]["pages"][0]["img"]
                 for width in (1000, 1200, 1400, 1600):
                     with urllib.request.urlopen(f"{url}/p/{ws.name}/{rel}?w={width}", timeout=15) as response:

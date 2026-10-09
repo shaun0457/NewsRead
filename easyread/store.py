@@ -223,7 +223,8 @@ class Workspace:
             return result
 
     def patch_item(self, fields: dict) -> dict:
-        allowed = {"tags", "status", "starred", "rating", "last_opened", "meta_override", "archived"}
+        allowed = {"tags", "status", "starred", "rating", "last_opened", "meta_override", "archived",
+                   "reading_plan", "interested", "manual_order", "paper_ref"}
 
         def apply(item):
             for k, v in fields.items():

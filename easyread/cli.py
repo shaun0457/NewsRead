@@ -13,6 +13,7 @@
   easyread demo ID --out docs/demo        做成网站上的在线演示（图片另存、带问 AI 记录）
   easyread merge ID --from 导出.json       把离线版页面导出的修改并回文献库
   easyread migrate 旧的“xxx-共读”目录      把旧版技能生成的目录搬进文献库
+  easyread wiki-lint [--scheduled]         检查 Obsidian Wiki 结构并保存报告
 ID 可以写开头几位，能唯一确定就行。
 """
 from __future__ import annotations
@@ -208,6 +209,15 @@ def cmd_migrate(a):
     out(f"已搬入文献库：{ws.id}（{ws.root}）")
 
 
+def cmd_wiki_lint(a):
+    from .research import wiki
+    report = wiki.lint(lib())
+    path = wiki.save_report(report)
+    issues = report["issues"]
+    out(f"Wiki Lint 報告：{path}")
+    out("；".join(f"{key} {value}" for key, value in issues.items()))
+
+
 def main(argv=None):
     if sys.stdout is None:  # pythonw 启动时没有控制台
         import os
@@ -232,6 +242,7 @@ def main(argv=None):
     p = sub.add_parser("demo"); p.add_argument("id"); p.add_argument("--out", default="docs/demo"); p.add_argument("--credit", help="署名和许可说明")
     p.set_defaults(fn=cmd_demo)
     p = sub.add_parser("migrate"); p.add_argument("folder"); p.set_defaults(fn=cmd_migrate)
+    p = sub.add_parser("wiki-lint"); p.add_argument("--scheduled", action="store_true"); p.set_defaults(fn=cmd_wiki_lint)
     a = ap.parse_args(argv)
     if not a.cmd:  # 直接运行 easyread：启动并打开浏览器
         a = ap.parse_args(["serve", "--open"])

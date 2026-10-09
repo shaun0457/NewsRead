@@ -22,7 +22,7 @@ import xml.etree.ElementTree as ET
 from . import http
 from .i18n import tr
 
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36 EasyRead"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36 PaperRead"
 MAX_PDF = 200 * 1024 * 1024
 S2 = "https://api.semanticscholar.org/graph/v1/paper/"
 S2_FIELDS = "title,authors,year,venue,publicationDate,externalIds,openAccessPdf,abstract,url"

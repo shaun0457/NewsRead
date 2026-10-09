@@ -24,3 +24,8 @@ dist/
 .claude/
 .ruff_cache/
 /docs/tasks/
+.pytest_cache/
+.paperread-local-test/
+
+# Internal planning documents (kept locally, never published)
+docs/personal-research-os.md

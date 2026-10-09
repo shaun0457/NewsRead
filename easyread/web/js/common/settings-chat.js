@@ -206,6 +206,11 @@
       if (e.target.dataset.k) { readTranslation(s); PR.saveModelSettings(); return false; }
       if (e.target.dataset.reasoning) { readForm(s); autoSaveForm(s); return true; }
       if (s.form && isApi(s.form.kind)) {
+        if (e.target.dataset.af === "preset") {
+          s.form.reasoning_effort = s.form.service_tier = "";
+          const changed = PR.apiForm.change(e, s, s.form, "key", root());
+          autoSaveForm(s); return changed;
+        }
         readForm(s);
         if (e.target.dataset.af === "model") s.form.reasoning_effort = s.form.service_tier = "";
         const changed = PR.apiForm.change(e, s, s.form, "key", root());
@@ -240,11 +245,9 @@
         autoSaveForm(s);
         return true;
       }
-      if (s.form && isApi(s.form.kind) && e.target.closest("[data-af-preset], [data-fetch-models]")) {
+      if (s.form && isApi(s.form.kind) && e.target.closest("[data-fetch-models]")) {
         readForm(s);
-        if (e.target.closest("[data-af-preset]")) s.form.reasoning_effort = s.form.service_tier = "";
         const changed = await PR.apiForm.click(e, s, s.form, "key", root());
-        if (e.target.closest("[data-af-preset]")) autoSaveForm(s);
         return changed;
       }
       const b = e.target.closest("[data-cm]");

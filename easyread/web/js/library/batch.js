@@ -104,7 +104,7 @@
   function statusMenu(at) {
     const its = pickedItems(), total = its.length;
     const status = (s, label, icon) => ({ label, icon, kbd: its.every((i) => (i.status || "unread") === s) ? "✓" : "", fn: setFields({ status: s }, PR.t("{n} 篇已标为{status}", { n: total, status: label })) });
-    PR.menu(at, [status("reading", PR.t("在读"), "book"), status("unread", PR.t("未读"), "book"), status("done", PR.t("已读"), "check")]);
+    PR.menu(at, (L.statuses || [{ id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") }, { id: "done", label: PR.t("已完成") }]).filter((s) => s.id !== "paused").map((s) => status(s.id, PR.t(s.label), s.id === "done" ? "check" : "book")));
   }
   async function translateAll(at) {
     if (L.engine === "none") return PR.toast(PR.t("当前没有开启翻译引擎，去设置里选一个。"));

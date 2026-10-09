@@ -22,26 +22,27 @@ function reader(block, edits = {}) {
   return { PR, html };
 }
 
-test('read-first figure displays source labels without requiring a translation', () => {
+test('read-first figure keeps a clickable original-page placeholder', () => {
   const { PR, html } = reader({ id: 'fig1', type: 'figure', src: 'figures/a.webp', image_en: 'Accuracy', caption_en: 'Figure 1' });
-  assert.match(html, /src="\/p\/test\/figures\/a.webp"/);
-  assert.match(html, /class="zh en-main" lang="en" data-key="fig1#image">Accuracy/);
-  assert.equal((html.match(/Accuracy/g) || []).length, 1);
+  assert.match(html, /class="fig-placeholder"/);
+  assert.match(html, /圖表保留於原文/);
+  assert.doesNotMatch(html, /src="/);
+  assert.doesNotMatch(html, /Accuracy/);
   assert.equal(PR.hasZh(PR.blockById.fig1), false);
 });
 
-test('translated figure preserves original labels and reader edits', () => {
+test('translated figure does not render image text or reader edits', () => {
   const { PR, html } = reader({ id: 'fig1', type: 'figure', image_en: 'Accuracy', image_zh: 'translated', caption_en: 'Figure 1' }, {
     'fig1#image': { zh: 'my wording', base: 'old translation' },
   });
-  assert.match(html, /data-key="fig1#image">my wording/);
-  assert.match(html, /class="en" lang="en">Accuracy/);
-  assert.match(html, /stale-tag/);
-  assert.deepEqual(Array.from(PR.blockKeys(PR.blockById.fig1)), ['fig1#caption', 'fig1#image']);
+  assert.match(html, /class="fig-placeholder"/);
+  assert.doesNotMatch(html, /Accuracy|translated|my wording|stale-tag/);
+  assert.deepEqual(Array.from(PR.blockKeys(PR.blockById.fig1)), ['fig1#caption']);
 });
 
-test('legacy figure without image text retains its page fallback', () => {
+test('legacy figure without image text retains its page placeholder', () => {
   const { html } = reader({ id: 'fig1', type: 'figure', page: 2, caption_zh: 'caption' });
-  assert.match(html, /fig-missing/);
+  assert.match(html, /fig-placeholder/);
+  assert.match(html, /第 \{n\} 頁/);
   assert.doesNotMatch(html, /figure-translation/);
 });

@@ -20,7 +20,7 @@ window.PR = window.PR || {};
   };
 
   /* 译文语言的名字跟着界面语言写：中文界面“日语”，英文界面“Japanese” */
-  PR.TARGETS = [["zh", PR.t("中文")], ["ja", PR.t("日语")], ["ko", PR.t("韩语")], ["es", PR.t("西班牙语")], ["fr", PR.t("法语")], ["de", PR.t("德语")]];
+  PR.TARGETS = [["zh-TW", PR.t("繁體中文（臺灣）")], ["zh", PR.t("简体中文")], ["ja", PR.t("日语")], ["ko", PR.t("韩语")], ["es", PR.t("西班牙语")], ["fr", PR.t("法语")], ["de", PR.t("德语")]];
   PR.targetName = (code) => (PR.TARGETS.find(([k]) => k === code) || PR.TARGETS[0])[1];
 
   /* 论文标题哪个当主标题：译文语言和界面语言一样时用译文标题（中文界面看中文译文），
@@ -65,7 +65,7 @@ window.PR = window.PR || {};
     if (s < 3600) return PR.t("{n} 分钟前", { n: Math.floor(s / 60) });
     if (s < 86400) return PR.t("{n} 小时前", { n: Math.floor(s / 3600) });
     if (s < 86400 * 30) return PR.t("{n} 天前", { n: Math.floor(s / 86400) });
-    return new Date(iso).toLocaleDateString(PR.lang === "en" ? "en-US" : "zh-CN");
+    return new Date(iso).toLocaleDateString(PR.lang === "en" ? "en-US" : PR.lang === "zh-TW" ? "zh-TW" : "zh-CN");
   };
 
   PR.uid = (p) => (p || "n") + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -130,6 +130,8 @@ window.PR = window.PR || {};
   /* 图标：线性 20×20 */
   const P = {
     menu: "M3 5.5h14M3 10h14M3 14.5h9",
+    sun: "M10 13.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM10 2v1.6M10 16.4V18M2 10h1.6M16.4 10H18M4.3 4.3l1.2 1.2M14.5 14.5l1.2 1.2M15.7 4.3l-1.2 1.2M5.5 14.5l-1.2 1.2",
+    moon: "M16.5 12.3A7 7 0 0 1 7.7 3.5a7 7 0 1 0 8.8 8.8z",
     back: "M12.5 4.5L7 10l5.5 5.5",
     search: "M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5L17 17",
     plus: "M10 4v12M4 10h12",
@@ -165,7 +167,7 @@ window.PR = window.PR || {};
     question: "M7.5 7.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8M10 14.5v.01M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
   };
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
-  PR.logo = (cls) => '<svg class="' + (cls || "mark") + '" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#2d6173"/><path d="M16 10.5C13.6 8.8 10.4 8.3 7 8.6v14.2c3.4-.3 6.6.2 9 1.9 2.4-1.7 5.6-2.2 9-1.9V8.6c-3.4-.3-6.6.2-9 1.9z" fill="#f6f3ec"/><path d="M16 10.5v14.2" stroke="#2d6173" stroke-width="1.2"/><path d="M9.4 13.4h4M9.4 16.4h4M9.4 19.4h2.6" stroke="#9fb7bf" stroke-width="1.6" stroke-linecap="round"/><path d="M18.6 13.4h4M18.6 16.4h4M18.6 19.4h2.6" stroke="#e0a84f" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  PR.logo = (cls) => '<img class="mark' + (cls ? " " + cls : "") + '" src="/web/paperread-mark.png" alt="">';
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 20 20" aria-hidden="true"><path d="' + (P[name] || "") + '"/></svg>';
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
 
@@ -183,6 +185,14 @@ window.PR = window.PR || {};
     PR._toastT = setTimeout(() => t.classList.remove("open"), ms || 4200);
   };
 
+  /* Browser fetch errors are usually English and give no useful next step. */
+  PR.errorText = function (error) {
+    const message = error && error.message != null ? String(error.message) : String(error || "");
+    if (error instanceof TypeError && /^(failed to fetch|networkerror when attempting to fetch resource\.?|load failed|network request failed)$/i.test(message.trim()))
+      return PR.t("无法连接到 PaperRead 本地服务。请确认 PaperRead 正在运行后重试。");
+    return message;
+  };
+
   /* 服务接口：写操作带页面加载时拿到的令牌 */
   PR.api = async function (path, opts) {
     opts = opts || {};
@@ -190,7 +200,9 @@ window.PR = window.PR || {};
     let body = opts.body;
     if (body != null && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) { body = JSON.stringify(body); headers["Content-Type"] = "application/json"; }
     if (opts.method && opts.method !== "GET") headers["X-Token"] = PR.token || "";
-    const r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" });
+    let r;
+    try { r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" }); }
+    catch (error) { throw new Error(PR.errorText(error)); }
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
     return data;

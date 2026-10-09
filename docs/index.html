@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EasyRead，让你更舒服地读论文</title>
+<title>PaperRead，让你更舒服地读论文</title>
 <meta name="description" content="本地运行的论文阅读器：导入 PDF，用你已有的 Claude Code、Codex，或 DeepSeek、智谱、本机 Ollama 等模型在后台逐页翻译；公式表格照原文排好，边读边划线、记笔记、问 AI。免费开源。">
-<meta property="og:title" content="EasyRead，让你更舒服地读论文">
+<meta property="og:title" content="PaperRead，让你更舒服地读论文">
 <meta property="og:description" content="导入 PDF，后台逐页翻译；公式表格照原文排好，随时对照原页，边读边划线、问 AI。本地运行，免费开源。">
 <meta property="og:image" content="images/chat.jpg">
 <link rel="alternate" hreflang="en" href="en/index.html">
@@ -17,17 +17,17 @@
   <header class="top">
     <a class="brand" href="index.html"><img src="images/logo.svg" width="30" height="30" alt=""><span>Easy<b>Read</b></span></a>
     <span class="grow"></span>
-    <nav><a href="#features">功能</a><a href="#engines">翻译模型</a><a href="#install">安装</a><a href="#faq">常见问题</a><a class="gh" href="https://github.com/Edwardxlai/easyread">GitHub</a><a class="lang" href="en/index.html" hreflang="en">EN</a></nav>
+    <nav><a href="#features">功能</a><a href="#engines">翻译模型</a><a href="#install">安装</a><a href="#faq">常见问题</a><a class="gh" href="https://github.com/Edwardxlai/PaperRead">GitHub</a><a class="lang" href="en/index.html" hreflang="en">EN</a></nav>
   </header>
 </div></div>
 
 <div class="wrap">
   <div class="hero">
-    <h1>EasyRead，<br>让你<mark>更舒服地读论文</mark></h1>
+    <h1>PaperRead，<br>让你<mark>更舒服地读论文</mark></h1>
     <p class="sub">导入 PDF，用你已经在用的 Claude Code、Codex，或者免费模型，在后台逐页翻译。公式、表格照原文排好，随时对照原页，边读边划线、记笔记、问 AI。</p>
     <div class="cta">
       <a class="btn primary" href="demo/index.html">在线试读一篇 →</a>
-      <a class="btn line" href="https://github.com/Edwardxlai/easyread">免费下载 · GitHub</a>
+      <a class="btn line" href="https://github.com/Edwardxlai/PaperRead">免费下载 · GitHub</a>
     </div>
     <p class="note">开源免费 · 本地运行，支持自选网盘同步文献库</p>
     <figure class="shot"><img src="images/pages.jpg" alt="阅读页：左边是译文，右边是原页" loading="eager"></figure>
@@ -36,7 +36,7 @@
 
 <section id="features"><div class="wrap">
   <h2>它和“把 PDF 丢给翻译软件”不一样</h2>
-  <p class="lead">翻译软件给你一堆断行的文字；EasyRead 给你一本排好版、能批注、能随时追问的中文论文。</p>
+  <p class="lead">翻译软件给你一堆断行的文字；PaperRead 给你一本排好版、能批注、能随时追问的中文论文。</p>
   <div class="feat">
     <div><h3>像读排好版的中文书</h3><p>宋体正文、舒服的行宽，公式用 KaTeX 按原文重排，表格是三线表，参考文献保留原文。</p></div>
     <div><h3>随时核对原文</h3><p>一键切“对照”，每段下附英文；右侧开原页，跟着阅读位置翻页，框出当前段落。</p></div>
@@ -110,7 +110,7 @@
   <h2>三步用起来</h2>
   <p class="lead">最省事是下载安装包，不用装 Python：Windows、macOS（Apple 芯片）、Linux 都有。</p>
   <div class="steps">
-    <div><h3>下载安装</h3><p>在 <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a> 下载 Windows 的 <code>.exe</code>、macOS 的 <code>.dmg</code> 或 Linux 的 <code>.AppImage</code>，装好打开就是独立窗口。也可以<a href="#run-from-source">从源码运行</a>（要 Python 3.10+）。</p></div>
+    <div><h3>下载安装</h3><p>在 <a href="https://github.com/Edwardxlai/PaperRead/releases/latest">Releases</a> 下载 Windows 的 <code>.exe</code>、macOS 的 <code>.dmg</code> 或 Linux 的 <code>.AppImage</code>，装好打开就是独立窗口。也可以<a href="#run-from-source">从源码运行</a>（要 Python 3.10+）。</p></div>
     <div><h3>选翻译模型</h3><p>右上角“设置”，选 Claude Code、Codex CLI 或 API 接口（DeepSeek、智谱、本机 Ollama……），点“试译一句”确认能用。</p></div>
     <div><h3>导入论文，开始读</h3><p>把 PDF 拖进窗口，或粘贴 arXiv 编号、论文链接。已译的页马上能读，没译到的先显示原页。</p></div>
   </div>
@@ -118,16 +118,16 @@
     <summary>macOS 首次打开：无法验证或提示“已损坏”</summary>
     <ol>
       <li><p><strong>提示“无法验证开发者”或“Apple 无法验证是否包含恶意软件”</strong>：先点“完成”（不要点“移到废纸篓”），打开“系统设置 → 隐私与安全性”，向下找到安全性提示，点“仍要打开”；在确认窗口点“打开”，按提示输入登录密码或使用 Touch ID</p></li>
-      <li><p><strong>提示“已损坏，无法打开”</strong>：先从 <a href="https://github.com/Edwardxlai/easyread/releases/latest">EasyRead 官方 Releases</a> 重新下载，并把应用拖进“应用程序”；文件也可能确实损坏或被改动，不能只凭这条提示判断原因。只有确认文件来自这个官方仓库、并信任该文件后，才在“终端”执行下面的命令，再重新打开 EasyRead；这条命令移除隔离属性，不会修复损坏的文件</p>
-        <pre><code>xattr -dr com.apple.quarantine /Applications/EasyRead.app</code></pre></li>
+      <li><p><strong>提示“已损坏，无法打开”</strong>：先从 <a href="https://github.com/Edwardxlai/PaperRead/releases/latest">PaperRead 官方 Releases</a> 重新下载，并把应用拖进“应用程序”；文件也可能确实损坏或被改动，不能只凭这条提示判断原因。只有确认文件来自这个官方仓库、并信任该文件后，才在“终端”执行下面的命令，再重新打开 PaperRead；这条命令移除隔离属性，不会修复损坏的文件</p>
+        <pre><code>xattr -dr com.apple.quarantine /Applications/PaperRead.app</code></pre></li>
       <li><p><strong>为什么会出现验证提示</strong>：目前的 macOS 安装包只做了临时签名，没有 Apple 开发者证书，也没有经过公证，因此可能被系统拦截；代码完全开源，也可以<a href="#run-from-source">从源码运行</a></p></li>
     </ol>
     <p>如果系统提示“将损坏你的电脑”，或明确检测出恶意软件并要求移到废纸篓，请停止安装，不要用上面的步骤绕过；按 <a href="https://support.apple.com/zh-cn/102445">Apple 官方说明</a>处理</p>
   </details>
   <h3 id="run-from-source">从源码运行</h3>
-  <p>需要 Python 3.10+；从 <a href="https://github.com/Edwardxlai/easyread/releases/latest">Releases</a> 下载源码 zip 并解压，Windows 双击 <code>start.cmd</code>，macOS / Linux 在解压目录里运行 <code>./start.sh</code>；也可以用 pip：</p>
-  <pre><code>pip install git+https://github.com/Edwardxlai/easyread
-easyread</code></pre>
+  <p>需要 Python 3.10+；从 <a href="https://github.com/Edwardxlai/PaperRead/releases/latest">Releases</a> 下载源码 zip 并解压，Windows 双击 <code>start.cmd</code>，macOS / Linux 在解压目录里运行 <code>./start.sh</code>；也可以用 pip：</p>
+  <pre><code>pip install git+https://github.com/Edwardxlai/PaperRead
+PaperRead</code></pre>
 </div></section>
 
 <section id="faq" class="faq"><div class="wrap">
@@ -135,16 +135,16 @@ easyread</code></pre>
   <details><summary>长论文会直接整篇翻译吗？</summary><p>整篇翻译默认超过 60 页时会先确认，可以选择全部翻译、只译前 60 页或先不译；上限在“设置 → 模型”里修改，填 0 表示不询问</p></details>
   <details><summary>能批量导出参考文献吗？</summary><p>能，论文列表和分类支持批量复制或保存 GB/T 7714、APA、BibTeX 引用；缺少作者、年份等信息时会提示补齐</p></details>
   <details><summary>能翻译成中文以外的语言吗？</summary><p>能，目前支持中文、日语、韩语、西班牙语、法语和德语，默认译成中文。在“设置 → 阅读 → 论文译成”里修改默认语言，也可以在导入时单独选择；还可以直接读英文原文。界面语言独立设置，目前支持中文和英文</p></details>
-  <details><summary>要花钱吗？</summary><p>EasyRead 本身免费开源。翻译用的是你自己的模型：Claude Code / Codex 用你已有的订阅额度；API 接口里标“免费”的模型和本机 Ollama 不花钱，其他按量计费，DeepSeek 一篇 20 页论文几毛钱。</p></details>
+  <details><summary>要花钱吗？</summary><p>PaperRead 本身免费开源。翻译用的是你自己的模型：Claude Code / Codex 用你已有的订阅额度；API 接口里标“免费”的模型和本机 Ollama 不花钱，其他按量计费，DeepSeek 一篇 20 页论文几毛钱。</p></details>
   <details><summary>用 Claude Code 翻译要挂梯子吗？</summary><p>和你平时在终端里用 <code>claude</code> 一样：平时要，这里也要。不想折腾的话，在设置的“API 接口”里选智谱、硅基流动（都有免费模型），或者本机 Ollama，国内直连。</p></details>
-  <details><summary>论文和笔记存在哪？会上传吗？</summary><p>默认保存在本机，每篇论文一个文件夹。在“设置 → 云文献库”里可以迁移到其他磁盘或网盘同步文件夹，上传和同步由你自己的网盘客户端完成；翻译和提问时，相关内容会发给你选择的模型</p></details>
-  <details><summary>能发给没装 EasyRead 的人看吗？</summary><p>能。文献库里右键一篇论文 → “导出离线 HTML”，得到一个单文件网页，对方双击用浏览器打开就能读：译文、公式、原页图、你的划线和笔记都在里面。原页图打包在文件里，所以不小（27 页的论文约 10 MB）。</p></details>
+  <details><summary>论文和笔记存在哪？会上传吗？</summary><p>默认保存在本机，每篇论文一个文件夹；你可以直接备份整个文献库资料夹。翻译和提问时，相关内容会发给你选择的模型</p></details>
+  <details><summary>能发给没装 PaperRead 的人看吗？</summary><p>能。文献库里右键一篇论文 → “导出离线 HTML”，得到一个单文件网页，对方双击用浏览器打开就能读：译文、公式、原页图、你的划线和笔记都在里面。原页图打包在文件里，所以不小（27 页的论文约 10 MB）。</p></details>
   <details><summary>在线演示里做的划线会保存吗？</summary><p>会存在你自己的浏览器里，别人看不到。演示不能导入新论文、不能提问；装到本机后才有完整功能。</p></details>
 </div></section>
 
 <footer>
   <div class="wrap">感谢贡献者：<a href="https://github.com/Wang-auspicious">@Wang-auspicious</a> · <a href="https://github.com/bisuwuss-netizen">@bisuwuss-netizen</a> · <a href="https://github.com/MeshedPoto">@MeshedPoto</a> · <a href="https://github.com/Lzy22301093">@Lzy22301093</a></div>
-  <div class="wrap">EasyRead · MIT 许可 · <a href="https://github.com/Edwardxlai/easyread">GitHub</a> · 演示论文：Rafailov et al., <i>Direct Preference Optimization</i>（<a href="https://arxiv.org/abs/2305.18290">arXiv:2305.18290</a>，CC BY 4.0），译文由 EasyRead 调用 Claude 生成</div>
+  <div class="wrap">PaperRead · MIT 许可 · <a href="https://github.com/Edwardxlai/PaperRead">GitHub</a> · 演示论文：Rafailov et al., <i>Direct Preference Optimization</i>（<a href="https://arxiv.org/abs/2305.18290">arXiv:2305.18290</a>，CC BY 4.0），译文由 PaperRead 调用 Claude 生成</div>
 </footer>
 <script src="site.js"></script>
 </body>

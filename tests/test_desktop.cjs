@@ -36,7 +36,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
       child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
       child.kill = () => { child.killed = true; child.emit("exit", 0, "SIGTERM"); };
       launches.push({ command, args, options, child });
-      if (ready) queueMicrotask(() => child.stdout.emit("data", "EasyRead 已启动：http://127.0.0.1:9876\n"));
+      if (ready) queueMicrotask(() => child.stdout.emit("data", "PaperRead 已啟動：http://127.0.0.1:9876\n"));
       return child;
     },
   };
@@ -60,7 +60,12 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     : require(name);
   const source = fs.readFileSync(path.join(__dirname, "../electron/main.cjs"), "utf8");
   vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout, clearTimeout, console });
-  const settled = () => new Promise(resolve => setImmediate(resolve));
+  const settled = async () => {
+    // createWindow awaits several microtask turns: loading screen, backend
+    // readiness, and the final navigation.  Drain them so assertions observe
+    // the same stable state on every runner.
+    for (let i = 0; i < 4; i += 1) await new Promise(resolve => setImmediate(resolve));
+  };
   await settled();
   return { app, windows, launches, menus, handlers, stages, settled };
 }
@@ -105,7 +110,7 @@ test("the startup window is visible while the backend is still starting", async 
   assert.equal(d.windows[0].shown, true);
   assert.match(d.windows[0].url, /^data:text\/html/);
   assert.ok(d.stages.indexOf("startup-window-visible") < d.stages.indexOf("backend-spawn"));
-  d.launches[0].child.stdout.emit("data", "EasyRead 已启动：http://127.0.0.1:9876\n");
+  d.launches[0].child.stdout.emit("data", "PaperRead 已啟動：http://127.0.0.1:9876\n");
   await d.settled();
   assert.equal(d.windows[0].url, "http://127.0.0.1:9876");
   assert.ok(d.stages.includes("library-loaded"));
@@ -141,10 +146,10 @@ test("cloud library IPC restricts folder picking and relaunch to the local main 
 
 const SHA = "a".repeat(64);
 
-test("easyread:// links open the paper once the backend is ready", async () => {
+test("paper links open the paper once the backend is ready", async () => {
   const d = await desktop("win32", true, true, [`easyread://open?sha256=${SHA}&block=p3-2`]);
   await d.settled();
-  assert.equal(d.app.protocol, "easyread");
+  assert.equal(d.app.protocol, "paperread");
   assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}&block=p3-2`);
   d.app.quit();
 });

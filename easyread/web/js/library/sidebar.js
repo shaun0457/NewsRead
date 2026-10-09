@@ -8,18 +8,24 @@
 (function (PR) {
   "use strict";
   const L = PR.lib;
-  const BUILTIN = [
-    ["all", PR.t("全部"), "book", () => true],
-    ["reading", PR.t("在读"), "book", (i) => i.status === "reading"],
-    ["unread", PR.t("未读"), "book", (i) => (i.status || "unread") === "unread"],
-    ["done", PR.t("已读"), "check", (i) => i.status === "done"],
-    ["starred", PR.t("星标"), "star", (i) => i.starred],
+  const ALL = ["all", PR.t("全部"), "book", () => true];
+  const STARRED = ["starred", PR.t("星標"), "star", (i) => i.starred];
+  const DEFAULT_STATUS = [
+    { id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") },
+    { id: "done", label: PR.t("已完成") },
   ];
+  let BUILTIN = [ALL].concat(DEFAULT_STATUS.map((s) => [s.id, s.label, s.id === "done" ? "check" : "book", (i) => (i.status || "unread") === s.id]), [STARRED]);
   const AUTO = [  // 有内容时才出现，不用管理
     ["questions", PR.t("有待回答的问题"), "question", (i) => i.open_questions > 0],
     ["translating", PR.t("翻译中"), "sparkle", (i) => i.job && ["queued", "running"].includes(i.job.state)],
   ];
   L.VIEWS = BUILTIN.concat(AUTO);
+  L.updateStatusViews = function (statuses) {
+    const states = (statuses && statuses.length ? statuses : DEFAULT_STATUS).filter((s) => s.id !== "paused");
+    BUILTIN = [ALL].concat(states.map((s) => [s.id, PR.t(s.label), s.id === "done" ? "check" : "book", (i) => (i.status || "unread") === s.id]), [STARRED]);
+    L.VIEWS = BUILTIN.concat(AUTO);
+  };
+  const statusMap = () => Object.fromEntries((L.statuses && L.statuses.length ? L.statuses : DEFAULT_STATUS).map((s) => [s.id, PR.t(s.label)]));
   const RECENT_SHORT = 5, RECENT_MAX = 10;
   const ui = { adding: false, renaming: null, recentOpen: false };
 
@@ -102,7 +108,8 @@
   const more = '<span class="more" data-more title="' + PR.t("更多") + '">' + PR.icon("more", "sm") + "</span>";
   function viewRow(v, pinnedRow) {
     const [k, label, icon, fn] = v;
-    return '<div class="srow' + (L.view === k && !L.tag ? " on" : "") + '" data-view="' + k + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon(icon, "sm") + "<span class=\"t\">" + label +
+    const statusAttr = (L.statuses || []).some((s) => s.id === k) ? " data-status-view" : "";
+    return '<div class="srow' + (L.view === k && !L.tag ? " on" : "") + '" data-view="' + k + '"' + statusAttr + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon(icon, "sm") + "<span class=\"t\">" + label +
       '</span><span class="n">' + count(fn) + "</span>" + (k === "all" && !pinnedRow ? "" : more) + "</div>";
   }
   function catRow(c, pinnedRow) {
@@ -244,8 +251,8 @@
   document.addEventListener("dragstart", (e) => { const r = e.target.closest && e.target.closest(".row[data-id]"); if (r) { dragId = r.dataset.id; e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "copy"; side.classList.add("dragging"); } });
   document.addEventListener("dragend", () => { dragId = null; side.classList.remove("dragging"); PR.$$(".srow.drop", side).forEach((x) => x.classList.remove("drop")); });
   /* 能放的地方：自建分类、在读 / 未读 / 已读（改状态）、星标、“新建分类” */
-  const STATUS = { reading: PR.t("在读"), unread: PR.t("未读"), done: PR.t("已读") };
-  const dropTarget = (e) => dragId && e.target.closest(".srow[data-cat], .srow[data-view='starred'], .srow[data-view='reading'], .srow[data-view='unread'], .srow[data-view='done'], .srow[data-add]");
+  const STATUS = statusMap;
+  const dropTarget = (e) => dragId && e.target.closest(".srow[data-cat], .srow[data-view='starred'], .srow[data-status-view], .srow[data-add]");
   side.addEventListener("dragover", (e) => {
     const row = dropTarget(e);
     PR.$$(".srow.drop", side).forEach((x) => x !== row && x.classList.remove("drop"));
@@ -262,7 +269,7 @@
     const its = (L.picking && L.picked.has(dragId) ? Array.from(L.picked) : [dragId]).map(L.byId).filter(Boolean);
     const v = row.dataset.view, c = row.dataset.cat, n = its.length;
     if (v === "starred") { L.patchMany(its.filter((i) => !i.starred).map((i) => [i.id, { starred: true }])); PR.toast(n > 1 ? PR.t("{n} 篇已加星标", { n }) : PR.t("已加星标")); }
-    else if (STATUS[v]) { L.patchMany(its.filter((i) => i.status !== v).map((i) => [i.id, { status: v }])); PR.toast(n > 1 ? PR.t("{n} 篇已标为{status}", { n, status: STATUS[v] }) : PR.t("已标为{status}", { status: STATUS[v] })); }
+    else if (STATUS()[v]) { L.patchMany(its.filter((i) => i.status !== v).map((i) => [i.id, { status: v }])); PR.toast(n > 1 ? PR.t("{n} 篇已標為{status}", { n, status: STATUS()[v] }) : PR.t("已標為{status}", { status: STATUS()[v] })); }
     else {
       const add = its.filter((i) => !(i.tags || []).includes(c));
       if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c) }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }

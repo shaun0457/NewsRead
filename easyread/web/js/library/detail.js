@@ -61,8 +61,8 @@
     if (box.contains(document.activeElement) && document.activeElement.matches("[contenteditable], input")) return; // 正在编辑，不打断
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const readLabel = i.progress > 0.02 ? PR.t("继续阅读 · {pct}%", { pct: Math.round(i.progress * 100) }) : PR.t("开始阅读");
-    const status = [["unread", PR.t("未读")], ["reading", PR.t("在读")], ["done", PR.t("已读")]].map(([k, l]) =>
-      '<button data-status="' + k + '" class="' + ((i.status || "unread") === k ? "on" : "") + '">' + l + "</button>").join("");
+    const status = (L.statuses || [{ id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") }, { id: "done", label: PR.t("已完成") }]).filter((s) => s.id !== "paused").map(({ id: k, label: l }) =>
+      '<button data-status="' + k + '" class="' + ((i.status || "unread") === k ? "on" : "") + '">' + PR.esc(PR.t(l)) + "</button>").join("");
     // 分类：全部分类都列出来，点一下放进 / 拿出
     const cats = L.cats().map((c) => '<button class="catchip' + ((i.tags || []).includes(c) ? " on" : "") + '" data-cattoggle="' + PR.esc(c) + '">' + PR.icon((i.tags || []).includes(c) ? "check" : "folder", "sm") + PR.esc(c) + "</button>").join("");
     box.innerHTML = '<div class="detail-head"><span>' + PR.t("论文详情") + '</span><button class="detail-close" data-d="close" title="' + PR.t("收起（Esc）") + '">' + PR.icon("x", "sm") + "</button></div>" +
@@ -174,7 +174,7 @@
       { label: L.side.pinned.includes("p:" + id) ? PR.t("取消置顶") : PR.t("置顶到侧栏"), icon: "pin", fn: () => L.togglePin("p:" + id) },
       "-",
       ...L.catMenuItems(id),
-      { label: PR.t("标为未读"), fn: setStatus("unread") }, { label: PR.t("标为在读"), fn: setStatus("reading") }, { label: PR.t("标为已读"), fn: setStatus("done") },
+      ...(L.statuses || [{ id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") }, { id: "done", label: PR.t("已完成") }]).filter((s) => s.id !== "paused").map((s) => ({ label: PR.t("標為{status}", { status: PR.t(s.label) }), fn: setStatus(s.id) })),
       "-",
       { label: PR.t("复制 BibTeX"), icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
       { label: PR.t("导出离线 HTML（可发给别人）"), icon: "download", fn: () => { PR.toast(PR.t("正在打包…")); location.href = "/api/p/" + id + "/export"; } },

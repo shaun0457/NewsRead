@@ -93,7 +93,7 @@
   PR.setupDemo = function () {
     if (!S.demo) return;
     const back = PR.$("#backBtn");
-    back.href = S.demo.home || "../"; back.title = PR.t("EasyRead 主页"); back.style.display = "";
+    back.href = S.demo.home || "../"; back.title = PR.t("PaperRead 主页"); back.style.display = "";
     const pill = PR.el("a", { class: "demo-pill", href: S.demo.repo, target: "_blank", rel: "noopener", title: PR.t("这是在线演示；在 GitHub 上免费下载，装到自己电脑") }, PR.t("在线演示<span> · 免费下载</span>"));
     PR.$("#bar .save-state").before(pill);
   };
@@ -102,15 +102,19 @@
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
   PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
+  PR.$('[data-act="research"]').innerHTML = PR.icon("book", "sm") + "<span>" + PR.t("研究") + "</span>";
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
   PR.applyFeatures = function () {
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
     set('[data-act="pages"]', PR.feature("pages"));
     set('[data-act="chat"]', PR.feature("chat") && PR.chatView());
+    set('[data-act="research"]', PR.store.mode === "server");
     if (!PR.feature("pages") && PR.side === "pages") PR.openSide(null);
     if (!PR.feature("chat") && PR.side === "chat") PR.openSide(null);
+    if (PR.store.mode !== "server" && PR.side === "research") PR.openSide(null);
   };
   PR.on("ui-changed", () => { PR.applyFeatures(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });
+  // chat.js is initialized later; main.js applies visibility after all modules load.
   PR.$("#bar").addEventListener("click", (e) => {
     const v = e.target.closest("[data-view]");
     if (v) return PR.setView(v.dataset.view);
@@ -122,6 +126,7 @@
     if (act === "pages") PR.togglePages();
     if (act === "notes") PR.toggleNotesPanel();
     if (act === "chat") PR.toggleChat();
+    if (act === "research") PR.toggleResearch();
     if (act === "settings") { PR.renderSettings(); PR.$("#settings").classList.toggle("open"); }
     if (act === "about") PR.toggleDrawer(true, "about");
   });
@@ -208,7 +213,7 @@
     const tr = S.paper.translation || {};
     const m = S.paper.meta || {};
     const pdf = PR.pdfUrl(1);
-    const status = S.demo ? PR.t("这是 EasyRead 的在线演示。你在这里做的划线和笔记只存在这个浏览器里，别人看不到。装到自己电脑上，就能导入任意论文、后台翻译、边读边问 AI。")
+    const status = S.demo ? PR.t("这是 PaperRead 的在线演示。你在这里做的划线和笔记只存在这个浏览器里，别人看不到。装到自己电脑上，就能导入任意论文、后台翻译、边读边问 AI。")
       : PR.store.mode === "server"
       ? PR.t("你改的译文、笔记、划线写进论文目录的 reader.json（每次保存记日志，每 10 分钟留快照）。翻译方只写 paper.json 和 discussion.json，不会覆盖你的内容。")
       : PR.t("这是离线单文件版：修改只存在当前浏览器里。要把修改带回文献库，点“导出我的修改”得到一个 JSON，再运行 easyread merge。");

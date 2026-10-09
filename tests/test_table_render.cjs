@@ -55,12 +55,16 @@ function render(blocks) {
   return paperEl.innerHTML;
 }
 
-test("flat table head renders as one header row and does not hide later blocks", () => {
+test("tables keep their caption and become clickable original-page placeholders", () => {
   const html = render([
-    { id: "tab1", type: "table", page: 1, head: ["Method", "Score"], rows: [["A", "0.8"]] },
+    { id: "tab1", type: "table", page: 1, head: ["Method", "Score"], rows: [["A", "0.8"]], caption_zh: "表 1：結果" },
     { id: "p1", type: "para", page: 1, zh: "AFTER_TABLE" },
   ]);
-  assert.match(html, /<thead><tr><th[^>]*>Method<\/th><th[^>]*>Score<\/th><\/tr><\/thead>/);
+  assert.match(html, /class="fig-placeholder table-placeholder" data-t="page"/);
+  assert.match(html, /表格保留於原文/);
+  assert.match(html, /表格位於原文第 1 頁（點擊查看）/);
+  assert.match(html, /表 1<\/span>：結果/);
+  assert.doesNotMatch(html, /<table class="tbl"|Method|Score|0\.8/);
   assert.match(html, /AFTER_TABLE/);
 });
 

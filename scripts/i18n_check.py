@@ -5,6 +5,7 @@
 
 规则：前端界面文字写 PR.t("中文")，后端会显示到界面上的写 tr("中文")。
 确实不该翻译的中文（匹配后端输出的正则、给模型的提示词……）在那一行末尾写注释 i18n-ok。
+由共用 DOM 翻译器在渲染后翻译的字串，可标记 i18n-dom；此标记仅适用于已載入 common/i18n.js 的頁面。
 """
 from __future__ import annotations
 
@@ -60,7 +61,7 @@ def scan_js(path: Path, keys: set, raw: list):
         if not CJK.search(lit):
             continue
         line_no = code.count("\n", 0, m.start()) + 1
-        if "i18n-ok" in lines[line_no - 1]:
+        if "i18n-ok" in lines[line_no - 1] or "i18n-dom" in lines[line_no - 1]:
             continue
         before = code[max(0, m.start() - 6):m.start()]
         if re.search(r"\bt\(\s*$", before) and not lit.startswith("`"):
@@ -77,7 +78,7 @@ def scan_py(path: Path, keys: set, raw: list):
         if s.count('"""') % 2 == 1:
             in_doc = not in_doc
             continue
-        if in_doc or s.startswith("#") or s.startswith('"""') or "i18n-ok" in line:
+        if in_doc or s.startswith("#") or s.startswith('"""') or "i18n-ok" in line or "i18n-dom" in line:
             continue
         code = line.split("  #")[0]
         for m in re.finditer(r"(f?)(" + _PY_STR + ")", code):

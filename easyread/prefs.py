@@ -7,7 +7,7 @@ from __future__ import annotations
 from . import config
 from .store import read_json, write_json_atomic
 
-ALLOWED = {"reader", "keys", "ui", "library", "import"}  # ui：功能开关 features、快捷键总开关 keys_on
+ALLOWED = {"reader", "keys", "ui", "library", "import", "research"}  # ui：功能开关 features、快捷键总开关 keys_on
 
 
 def path():

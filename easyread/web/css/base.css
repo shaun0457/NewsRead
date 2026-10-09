@@ -1,4 +1,4 @@
-/* EasyRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
+/* PaperRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
 [hidden] { display: none !important; }  /* 元素设了 hidden 就一定藏起来，别被自己的 display 盖掉 */
 :root {
   --bg: #f6f3ec;
@@ -39,6 +39,11 @@ html[lang="en"] {
   --ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
   --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif;
   --sans-zh: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+}
+html[lang="zh-TW"] {
+  --serif-zh: "Noto Serif TC", "Source Han Serif TC", "PMingLiU", "MingLiU", "Songti TC", "Noto Serif CJK TC", serif;
+  --sans-zh: "Noto Sans TC", "Source Han Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", sans-serif;
+  --ui: "Noto Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", system-ui, sans-serif;
 }
 /* 译文不是中文时换正文字体（变量名沿用 -zh，指“译文”） */
 html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif; --sans-zh: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif; }
@@ -97,6 +102,7 @@ svg.i.sm { width: 15px; height: 15px; }
 .brand-back { gap: 3px; padding: 0 8px 0 4px; color: var(--ink-3); }
 .brand-back .mark { width: 24px; height: 24px; }
 .brand small { font: 400 12.5px/1 var(--ui); color: var(--ink-3); letter-spacing: .02em; margin-left: 2px; }
+html[data-theme="dark"] img.mark[src*="paperread-mark.png"] { filter: invert(1); }
 
 /* 按钮 */
 .btn {
@@ -115,6 +121,10 @@ svg.i.sm { width: 15px; height: 15px; }
 .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
 .btn.sm { height: 26px; padding: 0 9px; font-size: 12.5px; border-radius: 7px; }
 .btn.icon { width: 34px; padding: 0; justify-content: center; }
+.theme-btn { color: #536d91; }
+.theme-btn:hover { color: #3d5679; }
+:root[data-theme="dark"] .theme-btn { color: #f0c75e; }
+:root[data-theme="dark"] .theme-btn:hover { color: #ffdc7b; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
 
 .seg { display: inline-flex; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--rule) 60%, transparent); }

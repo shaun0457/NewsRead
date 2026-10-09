@@ -56,7 +56,8 @@
     } else {
       const chips = [["all", PR.t("全部")], ["mine", PR.t("我的笔记")], ["hl", PR.t("划线")], ["agent", "AI"], ["open", PR.t("待回答")]]
         .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + "</button>").join("");
-      h += '<div class="np-filters">' + chips + '</div><div class="np-add"><button class="btn sm line" data-np-act="add">' + PR.icon("plus", "sm") + PR.t("给当前段写笔记") + "</button></div><div class=\"np-list\">";
+      const checkCount = (S.discussion.entries || []).filter((entry) => entry.kind === "check").length;
+      h += '<div class="np-filters">' + chips + '</div><div class="np-add"><button class="btn sm line" data-np-act="add">' + PR.icon("plus", "sm") + PR.t("给当前段写笔记") + '</button><button class="btn sm line np-clear-checks" data-np-act="clear-checks" title="' + PR.t("清除 AI 原文核對提示") + '"' + (checkCount ? "" : " disabled") + '>' + PR.t("清除核對提示") + (checkCount ? " · " + checkCount : "") + "</button></div><div class=\"np-list\">";
       let lastSec = null;
       for (const it of list) {
         const sec = it.anchor === "head" ? PR.t("论文开头") : PR.t("第 {page} 页", { page: (PR.blockById[it.anchor] || {}).page }) + " · " + sectionOf(it.anchor);
@@ -105,7 +106,7 @@
     if (!e.target.matches(".card textarea")) return;
     setTimeout(() => { const card = e.target.closest(".card"); if (card && card.isConnected && !card.contains(document.activeElement) && editing === card.dataset.note) stopEditing(); }, 150);
   });
-  panel().addEventListener("click", (e) => {
+  panel().addEventListener("click", async (e) => {
     const np = e.target.closest("[data-np]");
     if (np) { tab = np.dataset.np; PR.ls.set("easyread-np-tab", tab); return PR.renderNotesPanel(); }
     const nf = e.target.closest("[data-nf]");
@@ -117,6 +118,26 @@
       if (a === "md") PR.openExport();
       if (a === "preview") { savePaperNote.flush(); preview = !preview; PR.renderNotesPanel(); }
       if (a === "add") { const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); if (PR.blockById[id]) PR.startNote({ anchor: id }); }
+      if (a === "clear-checks") {
+        const entries = S.discussion.entries || [];
+        const ids = entries.filter((entry) => entry.kind === "check").map((entry) => entry.id).filter(Boolean);
+        if (!ids.length || act.disabled) return;
+        act.disabled = true;
+        act.textContent = PR.t("清除中…");
+        const removed = new Set();
+        for (const id of ids) {
+          try {
+            await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/discussion_del", { method: "POST", body: { id } });
+            removed.add(id);
+          } catch (_) { /* 保留失敗項目，讓使用者可再次清除。 */ }
+        }
+        S.discussion.entries = entries.filter((entry) => !removed.has(entry.id));
+        PR.renderMargin();
+        PR.applyMarks();
+        PR.renderNotesPanel();
+        const failed = ids.length - removed.size;
+        PR.toast(failed ? PR.t("已清除 {n} 則；另有 {failed} 則失敗，請重試。", { n: removed.size, failed }) : PR.t("已清除 {n} 則核對提示。", { n: removed.size }));
+      }
       return;
     }
     const card = e.target.closest(".card");
@@ -130,11 +151,43 @@
 
   /* 导出的 Markdown：论文笔记 + 按原文顺序的批注 */
   /* pick：{paper, note, highlight, question, ai, chat, quote}，不传就全要 */
-  PR.notesMarkdown = function (pick, chat) {
+  PR.notesMarkdown = function (pick, chat, exportOptions) {
     pick = pick || { paper: true, note: true, highlight: true, question: true, ai: true, quote: true };
     const m = S.paper.meta || {};
     const link = m.url || (m.arxiv ? "https://arxiv.org/abs/" + String(m.arxiv).replace(/^arXiv:/i, "").split(/[\sv]/)[0] : "");
     const out = ["# " + (m.title_zh || m.title_en || ""), "", m.title_en ? "*" + m.title_en + "*  " : "", [m.authors, m.date, link].filter(Boolean).join(" · "), ""];
+    if (exportOptions) {
+      const pn = (S.reader.paper_note || {}).body;
+      const annotations = (() => { const previousFilter = filter; filter = "all"; const all = items(); filter = previousFilter; return all; })();
+      const groups = {
+        note: annotations.filter((it) => it.src === "mine" && it.data.kind !== "question" && it.data.kind !== "highlight"),
+        highlight: annotations.filter((it) => it.src === "mine" && it.data.kind === "highlight"),
+        question: annotations.filter((it) => it.src === "mine" && it.data.kind === "question"),
+        ai: annotations.filter((it) => it.src !== "mine"),
+      };
+      const labels = { note: PR.t("我的筆記"), highlight: PR.t("我的劃線"), question: PR.t("我的問題"), ai: PR.t("AI 的回答和解釋") };
+      const order = Array.isArray(exportOptions.order) ? exportOptions.order : ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
+      for (const kind of order) {
+        if (kind === "paper" && pick.paper && pn) out.push("## " + PR.t("論文筆記"), "", pn, "");
+        else if (groups[kind] && pick[kind] && groups[kind].length) {
+          out.push("## " + labels[kind], "");
+          let lastSec = "";
+          for (const it of groups[kind]) {
+            const sec = it.anchor === "head" ? PR.t("論文開頭") : sectionOf(it.anchor);
+            if (sec !== lastSec) { out.push("### " + sec, ""); lastSec = sec; }
+            const d = it.data;
+            const q = pick.quote && d.quote ? PR.t("「{q}」", { q: d.quote }) + (it.src === "mine" && d.side === "en" ? PR.t("（原文）") : "") : "";
+            if (it.src === "mine") out.push("- " + q + (d.body ? PR.t("：") + d.body : ""));
+            else out.push("- " + (d.title ? "**" + d.title + "** " : "") + q + (d.q ? PR.t("（問：{q}）", { q: d.q }) : "") + "\n\n  " + (d.body || "").replace(/\n/g, "\n  "));
+          }
+          out.push("");
+        } else if (kind === "chat" && pick.chat && exportOptions.chat?.length) {
+          out.push("## " + PR.t("問 AI 的對話"), "");
+          for (const c of exportOptions.chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
+        } else if (kind === "mindmap" && pick.mindmap && exportOptions.mindmap) { const fence = String.fromCharCode(96).repeat(3); out.push("## " + PR.t("論文心智圖"), "", fence + "mermaid", exportOptions.mindmap, fence, ""); }
+      }
+      return out.join("\n");
+    }
     const pn = (S.reader.paper_note || {}).body;
     if (pick.paper && pn) out.push("## " + PR.t("论文笔记"), "", pn, "");
     const want = (it) => it.src === "mine" ? !!pick[it.data.kind === "question" ? "question" : it.data.kind === "highlight" ? "highlight" : "note"] : !!pick.ai;

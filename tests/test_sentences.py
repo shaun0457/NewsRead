@@ -101,10 +101,10 @@ class MergeTest(unittest.TestCase):
     def test_merge_stores_sents_and_old_format_untouched(self):
         paperdata.merge_blocks(self.ws, {"blocks": [
             {"id": "p1-1", "type": "para", "page": 1, "en": "A. ‖ B.", "zh": "甲。‖乙。"},
-            {"id": "p1-2", "type": "para", "page": 1, "en": "Old style.", "zh": "旧格式。"}]}, done=[1])
+            {"id": "p1-2", "type": "para", "page": 1, "en": "Old style.", "zh": "舊格式。"}]}, done=[1])
         b1, b2 = self.ws.load("paper")["blocks"]
         self.assertEqual(b1["sents"], [[2, 2], [5, 4]])
-        self.assertEqual(b2, {"id": "p1-2", "type": "para", "page": 1, "en": "Old style.", "zh": "旧格式。"})
+        self.assertEqual(b2, {"id": "p1-2", "type": "para", "page": 1, "en": "Old style.", "zh": "舊格式。"})
 
     def test_set_block_text_replaces_or_drops_sents(self):
         paperdata.merge_blocks(self.ws, {"blocks": [{"id": "p1-1", "type": "para", "page": 1, "en": "A. ‖ B.", "zh": "甲。‖乙。"}]})
@@ -172,7 +172,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(seen[0], {"p1-1": "First. ‖ Second one.", "s1": "Intro. Part"})  # 标题不切
         p = next(b for b in self.ws.load("paper")["blocks"] if b["id"] == "p1-1")
         self.assertEqual((p["en"], p["zh"], p["sents"]), ("First. Second one.", "第一。第二。", [[6, 3], [18, 6]]))
-        self.assertEqual(next(b for b in self.ws.load("paper")["blocks"] if b["id"] == "s1")["zh"], "标题")
+        self.assertEqual(next(b for b in self.ws.load("paper")["blocks"] if b["id"] == "s1")["zh"], "標題")
 
 
 if __name__ == "__main__":

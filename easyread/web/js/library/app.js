@@ -41,13 +41,14 @@
   L.load = async function () { apply(await PR.api("/api/library")); };
   function apply(d) {
     L.lastData = d;  // 切换界面语言前存一份，刷新后先拿它画列表，不闪空白（lang-toggle.js）
+    L.statuses = d.research_statuses || L.statuses || [];
+    if (L.updateStatusViews) L.updateStatusViews(L.statuses);
     PR.token = d.token;
     L.engine = d.engine;
     L.engineLabel = d.engine_label;
     L.firstRun = d.first_run;
     L.version = d.version;
     L.trashCount = d.trash || 0;
-    if (PR.libraryLocationNotice) PR.libraryLocationNotice(d);
     engineChip();
     L.items = d.items;
     L.render();
@@ -76,8 +77,10 @@
   L.filtered = filtered;
 
   function statusPill(i) {
-    const m = { unread: PR.t("未读"), reading: PR.t("在读"), done: PR.t("已读") };
-    return '<span class="pill ' + (i.status || "unread") + '">' + (m[i.status] || m.unread) + "</span>";
+    const status = (L.statuses || []).find((s) => s.id === (i.status || "unread"));
+    const state = i.status === "paused" ? "unread" : (i.status || "unread");
+    const m = { unread: PR.t("待閱讀"), reading: PR.t("閱讀中"), organizing: PR.t("待整理"), done: PR.t("已完成") };
+    return '<span class="pill ' + state + '">' + PR.esc(status && status.id !== "paused" ? PR.t(status.label) : PR.t(m[state] || m.unread)) + "</span>";
   }
   L.jobLine = function (i) {
     const j = i.job;

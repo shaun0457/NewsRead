@@ -41,8 +41,8 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     app.presence = Presence(app.jobs.busy, httpd.shutdown, exit_on_close)
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
-    log.info("EasyRead %s 已启动：%s  文献库：%s", __version__, url, app.lib.root)
-    print(f"EasyRead 已启动：{url}  文献库：{app.lib.root}", flush=True)  # i18n-ok Electron 和 smoke_backend 用正则匹配这行
+    log.info("PaperRead %s 已啟動：%s  文獻庫：%s", __version__, url, app.lib.root)
+    print(f"PaperRead 已啟動：{url}  文獻庫：{app.lib.root}", flush=True)  # i18n-ok Electron and smoke_backend match this line
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url + path)).start()
     try:

@@ -8,6 +8,7 @@
       toc: () => PR.toggleDrawer(null, "toc"),
       fontUp: () => PR.bumpFont(1), fontDown: () => PR.bumpFont(-1), fontReset: () => PR.resetType(),
       pages: () => PR.togglePages(), notes: () => PR.toggleNotesPanel(),
+      research: () => PR.store.mode === "server" && PR.toggleResearch(),
       chat: () => { const b = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); PR.blockById[b] ? PR.chatAsk({ anchor: b }) : PR.toggleChat(); },
       pagePrev: () => PR.pageStep(-1), pageNext: () => PR.pageStep(1),
     }[id];

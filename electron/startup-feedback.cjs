@@ -22,11 +22,11 @@ function loginShellPath(platform = process.platform, shell = process.env.SHELL |
 }
 
 function loadingUrl(zh) {
-  const title = zh ? "正在打开 EasyRead" : "Opening EasyRead";
-  const hint = zh ? "正在准备文献库，请稍候…" : "Preparing your library. Please wait…";
-  const html = `<!doctype html><html lang="${zh ? "zh-CN" : "en"}"><meta charset="utf-8">
+  const title = zh ? "正在開啟 PaperRead" : "Opening PaperRead";
+  const hint = zh ? "正在準備文獻庫，請稍候…" : "Preparing your library. Please wait…";
+  const html = `<!doctype html><html lang="${zh ? "zh-TW" : "en"}"><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>EasyRead</title><style>
+<title>PaperRead</title><style>
 :root{color-scheme:light dark}body{margin:0;height:100vh;display:grid;place-content:center;text-align:center;background:#f5f3ed;color:#273e3e;font:16px system-ui,sans-serif}
 h1{font-size:24px;font-weight:600}p{color:#657373}.loader{width:30px;height:30px;border:3px solid #b8cccb;border-top-color:#326b71;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}@media(prefers-color-scheme:dark){body{background:#1e2527;color:#e0e6e3}p{color:#adbab9}}@media(prefers-reduced-motion:reduce){.loader{animation:none}}

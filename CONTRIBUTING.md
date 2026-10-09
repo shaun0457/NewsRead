@@ -7,8 +7,8 @@
 需要 Python 3.10+。
 
 ```bash
-git clone https://github.com/Edwardxlai/easyread
-cd easyread
+git clone https://github.com/YOUR_GITHUB_USERNAME/PaperRead.git
+cd PaperRead
 python -m pip install -e .
 easyread
 ```
@@ -36,7 +36,7 @@ node --test tests/test_*.cjs
 
 ## 界面文字
 
-界面跟着系统语言显示中文或英文。写代码时只写中文，外面套一层：前端 `PR.t("已导入 {n} 篇", { n })`，后端 `tr("已导入 {n} 篇", n=n)`。英文写在 `easyread/web/i18n/en.json`，缺了的话测试会报出来；不方便写英文就在 PR 里说一声，维护者来补。
+界面跟着系统语言显示中文或英文。写代码时只写中文，外面套一层：前端 `PR.t("已导入 {n} 篇", { n })`，后端 `tr("已导入 {n} 篇", n=n)`。英文写在 `easyread/web/i18n/en.json`，缺了的话测试会报出来；不方便写英文就在 PR 里说一声，维护者来补。Python package 和 CLI 仍沿用 `easyread` 名称，以維持既有腳本與資料相容。
 
 `python scripts/i18n_check.py` 会列出没套 `PR.t` / `tr` 的中文和缺英文的词条。确实不该翻译的中文（比如给模型的提示词），在那一行末尾加注释 `i18n-ok`。
 

@@ -1,12 +1,12 @@
 # 本机接口约定（给外部工具）
 
-Zotero 插件、脚本等外部工具接入 EasyRead 时，只依赖本页列出的接口。这些接口保持兼容；不兼容的改动会把 API 版本加 1，并提前写进 CHANGELOG。本页没列的 `/api/*` 都是界面内部用的，随时可能改。
+Zotero 插件、脚本等外部工具接入 PaperRead 时，只依赖本页列出的接口。这些接口保持兼容；不兼容的改动会把 API 版本加 1，并提前写进 CHANGELOG。本页没列的 `/api/*` 都是界面内部用的，随时可能改。
 
-当前 API 版本：**1**（EasyRead 1.3.1 起）。
+当前 API 版本：**1**（PaperRead 1.4.2 延續相容介面）。
 
 ## 找到服务
 
-EasyRead 运行时把地址写在数据目录的 `.server.json`（默认 `~/EasyRead/.server.json`，设置了 `EASYREAD_HOME` 时在那个目录下）：
+PaperRead 运行时把地址写在数据目录的 `.server.json`（默认 `~/PaperRead/.server.json`，设置了 `EASYREAD_HOME` 时在那个目录下）：
 
 ```json
 { "url": "http://127.0.0.1:52341", "pid": 12345, "started": "2026-10-03T12:00:00Z" }
@@ -38,14 +38,16 @@ EasyRead 运行时把地址写在数据目录的 `.server.json`（默认 `~/Easy
 
 ## 桌面版打开链接
 
-桌面版（1.3.1 起）注册了 `easyread://` 协议：
+桌面版（1.4.2 起）注册了 `paperread://` 协议；旧版 `easyread://` 仍保留用于相容既有外部連結：
 
 ```
+paperread://open?sha256=<完整 SHA-256>&block=<段落 id>
+paperread://open?id=<论文 id>
 easyread://open?sha256=<完整 SHA-256>&block=<段落 id>
 easyread://open?id=<论文 id>
 ```
 
-点击后打开（或唤起）EasyRead 窗口并定位到该段落，参数含义同 `/open`。参数只接受字母、数字、`-`、`_`，其余内容会被忽略。没装桌面版时，用浏览器打开 `<url>/open?...` 效果相同。
+点击后打开（或唤起）PaperRead 窗口并定位到该段落，参数含义同 `/open`。参数只接受字母、数字、`-`、`_`，其余内容会被忽略。没装桌面版时，用浏览器打开 `<url>/open?...` 效果相同。
 
 ## 数据格式
 

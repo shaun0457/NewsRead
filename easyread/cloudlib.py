@@ -184,7 +184,7 @@ def move(src: str | Path, dst: str | Path, mode: str) -> dict:
     if mode in ("use", "merge") and not state["papers"]:
         raise ValueError(tr("目标还没有论文，请选择复制文献库"))
     result = {"ok": True, "path": str(dst), "old_path": str(src), "copied": 0, "skipped": [],
-              "restart_required": True, "message": tr("文献库位置已更改，需要重启 EasyRead 才能生效")}
+              "restart_required": True, "message": tr("文献库位置已更改，需要重启 PaperRead 才能生效")}
     if mode == "use":
         config.save({"library_dir": str(dst)})
         _drop_ready_marker(dst)

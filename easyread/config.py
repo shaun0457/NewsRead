@@ -1,7 +1,7 @@
 """配置和数据位置。
 
-从源码目录运行时，数据就放在源码目录（library/、config.json）；pip 安装后放在 ~/EasyRead。
-环境变量 EASYREAD_HOME 改数据目录，EASYREAD_LIBRARY 临时指定文献库（测试、多库）。
+從源码目录运行时，数据就放在源码目录（library/、config.json）；安装后放在 ~/PaperRead。
+环境变量 EASYREAD_HOME 仍保留作为旧版相容设定，可用来改资料目录；EASYREAD_LIBRARY 临时指定文献库（测试、多库）。
 """
 from __future__ import annotations
 
@@ -16,7 +16,9 @@ from .store import read_json, write_json_atomic
 PACKAGE = Path(__file__).resolve().parent
 WEB = PACKAGE / "web"
 _SOURCE = PACKAGE.parent
-HOME = Path(os.environ.get("EASYREAD_HOME") or (_SOURCE if (_SOURCE / "pyproject.toml").exists() else Path.home() / "EasyRead"))
+_SOURCE_MODE = (_SOURCE / "pyproject.toml").exists()
+HOME = Path(os.environ.get("EASYREAD_HOME") or (_SOURCE if _SOURCE_MODE else Path.home() / "PaperRead"))
+LEGACY_HOME = Path.home() / "EasyRead"
 PROJECT = HOME  # 旧名，cli 里还在用
 CONFIG_PATH = HOME / "config.json"
 LOG_PATH = HOME / "easyread.log"
@@ -27,8 +29,9 @@ DEFAULTS = {
     "port": 8765,
     "engine": "claude",          # claude | codex（本机 CLI 无头）| openai（任意 OpenAI 兼容接口）| none
     "auto_translate": True,      # 导入后自动开始翻译
-    "target": "zh",              # 译文语言，见 langs.py
-    "check_updates": True,       # 打开文献库时问 GitHub 有没有新版本（一天一次），见 updates.py
+    "target": "zh-TW",           # Translation language is independent of the interface.
+    "target_locale_v": 1,
+    "check_updates": False,      # 個人 fork 未設定自己的發佈庫前，不檢查或套用 upstream 更新
     "batch_pages": 2,            # 每次交给模型的页数
     "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
     "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，每段约 2 批、最多 4 段；手动最多 8 段
@@ -53,7 +56,11 @@ def is_first_run() -> bool:
 
 
 def _saved() -> dict:
+    _migrate_legacy_home()
     raw = read_json(CONFIG_PATH, {}) or {}
+    if raw.get("target") == "zh" and not raw.get("target_locale_v"):
+        raw["target"] = "zh-TW"
+    raw["target_locale_v"] = 1
     if raw.get("concurrency_v") != 2 and raw.get("concurrency") == 1:
         # 以前默认 1，而且切到本机 CLI 时设置页会强制改回 1，旧配置里的 1 多半不是自己选的：当成自动。
         # 存过一次之后带上 concurrency_v，再选 1 就是真的要一段一段译
@@ -62,6 +69,23 @@ def _saved() -> dict:
         raw["concurrency"] = 4  # 以前的 6 是“同时 6 批”，现在是“同时 6 段”：升级时不替老用户开到 4 段以上
     raw["concurrency_v"] = 2
     return raw
+
+
+def _migrate_legacy_home() -> None:
+    """Move the old per-user data directory once, preserving existing data on failure."""
+    global HOME, PROJECT, CONFIG_PATH, LOG_PATH
+    if _SOURCE_MODE or os.environ.get("EASYREAD_HOME") or HOME.exists() or not LEGACY_HOME.is_dir():
+        return
+    try:
+        HOME.parent.mkdir(parents=True, exist_ok=True)
+        LEGACY_HOME.replace(HOME)
+    except OSError:
+        # A locked or read-only old directory remains usable through the legacy
+        # path; never discard a user's library just because migration failed.
+        HOME = LEGACY_HOME
+        PROJECT = HOME
+        CONFIG_PATH = HOME / "config.json"
+        LOG_PATH = HOME / "easyread.log"
 
 
 def load() -> dict:

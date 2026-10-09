@@ -130,8 +130,8 @@
   function emptyHtml() {
     const counts = markCounts();
     const colors = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-    const sug = [PR.t("这段在说什么？用大白话讲一遍"), PR.t("这个公式每一项是什么意思？怎么推出来的？"), PR.t("这里的结论靠得住吗？有什么前提？")];
-    if (colors.length) sug.unshift(PR.t("我标{color}的那些地方，彼此有什么联系？", { color: colorName(colors[0]) }), PR.t("把我划过线的内容串成一条主线讲讲"));
+    const sug = [PR.t("這段的重點是什麼？可以用比較白話的方式說明嗎？"), PR.t("公式中每個符號各代表什麼？作者如何推導出這個公式？"), PR.t("作者提出這個結論的依據是什麼？有哪些前提或限制？")];
+    if (colors.length) sug.unshift(PR.t("我標記的 {color} 色內容彼此有什麼關聯？", { color: colorName(colors[0]) }), PR.t("請依我畫記的段落，整理這篇論文的核心論點。"));
     return '<div class="ch-empty">' + PR.logo("hero") + "<b>" + PR.t("边读边问") + "</b><p>" + PR.t("默认带上你正在读的段落；把正文里选中的文字拖到输入框，可以引用多段一起问。") + (colors.length ? PR.t("问到“标{color}的”“划线”时，会自动找出你的 {n} 处标记。", { color: colorName(colors[0]), n: Object.values(counts).reduce((a, b) => a + b, 0) }) : "") + "</p>" +
       '<div class="chips">' + sug.map((q) => '<button data-c="suggest">' + PR.esc(q) + "</button>").join("") + "</div></div>";
   }
@@ -229,7 +229,7 @@
       }
     } catch (e) {
       if (e.name === "AbortError") msg.content += "\n\n" + PR.t("（已停止）");
-      else msg.error = PR.t("没能回答：{msg}", { msg: e.message });
+      else msg.error = PR.t("没能回答：{msg}", { msg: PR.errorText(e) });
     }
     st.streaming = null;
     // 首次提问在服务端分配 ID 前失败，也应能切到新对话或重试。

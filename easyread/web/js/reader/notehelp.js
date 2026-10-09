@@ -62,7 +62,7 @@
         }
       }
     } catch (e) {
-      if (e.name !== "AbortError") ai.error = PR.t("没能完成：{msg}", { msg: e.message });
+      if (e.name !== "AbortError") ai.error = PR.t("没能完成：{msg}", { msg: PR.errorText(e) });
     }
     ai.streaming = false; ai.ctrl = null;
     PR.renderNotesPanel();

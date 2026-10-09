@@ -1,4 +1,4 @@
-"""翻译、提问前先看一眼网络：连不上就立刻用中文说清楚怎么办（国内多半是没开梯子），不让人干等到超时。
+"""翻譯、提問前先檢查連線；無法連線時立即提供可執行的繁體中文提示，避免使用者等待逾時。
 
 - problem(cfg)：按引擎找到它真正要连的地址，发一个请求；收到任何 HTTP 响应都算通。
 - explain(cfg, msg)：引擎跑到一半报错时，报错像网络问题就补一句该怎么办。
@@ -29,8 +29,10 @@ _NET = re.compile(r"ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|EAI_AGAIN|fetch 
                   r"|error sending request|stream disconnected|timed out|getaddrinfo|连不上|can't connect", re.I)  # i18n-ok 匹配报错
 _REGION = re.compile(r"unsupported_country|not available in your (country|region)|request not allowed", re.I)
 # 自己给出的连不上 / 证书提示里一定带的词（中英文各一套），见到就不再追加建议
-_MARKS = ("梯子", "先把它打开", "VPN", "start it first")  # i18n-ok
-_CERT_MARKS = ("证书校验失败", "certificate verification failed")  # i18n-ok
+_MARKS = ("目前無法連線至", "無法連線至", "目前的連線位置不受", "請先確認服務已啟動",  # i18n-ok: 關鍵字比對，不會直接顯示。
+          "在国内要先打开梯子", "先把它打开", "start it first", "can't connect", "could not connect",  # i18n-ok: 內部比對或資料格式，不會直接顯示。  # i18n-ok: 網路連線錯誤比對字串，不會顯示給使用者。
+          "VPN settings", "service is unavailable in your region", "refused access from your current region")  # i18n-ok
+_CERT_MARKS = ("憑證驗證失敗", "证书校验失败", "certificate verification failed")  # i18n-ok
 _CERT = re.compile(r"CERTIFICATE_VERIFY_FAILED|certificate verify failed|self.signed certificate|unknown issuer", re.I)
 
 
@@ -61,7 +63,7 @@ def _codex_base() -> str:
 
 
 def target(cfg: dict) -> dict | None:
-    """{name, url, vpn}：vpn 表示国内要开梯子才连得上。"""
+    """{name, url, vpn}：vpn 表示這項服務可能需要 VPN 或代理連線。"""
     e = cfg.get("engine")
     if e == "claude":
         url = _claude_base()
@@ -100,6 +102,11 @@ def _certificate(t: dict) -> str:
     return tr("{name}（{host}）证书校验失败：请检查系统信任的根证书；使用代理时，也检查代理证书是否已获系统信任。", name=t["name"], host=host)
 
 
+def _has_advice(msg: str) -> bool:
+    lowered = msg.casefold()
+    return any(mark.casefold() in lowered for mark in _MARKS + _CERT_MARKS)
+
+
 def problem(cfg: dict, timeout: float = 6) -> str | None:
     """连得上返回 None，连不上返回给用户看的一句话。"""
     t = target(cfg)
@@ -129,7 +136,7 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
 
 def explain(cfg: dict, msg: str) -> str:
     t = target(cfg)
-    if not t or any(k in msg for k in _MARKS):
+    if not t or _has_advice(msg):
         return msg
     if _REGION.search(msg):
         return msg + "\n" + _region(t)
@@ -144,7 +151,7 @@ def explain(cfg: dict, msg: str) -> str:
 
 def offline(msg: str) -> bool:
     """这条报错是不是网络 / 地区问题（是的话剩下的页不用再试了）。"""
-    return any(k in msg for k in _MARKS + _CERT_MARKS)
+    return _has_advice(msg)
 
 
 def proxy_env() -> dict | None:

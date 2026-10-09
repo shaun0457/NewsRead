@@ -11,7 +11,10 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
+from .research import api as research_api
+from . import research_v2
+from . import planning_store
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -34,6 +37,7 @@ def _safe(base: Path, rel: str) -> Path | None:
 class App:
     def __init__(self, cfg: dict):
         self.lib = Library(config.library_dir(cfg))
+        planning_store.recover_interrupted(self.lib.root)
         self.jobs = Jobs(self.lib)
         self.token = os.urandom(12).hex()
         self.location = library_api.LibraryLocation(self)
@@ -182,8 +186,16 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         path = unquote(url.path)
         app, lib = self.app, self.app.lib
+        research = research_api.get(app, path + ("?" + url.query if url.query else ""))
+        if research is not None:
+            return self._json(200, research)
+        research = research_v2.get(app, path + ("?" + url.query if url.query else ""))
+        if research is not None:
+            return self._json(200, research)
         if path in ("/", "/index.html"):
             return self._page(WEB / "library.html")
+        if path == "/research":
+            return self._page(WEB / "research.html")
         if path.startswith("/read/"):
             return self._page(WEB / "reader.html")
         if path == "/open":  # 外部工具打开指定论文/段落；桌面版的 easyread://open 也转到这里
@@ -200,15 +212,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
+                                    "research_statuses": planning_store.statuses(lib.root),
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg),
-                                    "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root))})
+                                    "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root)) + planning_store.summary_trash_count(lib.root)})
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
             return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
         if path == "/api/trash":
-            return self._json(200, {"items": trash.items(lib.root)})
+            paper_items = [{**item, "type": "paper"} for item in trash.items(lib.root)]
+            return self._json(200, {"items": paper_items + planning_store.summary_trash_items(lib.root)})
         if path == "/api/config":
-            return self._json(200, {"config": config.public(config.load()), "presets": config.PRESETS, "groups": config.PRESET_GROUPS})
+            return self._json(200, {"config": config.public(config.load()), "presets": api_presets.presets(),
+                                    "api_choices": api_presets.api_choices()})
         if path == "/api/engines":
             cfg = config.load()
             found = detect.detect(cfg, fresh=parse_qs(url.query).get("fresh") == ["1"])
@@ -228,9 +243,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
             if action == "state":
+                if config.load().get("target") == "zh-TW" and app.location.status == "idle" and (ws.load("job") or {}).get("state") not in ("queued", "running"):
+                    from . import traditional
+                    traditional.migrate(ws)
                 opened = {"last_opened": now_iso()}
-                if (ws.load("item") or {}).get("status", "unread") == "unread":  # 打开过就算在读
-                    opened["status"] = "reading"
                 if app.location.status == "idle":
                     ws.patch_item(opened)
                     _warm(ws.root, app.location)
@@ -240,7 +256,7 @@ class Handler(BaseHTTPRequestHandler):
                          "engine": config.load().get("engine")}
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
-                    figures.fill_later(ws, app.location)
+                    pass  # PaperRead does not generate cropped figure assets.
                 return self._json(200, state)
             if action == "versions":
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})
@@ -305,6 +321,20 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
 
+        if path.startswith(research_api.PREFIX + "/"):
+            endpoint = path[len(research_api.PREFIX):]
+            result = research_api.post(app, endpoint, json.loads(self._body() or b"{}"))
+            return self._json(200, result)
+
+        if path == research_v2.PREFIX + "/attach-pdf":
+            body = self._body()
+            return self._json(200, research_v2.attach_pdf(app, q.get("paper_key", ""), body, q.get("name", "paper.pdf")))
+
+        if path.startswith(research_v2.PREFIX + "/"):
+            endpoint = path[len(research_v2.PREFIX):]
+            result = research_v2.post(app, endpoint, json.loads(self._body() or b"{}"))
+            return self._json(200, result)
+
         if path in library_api.POST:
             return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))
         if path == "/api/update":  # 开关“自动检查新版本”
@@ -329,14 +359,31 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, settings_api.POST[path](json.loads(self._body() or b"{}")))
         if path == "/api/prefs":
             return self._json(200, prefs.save(json.loads(self._body() or b"{}")))
-        if path == "/api/trash":  # 回收站：restore 恢复一篇 / purge 彻底删一篇 / empty 清空
+        if path == "/api/trash":  # 回收站：論文與摘要分別還原或永久刪除。
             body = json.loads(self._body() or b"{}")
-            act, name = body.get("action"), body.get("name", "")
+            act, name, item_type = body.get("action"), body.get("name", ""), body.get("type", "paper")
+            if act == "move-summary":
+                moved = planning_store.summary_move_to_trash(lib.root, str(name))
+                if not moved:
+                    raise ValueError(tr("找不到這份已整理摘要"))
+                return self._json(200, {"moved": True, "type": "summary"})
             if act not in ("restore", "purge", "empty"):
                 raise ValueError(tr("action 只能是 restore / purge / empty"))
+            if item_type == "summary":
+                if act == "restore":
+                    planning_store.summary_trash_restore(lib.root, name)
+                    return self._json(200, {"restored": True, "type": "summary"})
+                if act == "purge":
+                    return self._json(200, {"deleted": planning_store.summary_trash_purge(lib.root, name), "type": "summary"})
+                deleted = planning_store.summary_trash_empty(lib.root) + trash.empty(lib.root)
+                return self._json(200, {"deleted": deleted})
+            if item_type != "paper":
+                raise ValueError(tr("回收站項目類型不正確"))
             if act == "restore":
                 return self._json(200, {"id": trash.restore(lib.root, name)})
-            return self._json(200, {"deleted": trash.purge(lib.root, name) if act == "purge" else trash.empty(lib.root)})
+            if act == "purge":
+                return self._json(200, {"deleted": trash.purge(lib.root, name)})
+            return self._json(200, {"deleted": trash.empty(lib.root) + planning_store.summary_trash_empty(lib.root)})
 
         if path.startswith("/api/p/"):
             parts = path.split("/")

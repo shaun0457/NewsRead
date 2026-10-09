@@ -1,11 +1,11 @@
 @echo off
-rem EasyRead launcher for Windows. First run creates .venv and installs; later runs just start.
+rem PaperRead launcher for Windows. First run creates .venv and installs; later runs just start.
 setlocal
 cd /d "%~dp0"
 set PYTHONUTF8=1
 if exist ".venv\Scripts\pythonw.exe" goto run
 
-echo Setting up EasyRead (first run only, about a minute)...
+echo Setting up PaperRead (first run only, about a minute)...
 where uv >nul 2>nul
 if %errorlevel%==0 (
   uv venv .venv --python 3.12 || goto fail

@@ -50,13 +50,19 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
     drop_ids：顺便删掉这几个别的页上的块（全文只留一个参考文献块时用），和合并在同一次写入里。"""
     if isinstance(data, list):
         data = {"blocks": data}
-    sentences.attach(data.get("blocks"))  # 去掉句子分界 ‖，记成 sents
+    from . import langs, traditional
+    # Validate the raw model shape before Traditional-Chinese normalization.
+    # Normalizing a malformed flat table head would otherwise iterate its
+    # strings as rows and accidentally turn it into a matrix.
     for b in data.get("blocks", []):
         if not isinstance(b, dict) or not b.get("id") or b.get("type") not in BLOCK_TYPES:
             raise ValueError(tr("块缺 id 或类型不对：{block}", block=str(b)[:120]))
         problem = block_shape_problem(b)
         if problem:
             raise ValueError(problem)
+    if not en_only and langs.of_paper((ws.load("paper") or {}).get("meta")) == "zh-TW":
+        traditional.normalize(data)
+    sentences.attach(data.get("blocks"))  # 去掉句子分界 ‖，记成 sents
 
     def apply(paper):
         blocks = paper.setdefault("blocks", [])
@@ -118,6 +124,16 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str], sents: 
     """给只读原文整理出来的块就地补译文（块 id 不变，笔记还挂得住）。
     data 是模型的输出 {"zh": {键: 译文}, "meta", "glossary"}；keys 是这次要译的键；sents：段落和列表项的句子对齐 {键: sents}。
     返回漏译的键；这几页的键都译齐了，才把页从 en_pages 去掉。"""
+    from . import langs, traditional
+    if langs.of_paper((ws.load("paper") or {}).get("meta")) == "zh-TW":
+        original = dict(data.get("zh") or {})
+        traditional.normalize(data)
+        for key, pairs in (sents or {}).items():
+            text = original.get(key)
+            if isinstance(text, str):
+                for pair in pairs:
+                    prefix = text.encode("utf-16-le")[:pair[1] * 2].decode("utf-16-le")
+                    pair[1] = len(traditional.convert(prefix).encode("utf-16-le")) // 2
     got = {k: v for k, v in (data.get("zh") or {}).items() if k in keys and v}
 
     def apply(paper):

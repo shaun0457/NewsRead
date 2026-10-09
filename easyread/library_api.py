@@ -20,7 +20,7 @@ class LibraryLocation:
 
     def _error(self):
         return ValueError(tr("文献库正在迁移，请稍后再试") if self.status == "moving"
-                          else tr("文献库位置已更改，请重启 EasyRead 后再修改"))
+                          else tr("文献库位置已更改，请重启 PaperRead 后再修改"))
 
     def begin(self):
         with self.lock:
@@ -35,8 +35,7 @@ class LibraryLocation:
     @contextmanager
     def request(self, method: str, raw_path: str):
         path = unquote(urlparse(raw_path).path)
-        protected = (method == "POST" and path not in (
-            "/api/library/move", "/api/library/inspect", "/api/library/pick-folder", "/api/library/reveal", "/api/shutdown", "/api/presence/keep"))
+        protected = method == "POST" and path not in ("/api/shutdown", "/api/presence/keep")
         if method in ("GET", "HEAD"):
             protected = path.startswith(("/read/", "/p/")) or (path.startswith("/api/p/") and not path.endswith("/versions"))
         entered = False
@@ -132,8 +131,6 @@ def inspect(body: dict) -> dict:
 
 
 def get(app, path: str):
-    if path == "/api/library/location":
-        return app.location.location()
     return None
 
 
@@ -157,4 +154,4 @@ def post(app, path: str, body: dict):
     return None
 
 
-POST = {"/api/library/inspect", "/api/library/pick-folder", "/api/library/cleanup", "/api/library/move", "/api/library/reveal", "/api/shutdown"}
+POST = {"/api/shutdown"}

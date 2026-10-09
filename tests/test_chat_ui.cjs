@@ -35,7 +35,7 @@ async function reader(threads = [], options = {}) {
     api: async () => ({ threads: structuredClone(threads), models: [{ id: "m", label: "Model" }, { id: "m2", label: "Other model" }], default: "m" }),
     confirm: async opts => { confirmations.push(opts); return true; },
     nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {},
-    esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
+    esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), errorText: error => String(error?.message || error), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
     throttle: fn => fn, debounce: fn => fn, usageChip: () => "", usagePop: () => "", toast() {},
   };
   if (options.markup) vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), {
@@ -245,12 +245,13 @@ test("Markdown export includes all conversations and complete answers, online an
   for (const mode of ["server", "static"]) {
     let go, blob, downloaded = false;
     const dlg = { addEventListener(name, fn) { go = fn; }, classList: { remove() {} } };
+    const exportButton = { disabled: false, innerHTML: "", textContent: "" };
     const panel = { addEventListener() {} };
     const PR = {
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
       state: { paper: { meta: { title_en: "Test paper" }, blocks: [] }, reader: {}, discussion: {}, chat }, store: { mode }, pid: "test",
       $: selector => selector === "#readerDlg" ? dlg : panel,
-      $$: () => [{ dataset: { exp: "chat" }, checked: true }], ls: { get: (k, fallback) => fallback, set() {} },
+      $$: selector => selector === "[data-exp-row]" ? [{ dataset: { expRow: "chat" } }] : [{ dataset: { exp: "chat" }, checked: true }], ls: { get: (k, fallback) => fallback, set() {} },
       api: async () => chat, myNotes: () => [], el: () => ({ click() { downloaded = true; }, remove() {} }),
       debounce: fn => fn,
     };
@@ -258,9 +259,12 @@ test("Markdown export includes all conversations and complete answers, online an
       window: { PR }, document: { addEventListener() {}, body: { appendChild() {} } },
       Blob, URL: { createObjectURL(value) { blob = value; return "blob:test"; } },
     };
+    dlg.addEventListener = (name, fn) => { go = fn; };
+    PR.$ = selector => selector === "#readerDlg" ? dlg : selector === "#notespanel" ? panel : null;
+    const target = { closest: selector => selector === "[data-exp-go]" ? exportButton : null };
     vm.runInNewContext(source("notespanel"), context);
     vm.runInNewContext(source("export"), context);
-    await go({ target: { closest: selector => selector === "[data-exp-go]" } });
+    await go({ target });
     const text = await blob.text();
     assert.ok(downloaded);
     assert.ok(text.includes(answer));
@@ -274,16 +278,17 @@ test("a failed chat export keeps the dialog open, creates no file, and treats th
   let go, closed = false, downloaded = false;
   const notices = [];
   const dlg = { addEventListener(name, fn) { go = fn; }, classList: { remove() { closed = true; } } };
+  const exportButton = { disabled: false, innerHTML: "", textContent: "" };
   const PR = {
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
     state: { chat: {} }, store: { mode: "server" }, pid: "test",
     $: () => dlg, $$: () => [{ dataset: { exp: "chat" }, checked: true }], ls: { set() {} },
     api: async () => { throw new Error('<img src=x onerror="alert(1)">'); },
-    esc: text => String(text).replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+    esc: text => String(text).replace(/</g, "&lt;").replace(/>/g, "&gt;"), errorText: error => String(error?.message || error),
     toast: text => notices.push(text), notesMarkdown() { downloaded = true; },
   };
   vm.runInNewContext(source("export"), { window: { PR } });
-  await go({ target: { closest: selector => selector === "[data-exp-go]" } });
+  await go({ target: { closest: selector => selector === "[data-exp-go]" ? exportButton : null } });
   assert.equal(closed, false);
   assert.equal(downloaded, false);
   assert.ok(notices[0].includes('&lt;img'));
@@ -306,4 +311,11 @@ test("thinking effort lives in the model menu and shows on the model button once
   await settled();
   assert.equal(r.requests[0].chat_options.reasoning_effort, "high");
   r.finish(); await sending;
+});
+
+test("Ollama thinking menu reflects its on/off behavior and defaults to thinking off", async () => {
+  const r = await reader([], {});
+  const model = { engine: "openai", preset: "ollama", model: "qwen3.5-4b:latest" };
+  assert.deepEqual(Array.from(r.PR.chatEffort.levels(model, {})), ["none", "high"]);
+  assert.equal(r.PR.chatEffort.fallback({ catalog: {} }, model), "none");
 });

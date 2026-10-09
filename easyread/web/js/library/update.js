@@ -80,10 +80,10 @@
     chip.hidden = !on;
     if (!on) return;
     chip.innerHTML = '<span class="dot"></span><span>' + PR.t("新版本 {v}", { v: PR.esc(u.latest) }) + "</span>";
-    chip.title = PR.t("EasyRead {v} 已发布，点开看更新了什么", { v: u.latest });
+    chip.title = PR.t("PaperRead {v} 已发布，点开看更新了什么", { v: u.latest });
     if (PR.ls.get(SEEN, "") !== u.latest) {  // 每个新版本只弹一次
       PR.ls.set(SEEN, u.latest);
-      PR.toast(PR.t("EasyRead {v} 发布了", { v: PR.esc(u.latest) }), { label: PR.t("看看更新了什么"), fn: PR.openUpdate }, 9000);
+      PR.toast(PR.t("PaperRead {v} 发布了", { v: PR.esc(u.latest) }), { label: PR.t("看看更新了什么"), fn: PR.openUpdate }, 9000);
     }
   }
 
@@ -92,7 +92,7 @@
     if (!u || !u.latest) return;
     const dlg = PR.$("#textDlg");
     dlg.querySelector(".dialog").innerHTML =
-      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>EasyRead " + PR.esc(u.latest) + (u.newer ? PR.t(" 可以更新了") : "") + '</h2><div class="hint">' + PR.t("你现在用的是 {v}", { v: PR.esc(u.current) }) +
+      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>PaperRead " + PR.esc(u.latest) + (u.newer ? PR.t(" 可以更新了") : "") + '</h2><div class="hint">' + PR.t("你现在用的是 {v}", { v: PR.esc(u.current) }) +
       (u.published ? PR.t(" · {date} 发布", { date: PR.esc(u.published.slice(0, 10)) }) : "") + "</div></div></div>" +
       '<div class="update-notes">' + (notesHtml(u.notes) || '<p class="hint">' + PR.t("这次没写更新说明。") + "</p>") + "</div>" +
       (u.newer ? '<div class="up-status" id="upStatus" hidden></div><div class="actions up-foot" id="upFoot"></div>'

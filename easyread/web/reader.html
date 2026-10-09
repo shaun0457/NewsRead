@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EasyRead</title>
-<link rel="icon" href="/web/favicon.svg">
+<title>PaperRead</title>
+<link rel="icon" href="/web/paperread-mark.png" type="image/png">
 <link rel="stylesheet" href="/web/vendor/katex/katex.min.css">
 <link rel="stylesheet" href="/web/css/base.css">
 <link rel="stylesheet" href="/web/css/reader.css">
@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/web/css/sentences.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
 <link rel="stylesheet" href="/web/css/reader-chat.css">
+<link rel="stylesheet" href="/web/css/research.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
@@ -38,6 +39,7 @@
   <button class="btn" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
+  <button class="btn" title="研究（R）" data-act="research"></button>
   <button class="btn" data-act="settings" title="字号、版心、字体（=、- 调字号）">Aa</button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
@@ -73,6 +75,7 @@
 
 <section id="notespanel" class="side-panel" aria-label="笔记"></section>
 <section id="chatpanel" class="side-panel" aria-label="问 AI"></section>
+<section id="researchpanel" class="side-panel" aria-label="研究知识工作区"></section>
 <div class="dialog-backdrop" id="readerDlg"><div class="dialog" role="dialog"></div></div>
 <div class="dialog-backdrop" id="settingsDlg"><div class="dialog" role="dialog" aria-label="设置"></div></div>
 <div class="dialog-backdrop" id="textDlg"><div class="dialog wide" role="dialog"></div></div>
@@ -105,6 +108,7 @@
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
+<script src="/web/js/reader/planner.js"></script>
 <script src="/web/js/reader/side-resize.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat-effort.js"></script>

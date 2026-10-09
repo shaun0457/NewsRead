@@ -19,7 +19,7 @@ class I18nTest(unittest.TestCase):
         i18n.system_lang.cache_clear()
 
     def test_system_lang_from_electron(self):
-        for tag, want in (("zh-CN", "zh"), ("zh-TW", "zh"), ("en-US", "en"), ("de", "en"), ("ja", "en")):
+        for tag, want in (("zh-CN", "zh"), ("zh-TW", "zh-TW"), ("zh-HK", "zh-TW"), ("zh-Hant", "zh-TW"), ("en-US", "en"), ("de", "en"), ("ja", "en")):
             i18n.system_lang.cache_clear()
             with mock.patch.dict(os.environ, {"EASYREAD_SYSTEM_LANG": tag}):
                 self.assertEqual(i18n.system_lang(), want, tag)
@@ -45,6 +45,16 @@ class I18nTest(unittest.TestCase):
             with mock.patch.object(i18n, "lang", lambda: "zh"):
                 self.assertEqual(i18n.tr("已导入 {n} 篇", n=3), "已导入 3 篇")
 
+    def test_traditional_conversion_uses_taiwan_terms(self):
+        with mock.patch.object(i18n, "lang", lambda: "zh-TW"):
+            self.assertEqual(i18n.tr("设置、软件和文件夹"), "設定、軟體和資料夾")
+
+    def test_first_run_choice_defaults_to_traditional_chinese(self):
+        from easyread import prefs
+        env = {k: v for k, v in os.environ.items() if k != "EASYREAD_LANG"}
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(prefs, "load", lambda: {}):
+            self.assertEqual(i18n.choice(), "zh-TW")
+
     def test_inject(self):
         page = '<html lang="zh-CN">\n<head><title>EasyRead</title></head>'
         self.assertNotIn("pr-i18n", i18n.inject(page, "zh"))
@@ -53,6 +63,18 @@ class I18nTest(unittest.TestCase):
         self.assertIn('<html lang="en"', out)
         self.assertIn('id="pr-i18n"', out)
         self.assertNotIn("Settings</script>", out)  # 词典里的 < 要转义，不能提前结束 script
+
+    def test_traditional_html_conversion_skips_scripts_and_converts_labels(self):
+        page = ('<html lang="zh-CN"><head><title>设置</title></head><body>'
+                '<button title="打开设置">设置</button><input placeholder="搜索文件夹">'
+                '<script>const label = "设置";</script></body></html>')
+        out = i18n.inject(page, "zh-TW")
+        self.assertIn('<html lang="zh-TW"', out)
+        self.assertIn("<title>設定</title>", out)
+        self.assertIn('title="開啟設定"', out)
+        self.assertIn("<button title=\"開啟設定\">設定</button>", out)
+        self.assertIn('placeholder="搜尋資料夾"', out)
+        self.assertIn('const label = "设置";', out)
 
     def test_every_ui_string_has_english(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts" / "i18n_check.py")], capture_output=True, text=True, encoding="utf-8")

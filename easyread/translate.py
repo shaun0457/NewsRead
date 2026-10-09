@@ -102,7 +102,9 @@ def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
         b["id"] = bid
         if b["type"] == "figure":
             b.setdefault("src", "")
-            normalize_figure(b)  # 截图要等合并锁里 id 最终去重之后，见 prepare_figures
+            b["src"] = ""
+            for field in ("image_en", "image_zh", "box"):
+                b.pop(field, None)
         blocks.append(b)
     data["blocks"] = blocks
     return data
@@ -187,7 +189,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         raise engines.EngineError(tr("模型没有整理出任何内容") if read else tr("模型没有译出任何内容"))
     with _merge_lock:
         data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
-        prepare_figures(ws.root, data["blocks"], total_pages)
+        # Figures remain placeholders; inspect the source PDF instead of cropping.
         _unify_terms(ws, data, batch)
         drop = _one_references(ws, data, batch)
         merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read, drop_ids=drop)

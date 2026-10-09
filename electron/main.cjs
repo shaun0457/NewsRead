@@ -10,13 +10,19 @@ const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
 const deepLink = require("./deep-link.cjs");
 
-// 窗口缓存等放 %APPDATA%\EasyRead（默认会用 package.json 的 name，叫 easyread-desktop）。
-// 论文和设置不放这里：打包后的后端默认用 ~/EasyRead，和 pip 安装版同一个位置，用户找得到、好备份。
-app.setPath("userData", path.join(app.getPath("appData"), "EasyRead"));
+// 新版使用 PaperRead 資料夾；第一次升級時把舊版 EasyRead 的桌面偏好
+// 搬到新位置，避免改名後像是全新安裝。搬移失敗時保留舊資料，不覆蓋任何內容。
+const appData = app.getPath("appData");
+const paperReadUserData = path.join(appData, "PaperRead");
+const legacyUserData = path.join(appData, "EasyRead");
+if (!fs.existsSync(paperReadUserData) && fs.existsSync(legacyUserData)) {
+  try { fs.renameSync(legacyUserData, paperReadUserData); } catch (_) { /* legacy data remains recoverable */ }
+}
+app.setPath("userData", paperReadUserData);
 startup.mark(app, "electron-entry");
 
-// 桌面版自己的几句报错跟系统语言走（界面语言由后端决定，见 easyread/i18n.py）
-const isZh = () => app.getLocale().toLowerCase().startsWith("zh");
+// 桌面版自己的幾句報錯跟系統語言走（介面語言由後端決定，見 easyread/i18n.py）
+const isZh = () => true; // PaperRead desktop defaults to Traditional Chinese.
 let backend;
 let mainWindow;
 let backendReady;
@@ -38,7 +44,7 @@ function backendCommand() {
   if (app.isPackaged) {
     const executable = packagedBackend();
     if (!fs.existsSync(executable)) {
-      throw new Error(isZh() ? `找不到打包后的 EasyRead 后端：${executable}` : `Bundled EasyRead backend not found: ${executable}`);
+      throw new Error(isZh() ? `找不到打包後的 PaperRead 後端：${executable}` : `Bundled PaperRead backend not found: ${executable}`);
     }
     return { command: executable, args: ["serve", "--port", "0"], cwd: os.homedir() };
   }
@@ -51,19 +57,19 @@ function backendCommand() {
   return { command, args: ["-m", "easyread", "serve", "--port", "0"], cwd: root };
 }
 
-// macOS / Linux 从启动台、桌面图标打开时，拿不到终端里配的 PATH（Homebrew、npm 全局目录），
-// 后端会找不到 claude / codex。向用户的登录 shell 要一份 PATH 补上。
+// macOS / Linux 從啟動臺、桌面圖示開啟時，拿不到終端裡配的 PATH（Homebrew、npm 全域性目錄），
+// 後端會找不到 claude / codex。向使用者的登入 shell 要一份 PATH 補上。
 function startBackend() {
   // On macOS an app can stay alive after its last window closes. Reopening
   // the window must reuse that backend, rather than orphaning the old one.
   if (backendReady) return backendReady;
   backendReady = (async () => {
   const launch = backendCommand();
-  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 后端按它决定界面语言
+  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 後端按它決定介面語言
   startup.mark(app, "shell-path-start");
   const shellPath = await startup.loginShellPath(process.platform);
   startup.mark(app, "shell-path-ready");
-  if (quitting) throw new Error(isZh() ? "启动已取消" : "Startup cancelled");
+  if (quitting) throw new Error(isZh() ? "啟動已取消" : "Startup cancelled");
   if (shellPath) {
     env.PATH = [...new Set([...shellPath.split(":"), ...(env.PATH || "").split(":")].filter(Boolean))].join(":");
   }
@@ -82,7 +88,7 @@ function startBackend() {
       fn(value);
     };
     const timer = setTimeout(() => {
-      finish(reject, new Error((isZh() ? "EasyRead 后端启动超时。" : "EasyRead backend timed out while starting. ") + output.slice(-500)));
+      finish(reject, new Error((isZh() ? "PaperRead 後端啟動超時。" : "PaperRead backend timed out while starting. ") + output.slice(-500)));
       stopBackend();
     }, 30000);
 
@@ -95,7 +101,7 @@ function startBackend() {
     });
     backend.stdout.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
-      const match = output.match(/EasyRead\s+已启动：\s*(http:\/\/127\.0\.0\.1:\d+)/);
+      const match = output.match(/PaperRead\s+已(?:启动|啟動)：\s*(http:\/\/127\.0\.0\.1:\d+)/);
       if (match && !settled) { startup.mark(app, "backend-http-ready"); backendUrl = match[1]; finish(resolve, match[1]); }
     });
     backend.stderr.on("data", (chunk) => {
@@ -103,7 +109,7 @@ function startBackend() {
     });
     backend.once("error", (error) => finish(reject, error));
     backend.once("exit", (code, signal) => {
-      if (!settled) finish(reject, new Error((isZh() ? `EasyRead 后端退出（code=${code}, signal=${signal}）。` : `EasyRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
+      if (!settled) finish(reject, new Error((isZh() ? `PaperRead 後端退出（code=${code}, signal=${signal}）。` : `PaperRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
       backendReady = undefined;
       backendUrl = undefined;
@@ -131,7 +137,7 @@ function backendJson(endpoint, token) {
         } catch (error) { reject(error); }
       });
     });
-    req.setTimeout(8000, () => req.destroy(new Error(isZh() ? "后端关闭超时，请稍后重试" : "Backend shutdown timed out. Try again later.")));
+    req.setTimeout(8000, () => req.destroy(new Error(isZh() ? "後端關閉超時，請稍後重試" : "Backend shutdown timed out. Try again later.")));
     req.on("error", reject);
     req.end(token ? "{}" : undefined);
   });
@@ -142,10 +148,10 @@ async function stopBackendGracefully() {
   if (!child) return;
   const info = await backendJson("/api/library");
   await backendJson("/api/shutdown", info.token);
-  // 后端清掉占用标记、关闭 HTTP 服务后才启动新进程。
+  // 後端清掉佔用標記、關閉 HTTP 服務後才啟動新程序。
   if (backend !== child) return;
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { child.removeListener("exit", exited); reject(new Error(isZh() ? "后端尚未退出，请稍后重试" : "The backend has not exited yet. Try again later.")); }, 8000);
+    const timer = setTimeout(() => { child.removeListener("exit", exited); reject(new Error(isZh() ? "後端尚未退出，請稍後重試" : "The backend has not exited yet. Try again later.")); }, 8000);
     function exited() { clearTimeout(timer); resolve(); }
     child.once("exit", exited);
   });
@@ -191,7 +197,7 @@ function stopBackend() {
   }
 }
 
-// 窗口还在启动时先记下，后端就绪后 createWindow 直接打开这篇
+// 視窗還在啟動時先記下，後端就緒後 createWindow 直接開啟這篇
 function openLink(target) {
   if (!target) return;
   if (!mainWindow || windowOpening || !backendUrl) {
@@ -213,7 +219,7 @@ async function createWindow() {
     ...state.opts,
     minWidth: 960,
     minHeight: 680,
-    icon: path.join(__dirname, "assets", "icon.ico"),
+    icon: path.join(__dirname, "assets", "paperread.ico"),
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -223,6 +229,7 @@ async function createWindow() {
   });
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     if (/^https?:/i.test(target)) shell.openExternal(target);
+    if (/^obsidian:/i.test(target)) shell.openExternal(target);
     return { action: "deny" };
   });
   // A native context menu is separate from the application Edit menu.
@@ -260,11 +267,11 @@ async function createWindow() {
   } catch (error) {
     if (mainWindow !== openingWindow || quitting) return;
     startup.mark(app, "startup-failed");
-    dialog.showErrorBox(isZh() ? "EasyRead 启动失败" : "EasyRead failed to start", error.message);
+    dialog.showErrorBox(isZh() ? "PaperRead 啟動失敗" : "PaperRead failed to start", error.message);
     app.quit();
   } finally {
     windowOpening = false;
-    // 加载文献库期间又点了 easyread:// 链接，openLink 只记下了它，这里补开
+    // 載入文獻庫期間又點了 easyread:// 連結，openLink 只記下了它，這裡補開
     if (pendingOpen && mainWindow === openingWindow && !quitting) openLink(pendingOpen);
   }
 }
@@ -279,7 +286,7 @@ if (!app.requestSingleInstanceLock()) {
   Menu.setApplicationMenu(process.platform === "darwin"
     ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }])
     : null);
-  // macOS 用 open-url 传链接，可能早于 ready
+  // macOS 用 open-url 傳連結，可能早於 ready
   app.on("open-url", (event, link) => {
     event.preventDefault();
     openLink(deepLink.openPath(link));
@@ -288,10 +295,11 @@ if (!app.requestSingleInstanceLock()) {
     deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
+      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "",
       getWindow: () => mainWindow,
       prepareInstall: stopBackendGracefully,
       recover: async () => {
-        if (backend) return;  // 后端没停（正在翻译、拒绝关闭）：页面别刷新，弹窗留着显示原因
+        if (backend) return;  // 後端沒停（正在翻譯、拒絕關閉）：頁面別重新整理，彈窗留著顯示原因
         const url = await startBackend();
         if (mainWindow) await mainWindow.loadURL(url);
       },

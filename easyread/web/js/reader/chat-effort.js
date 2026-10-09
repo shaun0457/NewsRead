@@ -6,6 +6,9 @@
   PR.chatEffort = {
     levels(m, catalog) {
       if (m.engine === "claude") return /haiku/i.test(m.model || "") ? [] : ["low", "medium", "high", "xhigh", "max"];
+      // Ollama's boolean-only thinking models (for example Qwen3.5) only support
+      // thinking off/on; other effort labels all map to the same enabled state.
+      if (m.engine === "openai" && m.preset === "ollama") return ["none", "high"];
       const source = catalog && catalog.codex;
       const hit = source && (source.models || []).find((x) => x.id === (m.model || source.default));
       if (m.engine === "codex" && hit && hit.reasoning_levels && hit.reasoning_levels.length) return hit.reasoning_levels;
@@ -17,6 +20,7 @@
     fallback(st, m) {
       const cat = (st.catalog || {})[m.engine] || {};
       if (cat.configured_reasoning) return cat.configured_reasoning;
+      if (m.engine === "openai" && m.preset === "ollama") return "none";
       if (m.engine === "codex") { const hit = (cat.models || []).find((x) => x.id === (m.model || cat.default)); return (hit && hit.default_reasoning) || ""; }
       if (m.engine !== "claude") return "";
       const hit = (cat.models || []).find((x) => x.id === m.model);

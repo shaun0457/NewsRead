@@ -335,9 +335,9 @@ print(json.dumps({"errors": errors, "times": times, "status": location.status, "
                 patch("easyread.cloudlib_detect.Path.home", return_value=self.root):
             candidates = cloudlib_detect.detect()
             self.assertEqual(len(candidates), 1)
-            self.assertEqual(candidates[0]["path"], str(disk / "EasyRead"))
-            self.assertEqual(cloudlib.inspect(disk)["path"], str(disk / "EasyRead"))
-            self.assertFalse((disk / "EasyRead").exists())
+            self.assertEqual(candidates[0]["path"], str(disk / "PaperRead"))
+            self.assertEqual(cloudlib.inspect(disk)["path"], str(disk / "PaperRead"))
+            self.assertFalse((disk / "PaperRead").exists())
 
     def test_marker_recent_other_host_and_owned_cleanup(self):
         marker = LibraryMarker(self.src)

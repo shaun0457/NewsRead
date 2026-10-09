@@ -1,8 +1,10 @@
 {
-  "name": "easyread-desktop",
-  "version": "1.3.1",
-  "description": "EasyRead desktop application powered by Electron",
-  "author": "Edwardxlai",
+  "name": "paperread-desktop",
+  "version": "1.4.2",
+  "description": "PaperRead personal research workspace",
+  "author": {
+    "name": "YuriyLin"
+  },
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
@@ -16,10 +18,17 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "publish": [{ "provider": "github", "owner": "Edwardxlai", "repo": "easyread" }],
     "appId": "com.edwardxlai.easyread",
-    "productName": "EasyRead",
-    "protocols": [{ "name": "EasyRead", "schemes": ["easyread"] }],
+    "productName": "PaperRead",
+    "protocols": [
+      {
+        "name": "PaperRead",
+        "schemes": [
+          "easyread",
+          "paperread"
+        ]
+      }
+    ],
     "asar": true,
     "directories": {
       "output": "dist/electron"
@@ -28,7 +37,7 @@
       "electron/**/*",
       "package.json"
     ],
-    "icon": "electron/assets",
+    "icon": "electron/assets/paperread.ico",
     "extraResources": [
       {
         "from": "build/backend",
@@ -39,7 +48,7 @@
       }
     ],
     "win": {
-      "icon": "electron/assets/icon.ico",
+      "icon": "electron/assets/paperread.ico",
       "target": [
         {
           "target": "nsis",
@@ -53,7 +62,14 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "artifactName": "EasyRead-Setup-${version}.exe"
+      "installerIcon": "electron/assets/paperread.ico",
+      "uninstallerIcon": "electron/assets/paperread.ico",
+      "artifactName": "PaperRead-Setup-${version}.exe",
+      "installerLanguages": [
+        "zh_TW",
+        "en_US"
+      ],
+      "language": "1028"
     },
     "mac": {
       "icon": "electron/assets/icon.png",

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -15,8 +16,8 @@ from . import __version__, config, http
 from .log import log
 from .store import read_json, write_json_atomic
 
-REPO = "Edwardxlai/easyread"
-API = f"https://api.github.com/repos/{REPO}/releases/latest"
+REPO = os.environ.get("EASYREAD_UPDATE_REPOSITORY", "").strip()
+API = f"https://api.github.com/repos/{REPO}/releases/latest" if REPO else ""
 EVERY = 24 * 3600   # 成功问到后多久再问
 RETRY = 3 * 3600    # 没问到（没网）多久后再试
 _lock = threading.Lock()
@@ -36,7 +37,7 @@ def newer(latest: str, current: str = __version__) -> bool:
 
 
 def _fetch() -> dict:
-    req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": f"EasyRead/{__version__}"})
+    req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": f"PaperRead/{__version__}"})
     with http.urlopen(req, timeout=8) as r:
         rel = json.loads(r.read())
     return {"latest": (rel.get("tag_name") or "").lstrip("v"), "url": rel.get("html_url") or f"https://github.com/{REPO}/releases/latest",
@@ -45,8 +46,9 @@ def _fetch() -> dict:
 
 def check(force: bool = False) -> dict:
     """{"current", "latest", "newer", "url", "notes", "published", "enabled"}。force：手动点“检查更新”，关掉自动检查也照样问。"""
-    out = {"current": __version__, "latest": "", "newer": False, "enabled": bool(config.load().get("check_updates", True))}
-    if not out["enabled"] and not force:
+    out = {"current": __version__, "latest": "", "newer": False,
+           "enabled": bool(REPO and config.load().get("check_updates", False))}
+    if not REPO or (not out["enabled"] and not force):
         return out
     with _lock:  # 两个页面同时打开只问一次
         cache = read_json(_path(), {}) or {}

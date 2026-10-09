@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>研究探索｜PaperRead</title>
+<link rel="icon" href="/web/paperread-mark.png" type="image/png">
+<link rel="stylesheet" href="/web/css/base.css">
+<link rel="stylesheet" href="/web/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="/web/css/research-workspace.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+</head>
+<body class="research-workspace">
+<header class="topbar">
+  <a class="brand" href="/"><img class="mark" src="/web/paperread-mark.png" alt=""><span>Paper<b>Read</b></span></a>
+  <span class="crumb">研究探索</span><span class="grow"></span>
+  <button class="btn icon lang-btn" id="langBtn"></button><a class="btn line" href="/">返回文獻庫</a>
+</header>
+<main class="rw-shell">
+  <section class="rw-heading"><div><p class="eyebrow">PERSONAL RESEARCH WORKSPACE</p><h1>研究探索</h1><p>探索研究方向、保存候選論文，逐步建立閱讀脈絡。</p></div></section>
+  <nav class="rw-tabs" role="tablist">
+    <button class="on" data-tab="board">閱讀看板 <span data-count="active"></span></button><button data-tab="explore">研究探索</button><button data-tab="candidates">候選清單 <span data-count="candidates"></span></button><button data-tab="summaries">已整理摘要 <span data-count="summaries"></span></button><button data-tab="path">閱讀路徑</button>
+  </nav>
+  <section id="rw-alerts" aria-live="polite"></section>
+  <section class="rw-view" data-view="explore" hidden></section>
+  <section class="rw-view" data-view="board"><div class="rw-empty" role="status"><i class="spin"></i> 載入研究工作區中…</div></section>
+  <section class="rw-view" data-view="candidates" hidden></section>
+  <section class="rw-view" data-view="summaries" hidden></section>
+  <section class="rw-view" data-view="path" hidden></section>
+</main>
+<div id="rw-modal" class="rw-modal" hidden></div>
+<div id="toast" role="status"></div>
+<script src="/web/js/common/i18n.js"></script>
+<script src="/web/js/common/util.js"></script>
+<script src="/web/js/common/theme.js"></script>
+<script src="/web/js/common/lang-toggle.js"></script>
+<script src="/web/vendor/katex/katex.min.js"></script>
+<script src="/web/js/common/markup.js"></script>
+<script src="/web/js/research/workspace.js"></script>
+</body>
+</html>

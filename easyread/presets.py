@@ -37,12 +37,12 @@ def _build(tr) -> list[dict]:
                     _m("deepseek-ai/DeepSeek-V4.1-Flash", "DeepSeek V4.1 Flash"), _m("ZhipuAI/GLM-5.2", "GLM-5.2")],
          "key_url": "https://modelscope.cn/my/myaccesstoken", "note": tr("阿里的开源模型社区，每天有免费调用次数（要绑定阿里云账号）。")},
         # ---- 海外（国内要开梯子） ----
-        {"id": "openai", "region": "intl", "name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-6-luna", "key": True, "free": False, "api": "responses",
-         "models": [_m("gpt-6-luna", "GPT-6 Luna", tr("最便宜"), True), _m("gpt-6.1-sol", "GPT-6.1 Sol", tr("均衡"), True), _m("gpt-6-astra", "GPT-6 Astra", tr("最强"), True)],
+        {"id": "openai", "region": "intl", "name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-5.6-luna", "key": True, "free": False, "api": "responses",
+         "models": [_m("gpt-5.6-luna", "GPT-5.6 Luna", tr("省成本"), True), _m("gpt-5.6-terra", "GPT-5.6 Terra", tr("均衡"), True), _m("gpt-5.6-sol", "GPT-5.6 Sol", tr("高能力"), True)],
          "key_url": "https://platform.openai.com/api-keys", "note": tr("用 Responses 接口。")},
-        {"id": "anthropic", "region": "intl", "name": "Anthropic", "base_url": "https://api.anthropic.com/v1", "model": "claude-sonnet-5-5", "key": True, "free": False,
-         "models": [_m("claude-sonnet-5-5", "Claude Sonnet 5.5", tr("均衡"), True), _m("claude-opus-5-5", "Claude Opus 5.5", tr("更强"), True),
-                    _m("claude-haiku-4-5", "Claude Haiku 4.5", tr("最快最省"), True), _m("claude-fable-5-1", "Claude Fable 5.1", tr("最强、最贵"), True)],
+        {"id": "anthropic", "region": "intl", "name": "Anthropic", "base_url": "https://api.anthropic.com/v1", "model": "claude-sonnet-5", "key": True, "free": False,
+         "models": [_m("claude-sonnet-5", "Claude Sonnet 5", tr("均衡"), True), _m("claude-opus-5", "Claude Opus 5", tr("更強"), True),
+                    _m("claude-haiku-4-5-20251001", "Claude Haiku 4.5", tr("速度快、成本低"), True), _m("claude-fable-5", "Claude Fable 5", tr("高能力"), True)],
          "key_url": "https://platform.claude.com/settings/keys", "note": tr("Claude 的 API（按量付费，和 Claude 订阅是两回事；有订阅就用上面的 Claude Code）。")},
         {"id": "gemini", "region": "intl", "name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-3.8-flash", "key": True, "free": True,
          "models": [_m("gemini-3.8-flash", "Gemini 3.8 Flash", tr("有免费额度、能看图"), True), _m("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", tr("有免费额度、最快"), True),
@@ -60,10 +60,9 @@ def _build(tr) -> list[dict]:
          "models": [_m("gpt-oss-120b", "GPT-OSS 120B", tr("免费额度")), _m("qwen-3.8-27b", "Qwen3.8 27B", tr("免费额度"))],
          "key_url": "https://cloud.cerebras.ai", "note": tr("开源模型、速度很快。")},
         # ---- 本机 ----
-        {"id": "ollama", "region": "local", "name": "Ollama", "base_url": "http://127.0.0.1:11434/v1", "model": "qwen3.5:9b", "key": False, "free": True,
-         "models": [_m("qwen3.5:9b", "Qwen3.5 9B", tr("下载 6.6 GB，推荐")), _m("qwen3.5:4b", "Qwen3.5 4B", tr("下载 3.4 GB，显卡小用")),
-                    _m("qwen3.5:27b", "Qwen3.5 27B", tr("下载 17 GB，译得更好")), _m("gemma4:12b", "Gemma 4 12B")],
-         "key_url": "https://ollama.com/download", "note": tr("装好 Ollama，再在终端运行 ollama pull qwen3.5:9b。完全离线、免费。")},
+        {"id": "ollama", "region": "local", "name": "Ollama", "base_url": "http://127.0.0.1:11434/v1", "model": "", "key": False, "free": True,
+         "models": [],
+         "key_url": "https://ollama.com/download", "note": tr("请先安装并启动 Ollama，PaperRead 会载入已下载的模型。")},
         {"id": "lmstudio", "region": "local", "name": "LM Studio", "base_url": "http://127.0.0.1:1234/v1", "model": "", "key": False, "free": True,
          "models": [],
          "key_url": "https://lmstudio.ai", "note": tr("在 LM Studio 里下载模型，打开 Developer → Start Server，再点“获取模型列表”选一个。")},
@@ -75,6 +74,14 @@ def _same(text: str) -> str:
 
 
 PRESETS = _build(_same)
+
+# Keep the complete registry for existing configurations, but show a short list
+# when adding a new API model. Older provider IDs remain editable in the UI.
+MAINSTREAM_PRESET_IDS = ("openai", "anthropic", "gemini", "deepseek", "dashscope", "openrouter", "ollama", "lmstudio")
+
+
+def api_choices() -> list[str]:
+    return list(MAINSTREAM_PRESET_IDS)
 
 
 def presets() -> list[dict]:

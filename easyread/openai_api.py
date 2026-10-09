@@ -49,7 +49,7 @@ def _base(o: dict) -> str:
 def _headers(o: dict, stream: bool = False) -> dict:
     # 要带 User-Agent：Python 默认的 "Python-urllib/x" 会被 Cloudflare 后面的接口（比如 OpenCode）直接拦掉，报 403 error code: 1010
     # x-opencode-session：OpenCode Go 要求带一个稳定的会话 ID，不带报 400 MissingSessionID；别的服务商会忽略这个头
-    h = {"Content-Type": "application/json", "User-Agent": f"EasyRead/{__version__}", "x-opencode-session": _SESSION}
+    h = {"Content-Type": "application/json", "User-Agent": f"PaperRead/{__version__}", "x-opencode-session": _SESSION}
     if stream:
         h["Accept"] = "text/event-stream"
     if o.get("api_key"):
@@ -65,11 +65,15 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
     else:
         content = [{"type": "text", "text": prompt}] + [{"type": "image_url", "image_url": {"url": u}} for u in urls] if urls else prompt
         body = {"model": o["model"], "messages": [{"role": "user", "content": content}]}
-    if o.get("reasoning_effort"):
+    # Ollama thinking models default to thinking on (including Qwen3.5). PaperRead
+    # intentionally hides <think> blocks, which otherwise leaves the reader waiting
+    # with no visible output. Ollama maps reasoning_effort="none" to think=false.
+    effort = o.get("reasoning_effort") or ("none" if kind(o) == "chat" and o.get("preset") == "ollama" else "")
+    if effort:
         if kind(o) == "responses":
-            body["reasoning"] = {"effort": o["reasoning_effort"]}
+            body["reasoning"] = {"effort": effort}
         else:
-            body["reasoning_effort"] = o["reasoning_effort"]
+            body["reasoning_effort"] = effort
     if o.get("service_tier"):
         body["service_tier"] = o["service_tier"]
     if temperature is not None and not o.get("reasoning_effort"):

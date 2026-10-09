@@ -27,15 +27,15 @@ class CloudLibraryDetectionTest(unittest.TestCase):
         self.assertEqual({row["root_path"] for row in candidates},
                          {str(self.root / name) for name in ("iCloudDrive", "iCloud Drive")})
 
-    def test_custom_empty_and_unrelated_folder_get_easyread_child(self):
+    def test_custom_empty_and_unrelated_folder_get_paperread_child(self):
         selected = self.root / "Nutstore"
         selected.mkdir()
         for contents in (None, "other files"):
             if contents:
                 (selected / "notes.txt").write_text(contents)
-            self.assertEqual(cloudlib_detect.target_path(selected), selected / "EasyRead")
-            self.assertEqual(cloudlib.inspect(selected)["path"], str(selected / "EasyRead"))
-        self.assertFalse((selected / "EasyRead").exists())
+            self.assertEqual(cloudlib_detect.target_path(selected), selected / "PaperRead")
+            self.assertEqual(cloudlib.inspect(selected)["path"], str(selected / "PaperRead"))
+        self.assertFalse((selected / "PaperRead").exists())
 
     def test_existing_library_and_explicit_easyread_folder_stay_as_selected(self):
         selected = self.root / "existing-library"

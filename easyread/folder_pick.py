@@ -17,7 +17,7 @@ _PS = r"""
 $code = @'
 using System;
 using System.Runtime.InteropServices;
-public static class EasyReadPicker {
+public static class PaperReadPicker {
   [ComImport, Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")] class FileOpenDialog {}
   [ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   interface IFileDialog {
@@ -62,7 +62,7 @@ public static class EasyReadPicker {
 '@
 Add-Type -TypeDefinition $code -Language CSharp -ReferencedAssemblies System.Windows.Forms, System.Drawing
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::Out.Write([EasyReadPicker]::Pick($env:EASYREAD_PICK_TITLE, $env:EASYREAD_PICK_START))
+[Console]::Out.Write([PaperReadPicker]::Pick($env:EASYREAD_PICK_TITLE, $env:EASYREAD_PICK_START))
 """
 
 

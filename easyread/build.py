@@ -41,7 +41,7 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
     page = i18n.inject((WEB / "reader.html").read_text(encoding="utf-8"), lang)
     page = _LINK.sub(lambda m: _inline_css(m.group(1)), page)
     page = _SCRIPT.sub(lambda m: _script(m.group(1)), page)
-    page = page.replace('<link rel="icon" href="/web/favicon.svg">', f'<link rel="icon" href="{_data_uri(WEB / "favicon.svg", "image/svg+xml")}">')
+    page = page.replace('<link rel="icon" href="/web/paperread-mark.png" type="image/png">', f'<link rel="icon" href="{_data_uri(WEB / "paperread-mark.png", "image/png")}">')
     paper = ws.load("paper")
     images = {}
     rels = [p["img"] for p in paper.get("meta", {}).get("pages", [])] + [b["src"] for b in paper.get("blocks", []) if b.get("src")]

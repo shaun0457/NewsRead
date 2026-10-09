@@ -1,162 +1,92 @@
-<p align="center">
-  <img src="docs/images/logo.svg" width="72" alt="EasyRead">
-</p>
-<h1 align="center">EasyRead</h1>
-<p align="center"><b>A more comfortable way to read papers.</b><br>
-Drop in a PDF and it gets translated page by page in the background. Equations and tables keep their original layout, the source is always one click away, and you can highlight, take notes and ask AI as you read.<br>
-Runs locally. You choose the model service and whether to keep your library in a synced folder.</p>
-
-<p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
-
-<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ Try the demo · Chinese translation</b></a> · <a href="https://edwardxlai.github.io/easyread/en/">Homepage</a> · <a href="https://github.com/Edwardxlai/easyread/releases/latest">Download</a></p>
+# PaperRead
 
 <p align="center">
-  <a href="https://github.com/Edwardxlai/easyread/releases/latest"><img src="https://img.shields.io/github/v/release/Edwardxlai/easyread?label=release" alt="release"></a>
-  <a href="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml"><img src="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml/badge.svg" alt="tests"></a>
-  <img src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-runs%20locally-2f6070" alt="platforms">
-  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
+  <img src="easyread/web/paperread-mark.png" width="72" alt="PaperRead">
 </p>
 
-<p align="center"><img src="docs/images/en/hero.png" width="860" alt="English paper text and equations alongside the original PDF"></p>
+<p align="center"><b>A local research workspace for discovering, reading, and organizing papers.</b><br>
+PaperRead combines a comfortable PDF reading experience with research exploration, candidate management, reading progress, AI-assisted summaries, reading paths, and paper mind maps.</p>
 
-> **Choose your reading language.** Translate English papers into **Chinese, Japanese, Korean, Spanish, French or German**. Choose a language when importing, or set your default in Settings → Reading → Translate papers into (initially Chinese). The interface supports **English and Chinese**, independently of the translation language. You can also choose "Read the English original" on import and use the layout, highlights, notes and Ask AI without translating.
+> This is YuriyLin's PaperRead fork. It keeps the useful local reading and annotation model from EasyRead while adding a Traditional Chinese interface, a research workspace, and Windows-focused desktop packaging.
 
-<p align="center"><img src="docs/images/en/japanese.png" width="860" alt="Japanese abstract alongside the original English PDF"></p>
+<p align="center"><a href="README.md">繁體中文</a> · <b>English</b></p>
 
-## How it differs from "throw the PDF into a translator"
+<p align="center"><a href="https://github.com/YuriyLin/PaperRead">Homepage</a> · <a href="https://github.com/YuriyLin/PaperRead/releases/latest">Download</a> · <a href="https://github.com/YuriyLin/PaperRead/issues">Issues</a></p>
 
-- **Reads like a typeset book.** Serif body text, comfortable line length and spacing. Equations are re-rendered with KaTeX, tables become clean three-line tables, references stay in the original. One click in the top bar for dark mode.
-- **The original is always right there.** Toggle "bilingual" to show the English under each paragraph. Open the original page on the right: it follows your reading position and draws a box around the paragraph you're on.
-- **Translation and commentary are kept apart.** The main text is only the faithful translation. AI explanations and answers go in the margin, so you always know what the paper actually says.
-- **Ask AI while you read.** A chat panel with streaming answers. Quote several paragraphs at once (drag selected text into the input). Ask "how do the equations I highlighted in red relate?" and it finds your red highlights. Multiple chats, each with its own model: Claude, GPT (Codex), DeepSeek, Qwen, local Ollama… Pin a good answer to the margin in one click.
-- **Annotate.** Four highlighter colors or underline, notes, questions. Send a question to AI with one click, or ask it to comment on a note. All annotations are collected in reading order and can be exported to Markdown (Obsidian, Notion).
-- **Edit the translation.** Double-click a paragraph to edit it; change a term in the glossary and it's replaced everywhere.
-- **Not just arXiv.** Drop in any PDF, or paste an arXiv ID, DOI, paper title or paper page (OpenReview, ACL, NeurIPS, bioRxiv, PMC, journal sites). It finds the open PDF and fills in authors, year and venue.
-- **A library of your own.** Pin papers and folders, create folders and drag papers into them, recent reads, search, unread / reading / done, stars, reading progress, copy citation (GB/T 7714, APA, BibTeX), export a single-file offline HTML to share. Deleted papers go to a trash you can restore from. Custom keyboard shortcuts.
-- **Cloud library and batch citations.** Move your library to another drive or a synced folder in Settings → Cloud library; your cloud drive client handles syncing. Copy or save citations for a paper list or folder in GB/T 7714, APA or BibTeX.
-- **ASD-STE100 Chinese answers.** Choose this answer style in Ask AI for concise Chinese explanations that retain technical terms, equations and conditions. It borrows writing principles from the English standard; it does not certify Chinese answers as compliant.
-- **Know what you're spending.** Every translation and every AI answer records its token usage; with a Claude subscription you also see how much of the 5-hour / 7-day quota is used and when it resets.
-- **Doesn't lose your work.** Every edit is saved in the browser first and only cleared once the local server confirms it's on disk. If a re-translation touches a paragraph you edited, you get a notice, not an overwrite.
+<p align="center">
+  <a href="https://github.com/YuriyLin/PaperRead/releases/latest"><img src="https://img.shields.io/github/v/release/YuriyLin/PaperRead?label=release" alt="release"></a>
+  <a href="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml"><img src="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+  <img src="https://img.shields.io/badge/Windows%20x64-supported-2f6070" alt="Windows x64 supported">
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
+</p>
 
-<p align="center"><img src="docs/images/en/chat.png" width="860" alt="Ask AI while reading"></p>
+PaperRead currently supports **Windows x64** as its desktop platform. The installer bundles the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. The project does not claim macOS or Linux desktop support.
 
-<p align="center"><img src="docs/images/en/library.png" width="860" alt="Library"></p>
+## What PaperRead adds to EasyRead
 
-## Pick your translation model
+The reader remains the place for close reading: bilingual text, equations, page-aware PDF locating, highlights, notes, questions, and Ask AI. PaperRead adds a research workflow around that reader:
 
-| Engine | What you need | Notes |
-|---|---|---|
-| **Claude Code** (recommended) | [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) installed and logged in | No API key, uses your subscription. Looks at the page image to check equations. Best quality |
-| **Codex CLI** | [Codex](https://github.com/openai/codex) installed and logged in | No API key, uses your ChatGPT account |
-| **API · China**: DeepSeek / Zhipu / Alibaba Bailian (Qwen) / Kimi / SiliconFlow / ModelScope | API key | Zhipu GLM-4.7-Flash and SiliconFlow small models are free; DeepSeek costs cents per paper |
-| **API · International**: OpenAI / Anthropic / Gemini / OpenRouter / Groq / Cerebras | API key | Gemini, OpenRouter, Groq, Cerebras have free tiers |
-| **API · Local**: Ollama / LM Studio | [Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai) | Fully offline. qwen3.5:9b recommended (4b for small GPUs) |
-| **API · Custom endpoint**: any OpenAI-compatible API or relay | URL + key | Both Chat Completions and Responses formats; "Fetch model list" pulls model names from the endpoint |
+| Area | PaperRead behavior |
+|---|---|
+| **Research Explorer** | Search by topic, conference, journal, year, and venue. Multiple venues can be entered together, such as `ICCV ECCV CVPR`, or a single venue such as `MICCAI`. |
+| **Reading Board** | Move papers by drag and drop between **To read**, **Reading**, **To organize**, and **Completed**. Reading progress and the interest star are independent and remain synchronized with the library and reader. |
+| **Candidates** | Keep a separate list of papers worth reviewing. Adding a candidate does not silently replace the search results or force a download. |
+| **Organized Summaries** | Generate and review a paper summary when you choose, render it as Markdown, and export it for later use. Summaries can be removed to the recycle bin. |
+| **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. |
+| **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
 
-Settings auto-detect what's installed; "Test one sentence" tells you right away whether an engine works. A failed page (rate limit, network, quota) is retried automatically, then skipped so the rest keeps going, and you can retry all failed pages in one click at the end.
+The interface is localized for Taiwan Traditional Chinese usage. English technical terms such as `OpenAlex`, `Ollama`, `Mermaid`, model names, and API names remain unchanged where that improves clarity. Translation language and interface language are separate settings.
 
-## Install
+## Typical workflow
 
-**Easiest: download the installer** (no Python needed). From [Releases](https://github.com/Edwardxlai/easyread/releases/latest):
+1. Open **Research Explorer** and search a topic or one or more venues.
+2. Add promising papers to **Candidates**. Results from different sources are merged and duplicate papers are removed.
+3. Review the candidate list and choose which papers need a summary. Summary generation and export are explicit user actions.
+4. Move papers on the **Reading Board** to set the reading order and progress.
+5. Open a paper in the reader to highlight, annotate, ask questions, and verify the original PDF.
+6. Generate a **Reading Path** or a **Paper Mind Map** when you need a broader view of the research area.
 
-- **Windows**: `EasyRead-Setup-x.x.x.exe`. It is not code-signed; if SmartScreen says "Windows protected your PC", click "More info → Run anyway".
-- **macOS** (Apple silicon): `EasyRead-x.x.x-arm64.dmg`, drag EasyRead into Applications. If macOS blocks the first launch, follow the matching instructions below.
-- **Linux**: `EasyRead-x.x.x.AppImage`, `chmod +x` and run it.
+## Reading and evidence
 
-Papers and settings live in the `EasyRead` folder in your home directory (same place as the pip install), so reinstalling keeps them.
+PaperRead keeps translated text, AI explanations, and personal notes as separate data. Figures and tables preserve their layout as placeholders in the reading view; open the original PDF to inspect the source image or table. This avoids presenting a cropped screenshot or an unverified translation as the original evidence.
 
-### First launch on macOS
+The local library stores paper metadata, PDF files, page data, block identifiers, translations, highlights, notes, discussions, and chat history. Existing EasyRead data is kept compatible where possible, and PaperRead data is stored under the `PaperRead` user folder.
 
-1. **“Developer cannot be verified” or “Apple cannot check it for malicious software”**: click **Done** (not **Move to Trash**), open **System Settings → Privacy & Security**, scroll down to the security message, and click **Open Anyway**. Click **Open** in the confirmation dialog, then enter your login password or use Touch ID when prompted.
-2. **“EasyRead is damaged and can’t be opened”**: download it again from the [official EasyRead Releases](https://github.com/Edwardxlai/easyread/releases/latest) and drag the app into Applications. This warning can also mean the file is damaged or has been modified; it does not identify the cause by itself. Only after confirming that your copy came from that official repository and that you trust it, run the following in **Terminal**, then open EasyRead again. This removes the quarantine attribute; it does not repair a damaged file.
+## Models and AI services
 
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/EasyRead.app
-   ```
+PaperRead can use configured cloud APIs, CLI-based model services, or local OpenAI-compatible endpoints. Common options include OpenAI/Codex, Anthropic, Gemini, DeepSeek, Zhipu GLM, SiliconFlow, Ollama, LM Studio, and custom endpoints. Local models can be selected from the model list when the service is running, for example an Ollama model at `http://127.0.0.1:11434`.
 
-3. **Why verification may fail**: the macOS package currently has an ad-hoc signature, without an Apple developer certificate or notarization, so macOS may block it. The code is open source; you can also [run from source](#run-from-source).
+Model availability, rate limits, and response formats depend on the selected provider. Basic reading, the library, the candidate list, and the board remain usable when an AI provider is unavailable. AI-generated summaries, reading paths, and mind maps should be reviewed against the original paper before being used as research conclusions.
 
-If macOS says the app **“will damage your computer”**, or explicitly detects malware and asks you to move it to the Trash, stop the installation and do not use the steps above to bypass the warning. Follow [Apple’s official guidance](https://support.apple.com/en-us/102445).
+## Install on Windows
 
-<a id="run-from-source"></a>
+Download the latest `PaperRead-Setup-x.x.x.exe` from [Releases](https://github.com/YuriyLin/PaperRead/releases/latest). The installer supports per-user installation, lets you choose the install directory, and can create a desktop shortcut. The installer is currently not code-signed, so Windows SmartScreen may require **More info → Run anyway** after you verify that the file came from this repository.
 
-**Or run from source** (needs Python 3.10+): download the latest zip from [Releases](https://github.com/Edwardxlai/easyread/releases/latest) and unzip it (or `git clone` this repo).
-
-**Windows**: double-click `start.cmd`. The first run sets up the environment (about a minute); after that it opens right away.
-
-**macOS / Linux**: in the unzipped folder, run
-
-```bash
-./start.sh
-```
-
-When started this way, the background service quits on its own about 15 seconds after you close every EasyRead page in the browser; if a translation is still running, it waits until that finishes.
-
-**Or with pip** (data goes to `~/EasyRead`):
-
-```bash
-pip install git+https://github.com/Edwardxlai/easyread
-easyread
-```
-
-Your browser opens `http://127.0.0.1:8765`. The server only listens on localhost.
-
-## Usage
-
-1. Open Settings (top right) → Model: add the models you want and choose "Use for translation" on one card. Models for translation and Ask AI are managed on the same page.
-2. Drag a PDF into the window, or paste an arXiv ID, arXiv / OpenReview link or a direct PDF link (`Ctrl+V` on the library page works too). For long papers you can translate just the main text, or a page range such as pages 5–12. You can also pick the model and target language for this import, or choose "Read the English original" to lay out the paper without translating; use "Translate to…" any time later. Whole-paper jobs above 60 pages ask for confirmation by default; change the limit in Settings → Model.
-3. Translation runs in the background page by page. Translated parts are readable immediately; untranslated pages show the original.
-4. Click a paragraph for its action bar; select text to highlight, note or ask. Press `?` for all shortcuts.
-
-## Reading with an AI agent
-
-EasyRead ships with a CLI, so agents like Claude Code or Codex can read your notes and questions in a conversation, write answers next to the right paragraphs, or translate / re-translate pages themselves. The skill is in [`skill/paper-reading/SKILL.md`](skill/paper-reading/SKILL.md); put that folder in `~/.claude/skills/` or `~/.codex/skills/`.
-
-```bash
-easyread list                          # list the library
-easyread import paper.pdf              # or an arXiv ID / link
-easyread status ID                     # progress, your edits, notes, open questions
-easyread discuss ID --from answers.json   # write discussion into the margin
-easyread export ID                     # export single-file offline HTML
-```
-
-See `easyread --help` for all commands and [docs/data-format.md](docs/data-format.md) for the data format.
-
-## FAQ
-
-**Does it cost anything?** EasyRead is free and open source. Translation uses your own model: Claude Code / Codex use your existing subscription, local and free-tier models cost nothing, paid APIs bill per use.
-
-**Where is my data? Is anything uploaded?** By default, files stay on your machine: `library/` in the project folder when run from source, `~/EasyRead/library/` after pip install. One folder per paper holds the original PDF, page images and JSON files. Settings → Cloud library can move the library to your synced folder; your cloud drive client then handles uploads and syncing. Translation and AI questions send the relevant content to the model you chose.
-
-**Can I read offline or share a paper?** Yes. Right-click a paper → "Export offline HTML" (or `easyread export ID`) for a single-file web page. The recipient doesn't need EasyRead: double-click to open it in a browser with the translation, equations, page images, your highlights and notes, bilingual view and the original-page panel all working. Page images are embedded, so the file is not small (about 10 MB for a 27-page paper). New highlights made in the offline copy stay in that browser; to bring them back, use "Export my changes" under About in the left drawer and run `easyread merge ID --from export.json`.
-
-To publish on a site such as GitHub Pages, use `easyread demo ID --out DIR`: images are saved as separate files and loaded on demand, and AI chats are included (read-only).
-
-**Can it translate into languages other than Chinese?** Yes: Chinese, Japanese, Korean, Spanish, French and German are available under Settings → Reading → Translate papers into, and in the import dialog. You can also read the English original. Interface language is independent: choose Chinese or English under Settings → Reading → Language.
+For development, install Python 3.10+ and run `start.cmd` from the repository root. The local service listens on `127.0.0.1`; paper files and settings remain on the local machine unless a configured model service receives selected content for translation or AI analysis.
 
 ## Development
 
-No frontend build step: `easyread/web/` is plain HTML/CSS/JS, just refresh after editing. The backend uses the Python standard library plus PDF libraries.
+The web interface uses plain HTML, CSS, and JavaScript. The backend is Python and the desktop shell is Electron. Useful checks include:
 
 ```bash
-python -m unittest discover tests         # unit tests
-node tests/e2e.cjs library/<paper-id>     # browser end-to-end test (needs Playwright and a translated paper)
+python -m unittest discover tests
+node tests/e2e.cjs library/<paper-id>
 ```
 
-Design notes in [docs/design.md](docs/design.md), changes in [CHANGELOG.md](CHANGELOG.md) (both in Chinese).
+To create the Windows installer after testing locally:
+
+```bash
+npm run dist
+```
 
 ## License
 
-MIT. Math rendering by [KaTeX](https://katex.org) (MIT).
-
-The demo paper is Rafailov et al., *Direct Preference Optimization: Your Language Model is Secretly a Reward Model* ([arXiv:2305.18290](https://arxiv.org/abs/2305.18290), CC BY 4.0). The Chinese translation was generated by EasyRead using Claude; highlights and notes in the demo are examples.
-
-Screenshots use a demonstration library. The Japanese sample translates the abstract; highlights, notes and the English AI answer are illustrative examples.
+MIT. Math rendering uses [KaTeX](https://katex.org) (MIT).
 
 ## Contributors
 
-- [@Wang-auspicious](https://github.com/Wang-auspicious) — Electron desktop packaging and release workflow
-- [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) — missing PDF dependency in desktop builds, two-column page locating; Markdown tables and blockquotes in Ask AI and notes
-- [@MeshedPoto](https://github.com/MeshedPoto) — PDFium errors during parallel translation, cross-column page highlights, macOS desktop reliability, HTTPS certificates and streaming fixes; ASD-STE100 Chinese answers and math rendering in v1.3
-
-- [@Lzy22301093](https://github.com/Lzy22301093) — malformed table validation and rendering resilience ([#17](https://github.com/Edwardxlai/easyread/pull/17))
+- [@YuriyLin](https://github.com/YuriyLin) — PaperRead fork, Traditional Chinese interface, research workspace, reading workflow, Windows desktop packaging, and release maintenance
+- [@Wang-auspicious](https://github.com/Wang-auspicious) — upstream Electron desktop packaging and release workflow
+- [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) — upstream PDF dependency, page locating, Markdown rendering, and streaming fixes
+- [@MeshedPoto](https://github.com/MeshedPoto) — upstream PDF translation, highlighting, macOS reliability, and math rendering fixes
+- [@Lzy22301093](https://github.com/Lzy22301093) — upstream table validation and rendering resilience

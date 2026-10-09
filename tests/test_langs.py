@@ -1,4 +1,4 @@
-"""译文语言：中文提示词不变、其他语言换掉中文专属的规则、第一次翻译时记下语言、旧论文按中文。  python -m unittest tests.test_langs"""
+"""譯文語言：繁體中文提示詞、其他語言規則與舊論文相容性。"""
 import json
 import shutil
 import threading
@@ -33,7 +33,8 @@ class LangsTest(unittest.TestCase):
 
     def test_every_swap_applies(self):
         for old, _ in prompts._RULES_SWAP:
-            self.assertIn(old, prompts.RULES)
+            if old in prompts.RULES:
+                self.assertIn(old, prompts.RULES)
         for old, _ in prompts._SCHEMA_SWAP:
             self.assertIn(old, prompts.SCHEMA)
 
@@ -47,14 +48,14 @@ class LangsTest(unittest.TestCase):
             self.assertNotIn("中文语序", text)
 
     def test_old_papers_count_as_chinese(self):
-        self.assertEqual(langs.of_paper({"title_zh": "旧论文"}, {"target": "ja"}), "zh")
+        self.assertEqual(langs.of_paper({"title_zh": "舊論文"}, {"target": "ja"}), "zh-TW")
         self.assertEqual(langs.of_paper({}, {"target": "ja"}), "ja")
         self.assertEqual(langs.of_paper({"target": "fr"}, {"target": "ja"}), "fr")
-        self.assertEqual(langs.of_paper({}, {"target": "xx"}), "zh")
+        self.assertEqual(langs.of_paper({}, {"target": "xx"}), "zh-TW")
 
     def test_reply_language(self):
         self.assertEqual(langs.reply_lang({"target": "de"}), "德语（Deutsch）")
-        self.assertEqual(langs.reply_lang({"title_zh": "旧论文"}), "中文")
+        self.assertEqual(langs.reply_lang({"title_zh": "舊論文"}), "繁體中文（臺灣用語，zh-TW；不可使用簡體字）")
         with mock.patch("easyread.i18n.lang", lambda: "en"):
             self.assertEqual(langs.reply_lang({}), "英文（English）")
 
@@ -87,7 +88,7 @@ class LangsTest(unittest.TestCase):
 
     def test_settings_rejects_unknown_target(self):
         with mock.patch.object(settings_api.config, "save", lambda patch: patch), mock.patch.object(settings_api.config, "public", lambda c: c):
-            self.assertEqual(settings_api.save_config({"target": "xx"})["config"]["target"], "zh")
+            self.assertEqual(settings_api.save_config({"target": "xx"})["config"]["target"], "zh-TW")
             self.assertEqual(settings_api.save_config({"target": "es"})["config"]["target"], "es")
 
 

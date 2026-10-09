@@ -1,6 +1,7 @@
 // Windows NSIS updates. The renderer never supplies a feed URL or installer path.
-function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prepareInstall, recover }) {
-  const supported = app.isPackaged && process.platform === "win32";
+function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prepareInstall, recover, repository = "" }) {
+  const match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(String(repository).trim());
+  const supported = app.isPackaged && process.platform === "win32" && Boolean(match);
   let state = { supported, phase: "idle", version: "", percent: 0, error: "" };
   let busy = false;
   const publish = (patch) => {
@@ -12,7 +13,7 @@ function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prep
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
     updater.allowDowngrade = false;
-    updater.setFeedURL({ provider: "github", owner: "Edwardxlai", repo: "easyread" });
+    updater.setFeedURL({ provider: "github", owner: match[1], repo: match[2] });
     updater.on("error", error => publish({ phase: "error", error: error.message }));
     updater.on("download-progress", progress => publish({ phase: "downloading", percent: progress.percent, transferred: progress.transferred, total: progress.total }));
     updater.on("update-downloaded", info => publish({ phase: "downloaded", version: info.version, percent: 100 }));

@@ -8,7 +8,7 @@ const SCHEME = "easyread";
 function openPath(link) {
   let url;
   try { url = new URL(link); } catch { return null; }
-  if (url.protocol !== `${SCHEME}:` || (url.hostname || url.pathname.replace(/^\/+/, "")) !== "open") return null;
+  if (![`${SCHEME}:`, "paperread:"].includes(url.protocol) || (url.hostname || url.pathname.replace(/^\/+/, "")) !== "open") return null;
   const query = new URLSearchParams();
   for (const key of ["sha256", "id", "block"]) {
     const value = url.searchParams.get(key);
@@ -19,7 +19,7 @@ function openPath(link) {
 
 // Windows / Linux 把链接放在命令行参数里（首次启动和 second-instance 都是）
 function fromArgv(argv) {
-  const link = (argv || []).find(arg => typeof arg === "string" && arg.toLowerCase().startsWith(`${SCHEME}:`));
+  const link = (argv || []).find(arg => typeof arg === "string" && /^(easyread|paperread):/i.test(arg));
   return link ? openPath(link) : null;
 }
 
@@ -27,9 +27,9 @@ function register(app, proc) {
   if (!app.setAsDefaultProtocolClient) return;
   // 开发时（electron .）要把入口脚本一起登记，否则系统会启动一个空的 Electron
   if (proc.defaultApp && proc.argv && proc.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(SCHEME, proc.execPath, [require("path").resolve(proc.argv[1])]);
+    for (const scheme of [SCHEME, "paperread"]) app.setAsDefaultProtocolClient(scheme, proc.execPath, [require("path").resolve(proc.argv[1])]);
   } else {
-    app.setAsDefaultProtocolClient(SCHEME);
+    for (const scheme of [SCHEME, "paperread"]) app.setAsDefaultProtocolClient(scheme);
   }
 }
 

@@ -152,8 +152,8 @@ class SkipHeadTest(unittest.TestCase):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 1, "openai": {"vision": False}}
         self.run_job(cfg, list(range(1, 9)), gl=lambda page: [{"en": "error bar", "zh": "误差棒" if page > 4 else "误差线"}])
         paper = self.ws.load("paper")
-        self.assertEqual({b["zh"] for b in paper["blocks"]}, {"误差线"})
-        self.assertEqual(paper["glossary"], [{"en": "error bar", "zh": "误差线"}])
+        self.assertEqual({b["zh"] for b in paper["blocks"]}, {"誤差線"})
+        self.assertEqual(paper["glossary"], [{"en": "error bar", "zh": "誤差線"}])
         self.assertIn("术语统一", (self.ws.root / "job.log").read_text(encoding="utf-8"))
 
     def test_only_one_references_block(self):

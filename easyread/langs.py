@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # 代码 → (界面上显示的名字, 提示词里怎么称呼, 英文名)
 TARGETS = {
+    "zh-TW": ("繁體中文（臺灣）", "繁體中文（臺灣用語，zh-TW；不可使用簡體字）", "Traditional Chinese (Taiwan)"),  # i18n-ok
     "zh": ("中文", "中文", "Chinese"),  # i18n-ok 语言名
     "ja": ("日本語", "日语（日本語）", "Japanese"),  # i18n-ok
     "ko": ("한국어", "韩语（한국어）", "Korean"),  # i18n-ok
@@ -13,7 +14,7 @@ TARGETS = {
     "fr": ("Français", "法语（Français）", "French"),  # i18n-ok
     "de": ("Deutsch", "德语（Deutsch）", "German"),  # i18n-ok
 }
-DEFAULT = "zh"
+DEFAULT = "zh-TW"
 
 
 def valid(code: str | None) -> str:
@@ -59,6 +60,6 @@ def reply_lang(meta: dict | None) -> str:
     if meta.get("target") in TARGETS:
         return prompt_name(meta["target"])
     if meta.get("title_zh"):  # 1.3 以前译的论文没记语言，都是中文
-        return "中文"  # i18n-ok 提示词
+        return prompt_name(DEFAULT)
     from . import i18n
-    return "中文" if i18n.lang() == "zh" else "英文（English）"  # i18n-ok 提示词
+    return prompt_name(DEFAULT) if i18n.lang() == "zh-TW" else "中文" if i18n.lang() == "zh" else "英文（English）"  # i18n-ok

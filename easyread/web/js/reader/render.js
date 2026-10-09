@@ -25,7 +25,7 @@
   PR.blockKeys = function (b) {
     if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
     if (b.type === "table") return [b.id + "#caption"];
-    if (b.type === "figure") return [b.id + "#caption"].concat(b.image_zh || b.image_en ? [b.id + "#image"] : []);
+    if (b.type === "figure") return [b.id + "#caption"];
     if (b.type === "math" || b.type === "references" || b.type === "note") return [];
     return [b.id];
   };
@@ -66,12 +66,6 @@
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="caption"><div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + key + '">' + body + staleTag(key) + "</div>" + enIfZh(key, b.caption_en) + "</div>";
   }
-  function tableRows(value) {
-    if (!Array.isArray(value) || !value.length) return [];
-    if (value.every((row) => !Array.isArray(row))) return [value];
-    return value.map((row) => Array.isArray(row) ? row : [row]);
-  }
-  function cell(c) { return PR.md(String(c), { xref: false, cite: false }).replace(/<br>(\([^<]*\))/g, '<br><span class="sub">$1</span>'); }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
   const R = {
@@ -90,19 +84,15 @@
     },
     math: (b) => '<div class="math-row"><div class="math-body">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
-      const al = (b.align || "").split("");
-      const style = (i) => (al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "");
-      const head = tableRows(b.head).map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c) + "</th>").join("") + "</tr>").join("");
-      const rows = tableRows(b.rows).map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c) + "</td>").join("") + "</tr>").join("");
-      const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+      const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
+        '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
+      const table = '<div class="figure-media">' + placeholder + '</div>';
       return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
     },
     figure(b) {
-      const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
-        : '<button class="fig-missing" data-t="page">' + PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) + "</button>";
-      const key = b.id + "#image";
-      const imageText = b.image_zh || b.image_en ? '<div class="figure-translation"><div class="figure-translation-label">' + PR.t("图内文字") + '</div>' + zhDiv(key) + enIfZh(key, b.image_en) + '</div>' : "";
-      return '<div class="figure-media">' + img + '</div>' + imageText + captionHtml(b);
+      const placeholder = '<button class="fig-placeholder" data-t="page" aria-label="' + PR.t("圖表保留於原文") + '">' +
+        '<span>' + PR.t("圖表保留於原文") + '</span><small>' + PR.t("圖見原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
+      return '<div class="figure-media">' + placeholder + '</div>' + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {
@@ -131,7 +121,7 @@
 
   function blockErrorHtml(b, error) {
     const id = PR.esc(b && b.id ? b.id : "unknown");
-    console.error("EasyRead block render failed", b && b.id, error);
+    console.error("PaperRead block render failed", b && b.id, error);
     return '<section class="blk blk-error" id="b-' + id + '" data-id="' + id + '">' +
       '<div class="inline-note"><div class="lbl">' + PR.t("这一块没能显示") + '</div><p>' + PR.t("块 {id} 的数据格式有问题，其他内容仍可阅读。", { id }) + '</p></div></section>';
   }
@@ -154,7 +144,7 @@
     const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
-      '<br><span class="reading-language-description">' + (en ? PR.t("没译的地方正文是英文原文") : PR.t("正文是译文")) + '</span>' + PR.t('；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。');
+      "";
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
       "<h1>" + PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）")) + "</h1>" +
       (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +

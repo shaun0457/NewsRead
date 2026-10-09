@@ -92,6 +92,14 @@ class OpenAIApiTest(unittest.TestCase):
     def test_models(self):
         self.assertEqual(openai_api.models({"base_url": self.base + "/"}), ["a-model", "b-model"])
 
+    def test_ollama_disables_default_thinking_but_respects_explicit_choice(self):
+        default = openai_api._body({"preset": "ollama", "model": "qwen3.5-4b:latest"}, "q", [], True, 0.4)
+        self.assertEqual(default["reasoning_effort"], "none")
+        enabled = openai_api._body({"preset": "ollama", "model": "qwen3.5-4b:latest", "reasoning_effort": "high"}, "q", [], True, 0.4)
+        self.assertEqual(enabled["reasoning_effort"], "high")
+        other = openai_api._body({"preset": "openai", "model": "gpt"}, "q", [], True, 0.4)
+        self.assertNotIn("reasoning_effort", other)
+
 
 if __name__ == "__main__":
     unittest.main()

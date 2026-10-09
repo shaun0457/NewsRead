@@ -1,190 +1,270 @@
-<p align="center">
-  <img src="docs/images/logo.svg" width="72" alt="EasyRead">
-</p>
-<h1 align="center">EasyRead</h1>
-<p align="center"><b>让你更舒服地读论文</b><br>
-导入 PDF，后台逐页翻译；公式、表格照原文排好，随时对照原文，边读边划线、记笔记、提问。<br>
-本地运行，文献库默认保存在电脑上，也可以放进你自己的网盘同步文件夹</p>
-
-<p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
-
-<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ 在线试读一篇</b></a> · <a href="https://edwardxlai.github.io/easyread/">项目主页</a> · <a href="https://github.com/Edwardxlai/easyread/releases/latest">下载</a></p>
+# PaperRead
 
 <p align="center">
-  <a href="https://github.com/Edwardxlai/easyread/releases/latest"><img src="https://img.shields.io/github/v/release/Edwardxlai/easyread?label=%E7%89%88%E6%9C%AC" alt="版本"></a>
-  <a href="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml"><img src="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml/badge.svg" alt="测试"></a>
-  <img src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-本地运行-2f6070" alt="平台">
-  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
+  <img src="easyread/web/paperread-mark.png" width="88" alt="PaperRead">
 </p>
 
-<p align="center"><img src="docs/images/pages.jpg" width="860" alt="译文和原页对照"></p>
+<p align="center">
+  <strong>從研究探索到論文精讀的個人研究工作區</strong><br>
+  以繁體中文介面閱讀論文、整理候選清單、規劃閱讀路徑，並保留可回到原文核對的研究脈絡。
+</p>
 
-## 它和“把 PDF 丢给翻译软件”有什么不一样
+<p align="center">
+  <a href="https://github.com/YuriyLin/PaperRead/releases/latest">下載 PaperRead</a> ·
+  <a href="https://github.com/YuriyLin/PaperRead/issues">回報問題</a> ·
+  <a href="README.en.md">English</a>
+</p>
 
-- **像读一本排好版的中文书。** 宋体正文、舒服的行宽和行距，公式用 KaTeX 按原文重排，表格是三线表，参考文献保留原文。顶栏一键切深色。
-- **随时核对原文。** 一键切“对照”，每段下面附英文；右侧可以开原页，跟着阅读位置翻页，还会框出当前段落在原页的位置。
-- **翻译和解释分开。** 正文只放忠实的译文；AI 的解释、回答放在页边，一眼就能分清哪句是论文说的。
-- **边读边问 AI。** 右侧“问 AI”面板实时对话，回答逐字流出来；可以一次引用好几段（选中文字拖进输入框就行）。问“我标红的那些公式有什么联系”，它会按颜色找出你的划线。可以开多个对话，模型单独选：Claude、GPT（Codex）、DeepSeek、通义、本机 Ollama……好的回答一键放到页边。
-- **ASD-STE100 问答。** 在“问 AI”的“回答方式”里选择这个模式，用简明中文回答问题或总结论文，保留专业术语、公式和数值。模式按对话保存，支持复制、放到页边和导出 Markdown。[ASD-STE100](https://www.asd-ste100.org/STE_faq.html) 是英文标准；这个模式借鉴其短句、主动表达和术语一致等原则，提供中文写作辅助，不将中文答案标为符合英文标准或已认证。正文过长时只提供节选，回答需说明依据范围。
-  中文提示词另参考 [asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill) 的语义保留原则：保留条件、范围和“可能／建议／必须”等语气强度，不为简短而丢失精度。
-- **边读边批注。** 选中文字四色荧光笔或下划线、写笔记、提问；问题一键让 AI 回答，笔记可以让 AI 点评。所有笔记按原文顺序汇总，可以勾选导出成 Markdown（放进 Obsidian、Notion）。
-- **译文可以改。** 双击一段直接改；术语表里改一个译法，全文替换。
-- **不只是 arXiv。** 拖进任何 PDF；或者填 arXiv 编号、DOI、论文标题、论文网页（OpenReview、ACL、NeurIPS、bioRxiv、PMC、期刊页面），自动找到公开的 PDF 并补全作者、年份、出处。
-- **文献库。** 侧栏像聊天软件：论文和分类都能置顶；自己建分类（右键改名、删除，把论文拖进去），内置分类可以隐藏；最近阅读、搜索、未读 / 在读 / 已读、星标、阅读进度、复制引用（GB/T 7714、APA、BibTeX）、导出单文件离线 HTML 发给别人。删掉的论文先进回收站，可以恢复。快捷键可以自定义。
-- **云文献库与批量引用。** 在“设置 → 云文献库”里把文献库迁移到其他磁盘或网盘同步文件夹，也能接入已有的库；原库保留，复制后核对，重启生效。论文列表和分类支持批量复制或保存 GB/T 7714、APA、BibTeX 引用
-- **用了多少心里有数。** 每次翻译、每条 AI 回答都记下用了多少 token；用 Claude 订阅时，还能看到 5 小时 / 7 天额度用到多少、什么时候重置。
-- **不会丢东西。** 每次修改先存在浏览器，本地服务确认写进文件才删；翻译方后来改了你改过的段落，只提示，不覆盖。
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows%20x64-支援-2f6070" alt="支援平台：Windows x64">
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License">
+</p>
 
-<p align="center"><img src="docs/images/chat.jpg" width="860" alt="边读边问 AI"></p>
+PaperRead 是以 EasyRead 為基礎整理的個人研究工具。它保留原有的 PDF 排版、雙語閱讀、原文定位、批註與 AI 對話能力，再加入研究探索和閱讀規劃流程，讓「找到論文」與「真正讀懂論文」接在同一個工作區裡。
 
-<p align="center"><img src="docs/images/library.jpg" width="860" alt="文献库"></p>
+## 這個版本和上游 EasyRead 的差異
 
-## 翻译用什么模型：你来选
+| 面向 | PaperRead 的調整 |
+|---|---|
+| 介面語言 | 預設使用 `zh-TW`，介面用語根據臺灣語境做調整，例如「設定、匯入、匯出、儲存、資料夾、候選清單」。英文技術名詞與論文術語保留原文。 |
+| 品牌與桌面程式 | 使用 PaperRead 名稱、新版標誌及 `YuriyLin` 發行者中繼資料；安裝檔為 `PaperRead-Setup-x.x.x.exe`。 |
+| 論文閱讀 | 延續原文／譯文對照、公式、PDF 頁面定位、螢光筆、筆記、問 AI、模型切換和 token 使用量記錄。 |
+| 研究流程 | 新增「研究探索、閱讀看板、候選清單、已整理摘要、閱讀路徑」工作區。 |
+| 研究視覺化 | 可根據目前論文內容產生繁體中文 Mermaid 心智圖，協助理解研究問題、方法、發現、貢獻與限制。 |
+| 影像與表格 | 論文圖片和表格保留版面佔位，直接回到原 PDF 查看；不把裁切結果硬塞進譯文排版。 |
+| 資料相容性 | 使用者資料遷移至 `PaperRead` 資料夾；Python package、CLI、舊資料格式與 `easyread://` 連結協定仍保留相容層。 |
 
-| 引擎 | 要什么 | 说明 |
-|---|---|---|
-| **Claude Code**（推荐） | 装好并登录 [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) | 不用 Key，用你订阅的额度；会自己看原页图核对公式，译文最好 |
-| **Codex CLI** | 装好并登录 [Codex](https://github.com/openai/codex) | 不用 Key，用 ChatGPT 账号 |
-| **API 接口 · 国内直连**：DeepSeek / 智谱 / 阿里云百炼 / Kimi / 硅基流动 / 魔搭 | API Key | 智谱 GLM-4.7-Flash、硅基流动小模型免费；DeepSeek 一篇 20 页论文几毛钱 |
-| **API 接口 · 海外（要梯子）**：OpenAI / Anthropic / Gemini / OpenRouter / Groq / Cerebras | API Key | Gemini、OpenRouter、Groq、Cerebras 有免费额度 |
-| **API 接口 · 本机**：Ollama / LM Studio | 本机装 [Ollama](https://ollama.com) 或 [LM Studio](https://lmstudio.ai) | 完全离线、免费，推荐 qwen3.5:9b（显卡小用 4b） |
-| **API 接口 · 自定义地址**：任意 OpenAI 兼容接口、中转站 | 地址 + Key | Chat Completions 和 Responses 两种格式都支持；点“获取模型列表”从接口拉模型名 |
+## 主要工作流程
 
-不想让它导入后马上翻译，在设置里关掉“导入后自动开始翻译”就行，之后可以让对话里的 agent 来译。
-
-设置里会自动检测本机装了什么，点“试译一句”马上知道能不能用。某一页翻译失败（限流、网络、额度）会自动重试，还不行就先跳过、接着译后面的页，最后一键“重试失败的页”。
-
-<p align="center"><img src="docs/images/settings.jpg" width="640" alt="设置"></p>
-
-## 安装
-
-**最省事：下载安装包**（不用装 Python）。在 [Releases](https://github.com/Edwardxlai/easyread/releases/latest) 下载：
-
-- **Windows**：`EasyRead-Setup-x.x.x.exe`，双击安装。没有代码签名，如果弹出“Windows 已保护你的电脑”，点“更多信息 → 仍要运行”。
-- **macOS**（Apple 芯片）：`EasyRead-x.x.x-arm64.dmg`，把 EasyRead 拖进“应用程序”；第一次打开被系统拦截时，按下面对应的提示处理
-- **Linux**：`EasyRead-x.x.x.AppImage`，`chmod +x` 后运行。
-- 如果 Linux 提示缺少 `libfuse.so.2`，可按 [AppImage 官方说明](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)配置 FUSE，或在独立目录运行 `./EasyRead-x.x.x.AppImage --appimage-extract`，再运行 `./squashfs-root/AppRun`；无需关闭沙箱
-
-安装版的论文和设置存在用户目录下的 `EasyRead` 文件夹（和 pip 安装版同一个位置），卸载重装不会丢。
-
-### macOS 首次打开
-
-1. **提示“无法验证开发者”或“Apple 无法验证是否包含恶意软件”**：先点“完成”（不要点“移到废纸篓”），打开“系统设置 → 隐私与安全性”，向下找到安全性提示，点“仍要打开”；在确认窗口点“打开”，按提示输入登录密码或使用 Touch ID
-2. **提示“已损坏，无法打开”**：先从 [EasyRead 官方 Releases](https://github.com/Edwardxlai/easyread/releases/latest) 重新下载，并把应用拖进“应用程序”；文件也可能确实损坏或被改动，不能只凭这条提示判断原因。只有确认文件来自这个官方仓库、并信任该文件后，才在“终端”执行下面的命令，再重新打开 EasyRead；这条命令移除隔离属性，不会修复损坏的文件
-
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/EasyRead.app
-   ```
-
-3. **为什么会出现验证提示**：目前的 macOS 安装包只做了临时签名，没有 Apple 开发者证书，也没有经过公证，因此可能被系统拦截；代码完全开源，也可以[从源码运行](#run-from-source)
-
-如果系统提示“将损坏你的电脑”，或明确检测出恶意软件并要求移到废纸篓，请停止安装，不要用上面的步骤绕过；按 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 处理
-
-<a id="run-from-source"></a>
-
-**或者从源码运行**：需要 [Python 3.10+](https://www.python.org/downloads/)。
-
-先从 [Releases](https://github.com/Edwardxlai/easyread/releases/latest) 下载最新版的 zip 解压（或者 `git clone` 本仓库）。
-
-**Windows**：双击 `start.cmd`。第一次会自动装好环境（一分钟左右），之后双击直接打开。
-
-**macOS / Linux**：在解压出来的目录里运行
-
-```bash
-./start.sh
+```text
+研究探索
+    ↓
+加入候選清單
+    ↓
+查看候選論文與背景摘要
+    ↓
+選擇要整理的論文
+    ↓
+產生／查看／匯出摘要
+    ↓
+加入閱讀看板並拖曳調整順序
+    ↓
+建立閱讀路徑與論文心智圖
+    ↓
+開啟 PDF 精讀、核對原文、批註與問 AI
 ```
 
-这样启动的，浏览器里的 EasyRead 页面全部关掉后，后台服务过十几秒会自己退出；还有翻译在跑的话，等译完再退。
+這些狀態彼此分開：搜尋結果不等於候選論文，候選論文不等於已整理摘要，也不會因為加入候選就自動加入閱讀看板。
 
-每次推送都会在 Windows、macOS、Linux 上自动装一遍、跑测试、启动一次（见上面的“测试”徽章）。
+## 研究探索
 
-**或者用 pip**（数据放在 `~/EasyRead`）：
+研究探索是 PaperRead 的研究入口，提供兩種搜尋方式：
 
-```bash
-pip install git+https://github.com/Edwardxlai/easyread
-easyread
+### 主題搜尋
+
+輸入研究概念或問題，例如：
+
+- `Long Video Understanding`
+- `Vision-Language Models`
+- `3D Scene Understanding`
+
+PaperRead 會先取得可用的公開書目資料，再顯示標題、作者、年份、摘要、來源、DOI、引用資訊和 PDF 可用性。搜尋結果會標示資料來源，缺少的欄位顯示「未提供」，不把缺漏資料當成零。
+
+### 會議／期刊搜尋
+
+可一次輸入一個或多個出版來源，例如：
+
+```text
+CVPR
+ICCV ECCV CVPR
+MICCAI
 ```
 
-浏览器会打开 `http://127.0.0.1:8765`。服务只监听本机。
+PaperRead 會依來源拆分查詢，支援常見的學術會議與期刊。結果會保留出版來源、DOI 和可查證連結，並區分正式出版資料與預印本；搜尋結果中的會議名稱不會被直接當成正式發表證明。
 
-## 桌面版（Electron）
+目前探索資料主要使用 OpenAlex，會議／期刊書目查詢也可使用 DBLP 與 Crossref 補充。服務限流或網路中斷時會保留既有結果並提供重試，不會把「服務失敗」誤顯示成「沒有論文」。
 
-桌面版复用同一套本地 Python 服务和 Web 界面，由 Electron 负责启动服务并显示窗口。开发环境需要 Node.js 22+、Python 3.10+ 和 PyInstaller：
+每張論文卡片只保留研究探索階段需要的操作：
+
+- **加入候選**：先保存論文，不會立刻生成摘要或下載 PDF。
+- **論文來源**：開啟可查證的出版頁、DOI 或來源連結。
+
+## 閱讀看板
+
+閱讀看板是研究探索頁面的主要工作區。論文可以拖曳到不同狀態欄位，狀態由使用者決定，不會因為開啟 PDF 或讀到最後一頁而自動改變。
+
+預設狀態包含：
+
+- 待閱讀
+- 閱讀中
+- 待整理
+- 已完成
+
+閱讀進度百分比獨立顯示，只代表閱讀位置，不代表已經理解或完成筆記。看板支援分類、PDF 可用性、感興趣標記與手動優先順序篩選；首頁、閱讀器研究面板和看板的星標會同步。
+
+## 候選清單
+
+候選清單用來保存「值得之後研究」的論文。它會跨頁面保留，與閱讀看板及已整理摘要分開管理。
+
+加入候選後，PaperRead 會在背景批次整理來源摘要。一次加入多篇時會排入佇列，避免同時發送大量請求。你仍然可以自行決定：
+
+1. 查看候選論文。
+2. 移除不再需要的論文。
+3. 對個別論文重新整理摘要。
+4. 查看 Markdown 摘要。
+5. 使用「匯出摘要」保存檔案。
+6. 將選定論文加入閱讀看板。
+
+候選論文不會自動變成已讀，也不會自動覆蓋你的正式筆記。
+
+## 已整理摘要
+
+已整理摘要會獨立保存，即使論文之後移出候選清單，摘要仍可保留。摘要內容以 Markdown 儲存並使用與筆記一致的安全渲染方式，支援：
+
+- 標題與副標題
+- 粗體、斜體
+- 有序與無序清單
+- 程式碼區塊
+- 表格
+- 系統已支援的數學公式
+
+主要操作順序是：
+
+```text
+查看摘要 → 重新整理摘要 → 匯出摘要 → 移到回收站
+```
+
+摘要由模型根據實際取得的論文資料產生；缺少的來源資訊會標示「未提供」，不捏造研究結果或出版資訊。
+
+## 閱讀路徑
+
+閱讀路徑可以從研究主題或指定論文開始。例如：
+
+```text
+主題：Long Video Understanding
+研究目標：先建立基礎，再理解主流方法並尋找研究方向
+```
+
+PaperRead 會依目前可取得的論文資料，將推薦結果整理成有順序的路徑。每篇論文會附上：
+
+- 閱讀順序
+- 閱讀角色，例如基礎入門、方法理解、代表性研究、延伸探索或前沿研究
+- 推薦理由
+- 與主題或起點論文的關聯
+- 年份與出版來源（可取得時）
+
+AI 只能重組已查詢到的論文資料，不能自行新增不存在的論文。資料不足時會明確說明，基礎搜尋與看板功能也不會因 AI 不可用而停止。
+
+## 論文心智圖
+
+在論文閱讀頁的「研究脈絡」區塊，可以要求 PaperRead 根據目前論文生成繁體中文 Mermaid 心智圖。心智圖優先呈現研究邏輯，而不是單純複製論文章節：
+
+```text
+論文標題
+├── 研究問題
+├── 理論框架
+├── 方法設計
+│   ├── 輸入與輸出
+│   ├── 核心模組
+│   └── 實驗設定
+├── 核心發現
+├── 研究貢獻
+└── 研究限制
+```
+
+節點會盡量保持簡短，內容只使用目前論文提供的文字、公式和數據。生成中的狀態會顯示載入動畫，失敗時可以重試；生成後可在閱讀頁查看，也能透過筆記匯出流程一併匯出。
+
+## 論文閱讀與 AI
+
+PaperRead 的 Human Reading Interface 仍以原文核對為中心：
+
+- 原文、譯文、AI 解釋和個人筆記分開顯示。
+- 圖片與表格保留排版位置，點擊後回到原 PDF 查看。
+- 螢光筆、下劃線、問題和筆記會綁定原文 block、頁碼與定位資訊。
+- 可以選取文字後執行 AI 改寫，不會固定套用搜尋結果中的第一組詞。
+- AI 回答和摘要都會顯示載入、失敗與重試狀態。
+
+## 模型選擇
+
+可在設定中選擇主流 API 或本地模型：
+
+| 類型 | 例子 |
+|---|---|
+| 雲端 API | OpenAI、Anthropic、Google Gemini、DeepSeek、智譜 GLM、阿里雲百煉、Kimi、OpenRouter、Groq、Cerebras |
+| 本地模型 | Ollama、LM Studio |
+| 自訂介面 | OpenAI-compatible Chat Completions 或 Responses endpoint |
+
+Ollama 使用本機 API，例如 `http://127.0.0.1:11434`。啟用 thinking 的模型會依模型支援的參數傳遞；只有支援布林值的模型會使用 `think: true/false`，不會強行送出不相容的 `low/high` 層級。
+
+## 安裝與執行
+
+### Windows 安裝檔
+
+從 [PaperRead Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載 `PaperRead-Setup-x.x.x.exe`。安裝程式會包含 Electron 桌面程式與打包好的 Python 後端，不需要另外安裝 Python 或 Node.js。
+
+目前 Windows 安裝檔尚未使用程式碼簽署憑證，因此 Windows 可能顯示未驗證發行者提示。這不影響程式功能，但不等同於「已驗證的發行者」。
+
+### 從原始碼執行
+
+需要 Python 3.10+、Node.js 22+ 和 PyInstaller：
 
 ```bash
-npm install
+git clone https://github.com/YuriyLin/PaperRead.git
+cd PaperRead
+python -m pip install -e .
 python -m pip install pyinstaller
+npm install
+```
+
+啟動本機服務：
+
+```bash
+python -m easyread serve
+```
+
+啟動 Electron 桌面版：
+
+```bash
 npm run dev
 ```
 
-生成可分发安装包：
+建立安裝檔：
 
 ```bash
 npm run dist
 ```
 
-输出在 `dist/electron/`：Windows 为 NSIS 安装程序，macOS 为 DMG，Linux 为 AppImage。推送 `v*` 标签后，GitHub Actions 会在三个系统上构建，并把这些安装包自动附加到 GitHub Release；源码 zip 仍会由 GitHub 保留。打包后的文献库和设置保存在系统的 EasyRead 用户数据目录中，不会写进安装目录。
+輸出位於 `dist/electron/`。目前只提供 Windows x64 桌面安裝檔；其他平台不列為 PaperRead 的支援桌面平台。
 
-## 怎么用
+## 資料位置與相容性
 
-1. 右上角“设置” → “模型”：添加要用的模型，点卡片选“设为翻译”。翻译和“问 AI”用的模型都在这一页管理。
-2. 把 PDF 拖进窗口；或者粘贴 arXiv 编号、arXiv / OpenReview 链接、PDF 直链（在文献库页面直接 `Ctrl+V` 也行）。长论文可以选“只译正文”，或者“指定页”只译第几页到第几页。导入时还能选这次用哪个模型；“导入后”选“读英文原文”就只排版、不翻译，想看中文了随时点“翻译成中文”。
-   整篇翻译默认超过 60 页时会先确认，可以选择全部翻译、只译前 60 页或先不译；上限在“设置 → 模型”里修改，填 0 表示不询问
-3. 翻译在后台一页页进行，已译的部分马上能读，没译到的页先显示原页。
-4. 读的时候点一下段落出现操作条；选中文字可以划线、写笔记、提问。按 `?` 看全部快捷键。
-5. 论文默认译成中文，也可以在导入时选择日语、韩语、西班牙语、法语或德语，或在“设置 → 阅读 → 论文译成”里修改默认语言；界面语言独立设置，支持中文和英文，也可以跟随系统
+安裝版預設將論文庫與設定放在：
 
-## 和 AI agent 一起读
-
-EasyRead 自带命令行，Claude Code / Codex 这类 agent 可以在对话里直接读你的笔记和问题、把回答写到对应段落旁边，也可以亲自翻译或重译某几页。技能说明在 [`skill/paper-reading/SKILL.md`](skill/paper-reading/SKILL.md)，把这个目录放进 `~/.claude/skills/` 或 `~/.codex/skills/` 即可。
-
-```bash
-easyread list                          # 列出文献库
-easyread import 论文.pdf                # 或 arXiv 编号 / 链接
-easyread status ID                     # 进度、我改过的译文、笔记、待回答的问题
-easyread discuss ID --from 回答.json    # 把讨论写到页边
-easyread export ID                     # 导出单文件离线 HTML
+```text
+Windows: C:\Users\<使用者名稱>\PaperRead
 ```
 
-完整命令见 `easyread --help`，数据格式见 [docs/data-format.md](docs/data-format.md)。
+舊版 `EasyRead` 資料會在首次啟動時嘗試遷移；若遷移失敗，程式會保留原資料並以相容方式讀取。為了避免破壞既有腳本與使用者資料，程式內部仍保留 `easyread` 的 Python module、CLI、環境變數和舊連結協定名稱。
 
-## 常见问题
+## 開發與測試
 
-**能翻译成中文以外的语言吗？** 能，目前支持中文、日语、韩语、西班牙语、法语和德语。在“设置 → 阅读 → 论文译成”里修改默认语言，也可以在导入时单独选择；不需要翻译时，可以直接读英文原文
-
-**翻译到一半失败了？** 文献库里点这篇，右侧“翻译”一栏会写原因和失败的页，点“重试”。“翻译记录”里有每一批的详细情况；设置底部“运行日志”能看到服务本身的日志。
-
-**用 Claude Code 要挂梯子吗？** 和你平时在终端里用 `claude` 一样：平时要，这里也要。不想折腾就在设置的“API 接口”里选智谱、硅基流动（都有免费模型）或本机 Ollama，国内直连。
-
-**Claude Code 额度用完了？** 等额度恢复后点“重试”，或者在设置里临时换成 API / Ollama，已经译好的页不会重译。
-
-**数据存在哪？** 默认保存在本机；在“设置 → 云文献库”里可以迁移到其他磁盘或网盘同步文件夹，上传和同步由你自己的网盘客户端完成。翻译和提问时，相关内容会发给你选择的模型。从源码运行时在项目目录的 `library/`；pip 安装后在 `~/EasyRead/library/`。每篇论文一个文件夹，里面是原 PDF、原页图和几个 JSON（译文、你的笔记、AI 讨论、对话记录），设置和界面偏好在 `config.json`、`prefs.json`。可以直接备份或同步。为什么不用数据库见 [docs/data-format.md](docs/data-format.md#为什么用-json-文件而不是数据库)。
-
-**能离线看、发给别人吗？** 能。文献库里右键一篇论文 → “导出离线 HTML”，得到一个单文件网页（命令行是 `easyread export ID`）。对方不用装 EasyRead，双击用浏览器打开就能读：译文、公式、原页图、你的划线和笔记都在里面，也能切对照、开原页、接着划线。原页图是打包进去的，所以文件不小（27 页的论文约 10 MB）。在离线版里新做的划线和笔记只存在打开它的那个浏览器里；想并回文献库，在左侧“说明”里点“导出我的修改”得到一个 JSON，再运行 `easyread merge ID --from 导出.json`。
-
-想放到网站上（比如 GitHub Pages），用 `easyread demo ID --out 目录`：图片另存成文件、按需加载，还会带上问 AI 的对话记录（只能看）。
-
-## 开发
-
-没有前端构建：`easyread/web/` 下是纯 HTML/CSS/JS，改完刷新即可。后端只用 Python 标准库加 PDF 处理库。
+前端使用原生 HTML、CSS、JavaScript，沒有額外的前端 build step；後端使用 Python。修改 `easyread/web/` 後重新整理頁面即可查看變更。
 
 ```bash
-python -m unittest discover tests         # 翻译调度等单元测试
-node tests/e2e.cjs library/<论文ID>       # 浏览器端到端测试（需要 Playwright 和一篇已译好的论文）
+python -m unittest discover tests
+node --test tests/test_*.cjs
+python scripts/i18n_check.py
 ```
 
-设计取舍见 [docs/design.md](docs/design.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+研究探索、繁中介面與資料格式說明：
 
-## 许可
+- [Personal Research OS 使用說明](docs/personal-research-os.md)
+- [資料格式](docs/data-format.md)
+- [API 說明](docs/api.md)
+- [貢獻指南](CONTRIBUTING.md)
 
-MIT。公式渲染用 [KaTeX](https://katex.org)（MIT）。
+## 授權
 
-在线演示用的论文是 Rafailov 等人的 *Direct Preference Optimization: Your Language Model is Secretly a Reward Model*（[arXiv:2305.18290](https://arxiv.org/abs/2305.18290)，CC BY 4.0），中文译文由 EasyRead 调用 Claude 生成，演示里的划线和笔记是示例。
+MIT License。公式渲染使用 [KaTeX](https://katex.org)，同樣採 MIT License。
 
-## 贡献者
-
-- [@Wang-auspicious](https://github.com/Wang-auspicious) — Electron 桌面版打包与发布流程
-- [@bisuwuss-netizen](https://github.com/bisuwuss-netizen) — 修复桌面安装包漏打 PDF 依赖、双栏论文原页定位；“问 AI”和笔记里的 Markdown 表格与引用块
-- [@MeshedPoto](https://github.com/MeshedPoto) — 并行翻译时 PDFium 随机报错、跨栏段落原页高亮、macOS 桌面版稳定性、HTTPS 证书与流式回答的一批修复；v1.3 的 ASD-STE100 中文问答和公式显示修复
-
-- [@Lzy22301093](https://github.com/Lzy22301093) — 异常表格校验与渲染修复，避免单个表格导致整篇译文空白（[#17](https://github.com/Edwardxlai/easyread/pull/17)）
+PaperRead 是個人研究工具 fork；上游 EasyRead 的資料格式與相容性設計仍保留，詳細來源與貢獻者請參考 Git 歷史紀錄。

@@ -3,27 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EasyRead</title>
-<link rel="icon" href="/web/favicon.svg">
+<title>PaperRead</title>
+<link rel="icon" href="/web/paperread-mark.png" type="image/png">
 <link rel="stylesheet" href="/web/css/base.css">
 <link rel="stylesheet" href="/web/css/library.css">
 <link rel="stylesheet" href="/web/css/cite-export.css">
 <link rel="stylesheet" href="/web/css/batch.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
-<link rel="stylesheet" href="/web/css/settings-cloud.css">
 <link rel="stylesheet" href="/web/css/usage.css">
 <script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/"><svg class="mark" aria-hidden="true" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="8" fill="#2d6173"/><path d="M16 10.5C13.6 8.8 10.4 8.3 7 8.6v14.2c3.4-.3 6.6.2 9 1.9 2.4-1.7 5.6-2.2 9-1.9V8.6c-3.4-.3-6.6.2-9 1.9z" fill="#f6f3ec"/><path d="M16 10.5v14.2" stroke="#2d6173" stroke-width="1.2"/><path d="M9.4 13.4h4M9.4 16.4h4M9.4 19.4h2.6" stroke="#9fb7bf" stroke-width="1.6" stroke-linecap="round"/><path d="M18.6 13.4h4M18.6 16.4h4M18.6 19.4h2.6" stroke="#e0a84f" stroke-width="1.6" stroke-linecap="round"/></svg><span>Easy<b>Read</b></span></a>
+  <a class="brand" href="/"><img class="mark" src="/web/paperread-mark.png" alt=""><span>Paper<b>Read</b></span></a>
   <label class="search">
     <span class="si"></span>
     <input id="q" type="search" placeholder="搜索标题、作者、分类、摘要" autocomplete="off">
     <kbd>/</kbd>
   </label>
   <span class="grow"></span>
+  <a class="btn line" href="/research">研究探索</a>
   <button class="engine-chip" id="engineChip"></button>
   <button class="btn accent" id="importBtn"></button>
   <button class="btn icon lang-btn" id="langBtn"></button>
@@ -87,10 +87,7 @@
 <script src="/web/js/common/settings-tabs.js"></script>
 <script src="/web/js/common/settings-chat.js"></script>
 <script src="/web/js/library/settings-library.js"></script>
-<script src="/web/js/library/migrate-dialog.js"></script>
-<script src="/web/js/library/settings-cloud.js"></script>
 <script src="/web/js/library/help.js"></script>
-<script src="/web/js/library/update.js"></script>
 <script src="/web/js/library/trash.js"></script>
 </body>
 </html>

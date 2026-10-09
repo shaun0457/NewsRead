@@ -166,7 +166,7 @@ table.tbl td .sub { color: var(--ink-3); }
 /* 行内：引用、交叉引用、划线 */
 a.cite, a.xref { color: var(--accent); text-decoration: none; border-bottom: 1px dotted color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; font-variant-numeric: lining-nums; }
 a.cite:hover, a.xref:hover { border-bottom-style: solid; }
-mark.hl { background: var(--hl-yellow); color: inherit; border-radius: 2px; padding: .06em 0; cursor: pointer; }
+mark.hl { background: var(--hl-yellow); color: inherit; border-radius: .22em; padding: .03em .1em; -webkit-box-decoration-break: clone; box-decoration-break: clone; cursor: pointer; }
 mark.hl.c-green { background: var(--hl-green); }
 mark.hl.c-blue { background: var(--hl-blue); }
 mark.hl.c-pink { background: var(--hl-pink); }

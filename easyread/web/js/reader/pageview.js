@@ -15,9 +15,12 @@
     body.classList.toggle("pv-open", name === "pages");
     body.classList.toggle("np-open", name === "notes");
     body.classList.toggle("ch-open", name === "chat");
+    body.classList.toggle("rp-open", name === "research");
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
+    const researchButton = PR.$('[data-act="research"]');
+    if (researchButton) researchButton.classList.toggle("on", name === "research");
     if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
     if (body.classList.contains("side-open") === !!name) return;  // 面板之间切换：正文宽度不变
     const anchor = PR.readingBlock && PR.readingBlock();

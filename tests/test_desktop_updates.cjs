@@ -7,7 +7,8 @@ function fixture() {
   const handlers = {};
   const updater = new EventEmitter();
   const calls = [];
-  updater.setFeedURL = () => {};
+  const feeds = [];
+  updater.setFeedURL = value => feeds.push(value);
   updater.checkForUpdates = async () => ({ isUpdateAvailable: true, updateInfo: { version: "1.3.2" } });
   updater.downloadUpdate = async () => { calls.push("download"); updater.emit("update-downloaded", { version: "1.3.2" }); };
   updater.quitAndInstall = (...args) => calls.push(["install", ...args]);
@@ -15,11 +16,12 @@ function fixture() {
     app: { isPackaged: true }, updater,
     ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
     trustedWindow: event => { if (event !== "trusted") throw Error("Untrusted"); },
+    repository: "example/research-os",
     getWindow: () => null,
     prepareInstall: async () => { calls.push("shutdown"); },
     recover: async () => { calls.push("recover"); },
   });
-  return { updater, calls, run: (name, event = "trusted") => handlers[`easyread:update-${name}`](event) };
+  return { updater, calls, feeds, run: (name, event = "trusted") => handlers[`easyread:update-${name}`](event) };
 }
 
 test("download waits for user to install, and stops backend before silent relaunch", { skip: process.platform !== "win32" }, async () => {
@@ -47,6 +49,29 @@ test("no available update does not download; install without download does nothi
   await f.run("download");
   await f.run("install");
   assert.deepEqual(f.calls, []);
+});
+
+test("unconfigured fork leaves desktop auto-update disabled", async () => {
+  const handlers = {};
+  const updater = new EventEmitter();
+  updater.setFeedURL = () => assert.fail("must not configure an upstream feed");
+  registerUpdates({ app: { isPackaged: true }, updater,
+    ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
+    trustedWindow: () => {}, getWindow: () => null, prepareInstall: async () => {}, recover: async () => {} });
+  const state = await handlers["easyread:update-state"]("trusted");
+  assert.equal(state.supported, false);
+  assert.equal((await handlers["easyread:update-download"]("trusted")).phase, "idle");
+});
+
+test("configured repository is the only desktop update feed", () => {
+  const f = fixture();
+  if (process.platform === "win32") {
+    assert.deepEqual(f.feeds[0], { provider: "github", owner: "example", repo: "research-os" });
+  } else {
+    // Desktop auto-update is intentionally Windows-only; other platforms
+    // must not configure an electron-updater feed at all.
+    assert.deepEqual(f.feeds, []);
+  }
 });
 
 test("untrusted renderer cannot invoke update operations", async () => {

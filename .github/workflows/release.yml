@@ -59,7 +59,7 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easyread-${{ matrix.name }}
+          name: paperread-${{ matrix.name }}
           # 只要安装包本身；dist/electron 里还有解包后的程序目录（Mac 的 .app 里有上百个文件）
           path: |
             dist/electron/*.exe

@@ -11,8 +11,10 @@ class UpdatesTest(unittest.TestCase):
     def setUp(self):
         self.home = Path(tempfile.mkdtemp())
         self.patches = [mock.patch.object(config, "HOME", self.home), mock.patch.object(config, "CONFIG_PATH", self.home / "config.json")]
+        self.patches.append(mock.patch.object(updates, "REPO", "example/research-os"))
         for p in self.patches:
             p.start()
+        config.save({"check_updates": True})
         self.calls = 0
 
     def tearDown(self):
@@ -59,6 +61,13 @@ class UpdatesTest(unittest.TestCase):
             self.assertFalse(u["enabled"])
             updates.check(force=True)  # 手动检查照样问
         self.assertEqual(self.calls, 1)
+
+    def test_unconfigured_fork_never_checks_upstream_even_when_forced(self):
+        with mock.patch.object(updates, "REPO", ""), self.fake():
+            u = updates.check(force=True)
+        self.assertFalse(u["enabled"])
+        self.assertFalse(u["newer"])
+        self.assertEqual(self.calls, 0)
 
 
 if __name__ == "__main__":
