@@ -1,0 +1,20 @@
+services:
+  paperread:
+    build: .
+    image: paperread:local
+    ports:
+      - "${PAPERREAD_PORT:-8765}:8765"
+    environment:
+      EASYREAD_HOME: /data/PaperRead
+      PAPERREAD_HOST: 0.0.0.0
+      PAPERREAD_PORT: 8765
+      PAPERREAD_PUBLIC_HOST: localhost
+    volumes:
+      - paperread-data:/data/PaperRead
+    extra_hosts:
+      # Allows a container to reach Ollama running on the host.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  paperread-data:

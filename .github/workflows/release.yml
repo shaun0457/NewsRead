@@ -19,6 +19,8 @@ jobs:
         include:
           - name: Windows
             os: windows-latest
+          - name: Linux
+            os: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -47,11 +49,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: paperread-${{ matrix.name }}
-          # 只發布 Windows 安裝檔與 Electron 更新資訊。
+          # Each runner contributes only its own desktop artifacts.
           path: |
             dist/electron/*.exe
             dist/electron/*.blockmap
-            dist/electron/latest.yml
+            dist/electron/latest*.yml
+            dist/electron/*.AppImage
           if-no-files-found: error
 
   release:
@@ -72,5 +75,6 @@ jobs:
           files: |
             release-assets/**/*.exe
             release-assets/**/*.blockmap
-            release-assets/**/latest.yml
+            release-assets/**/latest*.yml
+            release-assets/**/*.AppImage
           generate_release_notes: false  # 发版说明手写，只往已有的 Release 上挂安装包

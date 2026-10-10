@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Windows%20x64-支援-2f6070" alt="支援平台：Windows x64">
+  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20Linux%20x64-支援-2f6070" alt="支援平台：Windows x64、Linux x64">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License">
 </p>
 
@@ -223,6 +223,31 @@ Ollama 使用本機 API，例如 `http://127.0.0.1:11434`。啟用 thinking 的�
 
 目前 Windows 安裝檔尚未使用程式碼簽署憑證，因此 Windows 可能顯示未驗證發行者提示。這不影響程式功能，但不等同於「已驗證的發行者」。
 
+### Linux AppImage
+
+從 [PaperRead Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載 `PaperRead-x.x.x.AppImage`。Linux AppImage 會包含 Electron 桌面程式與打包好的 Python 後端；下載後加入執行權限即可：
+
+```bash
+chmod +x PaperRead-*.AppImage
+./PaperRead-*.AppImage
+```
+
+目前正式 Release 提供 Linux x64 AppImage。macOS 尚未列入預建桌面安裝檔，仍可透過 Docker 瀏覽器版使用。
+
+### Docker 瀏覽器版
+
+Docker 版本適合 Linux、macOS 或 Windows 上沒有原生桌面安裝需求的情境。它啟動 PaperRead 網頁服務，論文庫與設定持久保存於 Docker volume：
+
+```bash
+git clone https://github.com/YuriyLin/PaperRead.git
+cd PaperRead
+docker compose up -d
+```
+
+接著開啟 <http://localhost:8765>。停止服務但保留資料可使用 `docker compose down`；重新啟動仍會使用同一個 `paperread-data` volume。
+
+若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。不要把 PaperRead port 直接暴露到公網；若要給其他裝置使用，請另外設定防火牆與登入驗證的反向代理。
+
 ### 從原始碼執行
 
 需要 Python 3.10+、Node.js 22+ 和 PyInstaller：
@@ -253,7 +278,7 @@ npm run dev
 npm run dist
 ```
 
-輸出位於 `dist/electron/`。目前只提供 Windows x64 桌面安裝檔；其他平台不列為 PaperRead 的支援桌面平台。
+輸出位於 `dist/electron/`。在 Windows 會產生 NSIS 安裝檔，在 Linux 會產生 AppImage。Docker 瀏覽器版則不需要 Electron 或 Node.js。
 
 ## 資料位置與相容性
 
@@ -261,6 +286,7 @@ npm run dist
 
 ```text
 Windows: C:\Users\<使用者名稱>\PaperRead
+Linux/macOS Docker: Docker volume `paperread-data` 內的 `/data/PaperRead`
 ```
 
 舊版 `EasyRead` 資料會在首次啟動時嘗試遷移；若遷移失敗，程式會保留原資料並以相容方式讀取。為了避免破壞既有腳本與使用者資料，程式內部仍保留 `easyread` 的 Python module、CLI、環境變數和舊連結協定名稱。

@@ -7,7 +7,7 @@
 <p align="center"><b>A local research workspace for discovering, reading, and organizing papers.</b><br>
 PaperRead combines a comfortable PDF reading experience with research exploration, candidate management, reading progress, AI-assisted summaries, reading paths, and paper mind maps.</p>
 
-> This is YuriyLin's PaperRead fork. It keeps the useful local reading and annotation model from EasyRead while adding a Traditional Chinese interface, a research workspace, and Windows-focused desktop packaging.
+> This is YuriyLin's PaperRead fork. It keeps the useful local reading and annotation model from EasyRead while adding a Traditional Chinese interface, a research workspace, and Windows/Linux desktop packages plus a Docker browser edition.
 
 <p align="center"><a href="README.md">繁體中文</a> · <b>English</b></p>
 
@@ -16,11 +16,11 @@ PaperRead combines a comfortable PDF reading experience with research exploratio
 <p align="center">
   <a href="https://github.com/YuriyLin/PaperRead/releases/latest"><img src="https://img.shields.io/github/v/release/YuriyLin/PaperRead?label=release" alt="release"></a>
   <a href="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml"><img src="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml/badge.svg" alt="tests"></a>
-  <img src="https://img.shields.io/badge/Windows%20x64-supported-2f6070" alt="Windows x64 supported">
+  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20Linux%20x64-supported-2f6070" alt="Windows x64 and Linux x64 supported">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
 </p>
 
-PaperRead currently supports **Windows x64** as its desktop platform. The installer bundles the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. The project does not claim macOS or Linux desktop support.
+PaperRead provides **Windows x64** and **Linux x64** desktop packages. The Windows installer and Linux AppImage bundle the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. macOS does not currently have a prebuilt desktop package, but it can use the Docker browser edition.
 
 ## What PaperRead adds to EasyRead
 
@@ -83,6 +83,27 @@ Download the latest `PaperRead-Setup-x.x.x.exe` from [Releases](https://github.c
 
 For development, install Python 3.10+ and run `start.cmd` from the repository root. The local service listens on `127.0.0.1`; paper files and settings remain on the local machine unless a configured model service receives selected content for translation or AI analysis.
 
+## Install on Linux
+
+Download `PaperRead-x.x.x.AppImage` from [Releases](https://github.com/YuriyLin/PaperRead/releases/latest), then make it executable and launch it:
+
+```bash
+chmod +x PaperRead-*.AppImage
+./PaperRead-*.AppImage
+```
+
+The AppImage is the supported Linux x64 desktop package. macOS does not currently have a prebuilt desktop package.
+
+## Run with Docker
+
+The Docker edition runs PaperRead as a local web service and works on Linux, macOS, and Windows with Docker Desktop. From a checkout of this repository:
+
+```bash
+docker compose up -d
+```
+
+Open <http://localhost:8765>. The Compose file stores the library and settings in the named `paperread-data` volume, so `docker compose down` does not remove your data. If Ollama runs on the host machine, use `http://host.docker.internal:11434/v1` as its OpenAI-compatible endpoint; the included Compose configuration provides the host mapping. Keep the service on a trusted local network and do not expose it directly to the public Internet without authentication and a firewall.
+
 ## Development
 
 The web interface uses plain HTML, CSS, and JavaScript. The backend is Python and the desktop shell is Electron. Useful checks include:
@@ -92,7 +113,7 @@ python -m unittest discover tests
 node tests/e2e.cjs library/<paper-id>
 ```
 
-To create the Windows installer after testing locally:
+To create the Windows installer or Linux AppImage after testing locally:
 
 ```bash
 npm run dist

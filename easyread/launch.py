@@ -19,7 +19,8 @@ class _Server(ThreadingHTTPServer):
     allow_reuse_address = os.name != "nt"
 
 
-def serve(port: int | None = None, open_browser: bool = False, path: str = "/", exit_on_close: bool = False):
+def serve(port: int | None = None, open_browser: bool = False, path: str = "/", exit_on_close: bool = False,
+          host: str | None = None):
     """exit_on_close：start.cmd / start.sh 启动时为真，页面都关了、后台任务也做完了就退出。"""
     setup_log(config.LOG_PATH)
     started = time.monotonic()
@@ -30,11 +31,15 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     Handler.app = app
     detect.warm(cfg)
     port = cfg["port"] if port is None else port
+    bind_host = host or os.environ.get("PAPERREAD_HOST") or "127.0.0.1"
     try:
-        httpd = _Server(("127.0.0.1", port), Handler)
+        httpd = _Server((bind_host, port), Handler)
     except OSError:
-        httpd = _Server(("127.0.0.1", 0), Handler)
-    url = f"http://127.0.0.1:{httpd.server_address[1]}"
+        httpd = _Server((bind_host, 0), Handler)
+    public_host = os.environ.get("PAPERREAD_PUBLIC_HOST")
+    if not public_host:
+        public_host = "127.0.0.1" if bind_host in ("0.0.0.0", "::") else bind_host
+    url = f"http://{public_host}:{httpd.server_address[1]}"
     log.info("startup http-bound +%.0fms", (time.monotonic() - started) * 1000)
     app.shutdown = httpd.shutdown
     app.location.marker.start()

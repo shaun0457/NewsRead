@@ -1,6 +1,6 @@
 {
   "name": "paperread-desktop",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "PaperRead personal research workspace",
   "author": {
     "name": "YuriyLin"
@@ -88,7 +88,12 @@
     "linux": {
       "icon": "electron/assets/icon.png",
       "target": [
-        "AppImage"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "Office"
     }

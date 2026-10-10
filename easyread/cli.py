@@ -1,6 +1,6 @@
 """命令行。给人用，也给对话里的 agent 用（它在对话里翻译、追加讨论时走这些命令）。
 
-  easyread serve [--open] [--port N] [--exit-on-close]   启动（或复用已在跑的）服务
+  easyread serve [--open] [--port N] [--host HOST] [--exit-on-close]   启动（或复用已在跑的）服务
   easyread list                           列出文献库
   easyread import 论文.pdf|arXiv编号 [--no-translate]
   easyread translate ID [--pages 3-5]     排队翻译（需要服务在跑；否则直接前台译）
@@ -71,7 +71,7 @@ def cmd_serve(a):
             webbrowser.open(url)
         return
     from .launch import serve
-    serve(a.port, a.open, exit_on_close=a.exit_on_close)
+    serve(a.port, a.open, exit_on_close=a.exit_on_close, host=getattr(a, "host", None))
 
 
 def cmd_list(a):
@@ -217,6 +217,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="easyread", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
     p = sub.add_parser("serve"); p.add_argument("--open", action="store_true"); p.add_argument("--port", type=int)
+    p.add_argument("--host", help="绑定服务的网卡位址；Docker 等容器环境可使用 0.0.0.0")
     p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（start.cmd / start.sh 用）")
     p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
