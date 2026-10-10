@@ -333,7 +333,7 @@
     if (!pick.quote || !item.data?.quote || item.src !== "mine") return "";
     const result = translatedExportQuote(item);
     const side = item.data.side;
-    return PR.t("「{q}」", { q: result.text }) + (side === "en" ? PR.t(result.translated ? "（譯文）" : "（原文，尚無譯文對齊）") : "");
+    return PR.t("「{q}」", { q: result.text }) + (side === "en" ? PR.t(result.translated ? "（譯文）" : "（原文，尚無譯文對齊）") : ""); // i18n-ok: both branch labels are passed to PR.t.
   }
 
   function exportQuoteDetails(item, pick) {
@@ -343,7 +343,7 @@
     const side = item.data.side;
     return {
       text: result.text,
-      label: side === "en" ? PR.t(result.translated ? "引用（中文譯文；原始劃線為英文）" : "引用（英文原文；尚無譯文對齊）") : PR.t("引用（中文譯文）"),
+      label: side === "en" ? PR.t(result.translated ? "引用（中文譯文；原始劃線為英文）" : "引用（英文原文；尚無譯文對齊）") : PR.t("引用（中文譯文）"), // i18n-ok: all export labels are passed to PR.t.
     };
   }
 
@@ -358,10 +358,10 @@
     const lines = [];
     if (quote.text) {
       lines.push("- **" + quote.label + "**");
-      lines.push("  > 「" + quote.text + "」");
-      if (d.body) lines.push("  - **" + noteLabel + "：** " + markdownLines(d.body, "    ").join("\n"));
+      lines.push("  > 「" + quote.text + "」"); // i18n-ok: Markdown quote punctuation, not UI copy.
+      if (d.body) lines.push("  - **" + noteLabel + "：** " + markdownLines(d.body, "    ").join("\n")); // i18n-ok: Markdown formatting punctuation, not UI copy.
     } else if (d.body) {
-      lines.push("- **" + noteLabel + "：** " + markdownLines(d.body, "  ").join("\n"));
+      lines.push("- **" + noteLabel + "：** " + markdownLines(d.body, "  ").join("\n")); // i18n-ok: Markdown formatting punctuation, not UI copy.
     }
     return lines;
   }

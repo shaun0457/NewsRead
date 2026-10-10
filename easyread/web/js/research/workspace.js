@@ -500,7 +500,7 @@
   function queueModal(work) {
     const cats = S.categories.map((c) => '<label class="rw-category-option"><input type="checkbox" name="q-category" value="' + escAttr(c) + '"><span>' + esc(c) + '</span></label>').join("");
     if (!work) return PR.toast("找不到論文資料，請重新搜尋。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    const categoryPicker = cats ? '<div id="q-categories" class="rw-category-picker" role="group" aria-label="分類（可複選）">' + cats + '</div>' : '<p class="rw-source rw-category-empty">目前尚未建立分類，可直接加入閱讀看板。</p>';
+    const categoryPicker = cats ? '<div id="q-categories" class="rw-category-picker" role="group" aria-label="分類（可複選）">' + cats + '</div>' : '<p class="rw-source rw-category-empty">目前尚未建立分類，可直接加入閱讀看板。</p>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const body = '<div class="rw-form-grid"><div class="rw-field wide"><label>分類（可複選）</label>' + categoryPicker + '<small>加入閱讀看板會開始尋找公開 PDF；這與候選清單分開管理。</small></div><div class="rw-field wide"><label class="rw-check"><input id="q-interested" type="checkbox">標記為感興趣</label></div></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     openModal("加入閱讀看板", body, async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
       const category = Array.from($$("input[name=\"q-category\"]:checked", modal)).map((input) => input.value);
