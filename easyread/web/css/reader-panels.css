@@ -83,6 +83,38 @@ body.pv-open .blk.pv-pair::before { background: rgba(214, 160, 40, .8); opacity:
 .np-clear-checks { color:var(--ink-3); }
 .np-clear-checks:not(:disabled):hover { color:var(--danger); }
 .np-clear-checks:disabled { opacity:.5; cursor:not-allowed; }
+.np-smart { margin:10px 16px 4px; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--surface-2); }
+.np-smart-head { display:flex; align-items:center; gap:7px; font-size:13px; }
+.np-smart-head .grow { flex:1; }
+.smart-count { display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; margin-left:5px; padding:0 5px; border-radius:10px; color:var(--accent); background:var(--accent-soft); font-size:11px; }
+.smart-progress, .smart-empty { margin:7px 0 2px; line-height:1.6; }
+.np-smart-list { display:flex; flex-direction:column; gap:8px; margin-top:9px; }
+.smart-card { padding:9px 10px; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 1px var(--rule-2); }
+.smart-card.smart-unlocatable { box-shadow:inset 0 0 0 1px var(--danger, #c0392b); }
+.smart-card-head { display:flex; align-items:center; gap:7px; font-size:12px; }
+.smart-card-head .smart-meta { margin-left:auto; color:var(--ink-3); font-size:11px; text-align:right; }
+.smart-quote { margin:7px 0; padding:6px 8px; border-left:3px solid var(--accent); background:var(--accent-soft); color:var(--ink); font:13px/1.65 var(--serif-zh); }
+.smart-note, .smart-reason { margin:5px 0; color:var(--ink-2); font-size:12px; line-height:1.6; }
+.smart-note p { margin:0; display:inline; }
+.smart-reason { color:var(--ink-3); }
+.smart-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.smart-actions .danger { color:var(--danger, #c0392b); }
+.smart-field, .smart-edit-field { display:flex; flex-direction:column; gap:5px; margin:10px 0; color:var(--ink-2); font-size:12px; }
+.smart-field select, .smart-field textarea, .smart-edit-field textarea { width:100%; border:1px solid var(--rule); border-radius:7px; background:var(--bg); color:var(--ink); padding:7px 8px; font:13px/1.55 var(--ui); }
+.smart-edit-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:10px; }
+.smart-color-legend { margin:10px 0 12px; padding:9px 10px; border:1px solid var(--rule-2); border-radius:8px; background:var(--surface); color:var(--ink-2); font-size:12px; }
+.smart-color-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:8px; }
+.smart-color-item { display:flex; align-items:flex-start; gap:6px; min-width:0; }
+.smart-color-item span { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.smart-color-item strong { color:var(--ink); font-size:12px; }
+.smart-color-item small { color:var(--ink-3); font-size:10.5px; line-height:1.45; }
+.smart-color-icon { flex:none; width:18px; height:18px; margin-top:1px; }
+.smart-color-icon circle { stroke-width:1.5; }
+.smart-color-yellow circle { fill:var(--hl-yellow); stroke:var(--ul-yellow); }
+.smart-color-green circle { fill:var(--hl-green); stroke:var(--ul-green); }
+.smart-color-blue circle { fill:var(--hl-blue); stroke:var(--ul-blue); }
+.smart-color-pink circle { fill:var(--hl-pink); stroke:var(--ul-pink); }
+@media (max-width: 520px) { .smart-color-grid { grid-template-columns:1fr; } }
 .np-list { flex: 1; overflow-y: auto; padding: 6px 22px 60px; }
 .np-list .card { position: relative; top: auto !important; margin: 0 0 14px; cursor: pointer; }
 .np-list .card .acts { opacity: .8; }

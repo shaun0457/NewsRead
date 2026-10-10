@@ -212,7 +212,8 @@
 
 /* 侧栏（sidebar.js）：置顶 / 分类 / 最近阅读 */
 .side h3 { display: flex; align-items: center; justify-content: space-between; }
-.side .h-add { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); }
+.side .h-add { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; display: grid; place-items: center; align-self: center; line-height: 1; color: var(--ink-3); background: transparent; }
+.side .h-add svg { width: 14px; height: 14px; display: block; }
 .side .h-add:hover { background: var(--accent-soft-2); color: var(--ink); }
 .side .sgroup { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
 .side { overflow-x: hidden; }

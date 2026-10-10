@@ -94,7 +94,7 @@ def file_version(path: Path) -> str:
 
 
 def empty_reader() -> dict:
-    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "paper_note": {}, "progress": {}}
+    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "ai_annotations": {}, "paper_note": {}, "progress": {}}
 
 
 def empty_discussion() -> dict:
@@ -112,6 +112,7 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
     applied = []
     edits = reader.setdefault("edits", {})
     notes = reader.setdefault("notes", {})
+    ai_annotations = reader.setdefault("ai_annotations", {})
     progress = reader.setdefault("progress", {})
     for op in ops:
         kind = op.get("op")
@@ -144,6 +145,19 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
             if not cur or _newer(at, cur.get("updated")):
                 notes[nid] = {**(cur or {"id": nid}), "deleted": True, "updated": at}
                 applied.append(f"note_del:{nid}")
+        elif kind == "ai_annotation":
+            annotation = dict(op.get("annotation") or {})
+            aid = str(annotation.get("annotation_id") or annotation.get("id") or "")
+            if not aid:
+                continue
+            cur = ai_annotations.get(aid)
+            if cur and not _newer(annotation.get("updated_at") or at, cur.get("updated_at")):
+                continue
+            annotation["annotation_id"] = aid
+            annotation.setdefault("created_at", at)
+            annotation["updated_at"] = annotation.get("updated_at") or at
+            ai_annotations[aid] = annotation
+            applied.append(f"ai_annotation:{aid}")
         elif kind == "paper_note":
             cur = reader.get("paper_note") or {}
             if _newer(at, cur.get("at")):

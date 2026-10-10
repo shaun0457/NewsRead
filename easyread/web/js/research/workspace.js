@@ -253,9 +253,8 @@
     if (S.comparisonsLoading) { host.innerHTML = '<div class="rw-empty"><i class="spin"></i> ' + PR.t("正在載入比較結果…") + '</div>'; return; }
     const error = S.comparisonError ? '<div class="rw-error" role="alert">' + esc(S.comparisonError) + ' <button class="btn sm line" data-action="comparisons-refresh">' + PR.t("重試") + '</button></div>' : '';
     const cards = records.map((record) => {
-      const status = record.status === "accepted" ? PR.t("已存入 Obsidian") : record.status === "rejected" ? PR.t("已捨棄") : PR.t("待審閱");
-      const dateLabel = record.created ? new Date(record.created * 1000).toLocaleString(PR.lang === "en" ? "en-US" : "zh-TW") : PR.t("時間未提供");
-      return '<article class="rw-card rw-paper"><div class="rw-section-head"><div><h3>' + esc(record.title || PR.t("跨論文比較")) + '</h3><p class="meta">' + esc(dateLabel) + ' · ' + PR.t("{n} 篇論文", { n: record.paper_count || 0 }) + '</p></div><span class="rw-chip">' + esc(status) + '</span></div><p>' + esc(record.status === "pending" ? PR.t("比較草稿尚待核對原文證據與評估條件。") : PR.t("可開啟這份比較結果檢視內容與證據。")) + '</p><div class="actions">' + btn(PR.t("查看比較結果"), "view-comparison", "accent", 'data-id="' + escAttr(record.id) + '"') + btn(PR.t("編輯名稱"), "edit-comparison-title", "line", 'data-id="' + escAttr(record.id) + '"') + (record.status === "accepted" ? btn(PR.t("匯出比較"), "export-comparison-record", "line", 'data-id="' + escAttr(record.id) + '"') : '') + '</div></article>';
+      const dateLabel = record.created ? new Date(record.created * 1000).toLocaleDateString(PR.lang === "en" ? "en-US" : "zh-TW") : PR.t("日期未提供");
+      return '<article class="rw-card rw-paper"><div class="rw-section-head"><div><h3>' + esc(record.title || PR.t("跨論文比較")) + '</h3><p class="meta">' + esc(dateLabel) + ' · ' + PR.t("{n} 篇論文", { n: record.paper_count || 0 }) + '</p></div></div><p>' + esc(record.status === "pending" ? PR.t("比較草稿尚待核對原文證據與評估條件。") : PR.t("可開啟這份比較結果檢視內容與證據。")) + '</p><div class="actions">' + btn(PR.t("查看比較結果"), "view-comparison", "accent", 'data-id="' + escAttr(record.id) + '"') + btn(PR.t("編輯名稱"), "edit-comparison-title", "line", 'data-id="' + escAttr(record.id) + '"') + (record.status === "accepted" ? btn(PR.t("匯出比較"), "export-comparison-record", "line", 'data-id="' + escAttr(record.id) + '"') : '') + '</div></article>';
     }).join("");
     const task = S.compareTask;
     const active = task && ["queued", "running", "cancelling"].includes(task.state);
@@ -499,11 +498,12 @@
     modal.onclick = (e) => { if (options.dismissOnBackdrop !== false && e.target === modal) modal.hidden = true; };
   }
   function queueModal(work) {
-    const cats = S.categories.map((c) => '<option value="' + escAttr(c) + '">' + esc(c) + '</option>').join("");
+    const cats = S.categories.map((c) => '<label class="rw-category-option"><input type="checkbox" name="q-category" value="' + escAttr(c) + '"><span>' + esc(c) + '</span></label>').join("");
     if (!work) return PR.toast("找不到論文資料，請重新搜尋。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    const body = '<div class="rw-form-grid"><div class="rw-field wide"><label>分類（可複選）</label><select id="q-categories" multiple size="' + Math.min(5, Math.max(2, S.categories.length)) + '">' + cats + '</select><small>加入閱讀看板會開始尋找公開 PDF；這與候選清單分開管理。</small></div><div class="rw-field wide"><label class="rw-check"><input id="q-interested" type="checkbox">標記為感興趣</label></div></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const categoryPicker = cats ? '<div id="q-categories" class="rw-category-picker" role="group" aria-label="分類（可複選）">' + cats + '</div>' : '<p class="rw-source rw-category-empty">目前尚未建立分類，可直接加入閱讀看板。</p>';
+    const body = '<div class="rw-form-grid"><div class="rw-field wide"><label>分類（可複選）</label>' + categoryPicker + '<small>加入閱讀看板會開始尋找公開 PDF；這與候選清單分開管理。</small></div><div class="rw-field wide"><label class="rw-check"><input id="q-interested" type="checkbox">標記為感興趣</label></div></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     openModal("加入閱讀看板", body, async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      const category = Array.from($("#q-categories", modal).selectedOptions).map((o) => o.value);
+      const category = Array.from($$("input[name=\"q-category\"]:checked", modal)).map((input) => input.value);
       await PR.api(API + "/save-paper", { method: "POST", body: { paper: work, categories: category, interested: $("#q-interested", modal).checked } });
       PR.toast("已加入待閱讀看板並開始尋找可用 PDF；不會自動整理摘要。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
       const data = await PR.api(API); S.saved = data.saved || S.saved; S.items = data.items || S.items; renderExplore();

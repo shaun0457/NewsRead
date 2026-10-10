@@ -6,6 +6,7 @@ import json
 
 from . import sentences
 from .i18n import tr
+from .log import log
 from .store import Workspace, now_iso
 
 BLOCK_TYPES = {"heading", "para", "list", "math", "table", "figure", "references", "note"}
@@ -110,7 +111,15 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
             _scope(paper)
         return {"new": n_new, "updated": n_upd, "done_pages": tr.get("done_pages", [])}
 
-    return ws.update("paper", apply)
+    result = ws.update("paper", apply)
+    # 翻譯替換了 paper blocks 後，重新驗證智慧標註的來源定位。這個
+    # import 放在函式內，避免 paperdata 與 smart_annotations 互相載入。
+    try:
+        from .smart_annotations import refresh_after_translation
+        refresh_after_translation(ws, {str(b.get("id")) for b in data.get("blocks", []) if b.get("id")})
+    except Exception:  # noqa: BLE001 —— 標註同步失敗不阻斷既有翻譯
+        log.exception("智慧標註來源同步失敗 %s", ws.id)
+    return result
 
 
 def _scope(paper: dict) -> None:
@@ -172,7 +181,13 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str], sents: 
         _scope(paper)
         return missing
 
-    return ws.update("paper", apply)
+    result = ws.update("paper", apply)
+    try:
+        from .smart_annotations import refresh_after_translation
+        refresh_after_translation(ws, {str(k).partition("#")[0] for k in keys})
+    except Exception:  # noqa: BLE001 —— 標註同步失敗不阻斷既有翻譯
+        log.exception("智慧標註來源同步失敗 %s", ws.id)
+    return result
 
 
 def add_discussion(ws: Workspace, items) -> tuple[int, int]:
@@ -248,6 +263,11 @@ def set_block_text(ws: Workspace, key: str, zh: str, sents=None) -> None:
             return
         raise KeyError(key)
     ws.update("paper", apply)
+    try:
+        from .smart_annotations import refresh_after_translation
+        refresh_after_translation(ws, {bid})
+    except Exception:  # noqa: BLE001 —— 標註同步失敗不阻斷既有翻譯
+        log.exception("智慧標註來源同步失敗 %s", ws.id)
 
 
 def dumps(obj) -> str:

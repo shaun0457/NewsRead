@@ -246,6 +246,16 @@ class Handler(BaseHTTPRequestHandler):
                 if config.load().get("target") == "zh-TW" and app.location.status == "idle" and (ws.load("job") or {}).get("state") not in ("queued", "running"):
                     from . import traditional
                     traditional.migrate(ws)
+                # 舊版智慧標註可能仍以英文原文為定位。讀取閱讀頁時，
+                # 以穩定的英文來源重新對齊目前的繁中譯文；只更新 AI
+                # 標註，不會碰使用者手動建立的筆記或標註。
+                try:
+                    reader = ws.load("reader") or {}
+                    if reader.get("ai_annotations"):
+                        from .smart_annotations import refresh_after_translation
+                        refresh_after_translation(ws)
+                except Exception:  # noqa: BLE001 —— 相容性同步失敗不阻斷閱讀頁
+                    log.exception("智慧標註讀取時同步失敗 %s", ws.id)
                 opened = {"last_opened": now_iso()}
                 if app.location.status == "idle":
                     ws.patch_item(opened)
@@ -407,6 +417,22 @@ class Handler(BaseHTTPRequestHandler):
                 return notehelp.handle(self, ws, body)
             if action == "discussion_del":
                 return self._json(200, {"deleted": paperdata.delete_discussion(ws, str(body.get("id", "")))})
+            if action == "smart-annotate":
+                scope = str(body.get("scope") or "all")
+                mode = str(body.get("mode") or "auto")
+                if scope not in ("all", "section"):
+                    raise ValueError(tr("智慧標註範圍不正確"))
+                if mode not in ("auto", "suggest", "purpose"):
+                    raise ValueError(tr("智慧標註模式不正確"))
+                return self._json(200, app.jobs.submit_small(
+                    "smart-annotate", ws.id, scope=scope, section_id=str(body.get("section_id") or ""),
+                    mode=mode, purpose=str(body.get("purpose") or "")[:500], model=str(body.get("model") or ""),
+                ))
+            if action == "smart-annotate-cancel":
+                return self._json(200, {"cancelled": app.jobs.cancel_small(str(body.get("job") or ""))})
+            if action == "smart-annotation":
+                from . import smart_annotations
+                return self._json(200, smart_annotations.apply_action(ws, body))
             if action == "ops":
                 ops = body.get("ops") or []
                 if not isinstance(ops, list):

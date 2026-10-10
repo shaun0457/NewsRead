@@ -21,6 +21,7 @@
   function applyOps(reader, ops) {
     reader.edits = reader.edits || {};
     reader.notes = reader.notes || {};
+    reader.ai_annotations = reader.ai_annotations || {};
     reader.progress = reader.progress || {};
     for (const op of ops) {
       const at = op.at || PR.nowIso();
@@ -40,6 +41,11 @@
       } else if (op.op === "note_del") {
         const cur = reader.notes[op.id];
         if (!cur || at >= (cur.updated || "")) reader.notes[op.id] = { ...(cur || { id: op.id }), deleted: true, updated: at };
+      } else if (op.op === "ai_annotation") {
+        const annotation = op.annotation || {};
+        const id = annotation.annotation_id || annotation.id;
+        const cur = id && reader.ai_annotations[id];
+        if (id && (!cur || (annotation.updated_at || at) >= (cur.updated_at || ""))) reader.ai_annotations[id] = { ...annotation, annotation_id: id };
       } else if (op.op === "paper_note") {
         const cur = reader.paper_note || {};
         if (at >= (cur.at || "")) reader.paper_note = { body: op.body || "", at };

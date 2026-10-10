@@ -34,10 +34,13 @@
 
   function cardHtml(item, editingId) {
     const d = item.data;
+    // AI 智慧標註已直接套用在正文位置；筆記卡只顯示解釋，避免再次附加原文引用。
+    // 手動批註仍保留原有引用。
+    const showQuote = !!d.quote && !d.ai_generated;
     if (item.src === "agent") {
       return '<div class="card agent' + (d.kind === "check" ? " check" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
         '<div class="lbl"><span>' + (KIND_LABEL[d.kind] || "AI") + '</span><span class="meta">' + PR.shortTime(d.updated || d.at) + "</span></div>" +
-        (d.quote ? '<div class="quote">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") +
+        (showQuote ? '<div class="quote">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") +
         (d.title ? '<div class="ttl">' + PR.md(d.title, { xref: false }) + "</div>" : "") +
         (d.q ? '<div class="q">' + PR.md(d.q) + "</div>" : "") +
         '<div class="body">' + PR.mdBlocks(d.body) + "</div>" +
@@ -60,7 +63,7 @@
         '<div class="acts"><button data-a="edit">' + PR.t("编辑") + '</button><button data-a="kind">' + (d.kind === "question" ? PR.t("改成笔记") : PR.t("改成问题")) + '</button><button data-a="del">' + PR.t("删除") + "</button></div>";
     return '<div class="card mine' + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       '<div class="lbl"><span>' + lbl + '</span><span class="meta">' + PR.shortTime(d.updated || d.created) + "</span></div>" +
-      (d.quote ? '<div class="quote' + lost + '"' + (d.side === "en" ? ' lang="en"' : "") + ">" + (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") +
+      (showQuote ? '<div class="quote' + lost + '"' + (d.side === "en" ? ' lang="en"' : "") + ">" + (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") +
         PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") + body + "</div>";
   }
   PR.cardHtml = cardHtml;

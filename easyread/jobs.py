@@ -33,6 +33,7 @@ class Jobs:
         self.bulk: queue.Queue[str] = queue.Queue()
         self.small: queue.Queue[dict] = queue.Queue()
         self.cancels: dict[str, threading.Event] = {}
+        self.small_cancels: dict[str, threading.Event] = {}
         self.recent: list[dict] = []  # 小任务的状态，给页面轮询
         self.lock = threading.Lock()
         self._resume()
@@ -187,6 +188,16 @@ class Jobs:
         self.small.put(job)
         return job
 
+    def cancel_small(self, job_id: str) -> bool:
+        """取消仍在執行的小任務；已寫入的候選會保留。"""
+        with self.lock:
+            job = next((x for x in self.recent if x.get("id") == job_id), None)
+            if not job or job.get("state") not in ("queued", "running"):
+                return False
+            self.small_cancels.setdefault(job_id, threading.Event()).set()
+            job["message"] = tr("正在取消")
+            return True
+
     def small_status(self, pid: str | None = None) -> list[dict]:
         with self.lock:
             return [dict(j) for j in self.recent if not pid or j["pid"] == pid]
@@ -205,14 +216,32 @@ class Jobs:
             if not ws:
                 job["state"], job["message"] = "error", tr("文献已移除，无法执行任务")
                 continue
+            cancel = self.small_cancels.setdefault(job["id"], threading.Event())
             job["state"], job["message"] = "running", tr("模型思考中")
             try:
+                if cancel.is_set():
+                    raise Cancelled()
                 cfg = config.load()
                 if job["kind"] == "answer":
                     translate.answer(ws, cfg, job["note"], None)
                 elif job["kind"] == "retranslate":
                     translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None)
+                elif job["kind"] == "smart-annotate":
+                    from . import smart_annotations
+                    result = smart_annotations.generate(
+                        ws, scope=job.get("scope", "all"), section_id=job.get("section_id", ""),
+                        mode=job.get("mode", "auto"), purpose=job.get("purpose", ""),
+                        model_id=job.get("model", ""), cancel=cancel,
+                    )
+                    job["result"] = result
+                if cancel.is_set():
+                    raise Cancelled()
                 job["state"], job["message"] = "done", tr("完成")
+            except Cancelled:
+                job["state"], job["message"] = "cancelled", tr("已取消")
             except Exception as e:  # noqa: BLE001
                 job["state"], job["message"] = "error", str(e)[:500]
                 log.exception("小任务出错 %s", job.get("kind"))
+            finally:
+                with self.lock:
+                    self.small_cancels.pop(job["id"], None)
