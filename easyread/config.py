@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import os
+import shutil
 from pathlib import Path
 
 from .chat_models import DEFAULT_CHAT
@@ -72,13 +73,22 @@ def _saved() -> dict:
 
 
 def _migrate_legacy_home() -> None:
-    """Move the old per-user data directory once, preserving existing data on failure."""
+    """Migrate the old per-user data directory without discarding either copy.
+
+    The desktop shell may create ``PaperRead`` before the Python backend starts.
+    In that case a simple directory rename is no longer possible, so merge the
+    legacy tree into the new location and leave the old tree as a recoverable
+    backup. Existing files in the new location always win.
+    """
     global HOME, PROJECT, CONFIG_PATH, LOG_PATH
-    if _SOURCE_MODE or os.environ.get("EASYREAD_HOME") or HOME.exists() or not LEGACY_HOME.is_dir():
+    if _SOURCE_MODE or os.environ.get("EASYREAD_HOME") or not LEGACY_HOME.is_dir():
         return
     try:
-        HOME.parent.mkdir(parents=True, exist_ok=True)
-        LEGACY_HOME.replace(HOME)
+        if not HOME.exists():
+            HOME.parent.mkdir(parents=True, exist_ok=True)
+            LEGACY_HOME.replace(HOME)
+            return
+        _merge_legacy_tree(LEGACY_HOME, HOME)
     except OSError:
         # A locked or read-only old directory remains usable through the legacy
         # path; never discard a user's library just because migration failed.
@@ -86,6 +96,22 @@ def _migrate_legacy_home() -> None:
         PROJECT = HOME
         CONFIG_PATH = HOME / "config.json"
         LOG_PATH = HOME / "easyread.log"
+        return
+
+
+def _merge_legacy_tree(src: Path, dst: Path) -> None:
+    """Copy missing legacy files into an existing PaperRead data directory."""
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        target = dst / item.name
+        if item.is_dir() and not item.is_symlink():
+            if target.exists() and target.is_dir() and not target.is_symlink():
+                _merge_legacy_tree(item, target)
+            elif not target.exists():
+                shutil.copytree(item, target, symlinks=True)
+            continue
+        if not target.exists():
+            shutil.copy2(item, target, follow_symlinks=False)
 
 
 def load() -> dict:
