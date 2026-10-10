@@ -2,9 +2,14 @@
 (function (PR) {
   "use strict";
   const API = "/api/research/v2";
-  const S = { items: [], saved: [], candidates: [], summaries: [], statuses: [], categories: [], tab: "board", mode: "topic",
+  const S = { items: [], saved: [], candidates: [], summaries: [], comparisons: [], statuses: [], categories: [], tab: "board", mode: "topic",
     results: [], authors: [], selectedAuthor: null, resultKind: "works", resultAuthor: "", relationRequest: null, hasMore: false, error: "", errorAction: "", checked: new Set(), page: 1, filters: { category: "", status: "", interested: false, pdf: "" }, sort: "manual",
-    venueQuery: "", venueOptions: [], venueSelected: [], venueWarning: "", venueBusy: false, resultFilters: null, exploreSort: "relevance_score:desc", yearFrom: "", yearTo: "", onlyOA: false, searchReason: "", filterExpanded: false };
+    venueQuery: "", venueOptions: [], venueSelected: [], venueWarning: "", venueBusy: false, resultFilters: null, exploreSort: "relevance_score:desc", yearFrom: "", yearTo: "", onlyOA: false, searchReason: "", filterExpanded: false,
+    compareTask: null, compareProposal: null, comparePoll: "",
+    compareSelection: new Set(), compareSetupOpen: false,
+    compareDimensions: new Set(["研究問題", "核心方法", "資料集", "評估指標", "限制"]), // i18n-ok: 比較維度是送給後端的固定識別值。
+    compareCustomDimension: "", compareFocus: "", comparePickerOpen: false, comparePickerCategory: "", comparePickerExpanded: false };
+  const RESEARCH_API = "/api/research/v1";
   const esc = PR.esc;
   const $ = (sel, root) => PR.$(sel, root || document);
   const $$ = (sel, root) => PR.$$(sel, root || document);
@@ -19,6 +24,9 @@
     return m ? m[0] : "";
   };
   const normalizedTitle = (w) => String(w?.title || "").normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const normalizeDoi = (value) => String(value || "").trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").split(/[?#]/, 1)[0].toLowerCase();
+  const normalizeArxiv = (value) => String(value || "").trim().replace(/^https?:\/\/(www\.)?arxiv\.org\/(abs|pdf)\//i, "").replace(/^arxiv:/i, "").replace(/v\d+$/i, "").replace(/\.pdf$/i, "").toLowerCase();
+  const canonicalOpenAlex = (value) => (String(value || "").match(/(?:openalex\.org\/)?(W\d+)\/?$/i) || [])[1]?.toUpperCase() || "";
   const paperKey = (w) => w.doi ? "doi:" + String(w.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase() : w.arxiv ? "arxiv:" + String(w.arxiv).replace(/v\d+$/i, "").toLowerCase() : workId(w) ? "openalex:" + workId(w) : "title:" + normalizedTitle(w);
   const samePaper = (a, b) => Boolean(a && b && paperKey(a) === paperKey(b));
   const candidateFor = (work) => S.candidates.find((c) => samePaper(c.paper, work));
@@ -44,6 +52,9 @@
       const data = await PR.api(API);
       Object.assign(S, { items: normalizeItems(data.items), saved: data.saved || [], candidates: data.candidates || [], summaries: data.summaries || [], statuses: (data.statuses || []).filter((x) => x.id !== "paused"), categories: data.categories || [] });
       paint();
+      if (S.tab === "comparisons") {
+        refreshComparisons().catch((error) => { S.comparisonError = error.message || String(error); renderComparisons(); });
+      }
       if (S.query) await search();
       poll();
     } catch (e) {
@@ -76,7 +87,7 @@
     $("[data-count='summaries']").textContent = S.summaries.length || "";
   }
   function renderActive() {
-    ({ explore: renderExplore, candidates: renderCandidates, summaries: renderSummaries, board: renderBoard, path: renderPath }[S.tab] || renderExplore)();
+    ({ explore: renderExplore, candidates: renderCandidates, summaries: renderSummaries, comparisons: renderComparisons, board: renderBoard, path: renderPath }[S.tab] || renderExplore)();
     $("[data-count='active']").textContent = allTasks().filter((i) => i.status !== "done").length || "";
     $("[data-count='candidates']").textContent = S.candidates.length || "";
     $("[data-count='summaries']").textContent = S.summaries.length || "";
@@ -86,6 +97,7 @@
     $$(".rw-tabs [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
     $$(".rw-view").forEach((v) => { v.hidden = v.dataset.view !== tab; });
     renderActive();
+    if (tab === "comparisons") refreshComparisons();
   }
   function renderExplore() {
     const host = $("[data-view='explore']");
@@ -112,10 +124,32 @@
     return '<div class="rw-source-filter"><label for="rw-venue-query">出版來源</label><input id="rw-venue-query" value="' + escAttr(S.venueQuery) + '" placeholder="ICCV、ECCV、CVPR"><button type="button" class="btn sm line" data-action="search-sources"' + (S.venueBusy ? " disabled" : "") + '>' + PR.t(S.venueBusy ? "正在查找…" : "加入出版來源") + '</button><span class="rw-source">' + PR.t("已選 {n} 個來源", { n: S.venueSelected.length }) + '</span>' + (S.venueSelected.length ? btn("清除選取", "clear-source", "line") : "") + '</div>' + (choices ? '<div class="rw-source-options">' + choices + '</div>' : "") + (S.venueWarning ? '<div class="rw-stale">' + esc(S.venueWarning) + '</div>' : ""); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
   }
   function alreadyInLibrary(w) {
-    const doi = String(w.doi || "").replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase();
-    const arxiv = String(w.arxiv || "").replace(/v\d+$/i, "").toLowerCase();
-    const openalex = String(w.openalex_id || w.id || "").replace(/\/$/, "").toLowerCase();
-    return S.items.find((i) => doi && String(i.doi || "").replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase() === doi || arxiv && String(i.arxiv || "").replace(/v\d+$/i, "").toLowerCase() === arxiv || openalex && String(i.openalex_id || "").replace(/\/$/, "").toLowerCase() === openalex);
+    const saved = savedFor(w || {});
+    if (saved?.library_id) {
+      const linked = S.items.find((item) => item.id === saved.library_id);
+      if (linked) return linked;
+    }
+    const doi = normalizeDoi(w?.doi), arxiv = normalizeArxiv(w?.arxiv);
+    const openalex = canonicalOpenAlex(w?.openalex_id || w?.id);
+    const key = paperKey(w || {});
+    const exact = S.items.find((item) => {
+      const itemDoi = normalizeDoi(item.doi), itemArxiv = normalizeArxiv(item.arxiv);
+      const itemOpenAlex = canonicalOpenAlex(item.openalex_id);
+      return (doi && itemDoi === doi) || (arxiv && itemArxiv === arxiv) ||
+        (openalex && itemOpenAlex === openalex) || (key && item.paper_ref === key);
+    });
+    if (exact) return exact;
+
+    // Imported metadata can be incomplete or normalized differently across sources.
+    // Only fall back to a title match when it is unique and publication years do not conflict.
+    const title = normalizedTitle({ title: w?.title || w?.title_en || w?.title_zh });
+    if (!title) return undefined;
+    const matches = S.items.filter((item) => {
+      const itemTitle = normalizedTitle({ title: item.title_en || item.title_zh || item.short_zh });
+      if (itemTitle !== title) return false;
+      return !w?.year || !item.year || String(w.year) === String(item.year);
+    });
+    return matches.length === 1 ? matches[0] : undefined;
   }
   function workCard(w) {
     const key = paperKey(w), inCandidate = Boolean(candidateFor(w));
@@ -125,9 +159,9 @@
   }
   function renderCandidates() {
     const host = $("[data-view='candidates']"), records = S.candidates || [];
-    host.innerHTML = '<div class="rw-section-head"><div><h2>候選論文</h2><p>加入候選後會在背景自動整理摘要；加入閱讀看板仍由你決定。</p></div><button class="btn line" data-tab="path">規劃閱讀路徑</button></div>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    host.innerHTML = '<div class="rw-section-head"><div><h2>候選論文</h2><p>' + PR.t("加入候選後會依來源摘要在背景整理摘要；全文比較需先加入閱讀看板並取得、整理 PDF。") + '</p></div><button class="btn line" data-tab="path">規劃閱讀路徑</button></div>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
       (records.length ? '<div class="rw-results">' + records.map((record) => {
-        const w = record.paper || {}, paper = alreadyInLibrary(w), id = paper?.id || "";
+        const w = record.paper || {}, paper = alreadyInLibrary(w), saved = savedFor(w), id = paper?.id || "";
         const summaryControl = record.summary_markdown
           ? btn("查看摘要", "view-summary", "accent", 'data-key="' + escAttr(record.paper_key) + '"') + btn("重新整理摘要", "candidate-summary", "line", 'data-key="' + escAttr(record.paper_key) + '" data-force-summary="1"') + btn("匯出摘要", "download-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') /* i18n-dom: shared DOM translator localizes rendered UI text. */
           : record.summary_status === "failed"
@@ -135,13 +169,133 @@
           : ["queued", "running"].includes(record.summary_status)
             ? '<span class="rw-state" role="status"><i class="spin"></i> ' + (record.summary_status === "running" ? "AI 正在整理摘要…" : "已加入背景摘要佇列…") + '</span>' /* i18n-dom: shared DOM translator localizes rendered UI text. */
             : btn("整理摘要", "retry-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-        return '<article class="rw-card rw-paper"><h3>' + esc(w.title || "未命名論文") + '</h3><div class="meta">' + esc([w.authors, w.year, w.venue].filter(Boolean).join(" · ")) + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (record.summary_markdown ? '<span class="rw-chip">已整理摘要</span>' : '') + '<div class="actions">' + summaryControl + (id ? '<a class="btn sm line" href="/read/' + escAttr(id) + '">開啟閱讀</a>' : btn("加入閱讀看板", "queue", "line", 'data-key="' + escAttr(record.paper_key) + '"')) + btn("移出候選", "remove-candidate", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></article>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      }).join("") + '</div>' : '<div class="rw-empty">候選清單目前是空的。先到研究探索搜尋，再按「加入候選」。</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+        const pdfState = saved?.pdf_state || "";
+        const fullTextStatus = paper
+          ? PR.t("全文已匯入，正在整理中")
+          : pdfState === "running" ? PR.t("PDF 下載／匯入中")
+            : pdfState === "failed" ? PR.t("PDF 取得失敗")
+              : pdfState === "pending" ? PR.t("等待取得 PDF")
+                  : pdfState === "imported" ? PR.t("PDF 已匯入，但尚未連結到文獻項目")
+                    : !saved ? PR.t("尚未加入閱讀看板")
+                      : PR.t("尚未取得全文");
+        const fullTextHelp = paper
+          ? PR.t("論文 PDF 已匯入，但尚未完成全文整理。")
+          : pdfState === "running" ? PR.t("正在下載並匯入 PDF，完成後即可開啟閱讀或比較。")
+            : pdfState === "failed" ? PR.t("PDF 下載或匯入失敗；可到閱讀看板重試，或手動附加 PDF。") + (saved.pdf_error ? " " + PR.t(saved.pdf_error) : "")
+              : pdfState === "pending" ? PR.t("已加入閱讀看板，PDF 尚在等待處理。")
+                : pdfState === "imported" ? PR.t("PDF 已標記匯入，但找不到對應的文獻項目；請重新整理文獻庫確認。")
+                  : PR.t("候選論文只有書目資料或來源摘要；加入閱讀看板並取得、整理 PDF 後，才能進行全文比較。");
+        const fullTextBadge = '<span class="rw-chip rw-fulltext-state" title="' + escAttr(fullTextHelp) + '">' + esc(fullTextStatus) + '</span>';
+        return '<article class="rw-card rw-paper"><div class="rw-candidate-titleline"><h3>' + esc(w.title || "未命名論文") + '</h3>' + fullTextBadge + '</div><div class="meta">' + esc([w.authors, w.year, w.venue].filter(Boolean).join(" · ")) + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (record.summary_markdown ? '<span class="rw-chip" title="' + escAttr(PR.t("此摘要根據搜尋來源提供的書目摘要整理，並不代表已取得論文全文。")) + '">' + PR.t("已整理來源摘要") + '</span>' : '') + '<div class="actions">' + summaryControl + (id ? '<a class="btn sm line" href="/read/' + escAttr(id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板並取得 PDF"), "queue", "line", 'data-key="' + escAttr(record.paper_key) + '"')) + btn(PR.t("移出候選"), "remove-candidate", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></article>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      }).join("") + '</div>' : '<div class="rw-empty">' + PR.t("候選清單目前是空的。先到研究探索搜尋，再按「加入候選」。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   function renderSummaries() {
     const host = $("[data-view='summaries']"), records = S.summaries || [];
     host.innerHTML = '<div class="rw-section-head"><div><h2>已整理摘要</h2><p>整理結果會獨立保存；論文移出候選清單後，摘要仍會保留。</p></div></div>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      (records.length ? '<div class="rw-results">' + records.map((record) => '<article class="rw-card rw-paper"><h3>' + esc(record.paper.title || "未命名論文") + '</h3><div class="meta">' + esc([record.paper.authors, record.paper.year, record.paper.venue].filter(Boolean).join(" · ")) + '</div><span class="rw-chip">已整理摘要</span><div class="rw-source"><span>' + PR.t("整理模型：") + '</span>' + esc(record.summary_model || "未提供") + (record.updated ? ' · ' + esc(record.updated) : '') + '</div><div class="actions">' + btn("查看摘要", "view-summary", "accent", 'data-key="' + escAttr(record.paper_key) + '"') + btn("匯出摘要", "download-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn("移到回收站", "trash-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></article>').join("") + '</div>' : '<div class="rw-empty">目前還沒有摘要。加入候選論文後會在背景自動整理摘要。</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      (records.length ? '<div class="rw-results">' + records.map((record) => '<article class="rw-card rw-paper"><h3>' + esc(record.paper.title || "未命名論文") + '</h3><div class="meta">' + esc([record.paper.authors, record.paper.year, record.paper.venue].filter(Boolean).join(" · ")) + '</div><span class="rw-chip">已整理摘要</span><div class="rw-source"><span>' + PR.t("整理模型：") + '</span>' + esc(record.summary_model || "未提供") + (record.updated ? ' · ' + esc(record.updated) : '') + '</div><div class="actions">' + btn("查看摘要", "view-summary", "accent", 'data-key="' + escAttr(record.paper_key) + '"') + btn("匯出摘要", "download-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn("移到回收站", "trash-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></article>').join("") + '</div>' : '<div class="rw-empty">' + PR.t("目前還沒有摘要。加入候選論文後會在背景自動整理摘要。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+  }
+  const compareDimensionOptions = ["研究問題", "核心方法", "資料集", "評估指標", "實驗條件", "成本", "限制"]; // i18n-ok: 比較維度是送給後端的固定識別值。
+  function renderComparisonSetup() {
+    const selected = [...S.compareSelection].map((id) => S.items.find((item) => item.id === id)).filter(Boolean);
+    const missing = selected.filter((item) => Number(item.parsed_blocks || 0) <= 0);
+    const dimensions = compareDimensionOptions.concat([...S.compareDimensions].filter((value) => !compareDimensionOptions.includes(value)));
+    const papers = selected.length
+      ? '<ul class="rw-compare-papers">' + selected.map((item) => '<li><b>' + esc(item.title_zh || item.title_en || item.short_zh || item.id) + '</b><small>' + esc([item.year, item.venue].filter(Boolean).join(" · ")) + '</small></li>').join("") + '</ul>'
+      : '<p class="rw-empty">' + PR.t("沒有找到選取的文獻，請返回文獻庫重新選擇。") + '</p>';
+    const warning = missing.length ? '<p class="rw-stale">' + PR.t("以下論文尚未完成全文整理，無法開始比較：") + ' ' + esc(missing.map((item) => item.title_zh || item.title_en || item.id).join("、")) + '</p>' : ""; // i18n-ok: 論文標題分隔符。
+    const checks = dimensions.map((value) => '<label><input type="checkbox" data-compare-dimension="' + escAttr(value) + '"' + (S.compareDimensions.has(value) ? ' checked' : '') + '> ' + PR.t(value) + '</label>').join("");
+    const compareBusy = S.compareTask && ["queued", "running", "cancelling"].includes(S.compareTask.state);
+    const canStart = selected.length >= 2 && selected.length <= 5 && !missing.length && S.compareDimensions.size > 0 && !compareBusy;
+    return '<section class="rw-panel rw-compare-config"><div class="rw-section-head"><div><h3>' + PR.t("設定跨論文比較") + '</h3><p>' + PR.t("先選擇比較維度與分析焦點，確認後才會開始 AI 比較。") + '</p></div><button class="btn line" data-action="compare-cancel">' + PR.t("返回論文比較") + '</button></div>' +
+      '<div class="rw-compare-select"><h3>' + PR.t("本次比較論文（{n} 篇）", { n: selected.length }) + '</h3>' + papers + '</div>' + warning +
+      '<label class="rw-field"><span>' + PR.t("比較焦點（選填）") + '</span><input data-compare-focus value="' + escAttr(S.compareFocus) + '" placeholder="' + escAttr(PR.t("例如：各方法在資料效率上的差異")) + '"></label>' +
+      '<div><h3>' + PR.t("比較維度") + '</h3><div class="rw-compare-dimensions">' + checks + '</div></div>' +
+      '<div class="rw-compare-custom"><input data-compare-custom value="' + escAttr(S.compareCustomDimension) + '" placeholder="' + escAttr(PR.t("新增自訂維度")) + '"><button class="btn sm line" data-action="compare-add-dimension">' + PR.t("加入") + '</button></div>' +
+      '<div class="actions"><button class="btn accent" data-action="compare-start"' + (canStart ? "" : " disabled") + '>' + PR.t("開始比較") + '</button></div></section>';
+  }
+  function comparePickerInitialLimit() {
+    const columns = Math.floor(((window.innerWidth || 960) - 64) / 270);
+    return Math.max(2, Math.min(5, columns || 2));
+  }
+  function comparePaperChoice(item, selected) {
+    const title = item.title_zh || item.title_en || item.short_zh || item.id;
+    const fullText = Number(item.parsed_blocks || 0) > 0;
+    const fullTextLabel = fullText ? PR.t("全文已整理") : PR.t("尚未完成全文整理");
+    return '<label class="rw-compare-paper-choice' + (fullText ? '' : ' is-disabled') + '"><input type="checkbox" data-compare-paper="' + escAttr(item.id) + '"' + (selected.has(item.id) ? ' checked' : '') + (fullText ? '' : ' disabled') + '><span><b>' + esc(title) + '</b><small>' + esc([item.year, item.venue].filter(Boolean).join(' · ')) + ' · ' + fullTextLabel + '</small></span></label>';
+  }
+  function renderComparisonPicker() {
+    const papers = S.items || [];
+    const selected = S.compareSelection;
+    const categories = [...new Set((S.categories || []).map((category) => String(category || "").trim()).filter(Boolean))];
+    const uncategorizedCount = papers.filter((item) => !(item.tags || []).length).length;
+    const categoryEntries = categories.map((name) => ({ key: name, label: name })).concat(uncategorizedCount ? [{ key: "__uncategorized__", label: PR.t("未分類") }] : []);
+    const category = S.comparePickerCategory;
+    const papersInCategory = category ? (category === "__uncategorized__" ? papers.filter((item) => !(item.tags || []).length) : papers.filter((item) => (item.tags || []).includes(category))) : papers;
+    const renderFolders = () => '<div class="rw-compare-picker-intro"><h3>' + PR.t("選擇論文分類") + '</h3><p>' + PR.t("先選擇分類，再從分類中的論文勾選要比較的項目。") + '</p></div><div class="rw-compare-folders">' + categoryEntries.map(({ key, label }) => {
+      const count = key === "__uncategorized__" ? uncategorizedCount : papers.filter((item) => (item.tags || []).includes(key)).length;
+      return '<button type="button" class="rw-compare-folder" data-action="compare-picker-category" data-category="' + escAttr(key) + '" aria-label="' + escAttr(label + " " + count) + '"><svg class="rw-folder-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l1.8 2h9.2v9.8a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7V6.5Z"></path><path d="M3.5 9h17"></path></svg><span><b>' + esc(label) + '</b><small>' + PR.t("{n} 篇文獻", { n: count }) + '</small></span></button>';
+    }).join('') + '</div>';
+    const renderPapers = () => {
+      const limit = !category && !categories.length && !S.comparePickerExpanded ? comparePickerInitialLimit() : papersInCategory.length;
+      const visible = papersInCategory.slice(0, limit);
+      const choices = visible.length ? visible.map((item) => comparePaperChoice(item, selected)).join('') : '<p class="rw-empty">' + PR.t("文獻庫目前沒有可選的論文。") + '</p>';
+      const more = !category && !categories.length && !S.comparePickerExpanded && papersInCategory.length > limit ? '<div class="actions rw-compare-more"><button class="btn line" data-action="compare-picker-more">' + PR.t("顯示更多論文") + '</button></div>' : '';
+      const categoryLabel = category === "__uncategorized__" ? PR.t("未分類") : category;
+      return (category ? '<div class="rw-compare-breadcrumb"><button type="button" class="btn line" data-action="compare-picker-back">' + PR.t("返回分類") + '</button><span>' + esc(categoryLabel) + ' (' + papersInCategory.length + ')</span></div>' : '<div class="rw-compare-picker-intro"><h3>' + PR.t("選擇論文") + '</h3><p>' + PR.t("文獻庫尚未建立分類，先從最近的論文中選取；需要時可再顯示更多。") + '</p></div>') + '<div class="rw-compare-paper-list">' + choices + '</div>' + more;
+    };
+    const content = categories.length && !category ? renderFolders() : renderPapers();
+    const canContinue = selected.size >= 2 && selected.size <= 5;
+    return '<section class="rw-panel rw-compare-picker"><div class="rw-section-head"><div><h3>' + PR.t('選擇比較論文') + '</h3><p>' + PR.t('直接在這裡選擇 2 至 5 篇已完成全文整理的論文，再設定比較維度。') + '</p></div><span class="rw-chip">' + PR.t('已選 {n} 篇', { n: selected.size }) + '</span></div>' + content + '<div class="actions"><button class="btn accent" data-action="compare-open-setup"' + (canContinue ? '' : ' disabled') + '>' + PR.t('下一步：設定比較') + '</button></div></section>';
+  }
+  function renderComparisons() {
+    const host = $("[data-view='comparisons']"), records = S.comparisons || [];
+    if (!host) return;
+    if (S.comparisonsLoading) { host.innerHTML = '<div class="rw-empty"><i class="spin"></i> ' + PR.t("正在載入比較結果…") + '</div>'; return; }
+    const error = S.comparisonError ? '<div class="rw-error" role="alert">' + esc(S.comparisonError) + ' <button class="btn sm line" data-action="comparisons-refresh">' + PR.t("重試") + '</button></div>' : '';
+    const cards = records.map((record) => {
+      const status = record.status === "accepted" ? PR.t("已存入 Obsidian") : record.status === "rejected" ? PR.t("已捨棄") : PR.t("待審閱");
+      const dateLabel = record.created ? new Date(record.created * 1000).toLocaleString(PR.lang === "en" ? "en-US" : "zh-TW") : PR.t("時間未提供");
+      return '<article class="rw-card rw-paper"><div class="rw-section-head"><div><h3>' + esc(record.title || PR.t("跨論文比較")) + '</h3><p class="meta">' + esc(dateLabel) + ' · ' + PR.t("{n} 篇論文", { n: record.paper_count || 0 }) + '</p></div><span class="rw-chip">' + esc(status) + '</span></div><p>' + esc(record.status === "pending" ? PR.t("比較草稿尚待核對原文證據與評估條件。") : PR.t("可開啟這份比較結果檢視內容與證據。")) + '</p><div class="actions">' + btn(PR.t("查看比較結果"), "view-comparison", "accent", 'data-id="' + escAttr(record.id) + '"') + btn(PR.t("編輯名稱"), "edit-comparison-title", "line", 'data-id="' + escAttr(record.id) + '"') + (record.status === "accepted" ? btn(PR.t("匯出比較"), "export-comparison-record", "line", 'data-id="' + escAttr(record.id) + '"') : '') + '</div></article>';
+    }).join("");
+    const task = S.compareTask;
+    const active = task && ["queued", "running", "cancelling"].includes(task.state);
+    const taskMarkup = active ? '<div class="rw-task-state" role="status"><i class="spin"></i><div><b>' + PR.t("正在整理跨論文比較…") + '</b><p>' + esc(task.message || PR.t("正在讀取已整理的全文，請稍候。")) + '</p>' + (task.total ? '<progress max="' + task.total + '" value="' + (task.done || 0) + '"></progress>' : '') + '</div></div>' : task?.state === "failed" ? '<div class="rw-error" role="alert">' + esc(task.message || PR.t("比較工作未完成。")) + ' <button class="btn sm line" data-action="comparisons-refresh">' + PR.t("重試") + '</button></div>' : '';
+    host.innerHTML = '<div class="rw-section-head"><div><h2>' + PR.t("論文比較") + '</h2><p>' + PR.t("比較只從文獻庫已完成全文整理的論文開始；先設定比較維度，再產生可審閱的結果。") + '</p></div><div class="actions"><button class="btn line" data-action="compare-open-picker">' + PR.t("選擇比較論文") + '</button><button class="btn line" data-action="comparisons-refresh">' + PR.t("重新整理") + '</button></div></div>' + (S.compareSetupOpen ? renderComparisonSetup() : (S.comparePickerOpen ? renderComparisonPicker() : '')) + error + taskMarkup + (cards ? '<div class="rw-results">' + cards + '</div>' : (!active && !S.compareSetupOpen && !S.comparePickerOpen ? '<div class="rw-empty">' + PR.t("目前還沒有比較結果。請按「選擇比較論文」開始。") + '</div>' : ''));
+  }
+  async function startComparison(button) {
+    const selected = [...S.compareSelection];
+    const missing = selected.filter((id) => !S.items.find((item) => item.id === id && Number(item.parsed_blocks || 0) > 0));
+    if (selected.length < 2 || selected.length > 5) return PR.toast(PR.t("跨論文比較需要選擇 2 至 5 篇論文。"));
+    if (missing.length) return PR.toast(PR.t("所選論文都必須先完成 PDF 與全文整理，才能比較。"));
+    if (!S.compareDimensions.size) return PR.toast(PR.t("請至少選擇一個比較維度。"));
+    if (S.compareTask && ["queued", "running", "cancelling"].includes(S.compareTask.state)) return;
+    if (button) { button.disabled = true; button.innerHTML = '<i class="spin"></i> ' + PR.t("正在開始…"); }
+    try {
+      S.comparisonError = "";
+      S.compareTask = await PR.api(RESEARCH_API + "/comparison", { method: "POST", body: {
+        paper_ids: selected, dimensions: [...S.compareDimensions], focus: S.compareFocus,
+      } });
+      S.compareSetupOpen = false;
+      S.compareSelection = new Set();
+      history.replaceState({}, "", "/research?mode=comparisons");
+      renderComparisons();
+      watchComparison(S.compareTask.id);
+    } catch (error) {
+      S.comparisonError = error.message || String(error);
+      renderComparisons();
+      PR.toast(PR.t(S.comparisonError));
+    } finally { if (button?.isConnected) { button.disabled = false; button.textContent = PR.t("開始比較"); } }
+  }
+  async function refreshComparisons() {
+    S.comparisonsLoading = true; S.comparisonError = ""; renderComparisons();
+    try {
+      const [results, status] = await Promise.all([PR.api(RESEARCH_API + "/comparisons"), PR.api(RESEARCH_API + "/status")]);
+      S.comparisons = results.comparisons || [];
+      S.compareTask = (status.tasks || []).find((item) => item.kind === "comparison") || null;
+      if (S.compareTask && ["queued", "running", "cancelling"].includes(S.compareTask.state)) watchComparison(S.compareTask.id);
+    }
+    catch (error) { S.comparisonError = error.message || String(error); }
+    finally { S.comparisonsLoading = false; renderComparisons(); }
   }
   function renderPath() {
     const host = $("[data-view='path']");
@@ -339,8 +493,9 @@
     const modal = $("#rw-modal");
     modal.innerHTML = '<div class="rw-dialog' + (options.headerClose ? ' has-header-close' : '') + '" role="dialog" aria-modal="true"><div class="rw-dialog-head"><h2>' + esc(title) + '</h2>' + (options.headerClose ? '<button type="button" class="rw-dialog-close" data-modal-close aria-label="關閉" title="關閉">×</button>' : '') + '</div><div class="rw-dialog-body">' + bodyHtml + '</div><div class="rw-dialog-foot">' + (saveLabel === "關閉" ? '<button class="btn line" data-modal-close>關閉</button>' : '<button class="btn line" data-modal-close>關閉</button><button class="btn accent" data-modal-save>' + esc(saveLabel) + '</button>') + '</div></div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     modal.hidden = false;
-    $("[data-modal-close]", modal).onclick = () => { modal.hidden = true; };
-    $("[data-modal-save]", modal).onclick = async () => { try { await onSave(modal); modal.hidden = true; } catch (e) { PR.toast(esc(e.message)); } };
+    $$("[data-modal-close]", modal).forEach((close) => { close.onclick = () => { modal.hidden = true; }; });
+    const save = $("[data-modal-save]", modal);
+    if (save) save.onclick = async () => { try { await onSave(modal); modal.hidden = true; } catch (e) { PR.toast(esc(e.message)); } };
     modal.onclick = (e) => { if (options.dismissOnBackdrop !== false && e.target === modal) modal.hidden = true; };
   }
   function queueModal(work) {
@@ -460,11 +615,11 @@
     finally { S.summaryBusy = false; if (button) { button.disabled = false; button.textContent = "整理摘要"; } } /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   function showSummary(record) {
-    const content = '<div class="rw-source">根據候選論文的來源摘要整理' + (record.summary_model ? ' · ' + esc(record.summary_model) : '') + (record.updated || record.summary_updated ? ' · ' + esc(record.updated || record.summary_updated) : '') + '</div><article class="markdown rw-summary">' + PR.mdBlocks(record.summary_markdown || "") + '</article><div class="rw-dialog-foot"><button class="btn line" data-download-summary>匯出摘要</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const content = '<div class="rw-source">' + PR.t("根據候選論文的來源摘要整理") + (record.summary_model ? ' · ' + esc(record.summary_model) : '') + (record.updated || record.summary_updated ? ' · ' + esc(record.updated || record.summary_updated) : '') + '</div><article class="markdown rw-summary">' + PR.mdBlocks(record.summary_markdown || "") + '</article><div class="rw-dialog-foot"><button class="btn line" data-download-summary>匯出摘要</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     S.summaryText = record.summary_markdown || "";
-    openModal("論文摘要整理", content, async () => {}, "關閉"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    openModal(PR.t("論文摘要整理"), content, async () => {}, "關閉"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const download = $("[data-download-summary]", $("#rw-modal"));
-    if (download) download.onclick = () => exportMarkdown((record.paper?.title || "論文") + "-summary.md", S.summaryText);
+    if (download) download.onclick = () => exportMarkdown((record.paper?.title || PR.t("論文")) + "-summary.md", S.summaryText);
   }
   async function exportMarkdown(filename, text) {
     const safeName = filename.replace(/[\\/:*?"<>|]/g, "_");
@@ -472,15 +627,40 @@
       try {
         const handle = await window.showSaveFilePicker({ suggestedName: safeName, types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }] });
         const stream = await handle.createWritable(); await stream.write(text); await stream.close();
-        PR.toast("摘要已匯出。"); return; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+        PR.toast(PR.t("Markdown 已匯出。")); return; /* i18n-dom: shared DOM translator localizes rendered UI text. */
       } catch (error) { if (error.name === "AbortError") return; throw error; }
     }
     const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = safeName; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function showComparisonRecord(proposal) {
+    S.compareProposal = proposal || null;
+    if (!proposal) return PR.toast(PR.t("找不到比較結果。"));
+    const status = proposal.status === "accepted" ? PR.t("已存入 Obsidian") : proposal.status === "rejected" ? PR.t("已捨棄") : PR.t("待審閱");
+    const sources = (proposal.sources || proposal.evidence || []).map((source) => {
+      const label = source.title || source.paper_title || source.id || PR.t("論文");
+      return '<li>' + esc(label) + (source.location ? ' <small>' + esc(source.location) + '</small>' : '') + '</li>';
+    }).join("");
+    const actions = '<div class="actions">' +
+      btn(PR.t("編輯名稱"), "edit-comparison-title", "line", 'data-id="' + escAttr(proposal.id) + '"') +
+      btn(PR.t("匯出比較"), "export-comparison", "line") +
+      (proposal.status === "pending" ? btn(PR.t("接受並存入 Obsidian"), "compare-accept", "accent") + btn(PR.t("捨棄草稿"), "compare-reject", "line") : '') +
+      '</div>';
+    const body = '<div class="rw-source">' + PR.t("狀態：{status}；請先核對各篇論文的原文證據與評估條件。", { status }) + '</div>' +
+      '<article class="markdown rw-summary">' + PR.mdBlocks(proposal.content || "") + '</article>' +
+      (sources ? '<section class="rw-evidence"><h3>' + PR.t("證據來源") + '</h3><ul>' + sources + '</ul></section>' : '') + actions;
+    openModal(proposal.title || PR.t("論文比較"), body, async () => {}, "關閉", { headerClose: true }); // i18n-ok: openModal uses this control sentinel.
+  }
+  async function exportComparison(proposal) {
+    if (!proposal?.content) return;
+    const title = proposal.title || PR.t("論文比較");
+    const body = String(proposal.content).replace(/^\s*#\s+.*(?:\r?\n|$)/, "").trimStart();
+    await exportMarkdown(title + ".md", "# " + title + "\n\n" + body);
+  }
+
   async function aiQuery() {
     const query = $("#rw-query")?.value?.trim() || "";
-    if (!query) return PR.toast("請先輸入研究主題。"); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    if (!query) return PR.toast(PR.t("請先輸入研究主題。")); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const button = $("[data-action='ai-query']"); if (button?.disabled) return;
     if (button) { button.disabled = true; button.innerHTML = '<i class="spin"></i> 正在整理搜尋詞…'; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
     try {
@@ -526,6 +706,27 @@
     } catch (e) { S.pathError = e.message; }
     finally { S.pathLoading = false; renderPath(); }
   }
+  async function watchComparison(identity) {
+    if (S.comparePoll === identity) return;
+    S.comparePoll = identity;
+    while (S.comparePoll === identity && S.tab === "comparisons") {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      try { S.compareTask = await PR.api(RESEARCH_API + "/tasks/" + identity); }
+      catch (error) { S.compareTask = { id: identity, state: "failed", message: error.message || String(error) }; break; }
+      if (S.compareTask.state === "completed") {
+        const proposal = S.compareTask.result?.proposal;
+        if (proposal?.id) S.compareProposal = await PR.api(RESEARCH_API + "/proposals/" + proposal.id);
+        else S.compareProposal = proposal || null;
+      }
+      renderComparisons();
+      if (!["queued", "running", "cancelling"].includes(S.compareTask.state)) break;
+    }
+    if (S.comparePoll === identity) S.comparePoll = "";
+    if (S.tab === "comparisons") {
+      if (S.compareTask?.state === "completed") await refreshComparisons();
+      else renderComparisons();
+    }
+  }
   document.addEventListener("click", async (e) => {
     const tab = e.target.closest("[data-tab]"); if (tab) return switchTab(tab.dataset.tab);
     const mode = e.target.closest("[data-mode]"); if (mode) { rememberExploreInputs(); S.mode = mode.dataset.mode; S.error = ""; S.stale = false; S.warning = ""; S.results = []; S.authors = []; return renderExplore(); }
@@ -540,6 +741,54 @@
     const b = e.target.closest("[data-action]"); if (!b) return;
     try {
       switch (b.dataset.action) {
+        case "compare-accept": case "compare-reject": {
+          const proposal = S.compareProposal; if (!proposal?.id) return;
+          S.compareProposal = await PR.api(RESEARCH_API + "/proposals/" + proposal.id + "/review", { method: "POST", body: { decision: b.dataset.action === "compare-accept" ? "accept" : "reject" } });
+          if (S.tab === "comparisons") { showComparisonRecord(S.compareProposal); await refreshComparisons(); }
+          else renderCandidates();
+          if (S.compareProposal.status === "accepted") PR.toast(PR.t("比較草稿已存入 Obsidian。"));
+          return;
+        }
+        case "export-comparison": {
+          const proposal = S.compareProposal; await exportComparison(proposal);
+          return;
+        }
+        case "comparisons-refresh": return refreshComparisons();
+        case "view-comparison": {
+          const proposal = await PR.api(RESEARCH_API + "/proposals/" + encodeURIComponent(b.dataset.id));
+          return showComparisonRecord(proposal);
+        }
+        case "export-comparison-record": {
+          const proposal = await PR.api(RESEARCH_API + "/proposals/" + encodeURIComponent(b.dataset.id));
+          await exportComparison(proposal);
+          return;
+        }
+        case "edit-comparison-title": {
+          const proposal = await PR.api(RESEARCH_API + "/proposals/" + encodeURIComponent(b.dataset.id));
+          const current = proposal?.title || PR.t("跨論文比較");
+          return openModal(PR.t("編輯比較名稱"), '<label class="rw-field"><span>' + PR.t("比較名稱") + '</span><input id="rw-comparison-title" maxlength="80" value="' + escAttr(current) + '"></label>', async (modal) => {
+            const next = $("#rw-comparison-title", modal)?.value.trim();
+            if (!next || next === current) return;
+            const updated = await PR.api(RESEARCH_API + "/proposals/" + encodeURIComponent(b.dataset.id) + "/title", { method: "POST", body: { title: next } });
+            if (S.compareProposal?.id === updated.id) S.compareProposal = updated;
+            S.comparisons = S.comparisons.map((item) => item.id === updated.id ? { ...item, title: updated.title } : item);
+            renderComparisons();
+          }, PR.t("儲存"));
+        }
+        case "compare-open-picker": S.comparePickerOpen = true; S.compareSetupOpen = false; S.comparePickerCategory = ""; S.comparePickerExpanded = false; return renderComparisons();
+        case "compare-picker-category": S.comparePickerCategory = b.dataset.category || ""; S.comparePickerExpanded = false; return renderComparisons();
+        case "compare-picker-back": S.comparePickerCategory = ""; S.comparePickerExpanded = false; return renderComparisons();
+        case "compare-picker-more": S.comparePickerExpanded = true; return renderComparisons();
+        case "compare-open-setup":
+          if (S.compareSelection.size < 2 || S.compareSelection.size > 5) return PR.toast(PR.t("請先選擇 2 至 5 篇論文。"));
+          S.comparePickerOpen = false; S.compareSetupOpen = true; return renderComparisons();
+        case "compare-cancel": S.compareSetupOpen = false; S.comparePickerOpen = true; S.comparePickerCategory = ""; S.comparePickerExpanded = false; history.replaceState({}, "", "/research?mode=comparisons"); return renderComparisons();
+        case "compare-add-dimension": {
+          const value = S.compareCustomDimension.trim().slice(0, 60);
+          if (value) S.compareDimensions.add(value);
+          S.compareCustomDimension = ""; return renderComparisons();
+        }
+        case "compare-start": return startComparison(b);
         case "manage-status": return statusManager();
         case "add-column": return statusManager();
         case "go-explore": return switchTab("explore");
@@ -623,6 +872,8 @@
     const key = fields[e.target.id];
     if (key) S[key] = e.target.value;
     if (e.target.id === "rw-oa") S.onlyOA = e.target.checked;
+    if (e.target.matches("[data-compare-focus]")) S.compareFocus = e.target.value;
+    if (e.target.matches("[data-compare-custom]")) S.compareCustomDimension = e.target.value;
   });
   document.addEventListener("focusout", (e) => { if (S.pendingRender && e.target.closest(".rw-view") && !$(".rw-modal:not([hidden])")) { S.pendingRender = false; renderActive(); } });
   document.addEventListener("change", async (e) => {
@@ -630,6 +881,15 @@
     if (["rw-query", "rw-venue-query", "rw-year-from", "rw-year-to", "rw-sort"].includes(c.id)) rememberExploreInputs();
     if (c.id === "rw-oa") S.onlyOA = c.checked;
     if (c.matches("[data-select-work]")) { c.checked ? S.checked.add(c.dataset.selectWork) : S.checked.delete(c.dataset.selectWork); return; }
+    if (c.matches("[data-compare-dimension]")) {
+      c.checked ? S.compareDimensions.add(c.dataset.compareDimension) : S.compareDimensions.delete(c.dataset.compareDimension);
+      return renderComparisons();
+    }
+    if (c.matches("[data-compare-paper]")) {
+      if (c.checked && S.compareSelection.size >= 5) { c.checked = false; return PR.toast(PR.t("最多選擇 5 篇論文。")); }
+      c.checked ? S.compareSelection.add(c.dataset.comparePaper) : S.compareSelection.delete(c.dataset.comparePaper);
+      return renderComparisons();
+    }
     if (c.matches("[data-source-choice]")) {
       const id = c.dataset.sourceChoice, source = S.venueOptions.find((s) => s.id === id);
       rememberExploreInputs();
@@ -691,7 +951,12 @@
   if (searchParams.get("mode") === "conference") S.mode = "conference";
   if (searchParams.get("mode") === "path") S.tab = "path";
   if (searchParams.get("mode") === "candidates") S.tab = "candidates";
-  if (searchParams.has("q") && !["path", "candidates"].includes(searchParams.get("mode"))) S.tab = "explore";
+  if (searchParams.get("mode") === "comparisons") S.tab = "comparisons";
+  if (searchParams.has("q") && !["path", "candidates", "comparisons"].includes(searchParams.get("mode"))) S.tab = "explore";
   if (searchParams.get("q")) S.query = searchParams.get("q");
+  if (S.tab === "comparisons" && searchParams.get("papers")) {
+    S.compareSelection = new Set(searchParams.get("papers").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 5));
+    S.compareSetupOpen = S.compareSelection.size > 0;
+  }
   init();
 })(window.PR);

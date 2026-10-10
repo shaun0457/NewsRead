@@ -49,6 +49,7 @@
       (L.tag || L.view === "starred" ? tool("uncat", PR.t("移出“{name}”", { name: L.tag || PR.t("星标") }), "x") : "") +
       tool("status", PR.t("切换状态"), "book") +
       tool("translate", PR.t("翻译"), "sparkle") +
+      tool("compare", PR.t("跨論文比較"), "copy", PR.t("選擇 2 至 5 篇已完成全文整理的論文，前往比較設定")) +
       tool("cite", PR.t("导出引用"), "copy") +
       tool("trash", "", "trash", PR.t("移到回收站")) + "</div>" +
       '<button class="btn sm accent" data-b="done">' + PR.t("完成") + "</button>";
@@ -138,11 +139,21 @@
     PR.toast(PR.t("已把 {n} 篇移到回收站", { n: its.length - failed }) + (failed ? PR.t("，{n} 篇没删成", { n: failed }) : ""), names.length ? { label: PR.t("撤销"), fn: undo } : null);
   }
 
+  async function compareAll(at) {
+    const its = pickedItems();
+    if (its.length < 2 || its.length > 5) return PR.toast(PR.t("跨論文比較需要選擇 2 至 5 篇論文。"));
+    if (its.some((item) => Number(item.parsed_blocks || 0) <= 0)) return PR.toast(PR.t("所選論文都必須先完成 PDF 與全文整理，才能比較。"));
+    L.endPick();
+    const ids = encodeURIComponent(its.map((item) => item.id).join(","));
+    window.location.href = "/research?mode=comparisons&papers=" + ids;
+  }
+
   function run(act, at) {
     if (act === "cat") catMenu(at);
     else if (act === "uncat") removeCurrent();
     else if (act === "status") statusMenu(at);
     else if (act === "translate") translateAll(at);
+    else if (act === "compare") compareAll(at).catch((error) => { const message = error.message || PR.t("跨論文比較無法開始。"); PR.toast(PR.t(message)); });
     else if (act === "cite") PR.openCiteExport(pickedItems(), L.tag || PR.$("#viewTitle").textContent);
     else if (act === "trash") trashAll(at);
   }

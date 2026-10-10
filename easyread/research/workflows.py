@@ -10,10 +10,11 @@ from . import index
 from .store import open_easyread, settings, vault_path
 
 KIND_GUIDANCE = {
+    "paper": "Create a structured Research Note with Research Problem, Background, Method, Contributions, Experimental Evidence, Limitations, My Understanding, and Open Questions. Distinguish author-stated limitations, limitations revealed by experiments, and personal hypotheses. If the only supplied source is a generated abstract summary, label it as secondary summary evidence and do not claim to have verified the full paper.",
     "topic": "Create a topic note with Scope, Research Families, Representative Papers, Agreements, Disagreements, Open Questions, and Coverage Gaps. A missing note in this library is not evidence that the field lacks work.",
     "concept": "Create a concept note with Definition, Mechanism, Small Example, Assumptions, Where Papers Use It, and Known Limitations.",
     "question": "Create a research question note with Question, Why It Matters, Current Evidence, What Remains Unknown, and the Next Check.",
-    "hypothesis": "Create a falsifiable research hypothesis with Hypothesis, Rationale, Supporting Evidence, Contrary Evidence, Alternative Explanations, a Smallest Feasible Test, and a Result That Would Weaken It. Set status to proposed; do not call it established.",
+    "hypothesis": "Create a falsifiable research hypothesis with Hypothesis, Rationale, Supporting Evidence, Contrary Evidence, Alternative Explanations, a Smallest Feasible Test, Expected Results, and a Result That Would Weaken It. Set status to proposed; do not call it established.",
     "comparison": "Compare the requested papers on problem, method family, mechanism, inputs and outputs, training requirement, datasets, metrics, evaluation conditions, cost, and limitations. Report missing facts as Not reported and avoid ranking incomparable settings.",
 }
 
@@ -99,7 +100,8 @@ def _source_context(sources: list[dict]) -> str:
         location = source.get("section") or ""
         if source.get("page"):
             location += f", p. {source['page']}"
-        parts.append(f"[S{index_}] {source['title']} — {location}\n<source_text>\n{source['quote'][:2200]}\n</source_text>")
+        limit = 6000 if source.get("kind") == "provided-context" else 2200
+        parts.append(f"[S{index_}] {source['title']} — {location}\n<source_text>\n{source['quote'][:limit]}\n</source_text>")
     return "\n\n".join(parts)
 
 
@@ -141,6 +143,7 @@ def _cite_body(body: str, sources: list[dict]) -> str:
             body = re.sub(rf"\[S{index_}\](?!\()", f"[S{index_}]({href})", body)
     cited = [f"- [S{n}] **{source['title']}** — {source.get('section') or '段落'}" +
              (f", p. {source['page']}" if source.get("page") else "") +
+             (f"（來源文字 SHA-256：`{source['content_sha256']}`；非 PDF 原文雜湊）" if source.get("content_sha256") else "") +
              (f" ([回到 PaperRead]({source['href']}))" if source.get("href") else "")
              for n, source in enumerate(sources, 1) if re.search(rf"\[S{n}\](?:\([^)]*\))?", body)]
     if cited:

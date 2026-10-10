@@ -37,6 +37,13 @@
   }
   async function renderMindmap(box, force = false) {
     const view = box.querySelector("#rp-mindmap"); if (!view) return;
+    const button = box.querySelector("#rp-map-generate");
+    const defaultLabel = PR.t("產生／更新心智圖");
+    if (force && button) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      button.textContent = PR.t("正在重新產生…");
+    }
     view.replaceChildren(); view.setAttribute("aria-live", "polite");
     view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.t("正在根據論文內文整理研究心智圖…") + '</span></div>';
     const id = encodeURIComponent(PR.pid);
@@ -48,6 +55,12 @@
       const note = document.createElement("small"); note.className = "rp-map-meta"; note.textContent = PR.t("依目前論文文字產生 · {model}", { model: generated.model || PR.t("快取結果") }); view.append(note);
     } catch (error) {
       view.innerHTML = '<div class="rp-map-error"><span>' + PR.esc(error.message) + '</span><button class="btn sm line" data-rp-map-retry>重試</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    } finally {
+      if (force && button) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.textContent = defaultLabel;
+      }
     }
   }
   async function render() {

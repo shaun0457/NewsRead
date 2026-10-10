@@ -54,7 +54,7 @@ def list_notes() -> list[dict]:
 
 
 def create(title: str, kind: str, task: str, library, model: str = "", paper_id: str = "", block_id: str = "",
-           target: str = "", limit: int = 10) -> dict:
+           target: str = "", limit: int = 10, source_context=None) -> dict:
     root = vault_path()
     if root is None:
         raise ValueError(tr("請先設定 Obsidian Vault 資料夾。"))
@@ -64,7 +64,26 @@ def create(title: str, kind: str, task: str, library, model: str = "", paper_id:
         raise ValueError(tr("不支援的研究筆記類型。"))
     title = re.sub(r"[\r\n\t]", " ", title or "").strip()[:180] or task.strip()[:100]
     found = workflows.gather(task, library, paper_id, block_id, limit)
-    sources = found["sources"]
+    sources = list(found["sources"])
+    # Candidate summaries and comparison drafts are useful starting context, but
+    # they are not PDF evidence. Keep them explicitly labeled and hash their own
+    # text without placing that digest in the PDF SHA-256 field.
+    contexts = source_context if isinstance(source_context, list) else [source_context]
+    for context in contexts[:5]:
+        if not isinstance(context, dict):
+            continue
+        quote = str(context.get("text") or "").strip()[:16000]
+        context_title = re.sub(r"[\r\n\t]", " ", str(context.get("title") or "")).strip()[:180]
+        if not quote or not context_title:
+            continue
+        sources.insert(0, {
+            "title": context_title,
+            "section": re.sub(r"[\r\n\t]", " ", str(context.get("label") or "外部研究資料（非論文原文）")).strip()[:120],
+            "path": "provided-context/" + re.sub(r"[^\w.-]+", "-", str(context.get("id") or context_title))[:120],
+            "kind": "provided-context", "quote": quote, "sha256": "", "content_sha256": sha256_text(quote),
+            "block": "", "page": 0, "id": str(context.get("id") or "")[:180], "href": "",
+        })
+    sources = sources[:12]
     existing = ""
     target_path = ""
     if target:
@@ -282,7 +301,7 @@ def create_topic(title: str) -> dict:
 
 def _public_proposal(proposal: dict) -> dict:
     result = {key: proposal.get(key) for key in ("id", "status", "kind", "title", "task", "target", "diff", "sources", "model", "usage", "conflict")}
-    if proposal.get("kind") in ("comparison", "matrix", "topic"):
+    if proposal.get("kind") in ("paper", "question", "hypothesis", "comparison", "matrix", "topic"):
         result["content"] = metadata(proposal.get("after") or "")[1]
     return result
 
@@ -296,6 +315,47 @@ def get(identity: str) -> dict:
 
 def latest_pending_comparison() -> dict | None:
     return _latest_pending("comparison")
+
+
+def latest_comparison() -> dict | None:
+    """Return a small reference to the newest comparison proposal for status polling."""
+    folder = state_dir() / "proposals"
+    if not folder.is_dir():
+        return None
+    candidates = []
+    for path in folder.glob("*.json"):
+        proposal = read_json(path, None)
+        if proposal and proposal.get("kind") == "comparison":
+            candidates.append(proposal)
+    if not candidates:
+        return None
+    latest = max(candidates, key=lambda item: item.get("created", 0))
+    return {key: latest.get(key) for key in ("id", "status", "title", "created")}
+
+
+def list_comparisons() -> list[dict]:
+    """Return saved comparison results for the dedicated research view."""
+    folder = state_dir() / "proposals"
+    if not folder.is_dir():
+        return []
+    results = []
+    for path in folder.glob("*.json"):
+        proposal = read_json(path, None)
+        if not proposal or proposal.get("kind") != "comparison":
+            continue
+        # The list view only needs card metadata.  Returning the full Markdown
+        # and evidence diff here makes the research workspace unnecessarily
+        # heavy; the detail endpoint loads the proposal when requested.
+        results.append({
+            "id": proposal.get("id"),
+            "kind": "comparison",
+            "status": proposal.get("status"),
+            "title": proposal.get("title") or "論文比較",
+            "model": proposal.get("model"),
+            "created": proposal.get("created", 0),
+            "paper_count": len(proposal.get("sources") or []),
+        })
+    return sorted(results, key=lambda item: item.get("created", 0), reverse=True)
 
 
 def latest_pending_matrix() -> dict | None:
@@ -316,6 +376,32 @@ def _latest_pending(kind: str) -> dict | None:
         if proposal and proposal.get("kind") == kind and proposal.get("status") == "pending":
             candidates.append(proposal)
     return _public_proposal(max(candidates, key=lambda item: item.get("created", 0))) if candidates else None
+
+
+def rename(identity: str, title: str) -> dict:
+    """Rename a comparison proposal without changing its Markdown content."""
+    path = _proposal_file(identity)
+    proposal = read_json(path, None)
+    if not proposal:
+        raise ValueError(tr("找不到這個研究提案。"))
+    if proposal.get("kind") != "comparison":
+        raise ValueError(tr("只有跨論文比較結果可以修改名稱。"))
+    clean = re.sub(r"[\r\n\t]+", " ", str(title or ""))
+    clean = re.sub(r"\s+", " ", clean).strip().strip("`*_#\"'『』「」")[:80]
+    if not clean:
+        raise ValueError(tr("比較名稱不能為空白。"))
+    proposal["title"] = clean
+    # Pending proposals have not been written to Obsidian yet, so keep their
+    # Markdown heading and review diff in sync with the edited display name.
+    if proposal.get("status") == "pending" and proposal.get("after"):
+        after = re.sub(r"(?m)^(#\s+).+$", lambda match: match.group(1) + clean, proposal["after"], count=1)
+        proposal["after"] = after
+        proposal["diff"] = "\n".join(difflib.unified_diff(
+            (proposal.get("before") or "").splitlines(), after.splitlines(),
+            fromfile="Obsidian 現有內容" if proposal.get("before") else "/dev/null",
+            tofile="Research OS 提案", lineterm=""))
+    write_json_atomic(path, proposal)
+    return _public_proposal(proposal)
 
 
 def decide(identity: str, accept: bool) -> dict:

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-from datetime import date
 from pathlib import Path
 
 from .. import config
@@ -133,6 +132,27 @@ def _report_prompt(papers: list[dict], cards: list[str], dims: list[str], focus:
             f"\n比較焦點：{focus or '一般方法比較'}\n維度：{', '.join(dims)}\n\n<cards>\n{data}\n</cards>")
 
 
+def _title_prompt(papers: list[dict], dims: list[str], focus: str) -> str:
+    titles = "、".join(str(p.get("title") or "未命名論文")[:100] for p in papers)
+    return ("請替一份跨論文比較產生一個精簡的繁體中文名稱。只輸出名稱本身，不要引號、Markdown、日期或解釋。"
+            "名稱最多 30 個中文字，應同時反映研究主題或比較焦點，以及最重要的比較維度；避免使用『報告』、『草稿』等泛稱。"
+            f"\n比較焦點：{focus or '一般方法比較'}\n比較維度：{', '.join(dims)}\n論文：{titles}")
+
+
+def _fallback_title(papers: list[dict], dims: list[str], focus: str) -> str:
+    subject = (focus.strip() or str(papers[0].get("title") or "跨論文比較")).replace("\n", " ").strip()
+    subject = re.sub(r"\s+", " ", subject)[:22]
+    dimension = "、".join(dims[:2])
+    return (subject + ("｜" + dimension if dimension else ""))[:40]
+
+
+def _clean_title(value: str) -> str:
+    title = re.sub(r"[\r\n\t]+", " ", str(value or ""))
+    title = re.sub(r"^\s*(?:名稱|標題|title)\s*[:：]\s*", "", title, flags=re.I)
+    title = title.strip().strip("`*_#\"'『』「」")
+    return re.sub(r"\s+", " ", title)[:40]
+
+
 def start(library, paper_ids: list, dimensions: list, focus: str = "", model: str = "") -> dict:
     vault = vault_path()
     if vault is None:
@@ -153,7 +173,7 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
     loaded = [_paper_text(ws) for ws in workspaces]
     cfg = config.load()
     model_cfg, selected = chat_models.engine_cfg(cfg, model or settings().get("model") or (cfg.get("chat") or {}).get("default"))
-    title = (focus.strip()[:100] or "論文比較 " + date.today().isoformat())
+    fallback_title = _fallback_title([item[0] for item in loaded], dims, focus)
 
     def run(cancel, report):
         meter = usage.Meter(model_cfg.get("engine", ""))
@@ -202,6 +222,16 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
                     if re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) else "")
             references.append(f"- {clean_title}{year}{link}")
         body += "\n\n## 參考論文\n\n" + "\n".join(references)
+        title = fallback_title
+        try:
+            generated_title = _call(model_cfg, _title_prompt([item[0] for item in loaded], dims, focus.strip()[:300]),
+                                    vault, cancel, meter)
+            title = _clean_title(generated_title) or fallback_title
+        except engines.Cancelled:
+            raise
+        except Exception:
+            # A naming failure must not discard an otherwise usable comparison.
+            title = fallback_title
         if vault_path() != vault:
             raise ValueError(tr("比較期間 Obsidian Vault 位置已變更，請重新產生報告。"))
         proposal = proposals.from_comparison(title, body, [item for item, _ in loaded],

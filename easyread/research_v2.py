@@ -933,9 +933,10 @@ def post(app, endpoint: str, body: dict):
             raise ValueError("這篇論文目前沒有可供整理的內文文字。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
         cache_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
-        cached, _ = planning_store.cache_get(root, cache_key)
-        if cached and not body.get("force"):
-            return {**cached, "cached": True}
+        # POST is the explicit "產生／更新" action.  It must always invoke
+        # the model; cache lookup belongs to the GET path above.  Relying on
+        # an optional body flag made older clients silently display the old
+        # mind map when they omitted ``force``.
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
@@ -945,7 +946,7 @@ def post(app, endpoint: str, body: dict):
         answer = re.sub(r"^```(?:mermaid)?\s*|\s*```$", "", answer, flags=re.I).strip()
         if not answer.lower().startswith("mindmap") or len(answer) > 20000 or re.search(r"<\s*/?\s*(?:script|iframe|foreignObject)|javascript:", answer, re.I):
             raise ValueError("模型未回傳安全且可辨識的 Mermaid mindmap，請重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        result = {"mermaid": answer, "title": title, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "cached": False}
+        result = {"mermaid": answer, "title": title, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "generated_at": _now().isoformat(), "cached": False}
         planning_store.cache_put(root, cache_key, result)
         return result
     if endpoint == "/candidate":

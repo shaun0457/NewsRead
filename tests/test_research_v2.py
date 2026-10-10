@@ -235,6 +235,26 @@ class ResearchV2Test(unittest.TestCase):
         self.assertTrue(result["cached"])
         self.assertIn("mindmap", result["mermaid"])
 
+    def test_mindmap_post_always_regenerates_instead_of_reusing_cache(self):
+        from easyread import chat_models, engines
+        ws = FakeWorkspace("paper-refresh")
+        ws.values["paper"] = {"meta": {"title_en": "Paper"}, "blocks": [
+            {"id": "s1", "type": "paragraph", "page": 1, "en": "A finding."}]}
+        self.lib.workspaces[ws.id] = ws
+        cfg = {"engine": "openai", "openai": {}, "chat": {"models": []}}
+        model = {"name": "test-model", "id": "test-model"}
+        with mock.patch.object(research_v2.config, "load", return_value=cfg), \
+             mock.patch.object(chat_models, "engine_cfg", return_value=(cfg, model)), \
+             mock.patch.object(engines, "for_translation", side_effect=lambda value: value), \
+             mock.patch.object(engines, "run", side_effect=["mindmap\n  root((First))", "mindmap\n  root((Second))"]) as run:
+            first = research_v2.post(self.app, "/paper/paper-refresh/mindmap", {})
+            second = research_v2.post(self.app, "/paper/paper-refresh/mindmap", {})
+        self.assertFalse(first["cached"])
+        self.assertFalse(second["cached"])
+        self.assertNotEqual(first["mermaid"], second["mermaid"])
+        self.assertIn("generated_at", second)
+        self.assertEqual(run.call_count, 2)
+
     def test_publication_venue_is_not_replaced_by_the_public_pdf_repository(self):
         work = research_v2._work({"id": "https://openalex.org/W1", "title": "Paper",
             "primary_location": {"source": {"display_name": "CVPR"}},
