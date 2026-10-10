@@ -146,8 +146,8 @@
   function renderPath() {
     const host = $("[data-view='path']");
     const start = new URLSearchParams(location.search);
-    const topic = S.pathTopic || (start.get("mode") === "paper" ? "" : start.get("q") || "");
-    const goal = S.pathGoal || "建立主題脈絡並找出延伸方向"; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const topic = S.pathTopic ?? (start.get("mode") === "paper" ? "" : start.get("q") || "");
+    const goal = S.pathGoal ?? "建立主題脈絡並找出延伸方向"; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const startTitle = start.get("start_title") || start.get("title") || "";
     host.innerHTML = '<section class="rw-panel"><h2>規劃論文閱讀路徑</h2><p class="rw-source">以研究主題或目前論文為起點，AI 只會排序已取得的論文，並說明每篇的閱讀用途。</p><div class="rw-form-grid"><label class="rw-field"><span>研究主題</span><input id="rw-path-topic" value="' + escAttr(topic) + '" placeholder="例如：Long Video Understanding"></label><label class="rw-field"><span>研究目標</span><input id="rw-path-goal" value="' + escAttr(goal) + '" placeholder="建立先備知識、理解方法或探索方向"></label>' + (startTitle ? '<div class="rw-field wide"><span>起點論文</span><strong>' + esc(startTitle) + '</strong></div>' : '') + '</div><button class="btn accent" data-action="generate-path"' + (S.pathLoading ? ' disabled' : '') + '>' + (S.pathLoading ? '<i class="spin"></i> AI 正在整理閱讀順序…' : '產生閱讀路徑') + '</button></section>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
       (S.pathError ? '<div class="rw-error">' + esc(S.pathError) + ' ' + btn("重試", "generate-path") + '</div>' : '') + (S.pathResults?.length ? '<div class="rw-path-list">' + S.pathResults.map((step, index) => '<article class="rw-card rw-path-card"><span class="rw-path-index">' + (index + 1) + '</span><div><span class="rw-chip">' + esc(step.role) + '</span><h3>' + esc(step.paper.title) + '</h3><p class="meta">' + esc([step.paper.year, step.paper.venue, step.paper.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || "未提供推薦理由。") + '</p><p class="rw-source">' + PR.t("根據已搜尋的論文資料排序；來源：{source}", { source: esc(step.paper.source || "OpenAlex") }) + '</p><div class="actions">' + btn("加入候選", "candidate", "line", 'data-key="' + escAttr(paperKey(step.paper)) + '" data-paper-index="' + index + '"') + (alreadyInLibrary(step.paper) ? '<a class="btn sm line" href="/read/' + escAttr(alreadyInLibrary(step.paper).id) + '">開啟閱讀</a>' : "") + '</div></div></article>').join("") + '</div>' : ""); /* i18n-dom: shared DOM translator localizes rendered UI text. */
@@ -463,7 +463,8 @@
     const content = '<div class="rw-source">根據候選論文的來源摘要整理' + (record.summary_model ? ' · ' + esc(record.summary_model) : '') + (record.updated || record.summary_updated ? ' · ' + esc(record.updated || record.summary_updated) : '') + '</div><article class="markdown rw-summary">' + PR.mdBlocks(record.summary_markdown || "") + '</article><div class="rw-dialog-foot"><button class="btn line" data-download-summary>匯出摘要</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     S.summaryText = record.summary_markdown || "";
     openModal("論文摘要整理", content, async () => {}, "關閉"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    $("[data-download-summary]").onclick = () => exportMarkdown(record.paper.title + "-summary.md", S.summaryText);
+    const download = $("[data-download-summary]", $("#rw-modal"));
+    if (download) download.onclick = () => exportMarkdown((record.paper?.title || "論文") + "-summary.md", S.summaryText);
   }
   async function exportMarkdown(filename, text) {
     const safeName = filename.replace(/[\\/:*?"<>|]/g, "_");
@@ -651,6 +652,10 @@
     const order = allTasks().filter((item) => (item.status || "unread") === destination).length * 100 + 100;
     try { await patchTask(task, { status: destination, manual_order: order }); PR.toast(PR.t("閱讀狀態已移至「{status}」。", { status: PR.t(statusLabel(destination)) })); }
     catch (error) { PR.toast(PR.t(error.message)); }
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target?.id === "rw-path-topic") S.pathTopic = e.target.value;
+    if (e.target?.id === "rw-path-goal") S.pathGoal = e.target.value;
   });
   let dragged = null;
   document.addEventListener("dragstart", (e) => { const task = e.target.closest("[data-task]"); if (!task) return; dragged = task.dataset.task; e.dataTransfer.setData("text/plain", dragged); e.dataTransfer.effectAllowed = "move"; });

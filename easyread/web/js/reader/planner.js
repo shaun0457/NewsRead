@@ -43,7 +43,7 @@
     try {
       const result = !force ? await PR.api(API + "/paper/" + id + "/mindmap") : null;
       if (!force && !result?.mermaid) { view.innerHTML = mindmapEmpty(); return; }
-      const generated = force ? await PR.api(API + "/paper/" + id + "/mindmap", { method: "POST", body: {} }) : result;
+      const generated = force ? await PR.api(API + "/paper/" + id + "/mindmap", { method: "POST", body: { force: true } }) : result;
       view.replaceChildren(parseMindmap(generated.mermaid));
       const note = document.createElement("small"); note.className = "rp-map-meta"; note.textContent = PR.t("依目前論文文字產生 · {model}", { model: generated.model || PR.t("快取結果") }); view.append(note);
     } catch (error) {

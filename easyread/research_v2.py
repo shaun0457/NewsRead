@@ -934,7 +934,7 @@ def post(app, endpoint: str, body: dict):
         source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
         cache_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
         cached, _ = planning_store.cache_get(root, cache_key)
-        if cached:
+        if cached and not body.get("force"):
             return {**cached, "cached": True}
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
