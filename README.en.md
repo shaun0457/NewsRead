@@ -34,6 +34,7 @@ The reader remains the place for close reading: bilingual text, equations, page-
 | **Organized Summaries** | Generate and review a paper summary when you choose, render it as Markdown, and export it for later use. Summaries can be removed to the recycle bin. |
 | **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. |
 | **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
+| **Smart Annotations** | Generate reviewable AI highlight or underline suggestions for the full paper, a section, or a research purpose. Suggestions never overwrite manual annotations before you accept them. |
 
 The interface is localized for Taiwan Traditional Chinese usage. English technical terms such as `OpenAlex`, `Ollama`, `Mermaid`, model names, and API names remain unchanged where that improves clarity. Translation language and interface language are separate settings.
 
@@ -46,11 +47,29 @@ The interface is localized for Taiwan Traditional Chinese usage. English technic
 5. Open a paper in the reader to highlight, annotate, ask questions, and verify the original PDF.
 6. Generate a **Reading Path** or a **Paper Mind Map** when you need a broader view of the research area.
 
+When adding a paper to the Reading Board, categories are shown as selectable cards rather than a keyboard-dependent multi-select list. You can assign multiple research directions at once, or add the paper without a category and organize it later.
+
 ## Reading and evidence
 
 PaperRead keeps translated text, AI explanations, and personal notes as separate data. Figures and tables preserve their layout as placeholders in the reading view; open the original PDF to inspect the source image or table. This avoids presenting a cropped screenshot or an unverified translation as the original evidence.
 
 The local library stores paper metadata, PDF files, page data, block identifiers, translations, highlights, notes, discussions, and chat history. Existing EasyRead data is kept compatible where possible, and PaperRead data is stored under the `PaperRead` user folder.
+
+## Smart annotations
+
+The reader's Notes panel provides **Smart Annotations** for finding research-relevant passages. Before starting, choose:
+
+- the **full paper** or a selected section;
+- **automatic annotations**, reviewable **suggestions**, or annotations guided by a research purpose;
+- an optional purpose such as `Find methods and limitations relevant to 3D segmentation`.
+
+Each suggestion shows its page, location status, color, highlight or underline type, AI note, and reason. You can accept, edit, or reject suggestions one by one, or accept all suggestions that have been safely located. Unlocatable text remains pending for review instead of being applied to an uncertain position.
+
+Colors have stable meanings: yellow for core concepts and claims, green for methods and implementation details, blue for experiments and quantitative evidence, and red for limitations, failure cases, assumptions, and open questions. Accepted suggestions use the existing annotation system and never overwrite manual annotations.
+
+The analysis uses the stable English source together with the current Traditional Chinese translation, then places accepted annotations on the Chinese reading text when it can verify the location. After a retranslation, PaperRead rechecks the anchors; it asks for another analysis or manual editing when the new location cannot be confirmed.
+
+When **Quote the original with each item** is enabled during Markdown export, the quote and the user's note are separated clearly: the translated passage is rendered as a Markdown blockquote, followed by **My note** or **My question**.
 
 ## Models and AI services
 
