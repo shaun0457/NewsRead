@@ -169,6 +169,19 @@ ipcMain.handle("easyread:pick-folder", async event => {
   const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
   return result.canceled ? null : result.filePaths[0] || null;
 });
+ipcMain.handle("easyread:save-file", async (event, options = {}) => {
+  trustedWindow(event);
+  const filename = typeof options.filename === "string" && options.filename.trim() ? options.filename.trim() : "PaperRead-export.md";
+  const encoded = typeof options.contentBase64 === "string" ? options.contentBase64 : "";
+  if (!encoded || encoded.length > 160 * 1024 * 1024) throw new Error("匯出內容無效或過大");
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: filename,
+    filters: Array.isArray(options.filters) && options.filters.length ? options.filters : [{ name: "All files", extensions: ["*"] }],
+  });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  await fs.promises.writeFile(result.filePath, Buffer.from(encoded, "base64"));
+  return { canceled: false, path: result.filePath };
+});
 ipcMain.handle("easyread:relaunch", async event => {
   trustedWindow(event);
   await stopBackendGracefully();

@@ -152,11 +152,15 @@ def from_comparison(title: str, body: str, papers: list[dict], model: str, model
     if root is None:
         raise ValueError(tr("請先設定 Obsidian Vault 資料夾。"))
     paper_links = []
-    papers_dir = root / "Research" / "Papers"
+    papers_dirs = [root / "Research" / "Papers", root / "Research" / "01-論文分析"]
     def normalize(value: str) -> str:
         return " ".join(value.casefold().split())
 
-    for note in papers_dir.rglob("*.md") if papers_dir.is_dir() else []:
+    paper_notes = []
+    for papers_dir in papers_dirs:
+        if papers_dir.is_dir():
+            paper_notes.extend(papers_dir.rglob("*.md"))
+    for note in paper_notes:
         try:
             text = note.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeError):
@@ -185,7 +189,7 @@ def from_comparison(title: str, body: str, papers: list[dict], model: str, model
                 "task": "比較指定的論文", "target": target, "base_hash": "", "before": "", "after": content,
                 "diff": "\n".join(difflib.unified_diff([], content.splitlines(), fromfile="/dev/null",
                                                     tofile="Obsidian 比較筆記提案", lineterm="")),
-                "sources": papers, "model": model, "usage": model_usage, "created": time.time(),
+                "sources": papers, "linked_paper_count": len(set(paper_links)), "model": model, "usage": model_usage, "created": time.time(),
                 "vault_relative": target}
     path = _proposal_file(proposal["id"])
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -301,6 +305,15 @@ def create_topic(title: str) -> dict:
 
 def _public_proposal(proposal: dict) -> dict:
     result = {key: proposal.get(key) for key in ("id", "status", "kind", "title", "task", "target", "diff", "sources", "model", "usage", "conflict")}
+    if proposal.get("kind") == "comparison":
+        sources = proposal.get("sources") or []
+        linked = proposal.get("linked_paper_count")
+        if not isinstance(linked, int):
+            body = str(proposal.get("after") or "")
+            linked_section = body.split("## 相關單篇筆記", 1)[1] if "## 相關單篇筆記" in body else ""
+            linked = len(re.findall(r"(?m)^-\s+\[\[[^\]]+\]\]", linked_section))
+        result["paper_count"] = len(sources)
+        result["linked_paper_count"] = linked
     if proposal.get("kind") in ("paper", "question", "hypothesis", "comparison", "matrix", "topic"):
         result["content"] = metadata(proposal.get("after") or "")[1]
     return result
@@ -457,6 +470,11 @@ def decide(identity: str, accept: bool) -> dict:
         proposal["written_path"] = _relative(root, destination)
         write_json_atomic(path, proposal)
     from . import index
+    from . import obsidian_export
+    generated_meta, _ = metadata(proposal.get("after") or "")
+    obsidian_export.register_document(root, str(generated_meta.get("research_id") or ""),
+                                     str(generated_meta.get("type") or proposal.get("kind") or ""),
+                                     str(proposal.get("title") or ""), str(proposal.get("written_path") or ""))
     try:
         index.index_vault(rebuild=False)
     except Exception:  # Keep the accepted note even if the derived index is unavailable.

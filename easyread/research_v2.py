@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import config, planning_store, sources
+from .research import obsidian_export
 from .i18n import tr
 
 PREFIX = "/api/research/v2"
@@ -912,6 +913,10 @@ def post(app, endpoint: str, body: dict):
     endpoint = "/" + str(endpoint or "").strip("/")
     root = _root(app)
     body = body if isinstance(body, dict) else {}
+    if endpoint == "/export/obsidian":
+        return obsidian_export.export_to_vault(body.get("documents"))
+    if endpoint == "/export/zip":
+        return obsidian_export.export_zip(body.get("documents"))
     if endpoint.startswith("/paper/") and endpoint.endswith("/mindmap"):
         pid = endpoint.strip("/").split("/")[1]
         ws = app.lib.ws(pid)

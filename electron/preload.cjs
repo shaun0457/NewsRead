@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", {
   isElectron: true,
   platform: process.platform,
   pickFolder: () => ipcRenderer.invoke("easyread:pick-folder"),
+  saveFile: (options) => ipcRenderer.invoke("easyread:save-file", options),
   relaunch: () => ipcRenderer.invoke("easyread:relaunch"),
   updateState: () => ipcRenderer.invoke("easyread:update-state"),
   downloadUpdate: () => ipcRenderer.invoke("easyread:update-download"),

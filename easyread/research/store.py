@@ -17,8 +17,12 @@ KINDS = {
     "concept": "Concepts",
     "question": "Questions",
     "hypothesis": "Hypotheses",
-    "comparison": "Comparisons",
+    "comparison": "04-跨論文比較",
 }
+
+# New multi-file Obsidian export layout.  The legacy folders above remain
+# readable for compatibility with existing Research OS notes.
+EXPORT_FOLDERS = ("01-論文分析", "02-心智圖", "03-閱讀標註", "04-跨論文比較")
 
 
 def state_dir() -> Path:
@@ -82,7 +86,7 @@ def set_vault(raw: str, folders=None) -> Path:
     if path == config.HOME.resolve() or path == config.library_dir().resolve():
         raise ValueError(tr("請選擇 Obsidian Vault 資料夾，不可選 PaperRead 資料目錄。"))
     prefs.save({"research": {"vault": str(path), "folders": selected_folders}})
-    for name in KINDS.values():
+    for name in {*KINDS.values(), *EXPORT_FOLDERS}:
         (path / "Research" / name).mkdir(parents=True, exist_ok=True)
     return path
 

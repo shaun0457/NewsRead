@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import threading
 import unittest
@@ -110,6 +111,8 @@ class ComparisonTest(unittest.TestCase):
                 accepted = proposals.decide(proposal["id"], accept=True)
                 self.assertEqual(accepted["status"], "accepted")
                 self.assertTrue(destination.exists())
+                index = json.loads((root / "Research" / ".paperread-index.json").read_text(encoding="utf-8"))
+                self.assertIn(proposal["target"], {entry.get("path", "") for entry in index["documents"].values()})
                 self.assertIsNone(proposals.latest_pending_comparison())
 
     def test_selected_papers_must_be_unique_and_within_limit(self):

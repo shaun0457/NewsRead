@@ -619,7 +619,7 @@
     S.summaryText = record.summary_markdown || "";
     openModal(PR.t("論文摘要整理"), content, async () => {}, "關閉"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const download = $("[data-download-summary]", $("#rw-modal"));
-    if (download) download.onclick = () => exportMarkdown((record.paper?.title || PR.t("論文")) + "-summary.md", S.summaryText);
+    if (download) download.onclick = () => exportMarkdown(paperExportStem(record) + "-summary.md", S.summaryText);
   }
   async function exportMarkdown(filename, text) {
     const safeName = filename.replace(/[\\/:*?"<>|]/g, "_");
@@ -633,6 +633,17 @@
     const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = safeName; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
+  function shortExportStem(value, fallback) {
+    let name = String(value || "").replace(/[\r\n\t]+/g, " ").replace(/[\\/:*?"<>|\x00-\x1f]/g, "-").replace(/\s+/g, " ").trim();
+    if (name.length > 80) name = (name.slice(0, 80).replace(/\s+\S*$/, "").trim() || name.slice(0, 80)).trim();
+    return name.replace(/[ .-]+$/, "") || fallback;
+  }
+
+  function paperExportStem(record) {
+    const paper = record?.paper || {};
+    return shortExportStem(paper.title_en || paper.title || paper.title_zh, "PaperRead");
+  }
   function showComparisonRecord(proposal) {
     S.compareProposal = proposal || null;
     if (!proposal) return PR.toast(PR.t("找不到比較結果。"));
@@ -641,6 +652,11 @@
       const label = source.title || source.paper_title || source.id || PR.t("論文");
       return '<li>' + esc(label) + (source.location ? ' <small>' + esc(source.location) + '</small>' : '') + '</li>';
     }).join("");
+    const sourceCount = (proposal.sources || proposal.evidence || []).length;
+    const linkedCount = Number.isFinite(Number(proposal.linked_paper_count)) ? Number(proposal.linked_paper_count) : sourceCount;
+    const linkReminder = sourceCount > linkedCount
+      ? '<p class="rw-source rw-export-reminder">' + PR.t("提醒：有部分選定論文尚未匯出單篇筆記。仍可產生比較報告，但這些論文於 Obsidian 中可能暫時無法建立雙向連結。建議先匯出單篇筆記，再重新產生比較報告。") + '</p>'
+      : "";
     const actions = '<div class="actions">' +
       btn(PR.t("編輯名稱"), "edit-comparison-title", "line", 'data-id="' + escAttr(proposal.id) + '"') +
       btn(PR.t("匯出比較"), "export-comparison", "line") +
@@ -648,14 +664,14 @@
       '</div>';
     const body = '<div class="rw-source">' + PR.t("狀態：{status}；請先核對各篇論文的原文證據與評估條件。", { status }) + '</div>' +
       '<article class="markdown rw-summary">' + PR.mdBlocks(proposal.content || "") + '</article>' +
-      (sources ? '<section class="rw-evidence"><h3>' + PR.t("證據來源") + '</h3><ul>' + sources + '</ul></section>' : '') + actions;
+      (sources ? '<section class="rw-evidence"><h3>' + PR.t("證據來源") + '</h3><ul>' + sources + '</ul>' + linkReminder + '</section>' : linkReminder) + actions;
     openModal(proposal.title || PR.t("論文比較"), body, async () => {}, "關閉", { headerClose: true }); // i18n-ok: openModal uses this control sentinel.
   }
   async function exportComparison(proposal) {
     if (!proposal?.content) return;
     const title = proposal.title || PR.t("論文比較");
     const body = String(proposal.content).replace(/^\s*#\s+.*(?:\r?\n|$)/, "").trimStart();
-    await exportMarkdown(title + ".md", "# " + title + "\n\n" + body);
+    await exportMarkdown(shortExportStem(title, "paper-comparison") + ".md", "# " + title + "\n\n" + body);
   }
 
   async function aiQuery() {
@@ -828,7 +844,7 @@
           S.candidates = (await PR.api(API)).candidates || S.candidates; return renderCandidates();
         }
         case "view-summary": { const record = S.summaries.find((x) => x.paper_key === b.dataset.key) || S.candidates.find((c) => c.paper_key === b.dataset.key); if (record?.summary_markdown) showSummary(record); return; }
-        case "download-summary": { const record = S.summaries.find((x) => x.paper_key === b.dataset.key) || S.candidates.find((c) => c.paper_key === b.dataset.key); if (record?.summary_markdown) await exportMarkdown(record.paper.title + "-summary.md", record.summary_markdown); return; }
+        case "download-summary": { const record = S.summaries.find((x) => x.paper_key === b.dataset.key) || S.candidates.find((c) => c.paper_key === b.dataset.key); if (record?.summary_markdown) await exportMarkdown(paperExportStem(record) + "-summary.md", record.summary_markdown); return; }
         case "trash-summary": {
           const record = S.summaries.find((x) => x.paper_key === b.dataset.key); if (!record) return;
           if (!(await PR.confirm({ title: "將摘要移到回收站？", body: "摘要會從「已整理摘要」移除，可在文獻庫的回收站還原。論文與閱讀資料不會受到影響。", ok: "移到回收站", danger: true, at: b }))) return; /* i18n-dom: shared DOM translator localizes rendered UI text. */

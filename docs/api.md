@@ -2,7 +2,7 @@
 
 Zotero 插件、脚本等外部工具接入 PaperRead 时，只依赖本页列出的接口。这些接口保持兼容；不兼容的改动会把 API 版本加 1，并提前写进 CHANGELOG。本页没列的 `/api/*` 都是界面内部用的，随时可能改。
 
-当前 API 版本：**1**（PaperRead 1.4.2 延續相容介面）。
+当前 API 版本：**1**（PaperRead 1.4.4 延續相容介面）。
 
 ## 找到服务
 
@@ -38,7 +38,7 @@ PaperRead 运行时把地址写在数据目录的 `.server.json`（默认 `~/Pap
 
 ## 桌面版打开链接
 
-桌面版（1.4.2 起）注册了 `paperread://` 协议；旧版 `easyread://` 仍保留用于相容既有外部連結：
+桌面版（1.4.4 起）注册了 `paperread://` 协议；旧版 `easyread://` 仍保留用于相容既有外部連結：
 
 ```
 paperread://open?sha256=<完整 SHA-256>&block=<段落 id>
