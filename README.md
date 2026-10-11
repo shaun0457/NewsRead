@@ -248,6 +248,15 @@ docker compose up -d
 
 若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。不要把 PaperRead port 直接暴露到公網；若要給其他裝置使用，請另外設定防火牆與登入驗證的反向代理。
 
+每個版本也會發布預建的 GitHub Container Registry 映像，不必在本機編譯：
+
+```bash
+docker pull ghcr.io/yuriylin/paperread:v1.4.6
+docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.6
+```
+
+接著開啟 <http://localhost:8765>。`paperread-data` volume 會保留論文庫與設定。
+
 ### 從原始碼執行
 
 需要 Python 3.10+、Node.js 22+ 和 PyInstaller：

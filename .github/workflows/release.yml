@@ -77,4 +77,17 @@ jobs:
             release-assets/**/*.blockmap
             release-assets/**/latest*.yml
             release-assets/**/*.AppImage
-          generate_release_notes: false  # 发版说明手写，只往已有的 Release 上挂安装包
+          generate_release_notes: false
+          body: |
+            ## PaperRead ${{ github.ref_name }}
+
+            Windows x64 installer and Linux x64 AppImage are attached to this release.
+
+            Docker browser edition:
+
+            ```bash
+            docker pull ghcr.io/yuriylin/paperread:${{ github.ref_name }}
+            docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:${{ github.ref_name }}
+            ```
+
+            Open http://localhost:8765 after the container starts.

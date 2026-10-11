@@ -104,6 +104,15 @@ docker compose up -d
 
 Open <http://localhost:8765>. The Compose file stores the library and settings in the named `paperread-data` volume, so `docker compose down` does not remove your data. If Ollama runs on the host machine, use `http://host.docker.internal:11434/v1` as its OpenAI-compatible endpoint; the included Compose configuration provides the host mapping. Keep the service on a trusted local network and do not expose it directly to the public Internet without authentication and a firewall.
 
+Each release also publishes a prebuilt image to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/yuriylin/paperread:v1.4.6
+docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.6
+```
+
+Open <http://localhost:8765>. The `paperread-data` volume keeps the library and settings between container restarts.
+
 ## Development
 
 The web interface uses plain HTML, CSS, and JavaScript. The backend is Python and the desktop shell is Electron. Useful checks include:
