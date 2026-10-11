@@ -6,7 +6,7 @@
     results: [], authors: [], selectedAuthor: null, resultKind: "works", resultAuthor: "", relationRequest: null, hasMore: false, error: "", errorAction: "", checked: new Set(), page: 1, filters: { category: "", status: "", interested: false, pdf: "" }, sort: "manual",
     venueQuery: "", venueOptions: [], venueSelected: [], venueWarning: "", venueBusy: false, resultFilters: null, exploreSort: "relevance_score:desc", yearFrom: "", yearTo: "", onlyOA: false, searchReason: "", filterExpanded: false,
     compareTask: null, compareProposal: null, comparePoll: "",
-    compareSelection: new Set(), compareSetupOpen: false,
+    compareSelection: new Set(), compareSetupOpen: false, boardExpanded: new Set(), pathGoalPreset: "foundations",
     compareDimensions: new Set(["研究問題", "核心方法", "資料集", "評估指標", "限制"]), // i18n-ok: 比較維度是送給後端的固定識別值。
     compareCustomDimension: "", compareFocus: "", comparePickerOpen: false, comparePickerCategory: "", comparePickerExpanded: false };
   const RESEARCH_API = "/api/research/v1";
@@ -43,6 +43,15 @@
       seen.add(key); output.push(token);
     }
     return output.join(" ");
+  }
+  function pathGoalOptions() {
+    return [
+      { id: "foundations", label: PR.t("建立基礎概念"), description: PR.t("先補足背景、先備知識與入門論文。"), value: PR.t("建立基礎概念，先補足必要背景與先備知識。") },
+      { id: "methods", label: PR.t("理解主流方法"), description: PR.t("掌握代表性架構、技術設計與方法演進。"), value: PR.t("理解主流方法，掌握代表性架構、技術設計與方法演進。") },
+      { id: "paper", label: PR.t("深入目前論文"), description: PR.t("先補足這篇論文需要的背景，再延伸相關研究。"), value: PR.t("深入目前論文，先補足必要背景，再延伸閱讀相關研究。") },
+      { id: "compare", label: PR.t("比較研究方法"), description: PR.t("安排不同方法、資料集與評估方式可比較的論文。"), value: PR.t("比較研究方法，聚焦方法、資料集與評估條件的差異。") },
+      { id: "directions", label: PR.t("探索研究方向"), description: PR.t("關注最新研究、限制、研究缺口與延伸方向。"), value: PR.t("探索研究方向，關注最新成果、研究限制與可能的延伸方向。") }
+    ];
   }
 
   async function init() {
@@ -108,7 +117,7 @@
     let html = '<div class="rw-panel"><form class="rw-toolbar" id="rw-search"><div class="rw-mode">' + modeButtons + '</div>' +
       '<input class="rw-search" id="rw-query" placeholder="' + (S.mode === "conference" ? "研究主題或關鍵字（可留空）" : "輸入研究概念或問題") + '" value="' + escAttr(S.query || "") + '">' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
       '<input id="rw-year-from" type="number" min="1800" max="2100" aria-label="起始年份" placeholder="起始年" value="' + escAttr(S.yearFrom || "") + '" style="width:94px"><input id="rw-year-to" type="number" min="1800" max="2100" aria-label="結束年份" placeholder="結束年" value="' + escAttr(S.yearTo || "") + '" style="width:94px"><label class="rw-check"><input type="checkbox" id="rw-oa"' + (S.onlyOA ? " checked" : "") + '>有公開 PDF</label><select id="rw-sort"><option value="relevance_score:desc"' + (S.exploreSort === "relevance_score:desc" ? " selected" : "") + '>相關性</option><option value="publication_date:desc"' + (S.exploreSort === "publication_date:desc" ? " selected" : "") + '>最新</option><option value="cited_by_count:desc"' + (S.exploreSort === "cited_by_count:desc" ? " selected" : "") + '>引用數</option></select>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      (S.mode === "topic" ? '<button class="btn line" type="button" data-action="ai-query">AI 擴展搜尋詞</button>' : '') + '<button class="btn accent" type="submit">搜尋</button></form>' + renderSourceFilter() + (S.mode === "conference" ? extra + '<div class="rw-source">' + PR.t("OpenAlex 書目資料可用於篩選出版來源；需核對正式出版狀態時，卡片會保留可查證的來源與 DOI 資訊。") + '</div>' : '<div class="rw-source">' + PR.t("主題搜尋以 OpenAlex 公開書目資料為基礎；引用關係的涵蓋範圍依資料來源而異。") + '</div>') + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+       (S.mode === "topic" ? '<button class="btn line" type="button" data-action="ai-query">AI 產生搜尋關鍵字</button>' : '') + '<button class="btn accent" type="submit">搜尋</button></form>' + renderSourceFilter() + (S.mode === "conference" ? extra + '<div class="rw-source">' + PR.t("OpenAlex 書目資料可用於篩選出版來源；需核對正式出版狀態時，卡片會保留可查證的來源與 DOI 資訊。") + '</div>' : '<div class="rw-source">' + PR.t("主題搜尋以 OpenAlex 公開書目資料為基礎；引用關係的涵蓋範圍依資料來源而異。") + '</div>') + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     if (S.error) html += '<div class="rw-error">' + esc(S.error) + ' <button class="linkish" data-action="' + escAttr(S.errorAction || "retry-search") + '">重試</button></div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     if (S.stale) html += '<div class="rw-stale"><span>' + PR.t("目前顯示上次成功取得的結果。") + '</span> ' + esc(S.staleError || "") + "</div>"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     if (S.warning) html += '<div class="rw-stale">' + esc(S.warning) + "</div>"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
@@ -300,9 +309,13 @@
     const host = $("[data-view='path']");
     const start = new URLSearchParams(location.search);
     const topic = S.pathTopic ?? (start.get("mode") === "paper" ? "" : start.get("q") || "");
-    const goal = S.pathGoal ?? "建立主題脈絡並找出延伸方向"; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const goals = pathGoalOptions();
+    const selectedDefault = goals.find((item) => item.id === S.pathGoalPreset) || goals[0];
+    const goal = S.pathGoal ?? selectedDefault.value;
+    const selectedPreset = goals.find((item) => item.value === goal)?.id || (S.pathGoalPreset === "custom" ? "" : S.pathGoalPreset);
+    const goalCards = goals.map((item) => '<button type="button" role="radio" class="rw-path-goal' + (selectedPreset === item.id ? ' is-selected' : '') + '" data-action="select-path-goal" data-goal="' + escAttr(item.id) + '" aria-checked="' + (selectedPreset === item.id) + '"><strong>' + esc(item.label) + '</strong><small>' + esc(item.description) + '</small></button>').join("");
     const startTitle = start.get("start_title") || start.get("title") || "";
-    host.innerHTML = '<section class="rw-panel"><h2>規劃論文閱讀路徑</h2><p class="rw-source">以研究主題或目前論文為起點，AI 只會排序已取得的論文，並說明每篇的閱讀用途。</p><div class="rw-form-grid"><label class="rw-field"><span>研究主題</span><input id="rw-path-topic" value="' + escAttr(topic) + '" placeholder="例如：Long Video Understanding"></label><label class="rw-field"><span>研究目標</span><input id="rw-path-goal" value="' + escAttr(goal) + '" placeholder="建立先備知識、理解方法或探索方向"></label>' + (startTitle ? '<div class="rw-field wide"><span>起點論文</span><strong>' + esc(startTitle) + '</strong></div>' : '') + '</div><button class="btn accent" data-action="generate-path"' + (S.pathLoading ? ' disabled' : '') + '>' + (S.pathLoading ? '<i class="spin"></i> AI 正在整理閱讀順序…' : '產生閱讀路徑') + '</button></section>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    host.innerHTML = '<section class="rw-panel"><h2>規劃論文閱讀路徑</h2><p class="rw-source">以研究主題或目前論文為起點，AI 只會排序已取得的論文，並說明每篇的閱讀用途。</p><div class="rw-form-grid"><label class="rw-field wide"><span>研究主題</span><input id="rw-path-topic" value="' + escAttr(topic) + '" placeholder="例如：Long Video Understanding"></label>' + (startTitle ? '<div class="rw-field wide"><span>起點論文</span><strong>' + esc(startTitle) + '</strong></div>' : '') + '<div class="rw-field wide"><span>' + PR.t("研究目標") + '</span><div class="rw-path-goal-grid" role="radiogroup" aria-label="' + escAttr(PR.t("選擇研究目標")) + '">' + goalCards + '</div><p class="rw-source">' + PR.t("選擇一個主要目標，AI 會依此安排閱讀順序。") + '</p></div><label class="rw-field wide"><span>' + PR.t("研究目標（可修改）") + '</span><textarea id="rw-path-goal" rows="2" placeholder="' + escAttr(PR.t("也可以直接輸入自訂研究目標")) + '">' + esc(goal) + '</textarea></label></div><button class="btn accent" data-action="generate-path"' + (S.pathLoading ? ' disabled' : '') + '>' + (S.pathLoading ? '<i class="spin"></i> AI 正在整理閱讀順序…' : '產生閱讀路徑') + '</button></section>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
       (S.pathError ? '<div class="rw-error">' + esc(S.pathError) + ' ' + btn("重試", "generate-path") + '</div>' : '') + (S.pathResults?.length ? '<div class="rw-path-list">' + S.pathResults.map((step, index) => '<article class="rw-card rw-path-card"><span class="rw-path-index">' + (index + 1) + '</span><div><span class="rw-chip">' + esc(step.role) + '</span><h3>' + esc(step.paper.title) + '</h3><p class="meta">' + esc([step.paper.year, step.paper.venue, step.paper.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || "未提供推薦理由。") + '</p><p class="rw-source">' + PR.t("根據已搜尋的論文資料排序；來源：{source}", { source: esc(step.paper.source || "OpenAlex") }) + '</p><div class="actions">' + btn("加入候選", "candidate", "line", 'data-key="' + escAttr(paperKey(step.paper)) + '" data-paper-index="' + index + '"') + (alreadyInLibrary(step.paper) ? '<a class="btn sm line" href="/read/' + escAttr(alreadyInLibrary(step.paper).id) + '">開啟閱讀</a>' : "") + '</div></div></article>').join("") + '</div>' : ""); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   function savedTask(s) { return { id: "saved:" + s.paper_key, saved_key: s.paper_key, paper_ref: s.paper_key, title: s.metadata.title, authors: s.metadata.authors, year: s.metadata.year, status: s.status, tags: s.categories || (s.category ? [s.category] : []), interested: s.interested, pdf_state: s.pdf_state, pdf_error: s.pdf_error, progress: 0, manual_order: s.manual_order || 0, saved: true, metadata: s.metadata }; }
@@ -315,7 +328,13 @@
     if (S.sort === "recent") list.sort((a,b) => String(b.last_opened || b.added || "").localeCompare(String(a.last_opened || a.added || "")));
     else list.sort((a,b) => Number(a.manual_order || 0)-Number(b.manual_order || 0));
     S.boardVisible = list;
-    const columns = S.statuses.map((s) => '<section class="rw-column" data-column="' + escAttr(s.id) + '" style="--col:' + escAttr(s.color) + '"><div class="rw-column-head"><i class="dot"></i>' + esc(s.label) + '<span class="n">' + list.filter((x) => (x.status || "unread") === s.id).length + '</span><button class="linkish" data-action="add-column" title="新增狀態">＋</button></div>' + list.filter((x) => (x.status || "unread") === s.id).map(taskCard).join("") + '</section>').join(""); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    const columns = S.statuses.map((s) => {
+      const columnItems = list.filter((x) => (x.status || "unread") === s.id);
+      const expanded = S.boardExpanded.has(s.id);
+      const visibleItems = expanded ? columnItems : columnItems.slice(0, 8);
+      const more = columnItems.length > 8 ? '<button type="button" class="rw-column-more" data-action="toggle-column" data-column="' + escAttr(s.id) + '" aria-expanded="' + expanded + '">' + (expanded ? PR.t("收起") : PR.t("顯示全部（{n} 篇）", { n: columnItems.length })) + '</button>' : '';
+      return '<section class="rw-column" data-column="' + escAttr(s.id) + '" style="--col:' + escAttr(s.color) + '"><div class="rw-column-head"><i class="dot"></i><span class="rw-column-label">' + esc(s.label) + '</span><span class="n">' + columnItems.length + '</span><button class="linkish" data-action="add-column" title="' + escAttr(PR.t("新增狀態")) + '">+</button></div><div class="rw-column-list">' + (visibleItems.length ? visibleItems.map(taskCard).join("") : '<div class="rw-column-empty">' + PR.t("目前沒有論文") + '</div>') + '</div>' + more + '</section>';
+    }).join(""); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const activeFilter = Boolean(category || status || S.filters.interested || S.filters.pdf);
     const activeLabels = [category && category, status && PR.t(statusLabel(status)), S.filters.pdf && PR.t(S.filters.pdf === "missing" ? "待補 PDF" : "已有 PDF"), S.filters.interested && PR.t("感興趣")].filter(Boolean); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     host.innerHTML = '<div class="rw-board-tools"><details class="rw-filter-details"' + (S.filterExpanded ? " open" : "") + '><summary><span class="rw-filter-title">篩選條件</span>' + (activeLabels.length ? '<span class="rw-filter-count">' + activeLabels.length + ' 項已套用</span><span class="rw-filter-active">' + activeLabels.map(esc).join(" · ") + '</span>' : '<span class="rw-filter-active">依分類、狀態、PDF 或感興趣篩選</span>') + '<span class="rw-filter-chevron" aria-hidden="true">⌄</span></summary><div class="rw-filter-content"><label class="rw-filter-field"><span>分類</span><select data-filter="category" aria-label="依分類篩選"><option value="">所有分類</option>' + S.categories.map((c) => '<option value="' + escAttr(c) + '"' + (category === c ? " selected" : "") + '>' + esc(c) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>閱讀狀態</span><select data-filter="status" aria-label="依閱讀狀態篩選"><option value="">所有狀態</option>' + S.statuses.map((s) => '<option value="' + escAttr(s.id) + '"' + (status === s.id ? " selected" : "") + '>' + esc(s.label) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>PDF</span><select data-filter="pdf" aria-label="依 PDF 狀態篩選"><option value="">PDF 狀態不限</option><option value="missing"' + (S.filters.pdf === "missing" ? " selected" : "") + '>待補 PDF</option><option value="ready"' + (S.filters.pdf === "ready" ? " selected" : "") + '>已有 PDF</option></select></label><button type="button" class="rw-filter-chip' + (S.filters.interested ? ' on' : '') + '" data-action="toggle-interested-filter" aria-pressed="' + S.filters.interested + '"><span aria-hidden="true">★</span> ' + PR.t("感興趣") + '</button><label class="rw-filter-field rw-sort-field"><span>排序</span><select data-sort><option value="manual">手動優先序</option><option value="recent"' + (S.sort === "recent" ? " selected" : "") + '>最近閱讀</option></select></label>' + (activeFilter ? btn("清除篩選", "clear-filters", "line") : "") + '</div></details>' + btn("管理狀態", "manage-status", "line") + '</div><div class="rw-board">' + (columns || "") + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
@@ -327,7 +346,7 @@
     const categories = (i.tags || []).join("、"); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const title = i.saved ? i.title : (i.title_zh || i.title_en || "未命名論文"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const accessibleLabel = PR.t("論文：{title}。閱讀狀態：{status}。可拖曳移動；也可按 Alt 加左右方向鍵變更狀態。", { title, status: PR.t(statusLabel(i.status || "unread")) });
-    return '<article class="rw-task" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight" aria-label="' + escAttr(accessibleLabel) + '" data-task="' + escAttr(i.id) + '" data-saved="' + (i.saved ? "1" : "0") + '"><h3>' + (i.saved ? esc(i.title) : '<a href="/read/' + escAttr(i.id) + '">' + esc(title) + '</a>') + '</h3><div class="muted">' + esc(i.authors || "作者未提供") + (i.year ? " · " + esc(i.year) : "") + '</div>' + (categories ? '<div class="muted"><span>' + PR.t("分類：") + '</span> ' + esc(categories) + '</div>' : "") + (i.saved ? '<div class="muted">' + (i.pdf_state === "failed" ? "待補 PDF" : i.pdf_state === "running" ? "正在下載 PDF" : "等待 PDF") + '</div>' : '<div class="rw-progress" title="' + escAttr(PR.t("閱讀進度 {n}%", { n: percent })) + '"><i style="width:' + percent + '%"></i></div><div class="muted">' + PR.t("閱讀進度 {n}%", { n: percent }) + '</div>') + '<div class="task-line">' + (i.saved ? '<button class="linkish" data-action="attach-pdf" data-key="' + escAttr(i.saved_key) + '">附加 PDF</button>' : '') + (i.saved && i.pdf_state === "failed" ? '<button class="linkish" data-action="retry-pdf" data-key="' + escAttr(i.saved_key) + '">重試 PDF</button>' : '') + '<button class="linkish interest-star' + (i.interested ? ' is-interested' : '') + '" aria-label="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" title="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" data-action="interested" data-task-id="' + escAttr(i.id) + '"' + (i.saved ? ' data-saved-key="' + escAttr(i.saved_key) + '"' : "") + '>' + (i.interested ? "★" : "☆") + '</button></div></article>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    return '<article class="rw-task" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight" aria-label="' + escAttr(accessibleLabel) + '" data-task="' + escAttr(i.id) + '" data-saved="' + (i.saved ? "1" : "0") + '"><h3>' + (i.saved ? esc(i.title) : '<a href="/read/' + escAttr(i.id) + '">' + esc(title) + '</a>') + '</h3><div class="muted rw-task-authors" title="' + escAttr(i.authors || "作者未提供") + '">' + esc(i.authors || "作者未提供") + (i.year ? " · " + esc(i.year) : "") + '</div>' + (categories ? '<div class="muted rw-task-category" title="' + escAttr(categories) + '"><span>' + PR.t("分類：") + '</span> ' + esc(categories) + '</div>' : "") + (i.saved ? '<div class="muted rw-task-pdf">' + (i.pdf_state === "failed" ? "待補 PDF" : i.pdf_state === "running" ? "正在下載 PDF" : "等待 PDF") + '</div>' : '<div class="rw-progress" title="' + escAttr(PR.t("閱讀進度 {n}%", { n: percent })) + '"><i style="width:' + percent + '%"></i></div><div class="muted rw-task-progress">' + PR.t("閱讀進度 {n}%", { n: percent }) + '</div>') + '<div class="task-line">' + (i.saved ? '<button class="linkish" data-action="attach-pdf" data-key="' + escAttr(i.saved_key) + '">附加 PDF</button>' : '') + (i.saved && i.pdf_state === "failed" ? '<button class="linkish" data-action="retry-pdf" data-key="' + escAttr(i.saved_key) + '">重試 PDF</button>' : '') + '<button class="linkish interest-star' + (i.interested ? ' is-interested' : '') + '" aria-label="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" title="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" data-action="interested" data-task-id="' + escAttr(i.id) + '"' + (i.saved ? ' data-saved-key="' + escAttr(i.saved_key) + '"' : "") + '>' + (i.interested ? "★" : "☆") + '</button></div></article>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
   }
   function rememberExploreInputs() {
     const fields = { "rw-query": "query", "rw-venue-query": "venueQuery", "rw-year-from": "yearFrom", "rw-year-to": "yearTo", "rw-sort": "exploreSort" };
@@ -678,23 +697,23 @@
     const query = $("#rw-query")?.value?.trim() || "";
     if (!query) return PR.toast(PR.t("請先輸入研究主題。")); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const button = $("[data-action='ai-query']"); if (button?.disabled) return;
-    if (button) { button.disabled = true; button.innerHTML = '<i class="spin"></i> 正在整理搜尋詞…'; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    if (button) { button.disabled = true; button.innerHTML = '<i class="spin"></i> 正在產生搜尋關鍵字…'; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
     try {
       const r = await PR.api(API + "/ai-query", { method: "POST", body: { query } });
-      openModal("AI 建議的英文搜尋詞", '<p class="rw-source">可選取草稿中的文字，再按「AI 改寫」取得建議。</p><div class="rw-field"><label>搜尋詞草稿（每行一組）</label><textarea id="rw-ai-query" rows="7">' + esc((r.suggestions || []).join("\n")) + '</textarea></div><button type="button" class="btn line" data-action="rewrite-selected">AI 改寫選取文字</button><div id="rw-rewrite-results"></div>', async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      openModal("AI 建議的英文關鍵字", '<p class="rw-source">可選取草稿中的文字，再按「AI 改寫」取得建議。</p><div class="rw-field"><label>關鍵字草稿（每行一組）</label><textarea id="rw-ai-query" rows="7">' + esc((r.suggestions || []).join("\n")) + '</textarea></div><button type="button" class="btn line" data-action="rewrite-selected">AI 改寫選取文字</button><div id="rw-rewrite-results"></div>', async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
         const edited = $("#rw-ai-query", modal).value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
         const unique = uniqueQueryTerms(edited);
-        if (!unique) throw new Error("請保留至少一組搜尋詞。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+        if (!unique) throw new Error("請保留至少一組關鍵字。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
         S.mode = "topic"; S.query = unique; S.results = []; renderExplore(); await search();
-      }, "使用搜尋詞", { dismissOnBackdrop: false, headerClose: true }); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    } catch (e) { PR.toast(PR.t("AI 搜尋詞整理未完成：{message}", { message: PR.t(e.message) })); }
-    finally { if (button?.isConnected) { button.disabled = false; button.textContent = "AI 擴展搜尋詞"; } } /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      }, "套用關鍵字", { dismissOnBackdrop: false, headerClose: true }); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    } catch (e) { PR.toast(PR.t("AI 關鍵字產生失敗：{message}", { message: PR.t(e.message) })); }
+    finally { if (button?.isConnected) { button.disabled = false; button.textContent = "AI 產生搜尋關鍵字"; } } /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   async function rewriteSelected() {
     const modal = $("#rw-modal"), draft = $("#rw-ai-query", modal);
     const start = draft?.selectionStart ?? 0, end = draft?.selectionEnd ?? 0;
     const selected = draft?.value.slice(start, end).trim() || "";
-    if (!selected) return PR.toast("請先在搜尋詞草稿中選取要改寫的文字。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    if (!selected) return PR.toast("請先在關鍵字草稿中選取要改寫的文字。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const button = $("[data-action='rewrite-selected']", modal); if (button.disabled) return;
     button.disabled = true; button.textContent = "AI 正在改寫…"; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     $("#rw-rewrite-results", modal).innerHTML = '<div class="rw-source" role="status">正在依選取文字產生建議…</div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
@@ -807,6 +826,10 @@
         case "compare-start": return startComparison(b);
         case "manage-status": return statusManager();
         case "add-column": return statusManager();
+        case "toggle-column":
+          if (S.boardExpanded.has(b.dataset.column)) S.boardExpanded.delete(b.dataset.column);
+          else S.boardExpanded.add(b.dataset.column);
+          return renderBoard();
         case "go-explore": return switchTab("explore");
         case "clear-filters": S.filters = { category: "", status: "", interested: false, pdf: "" }; return renderBoard();
         case "toggle-interested-filter": S.filters.interested = !S.filters.interested; return renderBoard();
@@ -856,6 +879,13 @@
           try { const updated = await PR.api(API); S.candidates = updated.candidates || S.candidates; }
           catch (_) { /* The completed move remains reflected in the current view. */ }
           return;
+        }
+        case "select-path-goal": {
+          const selected = pathGoalOptions().find((item) => item.id === b.dataset.goal);
+          if (!selected) return;
+          S.pathGoalPreset = selected.id;
+          S.pathGoal = selected.value;
+          return renderPath();
         }
         case "generate-path": return generatePath();
         case "rewrite-selected": return rewriteSelected();
@@ -931,7 +961,10 @@
   });
   document.addEventListener("input", (e) => {
     if (e.target?.id === "rw-path-topic") S.pathTopic = e.target.value;
-    if (e.target?.id === "rw-path-goal") S.pathGoal = e.target.value;
+    if (e.target?.id === "rw-path-goal") {
+      S.pathGoal = e.target.value;
+      S.pathGoalPreset = pathGoalOptions().find((item) => item.value === e.target.value)?.id || "custom";
+    }
   });
   let dragged = null;
   document.addEventListener("dragstart", (e) => { const task = e.target.closest("[data-task]"); if (!task) return; dragged = task.dataset.task; e.dataTransfer.setData("text/plain", dragged); e.dataTransfer.effectAllowed = "move"; });

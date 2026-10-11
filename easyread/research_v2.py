@@ -1201,7 +1201,7 @@ def post(app, endpoint: str, body: dict):
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
         suggestions = engines.parse_json(answer)
         if not isinstance(suggestions, list):
-            raise ValueError("模型回傳的搜尋詞格式不正確，請直接使用原始關鍵字搜尋。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+            raise ValueError("模型回傳的關鍵字格式不正確，請直接使用原始關鍵字搜尋。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         return {"suggestions": [str(x).strip()[:160] for x in suggestions if str(x).strip()][:5], "model": model.get("name", model.get("id", "")), "usage": meter.snapshot()}
     if endpoint == "/ai-category-explain":
         category = str(body.get("category") or "")[:100]

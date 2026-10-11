@@ -83,17 +83,17 @@ body.pv-open .blk.pv-pair::before { background: rgba(214, 160, 40, .8); opacity:
 .np-clear-checks { color:var(--ink-3); }
 .np-clear-checks:not(:disabled):hover { color:var(--danger); }
 .np-clear-checks:disabled { opacity:.5; cursor:not-allowed; }
-.np-smart { margin:10px 16px 4px; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--surface-2); }
+.np-smart { margin:10px 16px 4px; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--surface-2); flex:0 1 auto; min-height:0; }
 .np-smart-head { display:flex; align-items:center; gap:7px; font-size:13px; }
 .np-smart-head .grow { flex:1; }
 .smart-count { display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; margin-left:5px; padding:0 5px; border-radius:10px; color:var(--accent); background:var(--accent-soft); font-size:11px; }
 .smart-progress, .smart-empty { margin:7px 0 2px; line-height:1.6; }
-.np-smart-list { display:flex; flex-direction:column; gap:8px; margin-top:9px; }
+.np-smart-list { display:flex; flex-direction:column; gap:8px; margin-top:9px; max-height:min(46vh, 520px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:1px 5px 3px 1px; }
 .smart-card { padding:9px 10px; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 1px var(--rule-2); }
 .smart-card.smart-unlocatable { box-shadow:inset 0 0 0 1px var(--danger, #c0392b); }
 .smart-card-head { display:flex; align-items:center; gap:7px; font-size:12px; }
 .smart-card-head .smart-meta { margin-left:auto; color:var(--ink-3); font-size:11px; text-align:right; }
-.smart-quote { margin:7px 0; padding:6px 8px; border-left:3px solid var(--accent); background:var(--accent-soft); color:var(--ink); font:13px/1.65 var(--serif-zh); }
+.smart-quote { margin:7px 0; padding:6px 8px; border-left:3px solid var(--accent); background:var(--accent-soft); color:var(--ink); font:13px/1.65 var(--serif-zh); overflow-wrap:anywhere; }
 .smart-note, .smart-reason { margin:5px 0; color:var(--ink-2); font-size:12px; line-height:1.6; }
 .smart-note p { margin:0; display:inline; }
 .smart-reason { color:var(--ink-3); }
