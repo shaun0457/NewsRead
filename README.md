@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20Linux%20x64-支援-2f6070" alt="支援平台：Windows x64、Linux x64">
+  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-支援-2f6070" alt="支援平台：Windows x64、macOS arm64、Linux x64">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License">
 </p>
 
@@ -232,7 +232,11 @@ chmod +x PaperRead-*.AppImage
 ./PaperRead-*.AppImage
 ```
 
-目前正式 Release 提供 Linux x64 AppImage。macOS 尚未列入預建桌面安裝檔，仍可透過 Docker 瀏覽器版使用。
+目前正式 Release 提供 Linux x64 AppImage。
+
+### macOS 安裝檔
+
+目前正式 Release 提供 Apple Silicon（arm64）DMG：從 [PaperRead Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載 `PaperRead-x.x.x-arm64.dmg`，開啟後將 PaperRead 拖曳至 Applications。Intel Mac 請使用 Docker 瀏覽器版，或自行從原始碼建置相容架構。
 
 ### Docker 瀏覽器版
 
@@ -251,8 +255,8 @@ docker compose up -d
 每個版本也會發布預建的 GitHub Container Registry 映像，不必在本機編譯：
 
 ```bash
-docker pull ghcr.io/yuriylin/paperread:v1.4.6
-docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.6
+docker pull ghcr.io/yuriylin/paperread:v1.4.7
+docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
 ```
 
 接著開啟 <http://localhost:8765>。`paperread-data` volume 會保留論文庫與設定。
@@ -287,7 +291,7 @@ npm run dev
 npm run dist
 ```
 
-輸出位於 `dist/electron/`。在 Windows 會產生 NSIS 安裝檔，在 Linux 會產生 AppImage。Docker 瀏覽器版則不需要 Electron 或 Node.js。
+輸出位於 `dist/electron/`。在 Windows 會產生 NSIS 安裝檔，在 macOS（Apple Silicon）會產生 DMG，在 Linux 會產生 AppImage。Docker 瀏覽器版則不需要 Electron 或 Node.js。
 
 ## 資料位置與相容性
 
@@ -295,7 +299,8 @@ npm run dist
 
 ```text
 Windows: C:\Users\<使用者名稱>\PaperRead
-Linux/macOS Docker: Docker volume `paperread-data` 內的 `/data/PaperRead`
+macOS: `~/PaperRead`
+Linux Docker: Docker volume `paperread-data` 內的 `/data/PaperRead`
 ```
 
 舊版 `EasyRead` 資料會在首次啟動時嘗試遷移；若遷移失敗，程式會保留原資料並以相容方式讀取。為了避免破壞既有腳本與使用者資料，程式內部仍保留 `easyread` 的 Python module、CLI、環境變數和舊連結協定名稱。

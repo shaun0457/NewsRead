@@ -7,7 +7,7 @@
 <p align="center"><b>A local research workspace for discovering, reading, and organizing papers.</b><br>
 PaperRead combines a comfortable PDF reading experience with research exploration, candidate management, reading progress, AI-assisted summaries, reading paths, and paper mind maps.</p>
 
-> This is YuriyLin's PaperRead fork. It keeps the useful local reading and annotation model from EasyRead while adding a Traditional Chinese interface, a research workspace, and Windows/Linux desktop packages plus a Docker browser edition.
+> This is YuriyLin's PaperRead fork. It keeps the useful local reading and annotation model from EasyRead while adding a Traditional Chinese interface, a research workspace, Windows/macOS/Linux desktop packages, and a Docker browser edition.
 
 <p align="center"><a href="README.md">繁體中文</a> · <b>English</b></p>
 
@@ -16,11 +16,11 @@ PaperRead combines a comfortable PDF reading experience with research exploratio
 <p align="center">
   <a href="https://github.com/YuriyLin/PaperRead/releases/latest"><img src="https://img.shields.io/github/v/release/YuriyLin/PaperRead?label=release" alt="release"></a>
   <a href="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml"><img src="https://github.com/YuriyLin/PaperRead/actions/workflows/test.yml/badge.svg" alt="tests"></a>
-  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20Linux%20x64-supported-2f6070" alt="Windows x64 and Linux x64 supported">
+  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-supported-2f6070" alt="Windows x64, macOS arm64, and Linux x64 supported">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
 </p>
 
-PaperRead provides **Windows x64** and **Linux x64** desktop packages. The Windows installer and Linux AppImage bundle the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. macOS does not currently have a prebuilt desktop package, but it can use the Docker browser edition.
+PaperRead provides **Windows x64**, **macOS arm64**, and **Linux x64** desktop packages. The installer, DMG, and AppImage bundle the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. Docker is also available for Linux, macOS, and Windows hosts.
 
 ## What PaperRead adds to EasyRead
 
@@ -92,7 +92,11 @@ chmod +x PaperRead-*.AppImage
 ./PaperRead-*.AppImage
 ```
 
-The AppImage is the supported Linux x64 desktop package. macOS does not currently have a prebuilt desktop package.
+The AppImage is the supported Linux x64 desktop package.
+
+## Install on macOS
+
+The latest release includes a prebuilt DMG for Apple Silicon (arm64). Download `PaperRead-x.x.x-arm64.dmg` from [Releases](https://github.com/YuriyLin/PaperRead/releases/latest), open it, and drag PaperRead to Applications. Intel Macs should use the Docker edition or build from source for their target architecture.
 
 ## Run with Docker
 
@@ -107,8 +111,8 @@ Open <http://localhost:8765>. The Compose file stores the library and settings i
 Each release also publishes a prebuilt image to GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/yuriylin/paperread:v1.4.6
-docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.6
+docker pull ghcr.io/yuriylin/paperread:v1.4.7
+docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
 ```
 
 Open <http://localhost:8765>. The `paperread-data` volume keeps the library and settings between container restarts.
@@ -122,7 +126,7 @@ python -m unittest discover tests
 node tests/e2e.cjs library/<paper-id>
 ```
 
-To create the Windows installer or Linux AppImage after testing locally:
+To create the Windows installer, macOS arm64 DMG, or Linux AppImage after testing locally:
 
 ```bash
 npm run dist
