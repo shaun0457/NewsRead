@@ -56,8 +56,10 @@ class LangsTest(unittest.TestCase):
     def test_reply_language(self):
         self.assertEqual(langs.reply_lang({"target": "de"}), "德语（Deutsch）")
         self.assertEqual(langs.reply_lang({"title_zh": "舊論文"}), "繁體中文（臺灣用語，zh-TW；不可使用簡體字）")
+        self.assertEqual(langs.reply_language_rule({"title_zh": "舊論文"}), "用繁體中文（臺灣用語），不可使用簡體字")
         with mock.patch("easyread.i18n.lang", lambda: "en"):
             self.assertEqual(langs.reply_lang({}), "英文（English）")
+            self.assertEqual(langs.reply_language_rule({}), "用英文（English）")
 
     def test_first_translation_records_target(self):
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):

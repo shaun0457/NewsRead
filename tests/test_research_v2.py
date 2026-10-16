@@ -479,6 +479,54 @@ class ResearchV2Test(unittest.TestCase):
         self.assertTrue(later["stale"])
         self.assertEqual(later["results"], first["results"])
 
+    def test_work_relation_resolves_doi_identifier_to_openalex_id_and_returns_seed_metadata(self):
+        resolved_seed = {
+            "id": "https://openalex.org/W99",
+            "title": "Resolved Seed Paper",
+            "doi": "https://doi.org/10.1234/test-doi",
+        }
+        def fake_openalex(path, params=None, *_args, **_kwargs):
+            if path == "/works/W99":
+                return {
+                    "id": "https://openalex.org/W99", "title": "Resolved Seed Paper", "related_works": ["https://openalex.org/W101"],
+                    "keywords": [{"display_name": "Computer Vision"}, {"display_name": "Image Segmentation"}],
+                    "primary_topic": {"display_name": "Semantic Segmentation"}, "topics": [{"display_name": "Visual Attention"}]
+                }
+            if path == "/works":
+                return {"results": [{"id": "https://openalex.org/W101", "title": "Related Result", "publication_year": 2024}]}
+            return {"results": []}
+
+        with mock.patch.object(research_v2, "_resolve_seed", return_value=resolved_seed) as resolve, \
+             mock.patch.object(research_v2, "_openalex", side_effect=fake_openalex):
+            result = research_v2.get(self.app, research_v2.PREFIX + "/work/doi%3A10.1234%2Ftest-doi?relation=related&start_title=Custom%20Title")
+        self.assertEqual(resolve.call_count, 1)
+        self.assertEqual(result["seed_id"], "W99")
+        self.assertEqual(result["seed_title"], "Custom Title")
+        self.assertEqual(result["seed_doi"], "https://doi.org/10.1234/test-doi")
+        self.assertEqual(result["seed_keywords"], ["Computer Vision", "Image Segmentation"])
+        self.assertEqual(result["seed_topics"], ["Semantic Segmentation", "Visual Attention"])
+        self.assertEqual(result["relation"], "related")
+        self.assertEqual(len(result["results"]), 1)
+        self.assertEqual(result["results"][0]["title"], "Related Result")
+
+    def test_work_relation_rejects_unresolvable_identifier(self):
+        with mock.patch.object(research_v2, "_resolve_seed", return_value=None):
+            with self.assertRaisesRegex(ValueError, "找不到對應的 OpenAlex 論文識別資料"):
+                research_v2.get(self.app, research_v2.PREFIX + "/work/doi%3A10.9999%2Funknown?relation=related")
+
+    def test_work_cited_by_includes_seed_metadata(self):
+        def fake_openalex(path, params=None, *_args, **_kwargs):
+            return {"results": [{"id": "https://openalex.org/W200", "title": "Citing Paper", "publication_year": 2025}], "meta": {"count": 1}}
+
+        with mock.patch.object(research_v2, "_openalex", side_effect=fake_openalex):
+            result = research_v2.get(self.app, research_v2.PREFIX + "/work/W50?relation=cited-by&start_title=Seed%20Title&start_doi=10.1234/seed")
+        self.assertEqual(result["seed_id"], "W50")
+        self.assertEqual(result["seed_title"], "Seed Title")
+        self.assertEqual(result["seed_doi"], "10.1234/seed")
+        self.assertEqual(result["relation"], "cited-by")
+        self.assertEqual(len(result["results"]), 1)
+        self.assertEqual(result["results"][0]["title"], "Citing Paper")
+
     def test_legacy_schedule_data_is_preserved_but_reminder_api_is_retired(self):
         plan = {"start_date": "2026-10-08", "due_date": "2026-10-20",
                 "reminders": {"start_enabled": True, "start_time": "09:00"}}
@@ -557,6 +605,105 @@ class ResearchV2Test(unittest.TestCase):
             planning_store.add_follow(self.root, "author", "A/1 OR filter")
         follow = planning_store.add_follow(self.root, "author", "https://openalex.org/authors/A123", "Test Author")
         self.assertEqual(follow["value"], "A123")
+
+    def test_unwrap_json_list_handles_varied_model_structures(self):
+        self.assertEqual(research_v2._unwrap_json_list([{"id": "W1"}]), [{"id": "W1"}])
+        self.assertEqual(research_v2._unwrap_json_list({"reading_path": [{"id": "W1"}]}), [{"id": "W1"}])
+        self.assertEqual(research_v2._unwrap_json_list({"items": [{"id": "W2"}]}), [{"id": "W2"}])
+        self.assertEqual(research_v2._unwrap_json_list({"id": "W3"}), [{"id": "W3"}])
+        self.assertIsNone(research_v2._unwrap_json_list("not a list"))
+        self.assertIsNone(research_v2._unwrap_json_list(None))
+
+    def test_reading_path_unwraps_dict_and_resolves_candidates(self):
+        papers = [
+            {"id": "https://openalex.org/W100", "title": "Paper Foundations", "year": 2021},
+            {"id": "https://openalex.org/W200", "title": "Paper Core", "year": 2023},
+        ]
+        model_output = json.dumps({
+            "reading_path": [
+                {"id": "W100", "role": "基礎入門", "reason": "建立概念", "priority": 1},
+                {"id": "https://openalex.org/W200", "role": "起點核心", "reason": "核心方法", "priority": 2},
+                {"id": "W100", "role": "基礎入門", "reason": "重複項目", "priority": 3},
+            ]
+        }, ensure_ascii=False)
+        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+             mock.patch("easyread.engines.for_translation", return_value={}), \
+             mock.patch("easyread.engines.run", return_value=model_output):
+            result = research_v2.post(self.app, "/reading-path", {
+                "papers": papers,
+                "topic": "Video LLM",
+                "goal": "建立基礎概念",
+            })
+        self.assertIn("results", result)
+        self.assertEqual(len(result["results"]), 2)
+        self.assertEqual(result["results"][0]["role"], "基礎入門")
+        self.assertEqual(result["results"][0]["paper"]["title"], "Paper Foundations")
+        self.assertEqual(result["results"][1]["paper"]["title"], "Paper Core")
+
+    def test_reading_path_expands_seed_paper_references_and_related(self):
+        start_paper = {
+            "id": "https://openalex.org/W_START",
+            "title": "Start Paper",
+            "year": 2024,
+            "referenced_works": ["https://openalex.org/W_REF1"],
+            "related_works": ["https://openalex.org/W_REL1"],
+        }
+        ref_work = {"id": "https://openalex.org/W_REF1", "title": "Reference Paper", "publication_year": 2020}
+        rel_work = {"id": "https://openalex.org/W_REL1", "title": "Related Paper", "publication_year": 2024}
+
+        def mock_openalex(path, params=None, *args, **kwargs):
+            p = params or {}
+            filt = str(p.get("filter") or "")
+            if "W_REF1" in filt or "W_REL1" in filt:
+                return {"results": [ref_work, rel_work]}
+            return {"results": []}
+
+        model_output = json.dumps([
+            {"id": "W_REF1", "role": "基礎背景", "reason": "先讀參考文獻", "priority": 1},
+            {"id": "W_START", "role": "起點核心", "reason": "當前論文", "priority": 2},
+            {"id": "W_REL1", "role": "延伸探索", "reason": "後續延伸", "priority": 3},
+        ], ensure_ascii=False)
+
+        with mock.patch.object(research_v2, "_openalex", side_effect=mock_openalex), \
+             mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+             mock.patch("easyread.engines.for_translation", return_value={}), \
+             mock.patch("easyread.engines.run", return_value=model_output):
+            result = research_v2.post(self.app, "/reading-path", {
+                "start_paper": start_paper,
+                "goal": "深入目前論文",
+            })
+        self.assertIn("results", result)
+        self.assertEqual(len(result["results"]), 3)
+        self.assertEqual(result["results"][0]["paper"]["title"], "Reference Paper")
+        self.assertEqual(result["results"][1]["paper"]["title"], "Start Paper")
+        self.assertEqual(result["results"][2]["paper"]["title"], "Related Paper")
+
+    def test_ai_query_unwraps_dict_wrapper(self):
+        model_output = json.dumps({"suggestions": ["video LLM reasoning", "multimodal chain of thought"]})
+        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+             mock.patch("easyread.engines.for_translation", return_value={}), \
+             mock.patch("easyread.engines.run", return_value=model_output):
+            result = research_v2.post(self.app, "/ai-query", {"query": "影片推理"})
+        self.assertEqual(result["suggestions"], ["video LLM reasoning", "multimodal chain of thought"])
+
+    def test_ai_query_distills_keywords_from_title_and_abstract(self):
+        model_output = json.dumps(["Masked Image Segmentation", "Transformer Architecture", "Universal Representation"])
+        captured_prompt = []
+
+        def fake_run(cfg, prompt, root, tools, cb, meter):
+            captured_prompt.append(prompt)
+            return model_output
+
+        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+             mock.patch("easyread.engines.for_translation", return_value={}), \
+             mock.patch("easyread.engines.run", side_effect=fake_run):
+            result = research_v2.post(self.app, "/ai-query", {
+                "title": "Mask2Former: Masked-attention Mask Transformer for Universal Image Segmentation",
+                "abstract": "We present Mask2Former, an architecture capable of addressing any image segmentation task."
+            })
+        self.assertEqual(result["suggestions"], ["Masked Image Segmentation", "Transformer Architecture", "Universal Representation"])
+        self.assertIn("Mask2Former", captured_prompt[0])
+        self.assertIn("去除自創的模型代號", captured_prompt[0])
 
 
 if __name__ == "__main__":

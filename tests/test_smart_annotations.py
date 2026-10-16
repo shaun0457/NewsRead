@@ -125,6 +125,112 @@ class SmartAnnotationTests(unittest.TestCase):
         self.assertFalse(refreshed["locatable"])
         self.assertEqual(refreshed["stale_reason"], "translation_changed")
 
+    def test_sources_include_list_items_and_captions_and_exclude_headings(self):
+        paper = {
+            "meta": {"title_zh": "測試"},
+            "blocks": [
+                {"id": "h1", "type": "heading", "zh": "介紹", "en": "Introduction"},
+                {"id": "l1", "type": "list", "page": 1, "items_en": ["First contribution.", "Second contribution."], "items_zh": ["第一個貢獻。", "第二個貢獻。"]},
+                {"id": "fig1", "type": "figure", "page": 3, "caption_en": "Figure 1: System architecture.", "caption_zh": "圖 1：系統架構。"},
+            ],
+        }
+        sources = smart_annotations._sources(paper)
+        keys = [s["key"] for s in sources]
+        self.assertEqual(keys, ["l1#0", "l1#1", "fig1#caption"])
+        selected = smart_annotations._selected_sources(sources, ["h1"])
+        self.assertEqual(len(selected), 3)
+        cand = smart_annotations._candidate(self.ws.id, {
+            "anchor": "l1", "key": "l1#1", "quote_en": "Second contribution.", "quote_zh": "第二個貢獻。",
+            "type": "highlight", "color": "yellow", "note": "貢獻二",
+        }, sources, "test-model", "", "2026-01-01")
+        self.assertTrue(cand["locatable"])
+        self.assertEqual(cand["key"], "l1#1")
+        self.assertEqual(cand["quote"], "第二個貢獻。")
+
+    def test_loose_match_handles_weak_model_citations_ellipsis_and_minor_typos(self):
+        sources = [{
+            "anchor": "p2", "key": "p2", "page": 4, "section": "Experiments", "section_id": "h1",
+            "en": "Our **Adaptive-Router** [12, 15] reduces latency by 42.5% compared to the baseline model on ImageNet.",
+            "zh": "我們的 **Adaptive-Router** [12, 15] 在 ImageNet 上比基線模型降低了 42.5% 的延遲。",
+            "sents": None,
+        }]
+        # 1. Stripped markdown + omitted inline citation [12, 15]
+        loc_cite = smart_annotations._locate(
+            "Our Adaptive-Router reduces latency by 42.5% compared to the baseline model",
+            "p2", sources, "en"
+        )
+        self.assertIsNotNone(loc_cite)
+        self.assertIn("[12, 15]", loc_cite["quote"])
+
+        # 2. Ellipsis truncation ("前半...後半")
+        loc_ellipsis = smart_annotations._locate(
+            "Our Adaptive-Router ... compared to the baseline model on ImageNet.",
+            "p2", sources, "en"
+        )
+        self.assertIsNotNone(loc_ellipsis)
+        self.assertTrue(loc_ellipsis["quote"].startswith("Our **Adaptive-Router**"))
+        self.assertTrue(loc_ellipsis["quote"].endswith("ImageNet."))
+
+        # 3. Minor 1-char typo by weak model ("basline" instead of "baseline")
+        loc_typo = smart_annotations._locate(
+            "reduces latency by 42.5% compared to the basline model on ImageNet.",
+            "p2", sources, "en"
+        )
+        self.assertIsNotNone(loc_typo)
+        self.assertIn("baseline model on ImageNet.", loc_typo["quote"])
+
+    def test_dedupe_prefers_locatable_and_allows_short_underline_inside_highlight(self):
+        unlocatable = {
+            "annotation_id": "ai-1", "anchor": "p1", "key": "p1", "side": "zh",
+            "quote": "我們提出一個新的方法。", "type": "highlight", "color": "yellow",
+            "locatable": False, "confidence": 0.95,
+        }
+        locatable = {
+            "annotation_id": "ai-2", "anchor": "p1", "key": "p1", "side": "zh",
+            "quote": "我們提出一個新的方法。", "type": "highlight", "color": "yellow",
+            "locatable": True, "confidence": 0.75,
+        }
+        short_term = {
+            "annotation_id": "ai-3", "anchor": "p1", "key": "p1", "side": "zh",
+            "quote": "新的方法", "type": "underline", "color": "blue",
+            "locatable": True, "confidence": 0.85,
+        }
+        deduped = smart_annotations._dedupe([unlocatable, locatable, short_term])
+        ids = [item["annotation_id"] for item in deduped]
+        self.assertIn("ai-2", ids)
+        self.assertNotIn("ai-1", ids)
+        self.assertIn("ai-3", ids)
+
+    def test_reject_all_marks_suggested_items_rejected(self):
+        sources = smart_annotations._sources(self.ws.load("paper"))
+        c1 = smart_annotations._candidate(self.ws.id, {
+            "anchor": "p1", "quote": "新的方法", "type": "underline", "color": "blue", "note": "術語",
+        }, sources, "test-model", "", "2026-01-01")
+        c2 = smart_annotations._candidate(self.ws.id, {
+            "anchor": "p1", "quote": "我們比較結果。", "type": "highlight", "color": "green", "note": "實驗",
+        }, sources, "test-model", "", "2026-01-01")
+        self.ws.apply_reader_ops([
+            {"op": "ai_annotation", "annotation": c1, "at": "2026-01-01T00:00:00+08:00"},
+            {"op": "ai_annotation", "annotation": c2, "at": "2026-01-01T00:00:00+08:00"},
+        ])
+        res = smart_annotations.apply_action(self.ws, {"action": "reject_all"})
+        self.assertEqual(res["rejected"], 2)
+        reader = self.ws.load("reader")
+        self.assertEqual(reader["ai_annotations"][c1["annotation_id"]]["status"], "rejected")
+        self.assertEqual(reader["ai_annotations"][c2["annotation_id"]]["status"], "rejected")
+
+    def test_engines_parse_json_preserves_single_backslash_latex_commands(self):
+        from easyread.engines import parse_json
+        raw = r'{"items": [{"anchor": "p1", "quote_en": "where $\frac{\beta}{\theta} + \nabla f(\rho) = \text{const}$"}]}'
+        parsed = parse_json(raw)
+        quote_en = parsed["items"][0]["quote_en"]
+        self.assertIn(r"\frac", quote_en)
+        self.assertIn(r"\beta", quote_en)
+        self.assertIn(r"\theta", quote_en)
+        self.assertIn(r"\nabla", quote_en)
+        self.assertIn(r"\rho", quote_en)
+        self.assertIn(r"\text", quote_en)
+
 
 if __name__ == "__main__":
     unittest.main()

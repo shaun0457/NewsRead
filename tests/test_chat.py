@@ -75,8 +75,8 @@ class ChatStreamTest(unittest.TestCase):
             refs = [{"anchor": "b", "quote": ""}, {"anchor": "c", "quote": "丙"}]
             plain = chat.prompt(ws, [{"role": "user", "content": "这两段什么关系"}], "b", "", "openai", refs)
             self.assertNotIn("红色重点", plain)           # 没问到标记，就不带
-            self.assertIn("2 处标记", plain)
-            self.assertIn("[c] 读者选中：「丙」", plain)   # 引用的第二段也在
+            self.assertIn("2 處標記", plain)
+            self.assertIn("[c] 讀者選取：「丙」", plain)   # 引用的第二段也在
             red = chat.prompt(ws, [{"role": "user", "content": "我标红的那些有什么联系"}], None, "", "openai")
             self.assertIn("红色重点", red)
             self.assertNotIn("黄色句子", red)              # 只带问到的颜色

@@ -141,12 +141,81 @@ const cli = (...args) => execFileSync(PY, ['-m', 'easyread', ...args], { env, cw
     const q = Object.values(disk().notes).find((n) => n.kind === 'question');
     ok(q && q.body.includes('为什么'), '选中文字后按 Q 提问，写入 reader.json');
 
+    console.log('5a. 整條公式標註');
+    const formulaId = await page.$eval('#paper .blk-math', (e) => e.dataset.id);
+    await page.evaluate((id) => document.getElementById('b-' + id).scrollIntoView({ block: 'center' }), formulaId);
+    await page.click('#b-' + formulaId + ' .math-body');
+    await page.waitForSelector('#selbar.open');
+    await page.click('#selbar [data-pen="underline"]');
+    await page.click('#selbar [data-color="blue"]');
+    await saved();
+    const formulaNote = Object.values(disk().notes).find((n) => n.target === 'formula' && n.anchor === formulaId);
+    ok(formulaNote && formulaNote.style === 'underline' && formulaNote.color === 'blue', '公式以整個 block ID 儲存藍色底線標註');
+    ok(await page.$('#b-' + formulaId + ' .math-body.formula-hl.s-ul.c-blue'), '公式框顯示整條藍色底線');
+    await page.click('#b-' + formulaId + ' .math-body');
+    await page.click('#popover [data-hl="note"]');
+    await page.waitForSelector('.card.mine textarea');
+    await page.keyboard.type('這條公式的用途。');
+    await page.keyboard.press('Escape');
+    await saved();
+    ok(Object.values(disk().notes).some((n) => n.id === formulaNote.id && n.kind === 'note' && n.body.includes('公式')), '公式標註可沿用既有筆記編輯流程');
+    const inlineMathCheck = await page.evaluate(() => {
+      const katexEl = document.querySelector('#paper .zh .katex');
+      if (!katexEl) return null;
+      const walker = document.createTreeWalker(katexEl.querySelector('.katex-html'), NodeFilter.SHOW_TEXT);
+      const firstText = walker.nextNode();
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.setStart(firstText, 0);
+      range.setEnd(firstText, Math.min(1, firstText.data.length));
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return new Promise((resolve) => setTimeout(() => {
+        PR.selectionAction('highlight', 'green');
+        const wrapper = katexEl.closest('mark.hl.math-hl.c-green');
+        const innerMarks = katexEl.querySelectorAll('mark').length;
+        resolve({ wrappedWhole: !!wrapper, innerMarks });
+      }, 30));
+    });
+    if (inlineMathCheck) {
+      ok(inlineMathCheck.wrappedWhole && inlineMathCheck.innerMarks === 0, '內文數學公式以整塊 .katex 標記，不在 .katex-html 內逐字切碎');
+    }
+
     console.log('6. agent 回复出现在页面');
     ok(cli('status', PID).includes('[待回答]'), 'easyread status 能看到待回答的问题');
     fs.writeFileSync(path.join(LIB, 'reply.json'), JSON.stringify([{ reply_to: q.id, kind: 'reply', body: '因为作者在这里要引出后文的框架。' }]));
     cli('discuss', PID, '--from', path.join(LIB, 'reply.json'));
     await page.waitForSelector('.card.agent[data-anchor="' + paras[1] + '"]', { timeout: 8000 });
     ok(true, '回复几秒内出现在对应段落旁');
+
+    console.log('6a. 桌面双侧边注');
+    await page.setViewportSize({ width: 1700, height: 900 });
+    await page.evaluate(() => {
+      const known = new Set(PR.myNotes().map((n) => n.anchor));
+      const block = Array.from(document.querySelectorAll('#paper .blk-para')).find((b) => {
+        const zh = b.querySelector('.zh');
+        return zh && !known.has(b.dataset.id) && PR.fullText(zh).length > 40;
+      });
+      const zh = block.querySelector('.zh');
+      const text = PR.fullText(zh), quote = text.slice(5, 28);
+      PR.state.reader.notes['layout-ai-note'] = { id: 'layout-ai-note', anchor: block.dataset.id, key: zh.dataset.key, quote,
+        prefix: text.slice(0, 5), suffix: text.slice(28, 45), kind: 'note', body: 'AI 標註的版面測試。', ai_generated: true, created: new Date().toISOString() };
+      PR.applyMarks(block.dataset.id);
+      PR.renderMargin();
+    });
+    await page.waitForFunction(() => document.body.classList.contains('dual-margin'));
+    const marginLayout = await page.evaluate(() => {
+      const box = (e) => { const r = e?.getBoundingClientRect(); return r && { left: r.left, right: r.right }; };
+      return { paper: box(document.querySelector('#paper')), mine: box(document.querySelector('#margin-left .card.mine')),
+        agent: box(document.querySelector('#margin-left .card.agent')), ai: box(document.querySelector('#margin [data-note="layout-ai-note"]')),
+        hasSvgArrows: !!document.querySelector('#margin-arrows') };
+    });
+    ok(marginLayout.mine && marginLayout.mine.right < marginLayout.paper.left, '個人筆記排在正文左側');
+    ok(marginLayout.agent && marginLayout.agent.right < marginLayout.paper.left, 'AI 問答排在正文左側');
+    ok(marginLayout.ai && marginLayout.ai.left > marginLayout.paper.right, 'AI 智慧標註沿用右側');
+    ok(!marginLayout.hasSvgArrows, '移除 SVG 連線設計，僅保留雙欄呈現');
+    await shot('dual-margin');
 
     console.log('7. 改译文、译者稿更新不覆盖');
     const editId = paras[2];

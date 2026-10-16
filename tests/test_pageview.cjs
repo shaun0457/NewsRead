@@ -39,10 +39,12 @@ function reader(mode = "server") {
     jumpTo(id) { this.jumped = id; },
     fitWide() {}, renderMargin() {},
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/pageview.js"), "utf8"), {
+  const sandbox = {
     window: { PR, scrollY: 0, innerHeight: 800, scrollTo: value => scrolls.push(value) }, document: { body: node("body"), addEventListener: (name, fn) => documentEvents.set(name, fn), getElementById: id => nodes.get(id) || null, createElement: () => node("created-" + nodes.size) },
     devicePixelRatio: 1, Image: class {}, setTimeout: () => 1, clearTimeout() {},
-  });
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/page-zoom.js"), "utf8"), sandbox);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/pageview.js"), "utf8"), sandbox);
   return { PR, node, events, documentEvents, scrolls, read: id => { reading = id; }, select: id => { selected = id; } };
 }
 
@@ -67,6 +69,21 @@ test("turning off follow retains the manually selected original page", () => {
   r.node(".pv-follow input").checked = false;
   r.read("first"); r.PR.syncPage(false);
   assert.equal(r.node(".pv-page img").src, "/p/paper/pages/two.webp?w=1000");
+});
+
+test("reenabling follow immediately resumes at the viewport instead of a stale selection", () => {
+  const r = reader();
+  r.select("second"); r.read("first"); r.PR.togglePages(true);
+  const follow = r.node(".pv-follow input"), scroller = r.node(".pv-scroll");
+  follow.checked = false;
+  scroller.listeners.pointerdown();
+  scroller.scrollTop = 1018; scroller.listeners.scroll();
+  assert.equal(r.node(".pv-label").textContent, "第 2 / 2 页");
+  follow.checked = true;
+  follow.listeners.change?.();
+  assert.equal(r.node(".pv-label").textContent, "第 1 / 2 页");
+  r.read("second"); r.PR.syncPage(false);
+  assert.equal(r.node(".pv-label").textContent, "第 2 / 2 页");
 });
 
 const crossing = () => ({ page: 1, box: [0.08, 0.10, 0.92, 0.90], boxes: [[0.08, 0.60, 0.48, 0.90], [0.52, 0.10, 0.92, 0.30]] });

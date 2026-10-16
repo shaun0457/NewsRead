@@ -8,10 +8,24 @@ function markup(realKatex = false) {
   const PR = {
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s, esc: text => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), {
-    window: { PR }, katex: realKatex ? require("../easyread/web/vendor/katex/katex.min.js") : { renderToString: tex => '<math>' + PR.esc(tex) + '</math>' },
+    window: { PR }, URL, katex: realKatex ? require("../easyread/web/vendor/katex/katex.min.js") : { renderToString: tex => '<math>' + PR.esc(tex) + '</math>' },
   });
   return PR;
 }
+
+test("inline external links preserve labels and URLs without linking code or unsafe schemes", () => {
+  const PR = markup();
+  const html = PR.md("Read [here](https://example.com/docs?q=1&lang=en), [此处](https://example.com/other), and `[here](https://example.com/code)`.");
+  assert.equal((html.match(/class=\"external-link\"/g) || []).length, 2);
+  assert.ok(html.includes('href="https://example.com/docs?q=1&amp;lang=en"'));
+  assert.ok(html.includes('rel="noopener noreferrer">here</a>'));
+  assert.ok(html.includes('<code>[here](https://example.com/code)</code>'));
+  assert.equal(PR.plain("Read [here](https://example.com/)"), "Read here");
+  for (const url of ["javascript:alert(1)", "data:text/html,evil", "file:///etc/passwd", "//example.com"]) {
+    assert.ok(!PR.md("[here](" + url + ")").includes("<a "));
+  }
+  assert.ok(PR.md('[<img src=x>](https://example.com/)').includes('&lt;img src=x&gt;'));
+});
 
 test("bilingual headings render without requiring blank lines before the answer", () => {
   const html = markup().mdBlocks("## English (ASD-STE100)\nThe device calculates $y=Wx$.\n## 中文解释\n器件计算 $y=Wx$。");

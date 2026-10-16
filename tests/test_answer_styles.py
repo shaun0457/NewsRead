@@ -43,13 +43,13 @@ class AnswerStyleTest(unittest.TestCase):
                 self.assertNotIn("当前已导入的正文", normal)
                 self.assertNotIn("A final limitation.", normal)
                 self.assertNotIn("用中文，直接", ste)
-                self.assertIn("只输出中文回答，不附英文答案", ste)
+                self.assertIn("只輸出繁體中文回答，不附英文答案", ste)
                 self.assertNotIn("## English (ASD-STE100)", ste)
                 for fact in ("Previous answer in English.", "A source fact with $x$.", "引用", "A test condition.", "2%", "$$y=2x$$", "A final limitation."):
                     self.assertIn(fact, ste)
-                self.assertIn("每句表达一个主要意思", ste)
-                self.assertIn("不要把英文的词数限制机械地套到中文", ste)
-                self.assertIn("不要声称", ste)
+                self.assertIn("每句表達一個主要意思", ste)
+                self.assertIn("不要把英文的詞數限制機械地套用到中文", ste)
+                self.assertIn("不要聲稱", ste)
 
     def test_ste_context_only_includes_annotations_when_the_question_requests_them(self):
         write_json_atomic(self.ws.root / "reader.json", {"notes": {
@@ -70,10 +70,10 @@ class AnswerStyleTest(unittest.TestCase):
             for style in ("standard", "ste100"):
                 with self.subTest(engine=engine, style=style):
                     prompt = chat.prompt(self.ws, [{"role": "user", "content": "推导这个公式"}], "eq", "", engine, answer_style=style)
-                    self.assertIn("行内公式只用 $TeX$", prompt)
-                    self.assertIn("行间公式只用 $$TeX$$", prompt)
-                    self.assertIn("不要用 \\(\\) 或 \\[\\]", prompt)
-                    self.assertIn("不要把公式放进反引号或代码块", prompt)
+                    self.assertIn("行內公式只使用 $TeX$", prompt)
+                    self.assertIn("行間公式只使用 $$TeX$$", prompt)
+                    self.assertIn("不要使用 \\(\\) 或 \\[\\]", prompt)
+                    self.assertIn("不要把公式放進反引號或程式碼區塊", prompt)
                     self.assertIn("不要在公式中插入空行", prompt)
 
     def test_ste_prompt_preserves_source_conditions_and_requirement_strength(self):
@@ -83,19 +83,19 @@ class AnswerStyleTest(unittest.TestCase):
             with self.subTest(engine=engine):
                 prompt = chat.prompt(self.ws, [{"role": "user", "content": "所有器件都能降低损耗吗？"}], None, "", engine, answer_style="ste100")
                 self.assertIn(source, prompt)
-                self.assertIn('“可能”不能改成“确定”', prompt)
-                self.assertIn('“建议”不能改成“必须”', prompt)
-                self.assertIn('“部分”不能改成“全部”', prompt)
-                self.assertIn("准确性优先于简短", prompt)
-                self.assertIn("不补造原文未说明", prompt)
+                self.assertIn('「可能」不能改成「確定」', prompt)
+                self.assertIn('「建議」不能改成「必須」', prompt)
+                self.assertIn('「部分」不能改成「全部」', prompt)
+                self.assertIn("準確性優先於簡短", prompt)
+                self.assertIn("不補造原文未說明", prompt)
 
     def test_long_paper_excerpt_is_bounded_and_keeps_late_results(self):
         blocks = [{"id": f"p{i}", "type": "para", "page": i + 1,
                    "en": f"Start{i}. " + "middle " * 2000 + f" Final{i}."} for i in range(50)]
         self.ws.update("paper", lambda p: p.update(blocks=blocks))
         excerpt = chat._paper_context(self.ws)
-        self.assertIn("正文节选", excerpt)
-        self.assertIn("不能视为已读", excerpt)
+        self.assertIn("正文節錄", excerpt)
+        self.assertIn("不能視為已讀", excerpt)
         self.assertIn("Start0.", excerpt)
         self.assertIn("Final49.", excerpt)
         self.assertLessEqual(len(excerpt.split("：\n\n", 1)[1]), chat.PAPER_BUDGET)
@@ -112,7 +112,7 @@ class AnswerStyleTest(unittest.TestCase):
     def test_partially_imported_paper_identifies_missing_pages(self):
         self.ws.update("paper", lambda p: p.update(meta={"page_count": 12}, translation={"done_pages": [1, 2]}))
         text = chat._paper_context(self.ws)
-        self.assertIn("只完成整理 2 / 12 页", text)
+        self.assertIn("只完成整理 2 / 12 頁", text)
 
     def test_note_question_reply_keeps_chinese_answer_and_formula(self):
         write_json_atomic(self.ws.root / "reader.json", {"notes": {"n1": {"id": "n1", "anchor": "b", "kind": "question", "body": "explain"}}})

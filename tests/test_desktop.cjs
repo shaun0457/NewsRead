@@ -15,9 +15,18 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     relaunch() { this.relaunched = true; }, exit() { this.exited = true; },
   });
   const windows = [], launches = [], menus = [], stages = [], handlers = new Map();
-  const ipcMain = { handle(name, fn) { handlers.set(name, fn); } };
+  const ipcMain = new EventEmitter();
+  ipcMain.handle = (name, fn) => handlers.set(name, fn);
   class Window extends EventEmitter {
-    constructor() { super(); this.webContents = new EventEmitter(); this.webContents.setWindowOpenHandler = () => {}; this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" }; windows.push(this); }
+    constructor() {
+      super();
+      this.webContents = new EventEmitter();
+      this.webContents.setWindowOpenHandler = () => {};
+      this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" };
+      this.webContents.isDestroyed = () => false;
+      this.webContents.send = channel => { queueMicrotask(() => ipcMain.emit("easyread:page-saved", { sender: this.webContents, senderFrame: this.webContents.mainFrame })); };
+      windows.push(this);
+    }
     static getAllWindows() { return windows.filter(w => !w.closed); }
     async loadURL(url) { this.url = url; }
     show() { this.shown = true; }
