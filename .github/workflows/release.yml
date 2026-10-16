@@ -21,6 +21,8 @@ jobs:
             os: windows-latest
           - name: Linux
             os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -55,6 +57,8 @@ jobs:
             dist/electron/*.blockmap
             dist/electron/latest*.yml
             dist/electron/*.AppImage
+            dist/electron/*.dmg
+            dist/electron/*.dmg.blockmap
           if-no-files-found: error
 
   release:
@@ -77,11 +81,13 @@ jobs:
             release-assets/**/*.blockmap
             release-assets/**/latest*.yml
             release-assets/**/*.AppImage
+            release-assets/**/*.dmg
+            release-assets/**/*.dmg.blockmap
           generate_release_notes: false
           body: |
             ## PaperRead ${{ github.ref_name }}
 
-            Windows x64 installer and Linux x64 AppImage are attached to this release.
+            Windows x64 installer, macOS arm64 DMG, and Linux x64 AppImage are attached to this release.
 
             Docker browser edition:
 
