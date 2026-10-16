@@ -56,6 +56,7 @@
 <div id="scrim"></div>
 
 <main id="stage">
+  <aside id="margin-left" aria-label="我的註記"></aside>
   <article id="paper" lang="zh-CN"></article>
   <aside id="margin" aria-label="讨论与笔记"></aside>
 </main>
@@ -69,6 +70,12 @@
     <label class="pv-follow" title="左右双向跟随阅读位置"><input type="checkbox" checked> 跟随</label>
     <a class="btn sm" data-pv="pdf" target="_blank" rel="noopener">PDF</a>
     <button class="btn icon" data-pv="close" title="关闭（O）">×</button>
+  </div>
+  <div class="pv-zoom" role="group" aria-label="PDF 缩放">
+    <button class="btn icon" data-pv-zoom="out" title="缩小 PDF">−</button>
+    <span class="pv-zoom-value" aria-live="polite">100%</span>
+    <button class="btn icon" data-pv-zoom="in" title="放大 PDF">+</button>
+    <button class="btn sm" data-pv-zoom="fit" title="恢复适合宽度">适合宽度</button>
   </div>
   <div class="pv-scroll"><div class="pv-page"><img alt=""><div class="pv-hl"></div></div></div>
 </section>
@@ -99,6 +106,7 @@
 <script src="/web/js/common/theme.js"></script>
 <script src="/web/js/common/markup.js"></script>
 <script src="/web/js/reader/store.js"></script>
+<script src="/web/js/reader/annotation-history.js"></script>
 <script src="/web/js/reader/render.js"></script>
 <script src="/web/js/reader/sentences.js"></script>
 <script src="/web/js/reader/margin.js"></script>
@@ -107,6 +115,7 @@
 <script src="/web/js/reader/editor.js"></script>
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/reading-language.js"></script>
+<script src="/web/js/reader/page-zoom.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
 <script src="/web/js/reader/planner.js"></script>
 <script src="/web/js/reader/side-resize.js"></script>
@@ -115,6 +124,8 @@
 <script src="/web/js/reader/chat.js"></script>
 <script src="/web/js/reader/notehelp.js"></script>
 <script src="/web/js/reader/jumpback.js"></script>
+<script src="/web/js/reader/find.js"></script>
+<script src="/web/js/reader/progress.js"></script>
 <script src="/web/js/reader/keys.js"></script>
 <script src="/web/js/reader/export.js"></script>
 <script src="/web/js/common/settings-models.js"></script>

@@ -66,7 +66,7 @@
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     const q = L.q.trim().toLowerCase();
     let list = L.items.filter(view[3]);
-    if (L.tag) list = list.filter((i) => i.tags.includes(L.tag));
+    if (L.tag) list = list.filter((i) => !i.archived && (i.tags || []).includes(L.tag));
     if (q) list = list.filter((i) => [i.title_zh, i.title_en, i.authors, i.venue, i.arxiv, i.abstract, (i.tags || []).join(" "), i.year]
       .join(" ").toLowerCase().includes(q));
     const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => PR.titles(i).main };
@@ -80,7 +80,9 @@
     const status = (L.statuses || []).find((s) => s.id === (i.status || "unread"));
     const state = i.status === "paused" ? "unread" : (i.status || "unread");
     const m = { unread: PR.t("待閱讀"), reading: PR.t("閱讀中"), organizing: PR.t("待整理"), done: PR.t("已完成") };
-    return '<span class="pill ' + state + '">' + PR.esc(status && status.id !== "paused" ? PR.t(status.label) : PR.t(m[state] || m.unread)) + "</span>";
+    const basePill = '<span class="pill ' + state + '">' + PR.esc(status && status.id !== "paused" ? PR.t(status.label) : PR.t(m[state] || m.unread)) + "</span>";
+    if (i.archived) return '<span class="pill archived">' + PR.t("已封存") + "</span>" + basePill;
+    return basePill;
   }
   L.jobLine = function (i) {
     const j = i.job;
@@ -125,6 +127,7 @@
     else PR.renderDetail && PR.renderDetail();
   };
   function emptyHtml() {
+    if (L.view === "archived") return '<div class="empty-state"><div class="big">' + PR.t("封存区是空的") + "</div>" + PR.t("可以將已看完或暫不需要的論文拖曳到左側「已封存」，或在選單中封存。") + "</div>";
     if (L.items.length) return '<div class="empty-state"><div class="big">' + PR.t("没有符合条件的论文") + "</div>" + PR.t("换个关键词或筛选试试。") + "</div>";
     const ok = L.engineReady;
     return '<div class="welcome">' + PR.logo("hero") + "<h2>" + PR.t("把英文论文，读成舒服的中文") + "</h2>" +

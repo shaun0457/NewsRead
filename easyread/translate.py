@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import consistency, engines, front_context, langs, netcheck, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
+from . import consistency, engines, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
 from .checks import block_problems, tex_problems
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
@@ -189,15 +189,19 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         raise engines.EngineError(tr("模型没有整理出任何内容") if read else tr("模型没有译出任何内容"))
     with _merge_lock:
         data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
+        missing = page_check.missing_pages(ws, batch, data)  # 有的页有内容、有的页整页漏了：漏的页不算译完
+        keep = [n for n in batch if n not in missing]
         # Figures remain placeholders; inspect the source PDF instead of cropping.
         _unify_terms(ws, data, batch)
         drop = _one_references(ws, data, batch)
-        merge_blocks(ws, data, done=batch, replace_pages=batch, en_only=read, drop_ids=drop)
+        merge_blocks(ws, data, done=keep, replace_pages=keep, en_only=read, drop_ids=drop)
         _save_checks(ws, data.get("checks"), batch)
         try:
             pdfwork.locate(ws.root)
         except Exception:  # noqa: BLE001 —— 定位失败不影响阅读
             log.exception("locate 失败 %s", ws.id)
+    if missing:
+        raise page_check.MissingPages(missing)
 
 
 def _one_references(ws: Workspace, data: dict, batch: list[int]) -> list[str]:
@@ -315,24 +319,32 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             # 每段第一批、上一页还没有译文（同时在别的段里译，或从没译过）：给原文的前文参考
             front = batch is lanes[lane_of[batch[0]]][0] and batch[0] > 1 and (p not in had or skip_head)
         say()
-        err = None
+        err, todo = None, batch
         for attempt in range(2):
             try:
-                if batch[0] in en_pages:
-                    _fill_batch(ws, cfg, batch, cancel, say, meter)
-                else:
+                if todo[0] in en_pages:
+                    _fill_batch(ws, cfg, todo, cancel, say, meter)
+                elif todo is batch:
                     _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek, front)
+                else:  # 只重译这批里漏掉的页：前面的页已经并进去了，不用再跳过页首续文
+                    _one_batch(ws, cfg, todo, total_pages, cancel, say, meter, read)
                 with lock:
-                    state["ok"].update(batch)
-                journal(ws, tr("{pages} 完成", pages=label(batch)))
+                    state["ok"].update(todo)
+                journal(ws, tr("{pages} 完成", pages=label(todo)))
                 err = None
                 break
+            except page_check.MissingPages as e:
+                with lock:
+                    state["ok"].update(n for n in todo if n not in e.pages)
+                todo = e.pages
+                err = tr("模型漏译了这一页")
+                journal(ws, tr("{pages} 模型整页漏译，单独再译一次", pages=label(todo)))
             except engines.Cancelled:
                 raise
             except Exception as e:  # noqa: BLE001
                 err = str(e) if isinstance(e, engines.EngineError) else f"{type(e).__name__}: {e}"
-                journal(ws, tr("{pages} 第 {n} 次失败：{err}", pages=label(batch), n=attempt + 1, err=err[:500]))
-                log.warning("翻译失败 %s %s: %s", ws.id, batch, err[:300])
+                journal(ws, tr("{pages} 第 {n} 次失败：{err}", pages=label(todo), n=attempt + 1, err=err[:500]))
+                log.warning("翻译失败 %s %s: %s", ws.id, todo, err[:300])
                 if cancel.is_set():
                     raise engines.Cancelled()
                 if _QUOTA.search(err) or netcheck.offline(err):
@@ -343,7 +355,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             state["active"].discard(tuple(batch))
             state["done"] += len(batch)
             if err:
-                for n in batch:
+                for n in todo:
                     failed[n] = err[:300]
         say()
 

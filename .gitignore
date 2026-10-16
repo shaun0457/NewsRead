@@ -26,6 +26,8 @@ dist/
 /docs/tasks/
 .pytest_cache/
 .paperread-local-test/
+.agents/
+.seecode/
 
 # Internal planning documents (kept locally, never published)
 docs/personal-research-os.md

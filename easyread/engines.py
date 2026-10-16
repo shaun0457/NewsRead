@@ -242,6 +242,19 @@ def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None
     return openai_api.complete(c, prompt, images, cancel, meter)
 
 
+# 单反斜杠的常见 TeX 命令（\frac、\beta、\theta、\text、\nabla、\rho 等），
+# 因 \f \b \t \n \r 在 JSON 是合法控制转义，json.loads 不会报错但会把反斜杠吃成控制字符。
+_TEX_CTRL = re.compile(
+    r'(?<!\\)(\\\\)*\\(?=(?:'
+    r'[bf][a-zA-Z]|'
+    r't(?:ext|heta|au\b|imes\b|ilde|o\b|op\b|riangle|anh\b|an\b|frac\b|herefore\b)|'
+    r'r(?:ho\b|ight|angle\b|ceil\b|floor\b|m\b|eal\b)|'
+    r'n(?:abla\b|eq?\b|u\b|ot|i\b|orm\b|atural\b|eg\b|mid\b|parallel\b)'
+    r'))'
+)
+_BAD_ESCAPE = re.compile(r'(?<!\\)(\\\\)*\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})')
+
+
 def parse_json(text: str):
     """从模型输出里取出 JSON（容忍 ```json 围栏和前后废话）。"""
     t = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()  # 推理模型（deepseek-r1、qwen3）先输出的思考过程
@@ -250,7 +263,7 @@ def parse_json(text: str):
     for s in (t, *(m.group(1).strip() for m in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", t))):
         start = min([i for i in (s.find("{"), s.find("[")) if i >= 0], default=-1)
         if start >= 0:
-            bodies.append(s[start:max(s.rfind("}"), s.rfind("]")) + 1])
+            bodies.append(_TEX_CTRL.sub(r"\g<0>\\", s[start:max(s.rfind("}"), s.rfind("]")) + 1]))
     if not bodies:
         raise EngineError(tr("模型输出里没有 JSON：{text}", text=text[:200]))
     first = None
@@ -261,7 +274,7 @@ def parse_json(text: str):
             first = first or e
     body = bodies[0]
     # 常见毛病：TeX 反斜杠没写成两个（\alpha、\sum）、字符串里有原样换行
-    fixed = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", body)
+    fixed = _BAD_ESCAPE.sub(r"\g<0>\\", body)
     try:
         return json.loads(fixed, strict=False)
     except json.JSONDecodeError:

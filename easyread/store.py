@@ -166,8 +166,10 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
         elif kind == "progress":
             if _newer(at, progress.get("at")):
                 progress.update({"block": op.get("block"), "at": at})
-                if op.get("ratio") is not None:
-                    progress["ratio"] = op["ratio"]
+                progress.pop("off", None)  # Older clients do not send a block offset.
+                for key in ("ratio", "off"):  # off：线在块里的位置，长段落靠它落回原处
+                    if op.get(key) is not None:
+                        progress[key] = op[key]
             applied.append("progress")
     if applied:
         reader["rev"] = int(reader.get("rev", 0)) + 1
@@ -191,6 +193,26 @@ class Workspace:
     reader_path = property(lambda s: s.root / "reader.json")
     item_path = property(lambda s: s.root / "item.json")
     journal_path = property(lambda s: s.root / "history" / "reader.log.jsonl")
+
+    @property
+    def source_pdf(self) -> Path:
+        """Original PDF only: generated files remain inside this workspace."""
+        meta = (self.load("paper") or {}).get("meta", {})
+        linked = meta.get("source_pdf_path")
+        if not linked:
+            return self.root / "source.pdf"
+        path = Path(linked)
+        if not path.is_absolute() or not path.is_file():
+            from .i18n import tr
+            raise ValueError(tr("链接的 PDF 不存在或不可读：{path}；请恢复原文件到此位置", path=str(path)))
+        try:
+            with path.open("rb") as stream:
+                if not stream.read(4).startswith(b"%PDF"):
+                    raise ValueError
+        except (OSError, ValueError):
+            from .i18n import tr
+            raise ValueError(tr("链接的 PDF 不存在或不可读：{path}；请恢复原文件到此位置", path=str(path))) from None
+        return path
 
     def load(self, name: str):
         defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}}

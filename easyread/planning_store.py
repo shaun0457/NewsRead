@@ -88,6 +88,8 @@ def _connect(root: Path):
     columns = {r[1] for r in db.execute("PRAGMA table_info(saved_papers)")}
     if "manual_order" not in columns:
         db.execute("ALTER TABLE saved_papers ADD COLUMN manual_order INTEGER NOT NULL DEFAULT 0")
+    if "archived" not in columns:
+        db.execute("ALTER TABLE saved_papers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     candidate_columns = {r[1] for r in db.execute("PRAGMA table_info(candidates)")}
     for name, declaration in (("summary_markdown", "TEXT NOT NULL DEFAULT ''"), ("summary_model", "TEXT NOT NULL DEFAULT ''"), ("summary_updated", "TEXT NOT NULL DEFAULT ''"), ("summary_status", "TEXT NOT NULL DEFAULT ''"), ("summary_error", "TEXT NOT NULL DEFAULT ''")):
         if name not in candidate_columns:
@@ -187,6 +189,7 @@ def _saved(row):
     d["metadata"] = json.loads(d.pop("metadata_json"))
     d["plan"] = json.loads(d.pop("plan_json") or "{}")
     d["interested"] = bool(d["interested"])
+    d["archived"] = bool(d.get("archived", 0))
     try:
         cats = json.loads(d.get("category") or "[]")
         d["categories"] = cats if isinstance(cats, list) else [str(cats)]
@@ -407,7 +410,7 @@ def summary_trash_count(root: Path) -> int:
 
 
 def update_saved(root: Path, paper_key: str, **fields):
-    allowed = {"pdf_state", "pdf_error", "library_id", "status", "category", "plan_json", "interested", "manual_order"}
+    allowed = {"pdf_state", "pdf_error", "library_id", "status", "category", "plan_json", "interested", "manual_order", "archived"}
     sets = [f"{k}=?" for k in fields if k in allowed]
     values = [fields[k] for k in fields if k in allowed]
     if not sets:

@@ -42,6 +42,7 @@
         (en ? '<button class="btn sm accent" data-d="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }) + "</button>" : "") +
         (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? (j.state === "error" ? PR.t("重试整理原文") : PR.t("继续整理剩下的页")) : i.done_pages ? PR.t("继续翻译剩下的页") : PR.t("开始翻译")) + "</button>" : "") +
         (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : PR.t("继续翻译剩下的页")) + "</button>" : "") +
+        (!full && i.todo ? '<button class="btn sm line" data-d="pick-pages">' + PR.t("选页翻译…") + "</button>" : "") +
         (j.state ? '<button class="btn sm" data-d="log">' + PR.icon("log", "sm") + PR.t("翻译记录") + "</button>" : "") + "</div>" +
         (L.engine === "none" ? '<div class="hint" style="margin-top:6px">' + PR.t("当前没有开启翻译引擎，去设置里选一个。") + "</div>" : "");
     }
@@ -67,11 +68,13 @@
     const cats = L.cats().map((c) => '<button class="catchip' + ((i.tags || []).includes(c) ? " on" : "") + '" data-cattoggle="' + PR.esc(c) + '">' + PR.icon((i.tags || []).includes(c) ? "check" : "folder", "sm") + PR.esc(c) + "</button>").join("");
     box.innerHTML = '<div class="detail-head"><span>' + PR.t("论文详情") + '</span><button class="detail-close" data-d="close" title="' + PR.t("收起（Esc）") + '">' + PR.icon("x", "sm") + "</button></div>" +
       '<div class="detail-inner">' +
+      (i.archived ? '<div class="archived-banner">' + PR.icon("archive", "sm") + '<span>' + PR.t("此論文目前已封存，不會出現在閱讀看板中。") + '</span><button class="btn sm accent" data-d="unarchive">' + PR.t("恢復論文") + '</button></div>' : "") +
       '<div class="cover">' + thumb + '<div class="actions">' +
       '<a class="btn accent" href="/read/' + i.id + '">' + PR.icon("book", "sm") + readLabel + "</a>" +
       '<a class="btn line" href="/p/' + i.id + '/source.pdf" target="_blank" rel="noopener">' + PR.icon("pdf", "sm") + PR.t("打开原 PDF") + "</a>" +
       '<div class="act-row"><button class="btn line" data-d="cite" title="' + PR.t("复制参考文献格式：GB/T 7714、APA、BibTeX") + '">' + PR.icon("copy", "sm") + PR.t("复制引用") + "</button>" +
       '<button class="btn icon line" data-d="star" title="' + PR.t("星标（S）") + '" style="color:' + (i.starred ? "#c9a24a" : "") + '">' + PR.icon("star", "sm").replace('class="i sm"', 'class="i sm"' + (i.starred ? ' style="fill:currentColor"' : "")) + "</button>" +
+      '<button class="btn icon line' + (i.archived ? " on" : "") + '" data-d="archive" title="' + (i.archived ? PR.t("移出封存（恢復）") : PR.t("封存論文（移出看板）")) + '">' + PR.icon("archive", "sm") + "</button>" +
       '<button class="btn icon line" data-d="more" title="' + PR.t("更多：导出、打开文件夹、回收站") + '">' + PR.icon("more", "sm") + "</button></div></div></div>" +
       titleFields(i) +
       '<div class="cats">' + cats + '<button class="catchip add" data-d="newcat">' + PR.icon("plus", "sm") + PR.t("新分类") + "</button>" +
@@ -133,6 +136,12 @@
     if (act === "newcat") { d.hidden = true; const inp = PR.$("#catInput"); inp.hidden = false; inp.focus(); return; }
     if (act === "close") L.select(null);
     else if (act === "star") L.patch(i.id, { starred: !i.starred });
+    else if (act === "archive") {
+      const willArchive = !i.archived;
+      L.patch(i.id, { archived: willArchive });
+      PR.toast(willArchive ? PR.t("已移至封存區") : PR.t("已解除封存，恢復當時狀態"));
+    }
+    else if (act === "unarchive") { L.patch(i.id, { archived: false }); PR.toast(PR.t("已解除封存，恢復當時狀態")); }
     else if (act === "read") L.openReader(i.id);
     else if (act === "model-settings") PR.openSettings("chat");
     else if (act === "abs") { PR.$("#abs").classList.toggle("open"); d.textContent = PR.$("#abs").classList.contains("open") ? PR.t("收起") : PR.t("展开全文"); }
@@ -148,6 +157,7 @@
     else if (act === "cancel") { await PR.api("/api/p/" + i.id + "/cancel", { method: "POST", body: {} }); L.load(); }
     else if (act === "retry-failed") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { failed: true } }); PR.toast(PR.t("正在重试")); L.load(); }
     else if (act === "log") { const r = await PR.api("/api/p/" + i.id + "/log"); PR.showText(PR.t("翻译记录"), r.text); }
+    else if (act === "pick-pages") PR.pickPages(i, d);
     else if (act === "translate") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: {} }); PR.toast(PR.t("已开始翻译")); L.load(); }
     else if (act === "translate-en") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { en: true } }); PR.toast(PR.t("已开始翻译，笔记和划线都保留")); L.load(); }
     else if (act === "read-rest") {
@@ -171,6 +181,11 @@
       { label: PR.t("打开原 PDF"), icon: "pdf", fn: () => window.open("/p/" + id + "/source.pdf") },
       "-",
       { label: i.starred ? PR.t("取消星标") : PR.t("加星标"), icon: "star", kbd: "S", fn: () => L.patch(id, { starred: !i.starred }) },
+      { label: i.archived ? PR.t("移出封存（恢復）") : PR.t("封存論文"), icon: "archive", fn: () => {
+        const willArchive = !i.archived;
+        L.patch(id, { archived: willArchive });
+        PR.toast(willArchive ? PR.t("已移至封存區") : PR.t("已解除封存，恢復當時狀態"));
+      } },
       { label: L.side.pinned.includes("p:" + id) ? PR.t("取消置顶") : PR.t("置顶到侧栏"), icon: "pin", fn: () => L.togglePin("p:" + id) },
       "-",
       ...L.catMenuItems(id),

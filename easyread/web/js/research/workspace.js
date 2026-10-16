@@ -3,7 +3,7 @@
   "use strict";
   const API = "/api/research/v2";
   const S = { items: [], saved: [], candidates: [], summaries: [], comparisons: [], statuses: [], categories: [], tab: "board", mode: "topic",
-    results: [], authors: [], selectedAuthor: null, resultKind: "works", resultAuthor: "", relationRequest: null, hasMore: false, error: "", errorAction: "", checked: new Set(), page: 1, filters: { category: "", status: "", interested: false, pdf: "" }, sort: "manual",
+    results: [], authors: [], selectedAuthor: null, resultKind: "works", resultAuthor: "", relationRequest: null, hasMore: false, error: "", errorAction: "", checked: new Set(), page: 1, filters: { category: "", status: "", interested: false, pdf: "" }, sort: "added",
     venueQuery: "", venueOptions: [], venueSelected: [], venueWarning: "", venueBusy: false, resultFilters: null, exploreSort: "relevance_score:desc", yearFrom: "", yearTo: "", onlyOA: false, searchReason: "", filterExpanded: false,
     compareTask: null, compareProposal: null, comparePoll: "",
     compareSelection: new Set(), compareSetupOpen: false, boardExpanded: new Set(), pathGoalPreset: "foundations",
@@ -27,8 +27,16 @@
   const normalizeDoi = (value) => String(value || "").trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").split(/[?#]/, 1)[0].toLowerCase();
   const normalizeArxiv = (value) => String(value || "").trim().replace(/^https?:\/\/(www\.)?arxiv\.org\/(abs|pdf)\//i, "").replace(/^arxiv:/i, "").replace(/v\d+$/i, "").replace(/\.pdf$/i, "").toLowerCase();
   const canonicalOpenAlex = (value) => (String(value || "").match(/(?:openalex\.org\/)?(W\d+)\/?$/i) || [])[1]?.toUpperCase() || "";
-  const paperKey = (w) => w.doi ? "doi:" + String(w.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase() : w.arxiv ? "arxiv:" + String(w.arxiv).replace(/v\d+$/i, "").toLowerCase() : workId(w) ? "openalex:" + workId(w) : "title:" + normalizedTitle(w);
-  const samePaper = (a, b) => Boolean(a && b && paperKey(a) === paperKey(b));
+  const paperKey = (w) => (w && (w.paper_key || w.key)) ? (w.paper_key || w.key) : w?.doi ? "doi:" + String(w.doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase() : w?.arxiv ? "arxiv:" + String(w.arxiv).replace(/v\d+$/i, "").toLowerCase() : workId(w || {}) ? "openalex:" + workId(w) : "title:" + normalizedTitle(w || {});
+  const samePaper = (a, b) => {
+    if (!a || !b) return false;
+    if (a.doi && b.doi && normalizeDoi(a.doi) === normalizeDoi(b.doi)) return true;
+    if (a.arxiv && b.arxiv && normalizeArxiv(a.arxiv) === normalizeArxiv(b.arxiv)) return true;
+    const aOa = canonicalOpenAlex(a.openalex_id || a.id), bOa = canonicalOpenAlex(b.openalex_id || b.id);
+    if (aOa && bOa && aOa === bOa) return true;
+    const aTitle = normalizedTitle(a), bTitle = normalizedTitle(b);
+    return paperKey(a) === paperKey(b) || (Boolean(aTitle) && aTitle === bTitle);
+  };
   const candidateFor = (work) => S.candidates.find((c) => samePaper(c.paper, work));
   const savedFor = (work) => S.saved.find((item) => samePaper(item.metadata || {}, work));
   const dateText = (v) => v ? new Date(v + "T00:00:00").toLocaleDateString(PR.lang === "en" ? "en-US" : "zh-TW", { month: "numeric", day: "numeric" }) : "";
@@ -43,6 +51,77 @@
       seen.add(key); output.push(token);
     }
     return output.join(" ");
+  }
+  function cleanTopicQuery(title) {
+    if (!title) return "";
+    let s = String(title).trim();
+    const colonMatch = s.match(/^([A-Za-z0-9_.-]{2,25})\s*:\s*(.+)$/);
+    if (colonMatch) {
+      const prefix = colonMatch[1], rest = colonMatch[2];
+      if (rest.length >= 10 && !/^(?:a|an|the|on|towards?)\b/i.test(prefix)) {
+        s = rest;
+      }
+    }
+    s = s.replace(/^(?:a|an|the)\s+/i, "");
+    s = s.replace(/^(?:towards?|on|about)\s+/i, "");
+    s = s.replace(/^(?:understanding|exploring|investigating|evaluating|advancing|benchmarking|rethinking|improving)\s+/i, "");
+    s = s.replace(/^(?:novel|new|efficient|effective|scalable|robust|unified|comprehensive|empirical|comparative|systematic|exploratory)\s+/i, "");
+    s = s.replace(/^(?:approach|framework|study|survey|analysis|method|methodology|investigation|evaluation|perspective|architecture|system|paradigm)\s+(?:for|to|on|of|in)\s+/i, "");
+    s = s.replace(/^(?:for|to|on|of|in)\s+/i, "");
+    s = s.replace(/^(?:a|an|the)\s+/i, "");
+    s = s.replace(/[:\-–—]\s*(?:an?\s+)?(?:novel|empirical|comprehensive|systematic|comparative)?\s*(?:approach|framework|study|survey|analysis|perspective|review|benchmarking?|tutorial)\s*$/i, "");
+    s = s.replace(/\s+/g, " ").trim();
+    return s || String(title).trim();
+  }
+  const relationTargetId = (work) => {
+    const m = String(work?.openalex_id || work?.id || "").match(/W\d+/);
+    if (m) return m[0];
+    if (work?.doi) return "doi:" + normalizeDoi(work.doi);
+    if (work?.arxiv) return "arxiv:" + normalizeArxiv(work.arxiv);
+    return "";
+  };
+  function renderRelationHero() {
+    if (!S.relation || !S.relationRequest) return "";
+    const rel = S.relationRequest.relation || "related";
+    const title = S.relationRequest.title || PR.t("指定論文");
+    const relLabels = [
+      { id: "related", label: PR.t("相關研究 (Related)") },
+      { id: "cited-by", label: PR.t("被引用 (Citations)") },
+      { id: "references", label: PR.t("參考文獻 (References)") },
+    ];
+    const tabs = relLabels.map((item) =>
+      '<button type="button" class="btn sm ' + (rel === item.id ? "accent" : "line") + '" data-action="change-relation" data-relation="' + item.id + '"' + (rel === item.id ? ' aria-current="page"' : '') + '>' + item.label + '</button>'
+    ).join(" ");
+
+    const topicList = S.relationRequest.topics || [];
+    const kwList = S.relationRequest.keywords || [];
+    const aiKwList = S.relationRequest.aiKeywords || [];
+
+    let pillsHtml = "";
+    if (topicList.length || kwList.length || aiKwList.length) {
+      const kwItems = [];
+      if (aiKwList.length) {
+        kwItems.push('<span class="rw-relation-kw-label">' + PR.t("AI 提煉：") + '</span>');
+        for (const kw of aiKwList) {
+          kwItems.push('<button type="button" class="rw-keyword-pill ai" data-action="apply-single-kw" data-kw="' + escAttr(kw) + '" title="' + PR.t("以「{kw}」搜尋相關論文", { kw: esc(kw) }) + '">✨ ' + esc(kw) + '</button>');
+        }
+      }
+      if (topicList.length || kwList.length) {
+        kwItems.push('<span class="rw-relation-kw-label">' + PR.t("推薦主題：") + '</span>');
+        const standardList = [...topicList.slice(0, 3), ...kwList.slice(0, 5)];
+        for (const kw of standardList) {
+          kwItems.push('<button type="button" class="rw-keyword-pill" data-action="apply-single-kw" data-kw="' + escAttr(kw) + '" title="' + PR.t("以「{kw}」搜尋相關論文", { kw: esc(kw) }) + '">' + esc(kw) + '</button>');
+        }
+      }
+      pillsHtml = '<div class="rw-relation-keywords">' + kwItems.join(" ") + '</div>';
+    }
+
+    const aiBtnLabel = S.aiDistillBusy
+      ? '<i class="spin"></i> ' + PR.t("正在提煉…")
+      : PR.t("AI 提煉主題關鍵字");
+    const aiBtn = '<button type="button" class="btn sm line" data-action="ai-distill-keywords"' + (S.aiDistillBusy ? ' disabled aria-busy="true"' : '') + '>' + aiBtnLabel + '</button>';
+
+    return '<section class="rw-relation-hero"><div class="rw-relation-hero-main"><span class="rw-chip oa">' + PR.t("以文探索研究") + '</span><h3>' + esc(title) + '</h3><div class="rw-relation-tabs">' + tabs + '</div>' + pillsHtml + '</div><div class="rw-relation-hero-actions">' + aiBtn + '<button type="button" class="btn sm line" data-action="switch-to-topic-search">' + PR.t("改用關鍵字搜尋") + '</button></div></section>';
   }
   function pathGoalOptions() {
     return [
@@ -64,7 +143,14 @@
       if (S.tab === "comparisons") {
         refreshComparisons().catch((error) => { S.comparisonError = error.message || String(error); renderComparisons(); });
       }
-      if (S.query) await search();
+      if (S.tab === "explore") {
+        if (S.relationTarget) {
+          const { id, relation, title, doi } = S.relationTarget;
+          await loadRelation(id, relation, title, doi);
+        } else if (S.query) {
+          await search();
+        }
+      }
       poll();
     } catch (e) {
       const alerts = $("#rw-alerts");
@@ -110,11 +196,12 @@
   }
   function renderExplore() {
     const host = $("[data-view='explore']");
+    const relationHero = renderRelationHero();
     const modeButtons = [["topic", "主題探索"], ["conference", "會議／期刊"]] // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
       .map(([id, label]) => '<button data-mode="' + id + '" class="' + (S.mode === id ? "on" : "") + '">' + label + "</button>").join("");
     let extra = "";
     if (S.mode === "conference") extra = '<span class="rw-source">可輸入一個或多個來源，例如 ICCV、ECCV、CVPR。</span>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
-    let html = '<div class="rw-panel"><form class="rw-toolbar" id="rw-search"><div class="rw-mode">' + modeButtons + '</div>' +
+    let html = relationHero + '<div class="rw-panel"><form class="rw-toolbar" id="rw-search"><div class="rw-mode">' + modeButtons + '</div>' +
       '<input class="rw-search" id="rw-query" placeholder="' + (S.mode === "conference" ? "研究主題或關鍵字（可留空）" : "輸入研究概念或問題") + '" value="' + escAttr(S.query || "") + '">' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
       '<input id="rw-year-from" type="number" min="1800" max="2100" aria-label="起始年份" placeholder="起始年" value="' + escAttr(S.yearFrom || "") + '" style="width:94px"><input id="rw-year-to" type="number" min="1800" max="2100" aria-label="結束年份" placeholder="結束年" value="' + escAttr(S.yearTo || "") + '" style="width:94px"><label class="rw-check"><input type="checkbox" id="rw-oa"' + (S.onlyOA ? " checked" : "") + '>有公開 PDF</label><select id="rw-sort"><option value="relevance_score:desc"' + (S.exploreSort === "relevance_score:desc" ? " selected" : "") + '>相關性</option><option value="publication_date:desc"' + (S.exploreSort === "publication_date:desc" ? " selected" : "") + '>最新</option><option value="cited_by_count:desc"' + (S.exploreSort === "cited_by_count:desc" ? " selected" : "") + '>引用數</option></select>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
        (S.mode === "topic" ? '<button class="btn line" type="button" data-action="ai-query">AI 產生搜尋關鍵字</button>' : '') + '<button class="btn accent" type="submit">搜尋</button></form>' + renderSourceFilter() + (S.mode === "conference" ? extra + '<div class="rw-source">' + PR.t("OpenAlex 書目資料可用於篩選出版來源；需核對正式出版狀態時，卡片會保留可查證的來源與 DOI 資訊。") + '</div>' : '<div class="rw-source">' + PR.t("主題搜尋以 OpenAlex 公開書目資料為基礎；引用關係的涵蓋範圍依資料來源而異。") + '</div>') + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
@@ -164,7 +251,9 @@
     const key = paperKey(w), inCandidate = Boolean(candidateFor(w));
     const citations = w.cited_by_count == null ? PR.t("引用數未提供") : PR.t("引用 {n}", { n: Number(w.cited_by_count).toLocaleString() }); // i18n-ok: Research 工作區依產品規格固定使用繁體中文。
     const metadata = [w.authors, w.year, w.venue, citations].filter(Boolean).map(esc).join(" · ");
-    return '<article class="rw-card rw-paper"><h3>' + esc(w.title) + '</h3><div class="meta">' + metadata + '</div><div>' + (w.pdf_url ? '<span class="rw-chip oa">有公開 PDF</span>' : w.is_oa ? '<span class="rw-chip">可公開取用，PDF 未確認</span>' : '<span class="rw-chip">公開 PDF 未確認</span>') + (w.publication_type ? '<span class="rw-chip">書目類型：' + esc(w.publication_type) + '</span>' : "") + (inCandidate ? '<span class="rw-chip">候選論文</span>' : "") + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (w.recommendation_reason ? '<div class="rw-source"><span>' + PR.t("推薦依據：") + '</span> ' + esc(w.recommendation_reason) + '</div>' : "") + '<div class="rw-source"><span>' + PR.t("資料來源：") + '</span> ' + esc((w.sources || [w.source || "OpenAlex"]).join("、")) + ' · ' + esc(S.checkedAt || "") + '</div><div class="actions">' + btn(inCandidate ? "移出候選" : "加入候選", "candidate", inCandidate ? "line" : "accent", 'data-key="' + escAttr(key) + '"') + (w.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(w.url) + '">論文來源</a>' : "") + "</div></article>"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    const targetId = relationTargetId(w);
+    const relationBtn = targetId ? btn(PR.t("關聯研究"), "explore-relation", "line", 'data-work="' + escAttr(targetId) + '" data-title="' + escAttr(w.title || "") + '" data-doi="' + escAttr(w.doi || "") + '"') : "";
+    return '<article class="rw-card rw-paper"><h3>' + esc(w.title) + '</h3><div class="meta">' + metadata + '</div><div>' + (w.pdf_url ? '<span class="rw-chip oa">有公開 PDF</span>' : w.is_oa ? '<span class="rw-chip">可公開取用，PDF 未確認</span>' : '<span class="rw-chip">公開 PDF 未確認</span>') + (w.publication_type ? '<span class="rw-chip">書目類型：' + esc(w.publication_type) + '</span>' : "") + (inCandidate ? '<span class="rw-chip">候選論文</span>' : "") + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (w.recommendation_reason ? '<div class="rw-source"><span>' + PR.t("推薦依據：") + '</span> ' + esc(w.recommendation_reason) + '</div>' : "") + '<div class="rw-source"><span>' + PR.t("資料來源：") + '</span> ' + esc((w.sources || [w.source || "OpenAlex"]).join("、")) + ' · ' + esc(S.checkedAt || "") + '</div><div class="actions">' + btn(inCandidate ? "移出候選" : "加入候選", "candidate", inCandidate ? "line" : "accent", 'data-key="' + escAttr(key) + '"') + relationBtn + (w.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(w.url) + '">論文來源</a>' : "") + "</div></article>"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
   }
   function renderCandidates() {
     const host = $("[data-view='candidates']"), records = S.candidates || [];
@@ -308,25 +397,37 @@
   function renderPath() {
     const host = $("[data-view='path']");
     const start = new URLSearchParams(location.search);
-    const topic = S.pathTopic ?? (start.get("mode") === "paper" ? "" : start.get("q") || "");
+    const startTitle = start.get("start_title") || start.get("title") || "";
+    const isFromPaper = Boolean(startTitle);
+    if (isFromPaper && !S.pathGoal && S.pathGoalPreset === "foundations") {
+      S.pathGoalPreset = "paper";
+    }
+    const topic = S.pathTopic ?? (isFromPaper && start.get("q") === startTitle ? "" : start.get("q") || "");
     const goals = pathGoalOptions();
     const selectedDefault = goals.find((item) => item.id === S.pathGoalPreset) || goals[0];
     const goal = S.pathGoal ?? selectedDefault.value;
     const selectedPreset = goals.find((item) => item.value === goal)?.id || (S.pathGoalPreset === "custom" ? "" : S.pathGoalPreset);
     const goalCards = goals.map((item) => '<button type="button" role="radio" class="rw-path-goal' + (selectedPreset === item.id ? ' is-selected' : '') + '" data-action="select-path-goal" data-goal="' + escAttr(item.id) + '" aria-checked="' + (selectedPreset === item.id) + '"><strong>' + esc(item.label) + '</strong><small>' + esc(item.description) + '</small></button>').join("");
-    const startTitle = start.get("start_title") || start.get("title") || "";
-    host.innerHTML = '<section class="rw-panel"><h2>規劃論文閱讀路徑</h2><p class="rw-source">以研究主題或目前論文為起點，AI 只會排序已取得的論文，並說明每篇的閱讀用途。</p><div class="rw-form-grid"><label class="rw-field wide"><span>研究主題</span><input id="rw-path-topic" value="' + escAttr(topic) + '" placeholder="例如：Long Video Understanding"></label>' + (startTitle ? '<div class="rw-field wide"><span>起點論文</span><strong>' + esc(startTitle) + '</strong></div>' : '') + '<div class="rw-field wide"><span>' + PR.t("研究目標") + '</span><div class="rw-path-goal-grid" role="radiogroup" aria-label="' + escAttr(PR.t("選擇研究目標")) + '">' + goalCards + '</div><p class="rw-source">' + PR.t("選擇一個主要目標，AI 會依此安排閱讀順序。") + '</p></div><label class="rw-field wide"><span>' + PR.t("研究目標（可修改）") + '</span><textarea id="rw-path-goal" rows="2" placeholder="' + escAttr(PR.t("也可以直接輸入自訂研究目標")) + '">' + esc(goal) + '</textarea></label></div><button class="btn accent" data-action="generate-path"' + (S.pathLoading ? ' disabled' : '') + '>' + (S.pathLoading ? '<i class="spin"></i> AI 正在整理閱讀順序…' : '產生閱讀路徑') + '</button></section>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      (S.pathError ? '<div class="rw-error">' + esc(S.pathError) + ' ' + btn("重試", "generate-path") + '</div>' : '') + (S.pathResults?.length ? '<div class="rw-path-list">' + S.pathResults.map((step, index) => '<article class="rw-card rw-path-card"><span class="rw-path-index">' + (index + 1) + '</span><div><span class="rw-chip">' + esc(step.role) + '</span><h3>' + esc(step.paper.title) + '</h3><p class="meta">' + esc([step.paper.year, step.paper.venue, step.paper.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || "未提供推薦理由。") + '</p><p class="rw-source">' + PR.t("根據已搜尋的論文資料排序；來源：{source}", { source: esc(step.paper.source || "OpenAlex") }) + '</p><div class="actions">' + btn("加入候選", "candidate", "line", 'data-key="' + escAttr(paperKey(step.paper)) + '" data-paper-index="' + index + '"') + (alreadyInLibrary(step.paper) ? '<a class="btn sm line" href="/read/' + escAttr(alreadyInLibrary(step.paper).id) + '">開啟閱讀</a>' : "") + '</div></div></article>').join("") + '</div>' : ""); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const placeholderTopic = isFromPaper ? PR.t("例如：Long Video Understanding（選填，直接以起點論文規劃可留空）") : PR.t("例如：Long Video Understanding");
+    host.innerHTML = '<section class="rw-panel"><h2>' + PR.t("規劃論文閱讀路徑") + '</h2><p class="rw-source">' + PR.t("以研究主題或目前論文為起點，AI 只會排序已取得的論文，並說明每篇的閱讀用途。") + '</p><div class="rw-form-grid"><label class="rw-field wide"><span>' + PR.t("研究主題") + '</span><input id="rw-path-topic" value="' + escAttr(topic) + '" placeholder="' + escAttr(placeholderTopic) + '"></label>' + (startTitle ? '<div class="rw-field wide"><span>' + PR.t("起點論文") + '</span><strong>' + esc(startTitle) + '</strong></div>' : '') + '<div class="rw-field wide"><span>' + PR.t("研究目標") + '</span><div class="rw-path-goal-grid" role="radiogroup" aria-label="' + escAttr(PR.t("選擇研究目標")) + '">' + goalCards + '</div><p class="rw-source">' + PR.t("選擇一個主要目標，AI 會依此安排閱讀順序。") + '</p></div><label class="rw-field wide"><span>' + PR.t("研究目標（可修改）") + '</span><textarea id="rw-path-goal" rows="2" placeholder="' + escAttr(PR.t("也可以直接輸入自訂研究目標")) + '">' + esc(goal) + '</textarea></label></div><button class="btn accent" data-action="generate-path"' + (S.pathLoading ? ' disabled' : '') + '>' + (S.pathLoading ? '<i class="spin"></i> ' + PR.t("AI 正在整理閱讀順序…") : PR.t("產生閱讀路徑")) + '</button></section>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      (S.pathError ? '<div class="rw-error">' + esc(S.pathError) + ' ' + btn(PR.t("重試"), "generate-path") + '</div>' : '') + (S.pathResults?.length ? '<div class="rw-path-list">' + S.pathResults.map((step, index) => {
+        const w = step.paper || {};
+        const key = paperKey(w);
+        const inCandidate = Boolean(candidateFor(w));
+        const inLib = alreadyInLibrary(w);
+        return '<article class="rw-card rw-path-card"><span class="rw-path-index">' + (index + 1) + '</span><div><span class="rw-chip">' + esc(step.role) + '</span>' + (inCandidate ? '<span class="rw-chip">' + PR.t("候選論文") + '</span>' : '') + '<h3>' + esc(w.title || PR.t("未命名論文")) + '</h3><p class="meta">' + esc([w.year, w.venue, w.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || PR.t("未提供推薦理由。")) + '</p><p class="rw-source">' + PR.t("根據已搜尋的論文資料排序；來源：{source}", { source: esc(w.source || "OpenAlex") }) + '</p><div class="actions">' + btn(inCandidate ? PR.t("移出候選") : PR.t("加入候選"), "candidate", inCandidate ? "line" : "accent", 'data-key="' + escAttr(key) + '" data-paper-index="' + index + '"') + (inLib ? '<a class="btn sm line" href="/read/' + escAttr(inLib.id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'data-key="' + escAttr(key) + '"')) + (w.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(w.url) + '">' + PR.t("論文來源") + '</a>' : '') + '</div></div></article>';
+      }).join("") + '</div>' : ""); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
-  function savedTask(s) { return { id: "saved:" + s.paper_key, saved_key: s.paper_key, paper_ref: s.paper_key, title: s.metadata.title, authors: s.metadata.authors, year: s.metadata.year, status: s.status, tags: s.categories || (s.category ? [s.category] : []), interested: s.interested, pdf_state: s.pdf_state, pdf_error: s.pdf_error, progress: 0, manual_order: s.manual_order || 0, saved: true, metadata: s.metadata }; }
+  function savedTask(s) { return { id: "saved:" + s.paper_key, saved_key: s.paper_key, paper_ref: s.paper_key, title: s.metadata.title, authors: s.metadata.authors, year: s.metadata.year, status: s.status, tags: s.categories || (s.category ? [s.category] : []), interested: s.interested, archived: Boolean(s.archived), pdf_state: s.pdf_state, pdf_error: s.pdf_error, progress: 0, manual_order: s.manual_order || 0, added: s.created || s.updated || "", saved: true, metadata: s.metadata }; }
   const taskRef = (item) => "paper:" + (item.saved_key || item.paper_ref || item.id);
-  function allTasks() { return [...S.items, ...S.saved.filter((x) => x.pdf_state !== "imported").map(savedTask)]; }
+  function allTasks() { return [...S.items.filter((x) => !x.archived), ...S.saved.filter((x) => x.pdf_state !== "imported" && !x.archived).map(savedTask)]; }
   function renderBoard() {
     const host = $("[data-view='board']"), all = allTasks();
     const category = S.filters.category, status = S.filters.status;
     let list = all.filter((i) => (!category || (i.tags || []).includes(category)) && (!status || i.status === status) && (!S.filters.interested || i.interested) && (!S.filters.pdf || (S.filters.pdf === "missing" ? i.saved || !(i.pages > 0) : i.pages > 0)));
     if (S.sort === "recent") list.sort((a,b) => String(b.last_opened || b.added || "").localeCompare(String(a.last_opened || a.added || "")));
-    else list.sort((a,b) => Number(a.manual_order || 0)-Number(b.manual_order || 0));
+    else if (S.sort === "manual") list.sort((a,b) => Number(a.manual_order || 0) - Number(b.manual_order || 0) || String(b.added || "").localeCompare(String(a.added || "")));
+    else list.sort((a,b) => String(b.added || "").localeCompare(String(a.added || "")));
     S.boardVisible = list;
     const columns = S.statuses.map((s) => {
       const columnItems = list.filter((x) => (x.status || "unread") === s.id);
@@ -337,7 +438,7 @@
     }).join(""); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const activeFilter = Boolean(category || status || S.filters.interested || S.filters.pdf);
     const activeLabels = [category && category, status && PR.t(statusLabel(status)), S.filters.pdf && PR.t(S.filters.pdf === "missing" ? "待補 PDF" : "已有 PDF"), S.filters.interested && PR.t("感興趣")].filter(Boolean); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    host.innerHTML = '<div class="rw-board-tools"><details class="rw-filter-details"' + (S.filterExpanded ? " open" : "") + '><summary><span class="rw-filter-title">篩選條件</span>' + (activeLabels.length ? '<span class="rw-filter-count">' + activeLabels.length + ' 項已套用</span><span class="rw-filter-active">' + activeLabels.map(esc).join(" · ") + '</span>' : '<span class="rw-filter-active">依分類、狀態、PDF 或感興趣篩選</span>') + '<span class="rw-filter-chevron" aria-hidden="true">⌄</span></summary><div class="rw-filter-content"><label class="rw-filter-field"><span>分類</span><select data-filter="category" aria-label="依分類篩選"><option value="">所有分類</option>' + S.categories.map((c) => '<option value="' + escAttr(c) + '"' + (category === c ? " selected" : "") + '>' + esc(c) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>閱讀狀態</span><select data-filter="status" aria-label="依閱讀狀態篩選"><option value="">所有狀態</option>' + S.statuses.map((s) => '<option value="' + escAttr(s.id) + '"' + (status === s.id ? " selected" : "") + '>' + esc(s.label) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>PDF</span><select data-filter="pdf" aria-label="依 PDF 狀態篩選"><option value="">PDF 狀態不限</option><option value="missing"' + (S.filters.pdf === "missing" ? " selected" : "") + '>待補 PDF</option><option value="ready"' + (S.filters.pdf === "ready" ? " selected" : "") + '>已有 PDF</option></select></label><button type="button" class="rw-filter-chip' + (S.filters.interested ? ' on' : '') + '" data-action="toggle-interested-filter" aria-pressed="' + S.filters.interested + '"><span aria-hidden="true">★</span> ' + PR.t("感興趣") + '</button><label class="rw-filter-field rw-sort-field"><span>排序</span><select data-sort><option value="manual">手動優先序</option><option value="recent"' + (S.sort === "recent" ? " selected" : "") + '>最近閱讀</option></select></label>' + (activeFilter ? btn("清除篩選", "clear-filters", "line") : "") + '</div></details>' + btn("管理狀態", "manage-status", "line") + '</div><div class="rw-board">' + (columns || "") + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    host.innerHTML = '<div class="rw-board-tools"><details class="rw-filter-details"' + (S.filterExpanded ? " open" : "") + '><summary><span class="rw-filter-title">篩選條件</span>' + (activeLabels.length ? '<span class="rw-filter-count">' + activeLabels.length + ' 項已套用</span><span class="rw-filter-active">' + activeLabels.map(esc).join(" · ") + '</span>' : '<span class="rw-filter-active">依分類、狀態、PDF 或感興趣篩選</span>') + '<span class="rw-filter-chevron" aria-hidden="true">⌄</span></summary><div class="rw-filter-content"><label class="rw-filter-field"><span>分類</span><select data-filter="category" aria-label="依分類篩選"><option value="">所有分類</option>' + S.categories.map((c) => '<option value="' + escAttr(c) + '"' + (category === c ? " selected" : "") + '>' + esc(c) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>閱讀狀態</span><select data-filter="status" aria-label="依閱讀狀態篩選"><option value="">所有狀態</option>' + S.statuses.map((s) => '<option value="' + escAttr(s.id) + '"' + (status === s.id ? " selected" : "") + '>' + esc(s.label) + '</option>').join("") + '</select></label><label class="rw-filter-field"><span>PDF</span><select data-filter="pdf" aria-label="依 PDF 狀態篩選"><option value="">PDF 狀態不限</option><option value="missing"' + (S.filters.pdf === "missing" ? " selected" : "") + '>待補 PDF</option><option value="ready"' + (S.filters.pdf === "ready" ? " selected" : "") + '>已有 PDF</option></select></label><button type="button" class="rw-filter-chip' + (S.filters.interested ? ' on' : '') + '" data-action="toggle-interested-filter" aria-pressed="' + S.filters.interested + '"><span aria-hidden="true">★</span> ' + PR.t("感興趣") + '</button><label class="rw-filter-field rw-sort-field"><span>排序</span><select data-sort><option value="added"' + (S.sort === "added" ? " selected" : "") + '>最新加入</option><option value="recent"' + (S.sort === "recent" ? " selected" : "") + '>最近閱讀</option><option value="manual"' + (S.sort === "manual" ? " selected" : "") + '>手動優先序</option></select></label>' + (activeFilter ? btn("清除篩選", "clear-filters", "line") : "") + '</div></details>' + btn("管理狀態", "manage-status", "line") + '</div><div class="rw-board">' + (columns || "") + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     host.querySelector(".rw-filter-details").addEventListener("toggle", (event) => { S.filterExpanded = event.currentTarget.open; });
     if (!list.length) host.innerHTML += '<div class="rw-empty">看板目前沒有符合條件的論文。' + btn("從論文探索加入", "go-explore") + '</div>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
   }
@@ -346,7 +447,7 @@
     const categories = (i.tags || []).join("、"); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const title = i.saved ? i.title : (i.title_zh || i.title_en || "未命名論文"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const accessibleLabel = PR.t("論文：{title}。閱讀狀態：{status}。可拖曳移動；也可按 Alt 加左右方向鍵變更狀態。", { title, status: PR.t(statusLabel(i.status || "unread")) });
-    return '<article class="rw-task" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight" aria-label="' + escAttr(accessibleLabel) + '" data-task="' + escAttr(i.id) + '" data-saved="' + (i.saved ? "1" : "0") + '"><h3>' + (i.saved ? esc(i.title) : '<a href="/read/' + escAttr(i.id) + '">' + esc(title) + '</a>') + '</h3><div class="muted rw-task-authors" title="' + escAttr(i.authors || "作者未提供") + '">' + esc(i.authors || "作者未提供") + (i.year ? " · " + esc(i.year) : "") + '</div>' + (categories ? '<div class="muted rw-task-category" title="' + escAttr(categories) + '"><span>' + PR.t("分類：") + '</span> ' + esc(categories) + '</div>' : "") + (i.saved ? '<div class="muted rw-task-pdf">' + (i.pdf_state === "failed" ? "待補 PDF" : i.pdf_state === "running" ? "正在下載 PDF" : "等待 PDF") + '</div>' : '<div class="rw-progress" title="' + escAttr(PR.t("閱讀進度 {n}%", { n: percent })) + '"><i style="width:' + percent + '%"></i></div><div class="muted rw-task-progress">' + PR.t("閱讀進度 {n}%", { n: percent }) + '</div>') + '<div class="task-line">' + (i.saved ? '<button class="linkish" data-action="attach-pdf" data-key="' + escAttr(i.saved_key) + '">附加 PDF</button>' : '') + (i.saved && i.pdf_state === "failed" ? '<button class="linkish" data-action="retry-pdf" data-key="' + escAttr(i.saved_key) + '">重試 PDF</button>' : '') + '<button class="linkish interest-star' + (i.interested ? ' is-interested' : '') + '" aria-label="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" title="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" data-action="interested" data-task-id="' + escAttr(i.id) + '"' + (i.saved ? ' data-saved-key="' + escAttr(i.saved_key) + '"' : "") + '>' + (i.interested ? "★" : "☆") + '</button></div></article>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    return '<article class="rw-task" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight" aria-label="' + escAttr(accessibleLabel) + '" data-task="' + escAttr(i.id) + '" data-saved="' + (i.saved ? "1" : "0") + '"><h3>' + (i.saved ? esc(i.title) : '<a href="/read/' + escAttr(i.id) + '">' + esc(title) + '</a>') + '</h3><div class="muted rw-task-authors" title="' + escAttr(i.authors || "作者未提供") + '">' + esc(i.authors || "作者未提供") + (i.year ? " · " + esc(i.year) : "") + '</div>' + (categories ? '<div class="muted rw-task-category" title="' + escAttr(categories) + '"><span>' + PR.t("分類：") + '</span> ' + esc(categories) + '</div>' : "") + (i.saved ? '<div class="muted rw-task-pdf">' + (i.pdf_state === "failed" ? "待補 PDF" : i.pdf_state === "running" ? "正在下載 PDF" : "等待 PDF") + '</div>' : '<div class="rw-progress" title="' + escAttr(PR.t("閱讀進度 {n}%", { n: percent })) + '"><i style="width:' + percent + '%"></i></div><div class="muted rw-task-progress">' + PR.t("閱讀進度 {n}%", { n: percent }) + '</div>') + '<div class="task-line">' + (i.saved ? '<button class="linkish" data-action="attach-pdf" data-key="' + escAttr(i.saved_key) + '">附加 PDF</button>' : '') + (i.saved && i.pdf_state === "failed" ? '<button class="linkish" data-action="retry-pdf" data-key="' + escAttr(i.saved_key) + '">重試 PDF</button>' : '') + '<button class="linkish interest-star' + (i.interested ? ' is-interested' : '') + '" aria-label="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" title="' + escAttr(PR.t(i.interested ? "取消感興趣" : "標記感興趣")) + '" data-action="interested" data-task-id="' + escAttr(i.id) + '"' + (i.saved ? ' data-saved-key="' + escAttr(i.saved_key) + '"' : "") + '>' + (i.interested ? "★" : "☆") + '</button><button class="linkish archive-btn" aria-label="' + escAttr(PR.t("封存論文")) + '" title="' + escAttr(PR.t("封存論文")) + '" data-action="archive-task" data-task-id="' + escAttr(i.id) + '"' + (i.saved ? ' data-saved-key="' + escAttr(i.saved_key) + '"' : "") + '>' + PR.icon("archive", "sm") + '</button></div></article>'; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
   }
   function rememberExploreInputs() {
     const fields = { "rw-query": "query", "rw-venue-query": "venueQuery", "rw-year-from": "yearFrom", "rw-year-to": "yearTo", "rw-sort": "exploreSort" };
@@ -379,7 +480,7 @@
     const requestId = S.searchRequestId = (S.searchRequestId || 0) + 1;
     const previous = { results: S.results, authors: S.authors, resultCount: S.resultCount, authorCount: S.authorCount,
       checkedAt: S.checkedAt, lastQuery: S.lastQuery, resultKind: S.resultKind, resultAuthor: S.resultAuthor,
-      relationRequest: S.relationRequest, relation: S.relation, stale: S.stale, staleError: S.staleError, warning: S.warning, page: S.page, authorPage: S.authorPage, searchReason: S.searchReason, resultFilters: S.resultFilters, hasMore: S.hasMore };
+      relationRequest: S.relationRequest, relation: S.relation, stale: S.stale, staleError: S.staleError, warning: S.warning, page: S.page, authorPage: S.authorPage, searchReason: S.searchReason, resultFilters: S.resultFilters, hasMore: S.hasMore, providerHasMore: S.providerHasMore };
     S.error = ""; S.errorAction = ""; S.stale = false; S.warning = ""; S.searchReason = ""; S.relation = false; S.relationRequest = null; S.results = []; S.authors = []; S.page = 1; S.loadingSearch = true;
     const query = String(S.query || "").trim();
     renderExplore();
@@ -402,11 +503,13 @@
         if (!providers.length) throw new Error("請先輸入研究主題，或選擇至少一個出版來源。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
         S.providerStatus = Object.fromEntries(providers.map((provider) => [provider.name, "loading"]));
         S.providerErrors = [];
+        S.providerHasMore = {};
         const settled = await Promise.all(providers.map(async (provider) => {
           try {
             const result = await PR.api(provider.url);
             if (requestId !== S.searchRequestId) return { ok: false };
             S.providerStatus[provider.name] = "done";
+            S.providerHasMore[provider.name] = Boolean(result.has_more);
             mergeResults(result.results || [], provider.name);
             S.resultCount = S.results.length;
             S.checkedAt = result.checked_at || S.checkedAt;
@@ -416,6 +519,7 @@
           } catch (error) {
             if (requestId !== S.searchRequestId) return { ok: false };
             S.providerStatus[provider.name] = "failed";
+            S.providerHasMore[provider.name] = false;
             S.providerErrors.push(provider.name + "：" + error.message); /* i18n-dom: shared DOM translator localizes rendered UI text. */
             renderExplore();
             return { ok: false, error };
@@ -435,6 +539,7 @@
       S.relationRequest = previous.relationRequest; S.relation = previous.relation; S.warning = previous.warning; S.page = previous.page; S.authorPage = previous.authorPage; S.searchReason = previous.searchReason;
       S.resultFilters = previous.resultFilters;
       S.hasMore = previous.hasMore;
+      S.providerHasMore = previous.providerHasMore;
       if (S.results.length || S.authors.length) {
         S.stale = true;
         S.staleError = "本次搜尋未完成，保留先前結果" + (previous.lastQuery && previous.lastQuery !== query ? "（先前查詢：「" + previous.lastQuery + "」）" : "") + "。"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
@@ -464,15 +569,57 @@
     }
   }
   function setResults(r) { S.results = r.results || []; S.resultCount = r.count; S.hasMore = r.has_more ?? ((r.page || 1) * 20 < r.count); S.checkedAt = r.checked_at; S.stale = Boolean(r.stale); S.staleError = r.error || ""; S.warning = r.warning || ""; S.searchReason = r.reason || ""; S.relation = Boolean(r.relation); }
+  async function loadRelation(id, relation = "related", title = "", doi = "") {
+    if (S.relationBusy) return;
+    rememberExploreInputs();
+    S.relationBusy = true;
+    S.mode = "topic";
+    S.tab = "explore";
+    switchTab("explore");
+    S.error = "";
+    S.stale = false;
+    S.warning = "";
+    S.results = [];
+    S.page = 1;
+    S.loadingSearch = true;
+    const prevKeywords = S.relationRequest?.keywords;
+    const prevTopics = S.relationRequest?.topics;
+    const prevAiKeywords = S.relationRequest?.aiKeywords;
+    S.relation = true;
+    S.relationRequest = { id, relation, title, doi, keywords: prevKeywords, topics: prevTopics, aiKeywords: prevAiKeywords };
+    renderExplore();
+    try {
+      const qs = new URLSearchParams({ relation, page: "1" });
+      if (title) qs.set("start_title", title);
+      if (doi) qs.set("start_doi", doi);
+      const r = await PR.api(API + "/work/" + encodeURIComponent(id) + "?" + qs.toString());
+      S.page = 1;
+      setResults(r);
+      if (r.seed_title) S.relationRequest.title = r.seed_title;
+      if (r.seed_id) S.relationRequest.id = r.seed_id;
+      if (r.seed_doi) S.relationRequest.doi = r.seed_doi;
+      if (r.seed_keywords) S.relationRequest.keywords = r.seed_keywords;
+      if (r.seed_topics) S.relationRequest.topics = r.seed_topics;
+      S.error = "";
+    } catch (e) {
+      S.error = e.message;
+      if (S.results.length) {
+        S.stale = true;
+        S.staleError = "本次論文關聯查詢未完成，保留先前結果。"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+      }
+    } finally {
+      S.relationBusy = false;
+      S.loadingSearch = false;
+      renderExplore();
+    }
+  }
   async function relations(button) {
     if (S.relationBusy) return;
-    S.relationBusy = true;
-    const original = button.textContent;
-    button.disabled = true; button.innerHTML = '<i class="spin"></i> 正在查詢…'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    const id = button.dataset.work, relation = button.dataset.relation;
-    try { const r = await PR.api(API + "/work/" + id + "?relation=" + relation); S.relationRequest = { id, relation }; S.page = 1; setResults(r); S.error = ""; renderExplore(); }
-    catch (e) { S.error = e.message; if (S.results.length) { S.stale = true; S.staleError = "本次論文關聯查詢未完成，保留先前結果。"; } renderExplore(); } // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
-    finally { S.relationBusy = false; if (button.isConnected) { button.disabled = false; button.textContent = original; } }
+    const id = button.dataset.work || S.relationRequest?.id;
+    const relation = button.dataset.relation || "related";
+    const title = button.dataset.title || S.relationRequest?.title || "";
+    const doi = button.dataset.doi || S.relationRequest?.doi || "";
+    return loadRelation(id, relation, title, doi);
   }
   async function loadMore(button) {
     if (S.pageBusy) return;
@@ -481,7 +628,10 @@
     try {
       let providers;
       if (S.relationRequest) {
-        providers = [{ name: "OpenAlex", url: API + "/work/" + S.relationRequest.id + "?relation=" + S.relationRequest.relation + "&page=" + page }];
+        const qs = new URLSearchParams({ relation: S.relationRequest.relation, page: String(page) });
+        if (S.relationRequest.title) qs.set("start_title", S.relationRequest.title);
+        if (S.relationRequest.doi) qs.set("start_doi", S.relationRequest.doi);
+        providers = [{ name: "OpenAlex", url: API + "/work/" + encodeURIComponent(S.relationRequest.id) + "?" + qs.toString() }];
       } else {
         const oa = new URLSearchParams(S.resultFilters || { kind: "works", q: S.lastQuery || "", sort: S.exploreSort }); oa.set("page", String(page));
         providers = [];
@@ -492,16 +642,32 @@
           providers.push({ name: "Crossref", url: API + "/search?" + new URLSearchParams({ kind: "crossref", ...venueParams }) });
         }
       }
+      if (S.providerHasMore) {
+        providers = providers.filter((p) => S.providerHasMore[p.name] !== false);
+      }
+      if (!providers.length) {
+        S.hasMore = false;
+        renderExplore();
+        return;
+      }
       const settled = await Promise.allSettled(providers.map((source) => PR.api(source.url)));
       if (requestId !== S.searchRequestId) return;
-      let success = 0, more = false; const errors = [];
+      let success = 0; const errors = [];
+      if (!S.providerHasMore) S.providerHasMore = {};
       settled.forEach((result, index) => {
         const source = providers[index];
-        if (result.status === "fulfilled") { success++; mergeResults(result.value.results || [], source.name); more ||= Boolean(result.value.has_more); }
-        else errors.push(PR.t("{source}：{message}", { source: source.name, message: PR.t(result.reason.message) }));
+        if (result.status === "fulfilled") {
+          success++;
+          mergeResults(result.value.results || [], source.name);
+          S.providerHasMore[source.name] = Boolean(result.value.has_more);
+        } else {
+          S.providerHasMore[source.name] = false;
+          errors.push(PR.t("{source}：{message}", { source: source.name, message: PR.t(result.reason.message) }));
+        }
       });
       if (!success) throw new Error(errors.join("；") || "目前無法載入更多論文。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      S.page = page; S.hasMore = more;
+      S.page = page;
+      S.hasMore = Object.values(S.providerHasMore).some(Boolean);
       S.warning = errors.length ? PR.t("部分來源的下一頁未能載入，已保留成功取得的結果：{errors}", { errors: errors.join("; ") }) : "";
       S.resultCount = S.results.length; renderExplore();
     } catch (error) { PR.toast(PR.t(error.message)); }
@@ -700,12 +866,22 @@
     if (button) { button.disabled = true; button.innerHTML = '<i class="spin"></i> 正在產生搜尋關鍵字…'; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
     try {
       const r = await PR.api(API + "/ai-query", { method: "POST", body: { query } });
-      openModal("AI 建議的英文關鍵字", '<p class="rw-source">可選取草稿中的文字，再按「AI 改寫」取得建議。</p><div class="rw-field"><label>關鍵字草稿（每行一組）</label><textarea id="rw-ai-query" rows="7">' + esc((r.suggestions || []).join("\n")) + '</textarea></div><button type="button" class="btn line" data-action="rewrite-selected">AI 改寫選取文字</button><div id="rw-rewrite-results"></div>', async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      const suggestions = (r.suggestions || []).map((x) => String(x || "").trim()).filter(Boolean);
+      const chips = suggestions.length
+        ? '<div class="rw-ai-chips"><span class="rw-source">' + PR.t("點擊直接以此關鍵字搜尋：") + '</span><div class="rw-keyword-pills">' +
+          suggestions.map((kw) => '<button type="button" class="btn sm line" data-action="apply-single-kw" data-kw="' + escAttr(kw) + '">' + esc(kw) + '</button>').join("") +
+          '</div></div>'
+        : '';
+      const bodyHtml = chips +
+        '<p class="rw-source">' + PR.t("可編輯關鍵字草稿；點選「套用關鍵字」將以第一行關鍵字進行搜尋，或直接點選上方按鈕。選取草稿中的文字可再按「AI 改寫」。") + '</p>' +
+        '<div class="rw-field"><label>' + PR.t("關鍵字草稿（每行一組）") + '</label><textarea id="rw-ai-query" rows="6">' + esc(suggestions.join("\n")) + '</textarea></div>' +
+        '<button type="button" class="btn line" data-action="rewrite-selected">' + PR.t("AI 改寫選取文字") + '</button><div id="rw-rewrite-results"></div>';
+      openModal(PR.t("AI 建議的英文關鍵字"), bodyHtml, async (modal) => {
         const edited = $("#rw-ai-query", modal).value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-        const unique = uniqueQueryTerms(edited);
-        if (!unique) throw new Error("請保留至少一組關鍵字。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
-        S.mode = "topic"; S.query = unique; S.results = []; renderExplore(); await search();
-      }, "套用關鍵字", { dismissOnBackdrop: false, headerClose: true }); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+        if (!edited.length) throw new Error(PR.t("請保留至少一組關鍵字。"));
+        const chosen = edited[0];
+        S.mode = "topic"; S.query = chosen; S.results = []; renderExplore(); await search();
+      }, PR.t("套用關鍵字"), { dismissOnBackdrop: false, headerClose: true });
     } catch (e) { PR.toast(PR.t("AI 關鍵字產生失敗：{message}", { message: PR.t(e.message) })); }
     finally { if (button?.isConnected) { button.disabled = false; button.textContent = "AI 產生搜尋關鍵字"; } } /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
@@ -900,12 +1076,70 @@
           return;
         }
         case "relation": return relations(b);
+        case "explore-relation": {
+          const wid = b.dataset.work, title = b.dataset.title || "", doi = b.dataset.doi || "";
+          return loadRelation(wid, "related", title, doi);
+        }
+        case "change-relation": {
+          const rel = b.dataset.relation;
+          if (!S.relationRequest) return;
+          return loadRelation(S.relationRequest.id, rel, S.relationRequest.title, S.relationRequest.doi);
+        }
+        case "ai-distill-keywords": {
+          if (S.aiDistillBusy || !S.relationRequest?.title) return;
+          S.aiDistillBusy = true;
+          renderExplore();
+          try {
+            const res = await PR.api(API + "/ai-query", {
+              method: "POST",
+              body: { title: S.relationRequest.title }
+            });
+            const suggestions = (res.suggestions || []).map((x) => String(x || "").trim()).filter(Boolean);
+            if (suggestions.length) {
+              S.relationRequest.aiKeywords = suggestions;
+              PR.toast(PR.t("已提煉 {count} 組主題關鍵字。", { count: suggestions.length }));
+            } else {
+              PR.toast(PR.t("未能提煉出更多關鍵字，建議直接使用現有標題搜尋。"));
+            }
+          } catch (err) {
+            PR.toast(PR.t("AI 關鍵字提煉失敗：{message}", { message: PR.t(err.message) }));
+          } finally {
+            S.aiDistillBusy = false;
+            renderExplore();
+          }
+          return;
+        }
+        case "switch-to-topic-search": {
+          const title = S.relationRequest?.title || S.query || "";
+          S.relation = false;
+          S.relationRequest = null;
+          S.mode = "topic";
+          S.query = cleanTopicQuery(title);
+          renderExplore();
+          return search();
+        }
         case "skip": await PR.api(API + "/skip", { method: "POST", body: { paper_key: b.dataset.key } }); S.results = S.results.filter((w) => paperKey(w) !== b.dataset.key); return renderExplore();
         case "retry-pdf": await PR.api(API + "/retry-pdf", { method: "POST", body: { paper_key: b.dataset.key } }); PR.toast("已重新排入 PDF 下載。"); return init(); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
-        case "attach-pdf": return attachPdf(b.dataset.key);
         case "interested": { const task = allTasks().find((x) => x.id === b.dataset.taskId); if (task) { const interested = !task.interested; return patchTask(task, { interested, starred: interested }); } break; }
+        case "archive-task": {
+          const task = allTasks().find((x) => x.id === b.dataset.taskId);
+          if (task) {
+            await patchTask(task, { archived: true });
+            PR.toast(PR.t("已移至封存區"));
+          }
+          break;
+        }
         case "ai-summary": return aiSummary();
         case "ai-query": return aiQuery();
+        case "apply-single-kw": {
+          const kw = b.dataset.kw;
+          if (!kw) return;
+          const modal = $("#rw-modal");
+          if (modal) modal.hidden = true;
+          S.relation = false;
+          S.relationRequest = null;
+          S.mode = "topic"; S.query = kw; S.results = []; renderExplore(); return search();
+        }
         case "next-page": {
           return loadMore(b);
         }
@@ -981,11 +1215,13 @@
         const at = group.findIndex((x) => x.id === targetCard.dataset.task);
         group.splice(at < 0 ? group.length : at, 0, task);
         await Promise.all(group.map((x, index) => saveTaskFields(x, { status: destination, manual_order: (index + 1) * 100 })));
+        S.sort = "manual";
         const data = await PR.api(API); S.items = data.items || S.items; S.saved = data.saved || S.saved; renderBoard();
       } else {
         const group = allTasks().filter((x) => (x.status || "unread") === destination && x.id !== dragged).sort((a, b) => Number(a.manual_order || 0) - Number(b.manual_order || 0));
         rollback = [task, ...group].map((item) => ({ item, status: item.status || "unread", manual_order: item.manual_order || 0 }));
         await saveTaskFields(task, { status: destination, manual_order: (group.length + 1) * 100 });
+        S.sort = "manual";
         const data = await PR.api(API); S.items = data.items || S.items; S.saved = data.saved || S.saved; renderBoard();
       }
     } catch (err) {
@@ -1001,7 +1237,18 @@
   if (searchParams.get("mode") === "path") S.tab = "path";
   if (searchParams.get("mode") === "candidates") S.tab = "candidates";
   if (searchParams.get("mode") === "comparisons") S.tab = "comparisons";
-  if (searchParams.has("q") && !["path", "candidates", "comparisons"].includes(searchParams.get("mode"))) S.tab = "explore";
+  if (searchParams.get("mode") === "relation") {
+    S.tab = "explore";
+    const work = searchParams.get("work") || searchParams.get("id") || "";
+    const rel = searchParams.get("relation") || "related";
+    const startTitle = searchParams.get("start_title") || searchParams.get("title") || "";
+    const startDoi = searchParams.get("start_doi") || searchParams.get("doi") || "";
+    if (work || startDoi || startTitle) {
+      S.relationTarget = { id: work || (startDoi ? "doi:" + startDoi : startTitle), relation: rel, title: startTitle, doi: startDoi };
+    }
+  } else if (searchParams.has("q") && !["path", "candidates", "comparisons"].includes(searchParams.get("mode"))) {
+    S.tab = "explore";
+  }
   if (searchParams.get("q")) S.query = searchParams.get("q");
   if (S.tab === "comparisons" && searchParams.get("papers")) {
     S.compareSelection = new Set(searchParams.get("papers").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 5));

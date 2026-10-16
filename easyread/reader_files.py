@@ -18,6 +18,11 @@ def refresh_layout(ws) -> None:
         pdfwork.refresh_layout(ws.root)
     except Exception:  # noqa: BLE001
         log.exception("重算原页定位失败 %s", ws.root)
+    try:
+        from . import links
+        links.refresh(ws)
+    except Exception:  # noqa: BLE001
+        log.exception("恢复链接失败 %s", ws.root)
 
 
 def warm(root: Path, gate=None) -> None:

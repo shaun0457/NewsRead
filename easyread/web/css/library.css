@@ -233,13 +233,18 @@
 .side .side-input { flex: 1; min-width: 0; height: 100%; padding: 0; margin: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); caret-color: var(--accent); }
 .side .hint-row, .side .toggle-more { color: var(--ink-3); font-size: 12.5px; }
 .side .toggle-more { height: 28px; }  /* 和上面的论文标题左对齐 */
-.side.dragging [data-drop-zone] .srow:is([data-cat], [data-view="starred"], [data-view="reading"], [data-view="unread"], [data-view="done"]) { outline: 1px dashed var(--rule-2); outline-offset: -1px; }
+.side.dragging [data-drop-zone] .srow:is([data-cat], [data-view="starred"], [data-view="reading"], [data-view="unread"], [data-view="done"], [data-view="archived"]), .side.dragging .srow[data-view="archived"] { outline: 1px dashed var(--rule-2); outline-offset: -1px; }
 .side .srow.drop { background: var(--accent-soft-2); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--ink); }
 
 /* 列表行上的分类、详情里的分类开关 */
 .row .chip.cat { display: inline-flex; align-items: center; gap: 3px; }
 .row .chip.cat svg { width: 11px; height: 11px; color: var(--ink-3); }
 .row[draggable="true"] { -webkit-user-drag: element; }
+.pill.archived { background: var(--surface-2); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule-2); font-weight: 500; }
+.archived-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border-radius: 8px; background: color-mix(in srgb, var(--accent-soft-2) 75%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); font-size: 13px; color: var(--ink); }
+.archived-banner svg { color: var(--accent); flex: none; width: 16px; height: 16px; }
+.archived-banner span { flex: 1; }
+.detail .cover .act-row .btn.on { color: var(--accent); background: var(--accent-soft-2); box-shadow: inset 0 0 0 1px var(--accent); }
 .detail .cats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 2px 0 12px; }
 .detail .catchip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 12px; font-size: 12.5px; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--rule-2); }
 .detail .catchip svg { width: 12px; height: 12px; }
@@ -257,8 +262,9 @@ body.resizing { cursor: col-resize; user-select: none; }
 .side.dragging .sgroup[data-drop-zone] { background: color-mix(in srgb, var(--accent-soft) 60%, transparent); border-radius: 10px; }
 .side.dragging .srow[data-add] { color: var(--accent); }
 .row[draggable="true"] { cursor: grab; }
-/* 回收站 */
-.side-trash { margin-top: 18px; padding-top: 8px; border-top: 1px solid var(--rule); }
+/* 封存与回收站 */
+.side-archive { margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.side-trash { margin-top: 6px; padding-top: 2px; }
 .trash-list { max-height: 60vh; overflow-y: auto; margin: 4px -4px 0; }
 .trash-row { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--rule); }
 .trash-row:last-child { border-bottom: 0; }

@@ -46,7 +46,9 @@ body.resizing .side-panel { transition: none; }
 .pv-follow { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--ink-3); margin-right: 4px; cursor: pointer; }
 .pv-follow input { accent-color: var(--accent); margin: 0; }
 .pv-scroll { flex: 1; min-height: 0; overscroll-behavior: contain; overflow: auto; padding: 18px; background: color-mix(in srgb, var(--bg) 60%, var(--rule)); }
-.pv-page { position: relative; margin: 0 auto; width: 100%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 6px 24px rgba(0,0,0,.08); }
+.pv-zoom { display: flex; align-items: center; justify-content: center; gap: 6px; flex: none; padding: 4px 8px; border-bottom: 1px solid var(--rule); }
+.pv-zoom-value { min-width: 46px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.pv-page { position: relative; margin: 0 auto; width: calc(100% * var(--pv-zoom, 1)); background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 6px 24px rgba(0,0,0,.08); }
 .pv-page + .pv-page { margin-top: 18px; }
 .pv-page img { display: block; width: 100%; height: 100%; object-fit: contain; }
 :root[data-theme="dark"] .pv-page img { filter: invert(.9) hue-rotate(180deg) contrast(.9); }
@@ -89,7 +91,8 @@ body.pv-open .blk.pv-pair::before { background: rgba(214, 160, 40, .8); opacity:
 .smart-count { display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; margin-left:5px; padding:0 5px; border-radius:10px; color:var(--accent); background:var(--accent-soft); font-size:11px; }
 .smart-progress, .smart-empty { margin:7px 0 2px; line-height:1.6; }
 .np-smart-list { display:flex; flex-direction:column; gap:8px; margin-top:9px; max-height:min(46vh, 520px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:1px 5px 3px 1px; }
-.smart-card { padding:9px 10px; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 1px var(--rule-2); }
+.np-smart-head .danger { color:var(--danger, #c0392b); }
+.smart-card { padding:9px 10px; border-radius:8px; background:var(--surface); box-shadow:inset 0 0 0 1px var(--rule-2); cursor:pointer; }
 .smart-card.smart-unlocatable { box-shadow:inset 0 0 0 1px var(--danger, #c0392b); }
 .smart-card-head { display:flex; align-items:center; gap:7px; font-size:12px; }
 .smart-card-head .smart-meta { margin-left:auto; color:var(--ink-3); font-size:11px; text-align:right; }

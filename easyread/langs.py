@@ -63,3 +63,11 @@ def reply_lang(meta: dict | None) -> str:
         return prompt_name(DEFAULT)
     from . import i18n
     return prompt_name(DEFAULT) if i18n.lang() == "zh-TW" else "中文" if i18n.lang() == "zh" else "英文（English）"  # i18n-ok
+
+
+def reply_language_rule(meta: dict | None) -> str:
+    """回覆類 prompt 的語言要求；繁中模式明確禁止模型回傳簡體字。"""
+    language = reply_lang(meta)
+    if language == prompt_name("zh-TW"):
+        return "用繁體中文（臺灣用語），不可使用簡體字"  # i18n-ok
+    return "用" + language  # i18n-ok

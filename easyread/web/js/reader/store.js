@@ -50,7 +50,11 @@
         const cur = reader.paper_note || {};
         if (at >= (cur.at || "")) reader.paper_note = { body: op.body || "", at };
       } else if (op.op === "progress") {
-        if (at >= (reader.progress.at || "")) Object.assign(reader.progress, { block: op.block, at }, op.ratio != null ? { ratio: op.ratio } : {});
+        if (at >= (reader.progress.at || "")) {
+          Object.assign(reader.progress, { block: op.block, at });
+          delete reader.progress.off;
+          for (const key of ["ratio", "off"]) if (op[key] != null) reader.progress[key] = op[key];
+        }
       }
     }
     return reader;
@@ -81,14 +85,22 @@
 
   function scheduleFlush(ms) { clearTimeout(flushT); flushT = setTimeout(flush, ms); }
 
-  async function flush() {
-    if (mode !== "server" || flushing || !outbox.length) return;
+  let flushPromise = null;
+  function flush(opts) {
+    if (flushPromise) return flushPromise;
+    if (mode !== "server" || !outbox.length) return Promise.resolve(true);
+    flushPromise = sendBatch(opts).finally(() => { flushPromise = null; });
+    return flushPromise;
+  }
+
+  async function sendBatch(opts) {
     flushing = true;
     const batch = outbox.slice();
     try {
       const r = await fetch(base() + "/ops", {
         method: "POST", headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
         body: JSON.stringify({ ops: batch, client }),
+        keepalive: !!(opts && opts.keepalive) || batch.every(o => o.op === "progress"),
       });
       if (r.status === 403) { await reloadToken(); throw new Error("token"); }
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
@@ -102,16 +114,35 @@
       rebuildReader();
       retryMs = 1500;
       if (outbox.length) scheduleFlush(50); else statusIdle();
+      return true;
     } catch (e) {
       setStatus("offline", PR.t("未连上本地服务，{n} 条修改暂存在浏览器", { n: outbox.length }));
       clearTimeout(retryT);
       retryT = setTimeout(flush, retryMs);
       retryMs = Math.min(retryMs * 2, 15000);
+      return false;
     } finally {
       flushing = false;
     }
   }
   PR.flush = flush;
+  /* 待发的操作立刻发出去（关页面、退出软件前用） */
+  PR.flushPending = async (opts = {}) => {
+    if (mode !== "server") return true;
+    clearTimeout(flushT);
+    if (opts.leaving && flushing && outbox.length) {
+      // A closing document cannot wait to start its final request. Operations
+      // are idempotent; retain the local queue for a safe replay on next open.
+      return fetch(base() + "/ops", {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
+        body: JSON.stringify({ ops: outbox.slice(), client }),
+      }).then(r => r.ok).catch(() => false);
+    }
+    if (flushPromise && !await flushPromise) return false;
+    while (outbox.length) if (!await flush({ keepalive: true })) return false;
+    return true;
+  };
 
   async function reloadToken() {
     try { PR.token = (await (await fetch(base() + "/state", { cache: "no-store" })).json()).token; } catch (e) { /* 下次重试 */ }
@@ -182,7 +213,10 @@
   };
 
   window.addEventListener("beforeunload", (e) => {
-    if (mode === "server" && outbox.some((o) => o.op !== "progress")) { flush(); e.preventDefault(); e.returnValue = ""; }
+    if (PR.captureProgress) PR.captureProgress();
+    if (mode !== "server" || !outbox.length) return;
+    if (outbox.some((o) => o.op !== "progress")) { flush(); e.preventDefault(); e.returnValue = ""; return; }
+    flush({ keepalive: true });  // 只有读到哪儿没存：不拦着人走，但别丢
   });
 
   /* 让模型做事（回答问题、重译一段）：交给服务的小任务队列 */

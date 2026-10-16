@@ -157,6 +157,34 @@ async function stopBackendGracefully() {
   });
 }
 
+/* 退出前先让页面把没落盘的东西写回去再停后端；页面没应就照常退出 */
+function savePageState() {
+  const wc = mainWindow && mainWindow.webContents;
+  if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed()) || typeof wc.send !== "function") return Promise.resolve();
+  return new Promise(resolve => {
+    let timer;
+    function done() {
+      clearTimeout(timer);
+      if (ipcMain && typeof ipcMain.removeListener === "function") {
+        ipcMain.removeListener("easyread:page-saved", saved);
+      }
+      resolve();
+    }
+    function saved(event) {
+      if (event && event.sender === wc && event.senderFrame === wc.mainFrame) done();
+    }
+    timer = setTimeout(done, 1200);
+    if (ipcMain && typeof ipcMain.on === "function") {
+      ipcMain.on("easyread:page-saved", saved);
+    }
+    try {
+      wc.send("easyread:before-quit");
+    } catch {
+      done();
+    }
+  });
+}
+
 function trustedWindow(event) {
   if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame ||
       !backendUrl || new URL(event.senderFrame.url).origin !== backendUrl) {
@@ -264,6 +292,12 @@ async function createWindow() {
     if (state.maximized) openingWindow.maximize();
     openingWindow.show();
   });
+  mainWindow.on("close", event => {
+    if (process.platform !== "darwin" && !quitting && backend) {
+      event.preventDefault();
+      app.quit();  // before-quit saves while the renderer is still alive.
+    }
+  });
   mainWindow.on("closed", () => { mainWindow = undefined; });
   try {
     await openingWindow.loadURL(startup.loadingUrl(isZh()));
@@ -324,7 +358,7 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true;
     if (!backend) return;
     event.preventDefault();
-    stopBackendGracefully().catch(stopBackend).finally(() => app.quit());
+    savePageState().then(stopBackendGracefully).catch(stopBackend).finally(() => app.quit());
   });
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();

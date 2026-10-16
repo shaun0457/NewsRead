@@ -47,6 +47,7 @@
       '<span class="grow"></span><div class="batch-tools"' + (n ? "" : " data-empty") + ">" +
       tool("cat", PR.t("加入分类"), "folder") +
       (L.tag || L.view === "starred" ? tool("uncat", PR.t("移出“{name}”", { name: L.tag || PR.t("星标") }), "x") : "") +
+      (L.view === "archived" ? tool("unarchive", PR.t("移出封存"), "archive") : tool("archive", PR.t("封存"), "archive")) +
       tool("status", PR.t("切换状态"), "book") +
       tool("translate", PR.t("翻译"), "sparkle") +
       tool("compare", PR.t("跨論文比較"), "copy", PR.t("選擇 2 至 5 篇已完成全文整理的論文，前往比較設定")) +
@@ -148,9 +149,29 @@
     window.location.href = "/research?mode=comparisons&papers=" + ids;
   }
 
+  function archiveAll() {
+    const its = pickedItems();
+    const toArchive = its.filter((i) => !i.archived);
+    if (!toArchive.length) return PR.toast(PR.t("所选论文都已经在封存区了"));
+    L.patchMany(toArchive.map((i) => [i.id, { archived: true }]));
+    PR.toast(PR.t("已封存 {n} 篇", { n: toArchive.length }));
+    L.endPick();
+  }
+
+  function unarchiveAll() {
+    const its = pickedItems();
+    const toRestore = its.filter((i) => i.archived);
+    if (!toRestore.length) return PR.toast(PR.t("所选论文未在封存区"));
+    L.patchMany(toRestore.map((i) => [i.id, { archived: false }]));
+    PR.toast(PR.t("已解除封存 {n} 篇，恢復當時狀態", { n: toRestore.length }));
+    L.endPick();
+  }
+
   function run(act, at) {
     if (act === "cat") catMenu(at);
     else if (act === "uncat") removeCurrent();
+    else if (act === "archive") archiveAll();
+    else if (act === "unarchive") unarchiveAll();
     else if (act === "status") statusMenu(at);
     else if (act === "translate") translateAll(at);
     else if (act === "compare") compareAll(at).catch((error) => { const message = error.message || PR.t("跨論文比較無法開始。"); PR.toast(PR.t(message)); });
@@ -195,6 +216,7 @@
     PR.menu(at, [
       { label: PR.t("加入分类…"), icon: "folder", fn: () => catMenu(at) },
       ...(L.tag || L.view === "starred" ? [{ label: PR.t("移出“{name}”", { name: L.tag || PR.t("星标") }), icon: "x", fn: removeCurrent }] : []),
+      ...(L.view === "archived" ? [{ label: PR.t("移出封存（恢復）"), icon: "archive", fn: unarchiveAll }] : [{ label: PR.t("封存論文"), icon: "archive", fn: archiveAll }]),
       { label: PR.t("切换状态…"), icon: "book", fn: () => statusMenu(at) },
       { label: PR.t("翻译"), icon: "sparkle", fn: () => translateAll(at) },
       { label: PR.t("导出引用"), icon: "copy", fn: () => run("cite") },

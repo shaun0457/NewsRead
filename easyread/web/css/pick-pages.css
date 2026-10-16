@@ -1,0 +1,8 @@
+/* 选页翻译（pick-pages.js） */
+.pick-pages { width: min(360px, calc(100vw - 16px)); }
+.pick-pages .pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; margin-top: 10px; max-height: 240px; overflow-y: auto; }
+.pick-pages .pp-page { height: 30px; border: 1px solid var(--rule); border-radius: 6px; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer; }
+.pick-pages .pp-page:hover { border-color: var(--accent); color: var(--ink); }
+.pick-pages .pp-page.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .pick-pages .pp-page.on { color: #10201f; }
+.pick-pages .pp-gap { flex: 1; }

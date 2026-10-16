@@ -4,12 +4,13 @@ from __future__ import annotations
 import json
 import re
 
-from . import langs, sentences
+from . import langs, links, sentences
 from .store import Workspace
 
 RULES = """翻译要求：
 - 忠实：保留原文的论证顺序、章节编号、公式、表格、引用号 [n]、限定词（may/suggest/likely/at least）、否定和比较对象。可以调整中文语序、拆长句，读起来要像中文母语者写的学术文字。
 - 只翻译，不解释、不总结、不加原文没有的内容。原文的笔误照录，不要改。
+- 保留材料中的 Markdown 链接 [文字](URL)：原文保留链接文字，译文翻译链接文字，两边 URL 必须原样保留，不猜网址，不把链接移到段落外。
 - 但要留心原文自己的问题：数字前后对不上（表和正文、两张表之间）、公式和文字说的不一致、符号用错、明显的笔误。发现了就写进 checks，正文照录不改；没有就不写，不要为了写而写，也不要写翻译说明。
 - 术语全文统一；首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。
 - 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
@@ -147,9 +148,11 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
 
 def _page_texts(ws: Workspace, pages: list[int]) -> str:
     texts = []
+    urls = links.ensure(ws)
     for n in pages:
         p = ws.root / "extract" / f"page-{n:03d}.txt"
-        texts.append(f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的）=====\n" + (p.read_text(encoding="utf-8") if p.exists() else ""))
+        text = p.read_text(encoding="utf-8") if p.exists() else ""
+        texts.append(f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的）=====\n" + links.insert(text, urls.get(str(n), [])))
     return "\n\n".join(texts)
 
 
@@ -232,17 +235,18 @@ def answer(ws: Workspace, note: dict) -> str:
         section = f"{h.get('num', '')} {h.get('zh') or h.get('en', '')}" if h else ""
     ctx = "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near)
     focus = blocks[idx] if idx is not None else {}
-    return (f"你在和读者一起读论文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
-            f"读者读到「{section}」时在 [{note.get('anchor')}] 这段提了一个问题。\n\n"
-            f"上下文（译文；还没译的段落是英文原文）：\n{ctx}\n\n这段英文原文：{focus.get('en', '')}\n\n"
-            + (f"读者选中的{'英文原文' if note.get('side') == 'en' else '原话'}：「{note.get('quote')}」\n" if note.get("quote") else "")
-            + f"读者的问题：{note.get('body', '')}\n\n"
-            "需要时可以用 Read 读当前目录的 paper.json 看全文。请直接回答：用" + langs.reply_lang(paper.get("meta")) + "，具体、讲清楚，能举例就举例，"
-            "区分“论文里写了什么”和“你的补充解释”。行内公式用 $TeX$，段落之间空一行。只输出回答正文，不要客套。")
+    return (f"你正在和讀者一起閱讀論文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
+            f"讀者讀到「{section}」時在 [{note.get('anchor')}] 這段提出一個問題。\n\n"
+            f"上下文（譯文；尚未翻譯的段落是英文原文）：\n{ctx}\n\n這段英文原文：{focus.get('en', '')}\n\n"
+            + (f"讀者選取的{'英文原文' if note.get('side') == 'en' else '原話'}：「{note.get('quote')}」\n" if note.get("quote") else "")
+            + f"讀者的問題：{note.get('body', '')}\n\n"
+            "需要時可以使用 Read 讀取目前目錄的 paper.json 查看全文。請直接回答：" + langs.reply_language_rule(paper.get("meta")) + "，具體、講清楚，能舉例就舉例，"
+            "區分「論文裡寫了什麼」和「你的補充解釋」。行內公式使用 $TeX$，段落之間空一行。只輸出回答正文，不要客套。")
 
 
 def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
     """返回（提示词，段落和列表项的（英文, 句尾）或 None）：英文按句插好 ‖，新译文照着插，重译后句子还对得上。"""
+    links.refresh(ws)
     paper = ws.load("paper")
     bid, _, field = key.partition("#")
     blocks = paper.get("blocks", [])

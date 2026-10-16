@@ -14,4 +14,12 @@ contextBridge.exposeInMainWorld("easyreadDesktop", {
     ipcRenderer.on("easyread:update-state", listener);
     return () => ipcRenderer.removeListener("easyread:update-state", listener);
   },
+  /* 退出软件前来一下：页面写完回一声，主进程才停后端（见 main.cjs） */
+  onBeforeQuit: (callback) => {
+    const listener = async () => {
+      try { await callback(); } finally { ipcRenderer.send("easyread:page-saved"); }
+    };
+    ipcRenderer.on("easyread:before-quit", listener);
+    return () => ipcRenderer.removeListener("easyread:before-quit", listener);
+  },
 });

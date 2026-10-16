@@ -74,7 +74,8 @@ def _summary_worker(app):
                 prompt = "請使用繁體中文（臺灣用語）整理下列候選論文的來源摘要。每篇只根據該篇提供的資料，不補造結果、引用或出版資訊；缺少資訊請標示未提供。輸出 JSON 陣列，每個元素含 paper_key 與 summary_markdown，摘要以 Markdown 呈現研究問題、方法、結果與限制。\n" + json.dumps(papers, ensure_ascii=False)  # i18n-ok: 固定要求模型產生繁體中文摘要。
                 answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
                 output = engines.parse_json(answer)
-                by_key = {str(x.get("paper_key") or ""): str(x.get("summary_markdown") or "").strip() for x in output if isinstance(x, dict)} if isinstance(output, list) else {}
+                unwrapped = _unwrap_json_list(output)
+                by_key = {str(x.get("paper_key") or ""): str(x.get("summary_markdown") or "").strip() for x in unwrapped if isinstance(x, dict)} if isinstance(unwrapped, list) else {}
                 for item in valid:
                     markdown = by_key.get(item["paper_key"], "")
                     if markdown:
@@ -168,6 +169,21 @@ def _work(raw: dict) -> dict:
         if match:
             arxiv = match.group(1)
             break
+    referenced = [str(x).rstrip("/").split("/")[-1] for x in (raw.get("referenced_works") or []) if x]
+    related = [str(x).rstrip("/").split("/")[-1] for x in (raw.get("related_works") or []) if x]
+    keywords = []
+    for k in (raw.get("keywords") or []):
+        name = k.get("display_name") if isinstance(k, dict) else str(k)
+        if name and name not in keywords:
+            keywords.append(name)
+    topics = []
+    pt = raw.get("primary_topic")
+    if isinstance(pt, dict) and pt.get("display_name"):
+        topics.append(pt["display_name"])
+    for t in (raw.get("topics") or []):
+        name = t.get("display_name") if isinstance(t, dict) else str(t)
+        if name and name not in topics:
+            topics.append(name)
     return {
         "id": landing, "openalex_id": landing, "doi": doi, "arxiv": arxiv,
         "title": raw.get("title") or "（未提供標題）", "authors": ", ".join(a for a in authors if a),  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -175,6 +191,8 @@ def _work(raw: dict) -> dict:
         "abstract": _abstract(raw.get("abstract_inverted_index")),
         "cited_by_count": raw.get("cited_by_count"), "is_oa": bool((raw.get("open_access") or {}).get("is_oa")),
         "pdf_url": pdf_url, "url": landing, "source": "OpenAlex",
+        "referenced_works": referenced, "related_works": related,
+        "keywords": keywords[:8], "topics": topics[:5],
     }
 
 
@@ -574,7 +592,7 @@ def _existing_key_set(items):
 
 def _resolve_seed(seed: dict) -> dict | None:
     """Resolve a library seed to its OpenAlex work without accepting a fuzzy title match."""
-    select = "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index,related_works"
+    select = "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index,related_works,keywords,topics,primary_topic"
     openalex = str(seed.get("openalex_id") or "").rstrip("/").split("/")[-1].upper()
     if re.fullmatch(r"W\d+", openalex):
         return _openalex("/works/" + openalex, {"select": select})
@@ -586,7 +604,7 @@ def _resolve_seed(seed: dict) -> dict | None:
             if "HTTP 404" not in str(exc):
                 raise
     arxiv = re.sub(r"v\d+$", "", str(seed.get("arxiv") or "").strip(), flags=re.I)
-    title = " ".join(str(seed.get("title_en") or seed.get("title_zh") or "").casefold().split())
+    title = " ".join(str(seed.get("title_en") or seed.get("title_zh") or seed.get("title") or "").casefold().split())
     for query, expected, field in ((arxiv, arxiv.casefold(), "arxiv"), (title, title, "title")):
         if not query:
             continue
@@ -694,20 +712,94 @@ def get(app, path_query: str):
                 "type": item.get("type") or "", "publisher": item.get("publisher") or "", "year": year,
                 "url": item.get("URL") or "", "source": "Crossref", "checked_at": _now().isoformat()}
     if endpoint.startswith("work/"):
-        wid = endpoint.split("/", 1)[1]
+        raw_id = urllib.parse.unquote(endpoint.split("/", 1)[1].strip())
         kind = q.get("relation", "related")
-        wid = wid.rstrip("/").split("/")[-1]
-        if not re.fullmatch(r"W\d+", wid):
-            raise ValueError("論文識別資料不正確。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        if kind not in ("references", "related", "cited-by"):
+            raise ValueError("不支援的論文關聯類型。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        wid = raw_id.rstrip("/").split("/")[-1]
+        seed_title = q.get("start_title", "").strip()
+        seed_doi = q.get("start_doi", "").strip()
+        resolved = None
+        if re.fullmatch(r"W\d+", wid, flags=re.I):
+            wid = wid.upper()
+        else:
+            seed_dict = {}
+            if raw_id.lower().startswith("doi:"):
+                seed_dict["doi"] = raw_id[4:].strip()
+            elif re.match(r"^10\.\d{4,9}/", raw_id):
+                seed_dict["doi"] = raw_id.strip()
+            elif raw_id.lower().startswith("arxiv:"):
+                seed_dict["arxiv"] = raw_id[6:].strip()
+            elif raw_id.lower().startswith("openalex:") or raw_id.lower().startswith("openalex_id:"):
+                seed_dict["openalex_id"] = raw_id.split(":", 1)[1].strip()
+            elif raw_id and raw_id != "_":
+                seed_dict["title"] = raw_id
+
+            if q.get("start_doi"):
+                seed_dict["doi"] = q["start_doi"]
+            if q.get("start_arxiv"):
+                seed_dict["arxiv"] = q["start_arxiv"]
+            if q.get("start_title"):
+                seed_dict["title"] = q["start_title"]
+            if q.get("openalex_id"):
+                seed_dict["openalex_id"] = q["openalex_id"]
+
+            resolved = _resolve_seed(seed_dict)
+            if not resolved or not resolved.get("id"):
+                raise ValueError("找不到對應的 OpenAlex 論文識別資料，無法展開學術關聯。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+            wid = resolved["id"].rstrip("/").split("/")[-1].upper()
+            if not seed_title:
+                seed_title = resolved.get("title") or ""
+            if not seed_doi:
+                seed_doi = resolved.get("doi") or ""
+
+        seed_keywords = []
+        seed_topics = []
+        raw_seed = resolved
+        if kind == "cited-by" and not raw_seed:
+            try:
+                raw_seed = _openalex("/works/" + wid, {"select": "id,doi,title,keywords,topics,primary_topic"})
+            except Exception:
+                raw_seed = None
+        if raw_seed:
+            if not seed_title and raw_seed.get("title"):
+                seed_title = raw_seed.get("title") or ""
+            if not seed_doi and raw_seed.get("doi"):
+                seed_doi = raw_seed.get("doi") or ""
+            for k in (raw_seed.get("keywords") or []):
+                name = k.get("display_name") if isinstance(k, dict) else str(k)
+                if name and name not in seed_keywords:
+                    seed_keywords.append(name)
+            pt = raw_seed.get("primary_topic")
+            if isinstance(pt, dict) and pt.get("display_name") and pt["display_name"] not in seed_topics:
+                seed_topics.append(pt["display_name"])
+            for t in (raw_seed.get("topics") or []):
+                name = t.get("display_name") if isinstance(t, dict) else str(t)
+                if name and name not in seed_topics:
+                    seed_topics.append(name)
+
         if kind == "cited-by":
             result = _search_works(_root(app), "", sort="publication_date:desc", page=q.get("page", 1), filter_expr=f"cites:{wid}")
-            return {**result, "relation": kind}
-        if kind not in ("references", "related"):
-            raise ValueError("不支援的論文關聯類型。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+            return {**result, "relation": kind, "seed_id": wid, "seed_title": seed_title, "seed_doi": seed_doi, "seed_keywords": seed_keywords[:8], "seed_topics": seed_topics[:5]}
         page = max(1, min(100, int(q.get("page", 1) or 1)))
         cache_key = f"relation:{wid}:{kind}:{page}"
         try:
-            raw = _openalex("/works/" + wid, {"select": "id,referenced_works,related_works"})
+            raw = _openalex("/works/" + wid, {"select": "id,doi,title,referenced_works,related_works,keywords,topics,primary_topic"})
+            if not seed_title and raw.get("title"):
+                seed_title = raw.get("title") or ""
+            if not seed_doi and raw.get("doi"):
+                seed_doi = raw.get("doi") or ""
+            for k in (raw.get("keywords") or []):
+                name = k.get("display_name") if isinstance(k, dict) else str(k)
+                if name and name not in seed_keywords:
+                    seed_keywords.append(name)
+            pt = raw.get("primary_topic")
+            if isinstance(pt, dict) and pt.get("display_name") and pt["display_name"] not in seed_topics:
+                seed_topics.append(pt["display_name"])
+            for t in (raw.get("topics") or []):
+                name = t.get("display_name") if isinstance(t, dict) else str(t)
+                if name and name not in seed_topics:
+                    seed_topics.append(name)
             ids = raw.get("referenced_works", []) if kind == "references" else raw.get("related_works", [])
             batch_ids = [ident.rstrip("/").split("/")[-1] for ident in ids[(page - 1) * 20:page * 20]]
             results = []
@@ -716,7 +808,7 @@ def get(app, path_query: str):
                                              "select": "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index"})
                 by_id = {x["id"].rstrip("/").split("/")[-1]: x for x in batch.get("results", [])}
                 results = [_work(by_id[ident]) for ident in batch_ids if ident in by_id]
-            result = {"results": results, "count": len(ids), "page": page, "has_more": page * 20 < len(ids), "source": "OpenAlex", "checked_at": _now().isoformat(), "relation": kind}
+            result = {"results": results, "count": len(ids), "page": page, "has_more": page * 20 < len(ids), "source": "OpenAlex", "checked_at": _now().isoformat(), "relation": kind, "seed_id": wid, "seed_title": seed_title, "seed_doi": seed_doi, "seed_keywords": seed_keywords[:8], "seed_topics": seed_topics[:5]}
             missing = len(batch_ids) - len(results)
             if missing:
                 result["warning"] = f"OpenAlex 未提供本頁 {missing} 篇論文的詳細資料；清單僅顯示可取得的來源。"  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -907,6 +999,76 @@ def _normalize_plan(plan: dict | None) -> dict:
     return output
 
 
+def _unwrap_json_list(raw_parsed: any) -> list | None:
+    """Robustly extract a list from parsed JSON, tolerating wrapper objects from weak models."""
+    if isinstance(raw_parsed, list):
+        return raw_parsed
+    if isinstance(raw_parsed, dict):
+        for key in ("reading_path", "path", "papers", "steps", "results", "items", "suggestions", "queries", "keywords", "list", "data"):
+            val = raw_parsed.get(key)
+            if isinstance(val, list):
+                return val
+        for val in raw_parsed.values():
+            if isinstance(val, list) and val and isinstance(val[0], (dict, str)):
+                return val
+        if raw_parsed.get("id") or raw_parsed.get("title") or raw_parsed.get("role") or raw_parsed.get("paper_key"):
+            return [raw_parsed]
+    return None
+
+
+def _normalize_title_key(title: str) -> str:
+    return " ".join(re.findall(r"[\w]+", str(title or "").casefold()))
+
+
+def _build_paper_index(papers: list[dict]) -> tuple[dict[str, dict], dict[str, dict], dict[str, dict]]:
+    """Build exact, alias/stripped ID, and title indexes for robust paper resolution."""
+    by_exact = {}
+    by_alias = {}
+    by_title = {}
+    for w in papers:
+        k = _key(w)
+        by_exact[k] = w
+        for raw_id in (w.get("openalex_id"), w.get("id"), w.get("doi"), w.get("arxiv"), k):
+            if not raw_id:
+                continue
+            s = str(raw_id).strip()
+            by_alias[s.lower()] = w
+            stripped = re.sub(r"^(?:https?://(?:openalex\.org/|(?:dx\.)?doi\.org/|arxiv\.org/(?:abs|pdf)/)|openalex:|doi:|arxiv:)", "", s, flags=re.I).rstrip("/").lower()
+            if stripped:
+                by_alias[stripped] = w
+        for t in (w.get("title"), w.get("title_en"), w.get("title_zh")):
+            norm_t = _normalize_title_key(t)
+            if len(norm_t) >= 4:
+                by_title[norm_t] = w
+    return by_exact, by_alias, by_title
+
+
+def _resolve_step_paper(step: dict, by_exact: dict, by_alias: dict, by_title: dict, papers: list[dict]) -> dict | None:
+    raw_id = str(step.get("id") or "").strip()
+    if raw_id in by_exact:
+        return by_exact[raw_id]
+    if raw_id.lower() in by_alias:
+        return by_alias[raw_id.lower()]
+    stripped = re.sub(r"^(?:https?://(?:openalex\.org/|(?:dx\.)?doi\.org/|arxiv\.org/(?:abs|pdf)/)|openalex:|doi:|arxiv:)", "", raw_id, flags=re.I).rstrip("/").lower()
+    if stripped and stripped in by_alias:
+        return by_alias[stripped]
+    for t_key in ("title", "paper_title", "name"):
+        t = str(step.get(t_key) or "").strip()
+        norm_t = _normalize_title_key(t)
+        if norm_t in by_title:
+            return by_title[norm_t]
+    norm_id = _normalize_title_key(raw_id)
+    if norm_id in by_title:
+        return by_title[norm_id]
+    if raw_id.isdigit():
+        idx = int(raw_id)
+        if 1 <= idx <= len(papers):
+            return papers[idx - 1]
+        elif 0 <= idx < len(papers):
+            return papers[idx]
+    return None
+
+
 def post(app, endpoint: str, body: dict):
     # Accept both server-normalized paths and callers that provide a bare or
     # trailing-slash endpoint (for example, /candidate/).
@@ -1027,6 +1189,8 @@ def post(app, endpoint: str, body: dict):
                 fields["interested"] = int(bool(body["interested"]))
             if "manual_order" in body:
                 fields["manual_order"] = max(0, min(10**9, int(body["manual_order"])))
+            if "archived" in body:
+                fields["archived"] = int(bool(body["archived"]))
             if "tags" in body:
                 if not isinstance(body["tags"], list):
                     raise ValueError("分類格式不正確。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -1053,6 +1217,8 @@ def post(app, endpoint: str, body: dict):
             fields["starred"] = bool(body["starred"])
         if "manual_order" in body:
             fields["manual_order"] = max(0, min(10**9, int(body["manual_order"])))
+        if "archived" in body:
+            fields["archived"] = bool(body["archived"])
         if "tags" in body:
             if not isinstance(body["tags"], list):
                 raise ValueError("分類格式不正確。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -1128,7 +1294,7 @@ def post(app, endpoint: str, body: dict):
         meter = usage.Meter(cfg.get("engine", ""))
         prompt = "請針對使用者選取的英文內容，提供 2 個意思相近、自然且符合學術寫作的英文改寫版本。保持原文主張強度，不新增資訊。只輸出 JSON 字串陣列。\n上下文（只用於理解）：" + context + "\n選取文字：" + selected  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
-        suggestions = engines.parse_json(answer)
+        suggestions = _unwrap_json_list(engines.parse_json(answer))
         if not isinstance(suggestions, list) or not suggestions:
             raise ValueError("模型未回傳可用的改寫建議，請重試或自行修改。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         return {"suggestions": [str(x).strip()[:2000] for x in suggestions if str(x).strip()][:2], "model": model.get("name", model.get("id", "")), "usage": meter.snapshot()}
@@ -1146,7 +1312,8 @@ def post(app, endpoint: str, body: dict):
                 return
             key = _key(work)
             if key not in seen:
-                seen.add(key); papers.append(work)
+                seen.add(key)
+                papers.append(work)
         for work in supplied:
             include(work)
         if topic:
@@ -1162,7 +1329,31 @@ def post(app, endpoint: str, body: dict):
                 title_result = _search_works(root, str(start_paper.get("title")), sort="relevance_score:desc")
                 normalized_title = " ".join(str(start_paper.get("title")).casefold().split())
                 exact = next((work for work in title_result.get("results", []) if " ".join(str(work.get("title") or "").casefold().split()) == normalized_title), None)
-            include(exact or start_paper)
+            start_work = exact or start_paper
+            start_work["is_start_paper"] = True
+            include(start_work)
+
+            # Auto-expand key foundational references and related follow-up works for the start paper
+            ref_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("referenced_works") or []) if x][:8]
+            rel_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("related_works") or []) if x][:8]
+            expand_ids = [ident for ident in (ref_ids + rel_ids) if ident and ("openalex:" + ident.upper()) not in seen]
+            if expand_ids:
+                try:
+                    batch = _openalex("/works", {
+                        "filter": "openalex_id:" + "|".join(expand_ids[:15]),
+                        "per-page": 15,
+                        "select": "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index"
+                    })
+                    for item in batch.get("results", []):
+                        w = _work(item)
+                        ident = (w.get("openalex_id") or "").rstrip("/").split("/")[-1]
+                        if ident in ref_ids:
+                            w["seed_relation"] = "reference"
+                        elif ident in rel_ids:
+                            w["seed_relation"] = "related"
+                        include(w)
+                except Exception:
+                    pass
         if not papers:
             raise ValueError("找不到可用的論文資料，請先搜尋主題或選擇候選論文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         if not topic and not start_paper.get("title"):
@@ -1170,36 +1361,104 @@ def post(app, endpoint: str, body: dict):
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
-        source = [{"id": _key(w), "title": str(w.get("title") or "")[:400], "year": w.get("year"), "venue": w.get("venue"), "abstract": str(w.get("abstract") or "")[:1800]} for w in papers]
-        prompt = "根據下方已檢索到的論文，依研究目標規劃有順序的閱讀路徑。只能推薦資料中存在的 id，不能虛構論文或出版資訊。找不到依據的內容留空或寫「未提供」。請用繁體中文。回傳 JSON 陣列，每項含 id、role、reason、priority。role 請依主題選用基礎入門、方法理解、代表性研究、延伸探索、前沿研究等合適角色，不必每種都使用。\n研究目標：" + (goal or "建立主題脈絡") + "\n主題：" + (topic or str(start_paper.get("title") or "")) + "\n可用論文：" + json.dumps(source, ensure_ascii=False)  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+
+        # Prioritize candidates: start paper first, then user candidates/references, capped at 24 for weak-model stability
+        capped_papers = []
+        seen_capped = set()
+        for w in papers:
+            k = _key(w)
+            if k not in seen_capped:
+                seen_capped.add(k)
+                capped_papers.append(w)
+            if len(capped_papers) >= 24:
+                break
+
+        by_exact, by_alias, by_title = _build_paper_index(capped_papers)
+        source = []
+        for w in capped_papers:
+            entry = {
+                "id": _key(w),
+                "title": str(w.get("title") or "")[:350],
+                "year": w.get("year"),
+                "venue": w.get("venue"),
+                "citations": w.get("cited_by_count"),
+                "abstract": str(w.get("abstract") or "")[:1200],
+            }
+            if w.get("is_start_paper"):
+                entry["note"] = "起點論文（目前閱讀中）"  # i18n-ok: prompt note
+            elif w.get("seed_relation") == "reference":
+                entry["note"] = "起點論文之重要參考文獻（基礎背景）"  # i18n-ok: prompt note
+            elif w.get("seed_relation") == "related":
+                entry["note"] = "起點論文之相關研究（主流方法／衍生延伸）"  # i18n-ok: prompt note
+            source.append(entry)
+
+        prompt = (
+            "你是一位學術研究導師。請根據下方已檢索到的候選論文清單，依研究目標規劃一份具備學習進階順序的閱讀路徑（由淺入深、由基礎到前沿，約 5 至 10 篇）。\n"  # i18n-ok: prompt
+            "規則：\n"  # i18n-ok: prompt
+            "1. 只能推薦清單中存在的論文 id，不得虛構論文或作者。\n"  # i18n-ok: prompt
+            "2. 角色（role）請依閱讀順序精準標註：如「基礎入門」、「先備背景」、「主流方法」、「起點核心」、「代表性研究」、「延伸探索」、「前沿突破」等。\n"  # i18n-ok: prompt
+            "3. 理由（reason）請具體說明「為什麼要先讀這篇、它為後續論文建立了什麼概念或提供了什麼方法」。\n"  # i18n-ok: prompt
+            "4. priority 請標記閱讀順序（1 為最先讀，數字依序遞增）。\n"  # i18n-ok: prompt
+            "5. 請使用繁體中文（臺灣用語）。輸出標準 JSON 陣列，每項包含 id、role、reason、priority。\n\n"  # i18n-ok: prompt
+            f"研究目標：{goal or '建立主題脈絡，由淺入深掌握核心研究'}\n"  # i18n-ok: prompt
+            f"主題：{topic or str(start_paper.get('title') or '')}\n"  # i18n-ok: prompt
+            f"候選論文：{json.dumps(source, ensure_ascii=False)}"  # i18n-ok: prompt
+        )
+
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
-        plan = engines.parse_json(answer)
+        plan = _unwrap_json_list(engines.parse_json(answer))
         if not isinstance(plan, list):
             raise ValueError("模型回傳的閱讀路徑格式不正確，請重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        by_key = {_key(w): w for w in papers}
+
         output = []
+        seen_keys = set()
         for step in plan:
-            if not isinstance(step, dict) or step.get("id") not in by_key:
+            if not isinstance(step, dict):
                 continue
-            work = by_key[step["id"]]
+            work = _resolve_step_paper(step, by_exact, by_alias, by_title, capped_papers)
+            if not work:
+                continue
+            wk = _key(work)
+            if wk in seen_keys:
+                continue
+            seen_keys.add(wk)
             try:
                 priority = int(step.get("priority") or len(output) + 1)
             except (TypeError, ValueError):
                 priority = len(output) + 1
-            output.append({"paper": work, "role": str(step.get("role") or tr("延伸探索"))[:80], "reason": str(step.get("reason") or "")[:800], "priority": max(1, min(30, priority))})
+            output.append({
+                "paper": work,
+                "role": str(step.get("role") or tr("延伸探索"))[:80],
+                "reason": str(step.get("reason") or "")[:800],
+                "priority": max(1, min(30, priority)),
+            })
         output.sort(key=lambda x: x["priority"])
-        return {"results": output, "model": model.get("name", model.get("id", "")), "source_count": len(papers), "usage": meter.snapshot()}
+        return {"results": output, "model": model.get("name", model.get("id", "")), "source_count": len(capped_papers), "usage": meter.snapshot()}
     if endpoint == "/ai-query":
         query = str(body.get("query") or "").strip()[:500]
-        if not query:
-            raise ValueError("請先輸入中文研究主題。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        title = str(body.get("title") or "").strip()[:400]
+        abstract = str(body.get("abstract") or "").strip()[:2000]
+        if not query and not title and not abstract:
+            raise ValueError("請先輸入研究主題或提供論文標題。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         from . import chat_models, engines, usage
         full_cfg = config.load()
         cfg, model = chat_models.engine_cfg(full_cfg, _fast_model_id(full_cfg))
         meter = usage.Meter(cfg.get("engine", ""))
-        prompt = "將使用者的繁體中文研究主題轉為 3 到 5 組精簡、可編輯的英文 OpenAlex 搜尋詞。保留標準學術術語；不擴張成未提及的研究方向。只輸出 JSON 陣列字串。\n主題：" + query  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        if title or abstract:
+            prompt = (
+                "你是一位學術文獻檢索專家。請依據下方論文的標題與摘要，提煉出 3 到 5 組精簡、標準的英文學術檢索關鍵詞或主題短語（Task、Method、Domain）。\n"  # i18n-ok: prompt
+                "規則：\n"  # i18n-ok: prompt
+                "1. 請去除自創的模型代號、專有名稱前綴或過於狹隘的專案簡稱（例如 Mask2Former、LLaVA、BERT-XYZ），提煉出通用學術方法與任務名詞（例如 Masked Attention Image Segmentation、Visual Instruction Tuning）。\n"  # i18n-ok: prompt
+                "2. 關鍵詞長度宜為 2 至 5 個英文單詞，適合直接在 OpenAlex 或 Google Scholar 檢索。\n"  # i18n-ok: prompt
+                "3. 保持純英文術語，每組短語務必精準聚焦在核心研究主題與方法。\n"  # i18n-ok: prompt
+                "4. 只輸出標準 JSON 陣列字串（例如 [\"Keyword 1\", \"Keyword 2\", ...]），不要有其他說明文字。\n\n"  # i18n-ok: prompt
+                f"論文標題：{title}\n"  # i18n-ok: prompt
+                f"摘要：{abstract}"  # i18n-ok: prompt
+            )
+        else:
+            prompt = "將使用者的繁體中文研究主題轉為 3 到 5 組精簡、可編輯的英文 OpenAlex 搜尋詞。保留標準學術術語；不擴張成未提及的研究方向。只輸出 JSON 陣列字串。\n主題：" + query  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
-        suggestions = engines.parse_json(answer)
+        suggestions = _unwrap_json_list(engines.parse_json(answer))
         if not isinstance(suggestions, list):
             raise ValueError("模型回傳的關鍵字格式不正確，請直接使用原始關鍵字搜尋。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         return {"suggestions": [str(x).strip()[:160] for x in suggestions if str(x).strip()][:5], "model": model.get("name", model.get("id", "")), "usage": meter.snapshot()}

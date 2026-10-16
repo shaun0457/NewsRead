@@ -8,22 +8,23 @@
 (function (PR) {
   "use strict";
   const L = PR.lib;
-  const ALL = ["all", PR.t("全部"), "book", () => true];
-  const STARRED = ["starred", PR.t("星標"), "star", (i) => i.starred];
+  const ALL = ["all", PR.t("全部"), "book", (i) => !i.archived];
+  const STARRED = ["starred", PR.t("星標"), "star", (i) => !i.archived && i.starred];
   const DEFAULT_STATUS = [
     { id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") },
     { id: "done", label: PR.t("已完成") },
   ];
-  let BUILTIN = [ALL].concat(DEFAULT_STATUS.map((s) => [s.id, s.label, s.id === "done" ? "check" : "book", (i) => (i.status || "unread") === s.id]), [STARRED]);
+  let BUILTIN = [ALL].concat(DEFAULT_STATUS.map((s) => [s.id, s.label, s.id === "done" ? "check" : "book", (i) => !i.archived && (i.status || "unread") === s.id]), [STARRED]);
   const AUTO = [  // 有内容时才出现，不用管理
-    ["questions", PR.t("有待回答的问题"), "question", (i) => i.open_questions > 0],
-    ["translating", PR.t("翻译中"), "sparkle", (i) => i.job && ["queued", "running"].includes(i.job.state)],
+    ["questions", PR.t("有待回答的问题"), "question", (i) => !i.archived && i.open_questions > 0],
+    ["translating", PR.t("翻译中"), "sparkle", (i) => !i.archived && i.job && ["queued", "running"].includes(i.job.state)],
   ];
-  L.VIEWS = BUILTIN.concat(AUTO);
+  const ARCHIVED = ["archived", PR.t("已封存"), "archive", (i) => Boolean(i.archived)];
+  L.VIEWS = BUILTIN.concat(AUTO, [ARCHIVED]);
   L.updateStatusViews = function (statuses) {
     const states = (statuses && statuses.length ? statuses : DEFAULT_STATUS).filter((s) => s.id !== "paused");
-    BUILTIN = [ALL].concat(states.map((s) => [s.id, PR.t(s.label), s.id === "done" ? "check" : "book", (i) => (i.status || "unread") === s.id]), [STARRED]);
-    L.VIEWS = BUILTIN.concat(AUTO);
+    BUILTIN = [ALL].concat(states.map((s) => [s.id, PR.t(s.label), s.id === "done" ? "check" : "book", (i) => !i.archived && (i.status || "unread") === s.id]), [STARRED]);
+    L.VIEWS = BUILTIN.concat(AUTO, [ARCHIVED]);
   };
   const statusMap = () => Object.fromEntries((L.statuses && L.statuses.length ? L.statuses : DEFAULT_STATUS).map((s) => [s.id, PR.t(s.label)]));
   const RECENT_SHORT = 5, RECENT_MAX = 10;
@@ -115,7 +116,7 @@
   function catRow(c, pinnedRow) {
     if (ui.renaming === c && !pinnedRow) return '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-rename="' + PR.esc(c) + '" value="' + PR.esc(c) + '" maxlength="30"></div>';
     return '<div class="srow' + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon("folder", "sm") +
-      '<span class="t">' + PR.esc(c) + '</span><span class="n">' + count((i) => (i.tags || []).includes(c)) + "</span>" + more + "</div>";
+      '<span class="t">' + PR.esc(c) + '</span><span class="n">' + count((i) => !i.archived && (i.tags || []).includes(c)) + "</span>" + more + "</div>";
   }
   /* 侧栏放短标题（PR.titles 里定：翻译时起的短标题，或主标题冒号前那半句） */
   const shortTitle = (i) => PR.titles(i).short;
@@ -143,12 +144,14 @@
       cats.filter((c) => !isPinned("c:" + c) && !L.side.hidden.includes("c:" + c)).map((c) => catRow(c)).join("") +
       (ui.adding ? '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-new placeholder="' + PR.t("分类名，回车") + '" maxlength="30"></div>' : "") +
       (!ui.adding ? '<button class="srow hint-row" data-add>' + PR.icon("plus", "sm") + '<span class="t">' + (cats.length ? PR.t("新建分类") : PR.t("新建分类，把论文拖进来")) + "</span></button>" : "") + "</div>";
-    const recent = L.items.filter((i) => i.last_opened && !isPinned("p:" + i.id)).sort((a, b) => String(b.last_opened).localeCompare(String(a.last_opened)));
+    const recent = L.items.filter((i) => !i.archived && i.last_opened && !isPinned("p:" + i.id)).sort((a, b) => String(b.last_opened).localeCompare(String(a.last_opened)));
     if (recent.length) {
       const shown = recent.slice(0, ui.recentOpen ? RECENT_MAX : RECENT_SHORT);
       h += '<h3>' + PR.t("最近阅读") + '</h3><div class="sgroup">' + shown.map((i) => paperRow(i)).join("") +
         (recent.length > RECENT_SHORT ? '<button class="srow toggle-more" data-recent>' + (ui.recentOpen ? PR.t("收起") : PR.t("展开更多（{n}）", { n: Math.min(recent.length, RECENT_MAX) - RECENT_SHORT })) + "</button>" : "") + "</div>";
     }
+    h += '<div class="sgroup side-archive"><div class="srow' + (L.view === "archived" && !L.tag ? " on" : "") + '" data-view="archived">' + PR.icon("archive", "sm") +
+      '<span class="t">' + PR.t("已封存") + '</span><span class="n">' + count((i) => i.archived) + "</span>" + more + "</div></div>";
     if (L.trashCount) h += '<div class="sgroup side-trash"><button class="srow" data-trash>' + PR.icon("trash", "sm") + '<span class="t">' + PR.t("回收站") + '</span><span class="n">' + L.trashCount + "</span></button></div>";
     box.innerHTML = h;
     const inp = PR.$(".side-input", box);
@@ -160,7 +163,7 @@
     if (row.dataset.view) {
       const k = row.dataset.view, key = "v:" + k;
       const items = [{ label: isPinned(key) ? PR.t("取消置顶") : PR.t("置顶"), icon: "pin", fn: () => L.togglePin(key) }];
-      if (k !== "all") items.push({ label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden(k, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: row.textContent.trim().replace(/\d+$/, "") })); } });
+      if (k !== "all" && k !== "archived") items.push({ label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden(k, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: row.textContent.trim().replace(/\d+$/, "") })); } });
       return PR.menu(where, items);
     }
     if (row.dataset.cat) {
@@ -250,9 +253,9 @@
   let dragId = null;
   document.addEventListener("dragstart", (e) => { const r = e.target.closest && e.target.closest(".row[data-id]"); if (r) { dragId = r.dataset.id; e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "copy"; side.classList.add("dragging"); } });
   document.addEventListener("dragend", () => { dragId = null; side.classList.remove("dragging"); PR.$$(".srow.drop", side).forEach((x) => x.classList.remove("drop")); });
-  /* 能放的地方：自建分类、在读 / 未读 / 已读（改状态）、星标、“新建分类” */
+  /* 能放的地方：自建分类、在读 / 未读 / 已读（改状态）、星标、已封存、“新建分类” */
   const STATUS = statusMap;
-  const dropTarget = (e) => dragId && e.target.closest(".srow[data-cat], .srow[data-view='starred'], .srow[data-status-view], .srow[data-add]");
+  const dropTarget = (e) => dragId && e.target.closest(".srow[data-cat], .srow[data-view='starred'], .srow[data-status-view], .srow[data-view='archived'], .srow[data-add]");
   side.addEventListener("dragover", (e) => {
     const row = dropTarget(e);
     PR.$$(".srow.drop", side).forEach((x) => x !== row && x.classList.remove("drop"));
@@ -268,11 +271,20 @@
     // 多选时拖的是勾着的一篇，就把勾着的全部一起放过去
     const its = (L.picking && L.picked.has(dragId) ? Array.from(L.picked) : [dragId]).map(L.byId).filter(Boolean);
     const v = row.dataset.view, c = row.dataset.cat, n = its.length;
-    if (v === "starred") { L.patchMany(its.filter((i) => !i.starred).map((i) => [i.id, { starred: true }])); PR.toast(n > 1 ? PR.t("{n} 篇已加星标", { n }) : PR.t("已加星标")); }
-    else if (STATUS()[v]) { L.patchMany(its.filter((i) => i.status !== v).map((i) => [i.id, { status: v }])); PR.toast(n > 1 ? PR.t("{n} 篇已標為{status}", { n, status: STATUS()[v] }) : PR.t("已標為{status}", { status: STATUS()[v] })); }
+    if (v === "archived") {
+      const toArchive = its.filter((i) => !i.archived);
+      if (toArchive.length) {
+        L.patchMany(toArchive.map((i) => [i.id, { archived: true }]));
+        PR.toast(n > 1 ? PR.t("{n} 篇已封存", { n }) : PR.t("已封存"));
+      } else {
+        PR.toast(PR.t("已經在封存區了"));
+      }
+    }
+    else if (v === "starred") { L.patchMany(its.filter((i) => !i.starred).map((i) => [i.id, { starred: true }])); PR.toast(n > 1 ? PR.t("{n} 篇已加星标", { n }) : PR.t("已加星标")); }
+    else if (STATUS()[v]) { L.patchMany(its.map((i) => [i.id, { status: v, archived: false }])); PR.toast(n > 1 ? PR.t("{n} 篇已標為{status}", { n, status: STATUS()[v] }) : PR.t("已標為{status}", { status: STATUS()[v] })); }
     else {
       const add = its.filter((i) => !(i.tags || []).includes(c));
-      if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c) }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
+      if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c), archived: false }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
       else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(c) }));
     }
   });

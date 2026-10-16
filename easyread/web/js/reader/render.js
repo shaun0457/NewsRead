@@ -82,7 +82,7 @@
       const items = Array.isArray(b.items) ? b.items : [];
       return "<" + tag + ">" + items.map((it, i) => "<li>" + zhDiv(b.id + "#" + i) + enIfZh(b.id + "#" + i, it && it.en) + "</li>").join("") + "</" + tag + ">";
     },
-    math: (b) => '<div class="math-row"><div class="math-body">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
+    math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
       const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
         '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';

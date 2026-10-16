@@ -48,11 +48,16 @@
     if (!p) return "";
     const base = PR.imageUrl(p.img);
     if (PR.store.mode !== "server") return base;
-    const need = (PR.$(".pv-scroll").clientWidth || 480) * (devicePixelRatio || 1);
+    const need = (PR.$(".pv-scroll").clientWidth || 480) * (zoom ? zoom.value : 1) * (devicePixelRatio || 1);
     return need <= 1000 ? base + "?w=1000" : need <= 1600 ? base + "?w=1600" : base;  // 1000 宽的服务端已提前生成好
   }
   let pageNodes = [], pageSource = null;
   const scroller = PR.$(".pv-scroll");
+  const zoom = PR.initPageZoom ? PR.initPageZoom({
+    scroller,
+    beforeZoom: () => { panelInput = false; programmaticUntil = Date.now() + 1500; holdUntil = Date.now() + 1500; },
+    afterZoom: () => loadNearby(pvPage),
+  }) : { value: 1 };
   function loadPage(n) {
     const entry = pageNodes[n - 1];
     if (!entry) return;
@@ -234,6 +239,14 @@
     const loc = S.layout[id];
     showPage(loc ? loc.page : b.page, id);
   };
+
+  PR.$(".pv-follow input")?.addEventListener("change", () => {
+    if (!PR.$(".pv-follow input").checked) return;
+    panelInput = false;
+    holdUntil = 0;
+    pvBlock = null;
+    PR.syncPage(false);
+  });
 
   PR.$("#pageview").addEventListener("click", (e) => {
     const b = e.target.closest("[data-pv]");

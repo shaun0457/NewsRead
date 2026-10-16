@@ -1,5 +1,5 @@
 /* 边注：共读讨论（discussion.json）和我的笔记（reader.json）。
-   宽屏排在正文右侧、贴着对应段落；窄屏或开着侧面板时收成段尾角标，点开在段落下方。 */
+   宽屏分置正文两侧；窄屏或开着侧面板时收成段尾角标，点开在段落下方。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
@@ -11,6 +11,7 @@
   PR.myNotes = () => Object.values(S.reader.notes || {}).filter((n) => !n.deleted);
   PR.repliesTo = (nid) => (S.discussion.entries || []).filter((e) => e.reply_to === nid);
   const anchorOf = (a) => (a && (a === "head" || PR.blockById[a]) ? a : "head");
+  const noteTargetSelector = (id) => 'mark[data-note="' + id + '"], [data-mirror="' + id + '"], .math-body[data-note="' + id + '"]';
   PR.anchorOfEntry = (e) => anchorOf(e.anchor || (((S.reader.notes || {})[e.reply_to] || {}).anchor));
 
   /* 按锚点分组：组内按时间，agent 的回复紧跟在被回复的笔记后面 */
@@ -22,11 +23,13 @@
     notes.forEach((n) => (noteById[n.id] = n));
     for (const n of notes) {
       if (n.kind === "highlight" && !(n.body || "").trim() && PR.editingNote !== n.id) continue;
-      push(anchorOf(n.anchor), { src: "mine", t: n.created || n.updated || "", data: n });
+      push(anchorOf(n.anchor), { src: "mine", side: n.ai_generated ? "right" : "left", t: n.created || n.updated || "", data: n });
     }
     for (const e of S.discussion.entries || []) {
       const host = e.reply_to && noteById[e.reply_to];
-      push(PR.anchorOfEntry(e), { src: "agent", t: host ? (host.created || "") + "~" + (e.at || "") : e.at || "", data: e });
+      // 問答較接近使用者的閱讀思考，放在左側；解釋、補充與核對提示留在右側。
+      const side = e.kind === "qa" || e.kind === "reply" ? "left" : "right";
+      push(PR.anchorOfEntry(e), { src: "agent", side, t: host ? (host.created || "") + "~" + (e.at || "") : e.at || "", data: e });
     }
     for (const list of Object.values(groups)) list.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
     return groups;
@@ -34,11 +37,15 @@
 
   function cardHtml(item, editingId) {
     const d = item.data;
+    const sideClass = item.side === "left" ? " side-left" : " side-right";
     // AI 智慧標註已直接套用在正文位置；筆記卡只顯示解釋，避免再次附加原文引用。
     // 手動批註仍保留原有引用。
     const showQuote = !!d.quote && !d.ai_generated;
+    const quoteHtml = d.target === "formula" ? '<div class="quote formula-quote">' + PR.tex(d.quote, true) + "</div>" :
+      (showQuote ? '<div class="quote' + (d.quote && PR.quoteLost && PR.quoteLost(d.id) ? " lost" : "") + '"' + (d.side === "en" ? ' lang="en"' : "") + ">" + (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") +
+        PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "");
     if (item.src === "agent") {
-      return '<div class="card agent' + (d.kind === "check" ? " check" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
+      return '<div class="card agent' + sideClass + (d.kind === "check" ? " check" : "") + '" data-card="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
         '<div class="lbl"><span>' + (KIND_LABEL[d.kind] || "AI") + '</span><span class="meta">' + PR.shortTime(d.updated || d.at) + "</span></div>" +
         (showQuote ? '<div class="quote">' + PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") +
         (d.title ? '<div class="ttl">' + PR.md(d.title, { xref: false }) + "</div>" : "") +
@@ -50,7 +57,6 @@
     const answered = PR.repliesTo(d.id).length > 0;
     const asking = PR.asking.has(d.id);
     const lbl = d.kind === "question" ? PR.t("我的问题") + " · " + (answered ? PR.t("已回复") : asking ? PR.t("模型思考中") : PR.t("待回答")) : d.kind === "highlight" ? PR.t("我的划线") : PR.t("我的笔记");
-    const lost = d.quote && PR.quoteLost && PR.quoteLost(d.id) ? " lost" : "";
     const editing = (editingId !== undefined ? editingId : PR.editingNote) === d.id;
     const askLabel = d.kind === "question" ? (answered ? PR.t("追问 AI") : PR.t("让 AI 回答")) : PR.t("让 AI 点评");
     const ask = d.kind !== "highlight" && d.body && PR.canChat && PR.canChat() && PR.feature("chat")
@@ -61,10 +67,9 @@
         colorDots(d) + '<span class="hint">' + PR.t("自动保存 · Esc 收起") + "</span></div>"
       : '<div class="body">' + PR.mdBlocks(d.body) + "</div>" + (ask ? '<div class="ask-row">' + ask + "</div>" : "") +
         '<div class="acts"><button data-a="edit">' + PR.t("编辑") + '</button><button data-a="kind">' + (d.kind === "question" ? PR.t("改成笔记") : PR.t("改成问题")) + '</button><button data-a="del">' + PR.t("删除") + "</button></div>";
-    return '<div class="card mine' + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
+    return '<div class="card mine' + sideClass + (d.ai_generated ? " ai-generated" : "") + (editing ? " editing" : "") + (d.color ? " c-" + d.color : "") + '" data-note="' + PR.esc(d.id) + '" data-anchor="' + PR.esc(item.anchor) + '">' +
       '<div class="lbl"><span>' + lbl + '</span><span class="meta">' + PR.shortTime(d.updated || d.created) + "</span></div>" +
-      (showQuote ? '<div class="quote' + lost + '"' + (d.side === "en" ? ' lang="en"' : "") + ">" + (d.side === "en" ? '<span class="side-tag">' + PR.t("原文") + "</span>" : "") +
-        PR.t("「{q}」", { q: PR.md(d.quote, { cite: false, xref: false }) }) + "</div>" : "") + body + "</div>";
+      quoteHtml + body + "</div>";
   }
   PR.cardHtml = cardHtml;
   PR.collectNotes = collect;
@@ -76,20 +81,33 @@
 
   PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches &&
     !document.body.classList.contains("side-open") && !document.body.classList.contains("no-margin");
+  PR.dualMarginWide = () => {
+    const root = getComputedStyle(document.documentElement);
+    const needed = parseFloat(root.getPropertyValue("--fs")) * parseFloat(root.getPropertyValue("--measure")) +
+      2 * parseFloat(root.getPropertyValue("--margin-w")) + 2 * parseFloat(root.getPropertyValue("--gap")) +
+      parseFloat(root.getPropertyValue("--gutter")) + 40;
+    return PR.marginWide() && window.innerWidth >= Math.max(1440, needed);
+  };
 
   PR.renderMargin = function () {
     const groups = collect();
     PR.noteGroups = groups;
+    const left = PR.$("#margin-left");
     const margin = PR.$("#margin");
     PR.$$(".note-pin, .inline-notes").forEach((n) => n.remove());
     const wide = PR.marginWide();
+    const dual = PR.dualMarginWide();
+    document.body.classList.toggle("dual-margin", dual);
+    left.innerHTML = "";
     margin.innerHTML = "";
     for (const [anchor, items] of Object.entries(groups)) {
       const host = document.getElementById("b-" + anchor);
       if (!host) continue;
-      const html = items.map((it) => cardHtml(it)).join("");
-      if (wide) margin.insertAdjacentHTML("beforeend", html);
+      if (wide) {
+        for (const it of items) (dual && it.side === "left" ? left : margin).insertAdjacentHTML("beforeend", cardHtml(it));
+      }
       else {
+        const html = items.map((it) => cardHtml(it)).join("");
         const mine = items.every((i) => i.src === "mine");
         host.appendChild(PR.el("button", { class: "note-pin" + (mine ? " mine" : ""), title: PR.t("讨论与笔记"), "data-t": "pin", text: String(items.length) }));
         host.appendChild(PR.el("div", { class: "inline-notes" }, html));
@@ -115,25 +133,27 @@
   /* 宽屏：卡片贴着锚点，放不下就往下顺延 */
   PR.layoutMargin = function () {
     if (!PR.marginWide()) return;
-    const margin = PR.$("#margin");
-    const mTop = margin.getBoundingClientRect().top;
-    const cards = PR.$$(".card", margin).map((c) => {
-      const host = document.getElementById("b-" + c.dataset.anchor);
-      let y = host ? host.getBoundingClientRect().top - mTop : 0;
-      // 划线所在的那边可能藏着（原文模式藏译文）：取看得见的划线，没有就取另一边的同步标记
-      const sel = c.dataset.note ? 'mark[data-note="' + c.dataset.note + '"], [data-mirror="' + c.dataset.note + '"]' : 'mark[data-card="' + c.dataset.card + '"]';
-      const mark = PR.$$(sel).find((m) => m.getClientRects().length);
-      if (mark) y = Math.max(y, mark.getBoundingClientRect().top - mTop - 4);
-      return { c, y };
-    });
-    cards.sort((a, b) => a.y - b.y);
-    let bottom = -Infinity;
-    for (const { c, y } of cards) {
-      const top = Math.max(y, bottom + 16);
-      c.style.top = Math.round(top) + "px";
-      bottom = top + c.offsetHeight;
+    const dual = PR.dualMarginWide();
+    const margins = dual ? [PR.$("#margin-left"), PR.$("#margin")] : [PR.$("#margin")];
+    for (const margin of margins) {
+      const mTop = margin.getBoundingClientRect().top;
+      const cards = PR.$$(".card", margin).map((c) => {
+        const host = document.getElementById("b-" + c.dataset.anchor);
+        let y = host ? host.getBoundingClientRect().top - mTop : 0;
+        const sel = c.dataset.note ? noteTargetSelector(c.dataset.note) : 'mark[data-card="' + c.dataset.card + '"]';
+        const mark = PR.$$(sel).find((m) => m.getClientRects().length);
+        if (mark) y = Math.max(y, mark.getBoundingClientRect().top - mTop - 4);
+        return { c, y };
+      });
+      cards.sort((a, b) => a.y - b.y);
+      let bottom = -Infinity;
+      for (const { c, y } of cards) {
+        const top = Math.max(y, bottom + 16);
+        c.style.top = Math.round(top) + "px";
+        bottom = top + c.offsetHeight;
+      }
+      margin.style.minHeight = Math.max(0, bottom) + "px";
     }
-    margin.style.minHeight = Math.max(0, bottom) + "px";
   };
 
   /* ---------- 笔记的增删改 ---------- */
@@ -155,7 +175,7 @@
     PR.renderMargin();
     PR.applyMarks && PR.applyMarks();
     if (!PR.marginWide() && n) { const host = document.getElementById("b-" + anchorOf(n.anchor)); host && host.classList.add("notes-open"); }
-    const ta = PR.$('#margin .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea');
+    const ta = PR.$('#margin .card[data-note="' + id + '"] textarea, #margin-left .card[data-note="' + id + '"] textarea, .inline-notes .card[data-note="' + id + '"] textarea');
     if (ta) {
       ta.focus();
       ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -212,15 +232,15 @@
 
   /* ---------- 卡片上的交互（边注和笔记面板共用） ---------- */
   document.addEventListener("input", (e) => {
-    if (e.target.matches("#margin .card textarea, .inline-notes .card textarea")) { PR.autosize(e.target); PR.autosaveNote(); PR.layoutMargin(); }
+    if (e.target.matches("#margin .card textarea, #margin-left .card textarea, .inline-notes .card textarea")) { PR.autosize(e.target); PR.autosaveNote(); PR.layoutMargin(); }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.target.matches("#margin .card textarea, .inline-notes .card textarea") && (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey)))) {
+    if (e.target.matches("#margin .card textarea, #margin-left .card textarea, .inline-notes .card textarea") && (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey)))) {
       e.preventDefault(); PR.autosaveNote.flush(); PR.closeNoteEditor();
     }
   });
   document.addEventListener("focusout", (e) => {
-    if (!e.target.matches("#margin .card textarea, .inline-notes .card textarea")) return;
+    if (!e.target.matches("#margin .card textarea, #margin-left .card textarea, .inline-notes .card textarea")) return;
     setTimeout(() => {
       const card = e.target.closest(".card");
       if (!card || !card.isConnected) return;   // 卡片被重排替换掉了，新卡片已接手编辑
@@ -270,7 +290,7 @@
     if (card.dataset.anchor && inPanel) { PR.jumpTo("b-" + card.dataset.anchor); return true; }
     return false;
   };
-  document.addEventListener("click", (e) => { if (e.target.closest("#margin, .inline-notes")) PR.cardClick(e, false); });
+  document.addEventListener("click", (e) => { if (e.target.closest("#margin, #margin-left, .inline-notes")) PR.cardClick(e, false); });
 
   /* AI 写的卡片：删除；回答类的还能重新回答（删掉旧的，再问一次） */
   async function delAgent(id, regen, btn) {
@@ -291,13 +311,13 @@
     const host = document.getElementById("b-" + card.dataset.anchor);
     host && host.classList.toggle("linked", on);
     card.classList.toggle("linked", on);
-    const sel = card.dataset.note ? 'mark[data-note="' + card.dataset.note + '"], [data-mirror="' + card.dataset.note + '"]' : 'mark[data-card="' + card.dataset.card + '"]';
+    const sel = card.dataset.note ? noteTargetSelector(card.dataset.note) : 'mark[data-card="' + card.dataset.card + '"]';
     PR.$$(sel).forEach((m) => m.classList.toggle("active", on));
   }
   document.addEventListener("mouseover", (e) => {
-    const card = e.target.closest && e.target.closest("#margin .card, #notespanel .card");
+    const card = e.target.closest && e.target.closest("#margin .card, #margin-left .card, #notespanel .card");
     if (card && !card.classList.contains("linked")) { PR.$$(".card.linked").forEach((c) => link(c, false)); link(card, true); }
-    if (!card && e.target.closest && !e.target.closest("#margin, #notespanel")) PR.$$(".card.linked").forEach((c) => link(c, false));
+    if (!card && e.target.closest && !e.target.closest("#margin, #margin-left, #notespanel")) PR.$$(".card.linked").forEach((c) => link(c, false));
   });
 
   PR.flashCard = function (id) {

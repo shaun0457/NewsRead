@@ -76,9 +76,9 @@
     const location = a.locatable ? (a.page ? PR.t("第 {page} 頁", { page: a.page }) : PR.t("已定位")) :
       (a.stale_reason === "translation_changed" ? PR.t("譯文已更新，請重新分析") :
         (a.source_stale ? PR.t("來源已更新，請重新分析") : PR.t("無法定位，請修改原文")));
-    return '<article class="smart-card' + (a.locatable ? "" : " smart-unlocatable") + '" data-smart-id="' + PR.esc(a.annotation_id) + '">' +
+    return '<article class="smart-card' + (a.locatable ? "" : " smart-unlocatable") + '" data-smart-id="' + PR.esc(a.annotation_id) + '" data-anchor="' + PR.esc(a.anchor || "") + '">' +
       '<div class="smart-card-head"><b>' + PR.t("AI 建議標註") + '</b><span class="smart-meta">' + PR.esc(color) + " · " + PR.esc(label) + " · " + PR.esc(location) + '</span></div>' +
-      '<blockquote class="smart-quote">' + PR.esc(a.quote || PR.t("沒有可顯示的原文")) + '</blockquote>' +
+      '<blockquote class="smart-quote">' + PR.md(a.quote || PR.t("沒有可顯示的原文"), { cite: false, xref: false }) + '</blockquote>' +
       (a.note ? '<p class="smart-note"><b>' + PR.t("AI 註記") + '</b> ' + PR.mdBlocks(a.note) + '</p>' : '') +
       (a.reason ? '<p class="smart-reason"><b>' + PR.t("標註原因") + '</b> ' + PR.esc(a.reason) + '</p>' : '') +
       '<div class="smart-actions"><button class="btn sm primary" data-smart-action="accept"' + (a.locatable ? "" : " disabled") + '>' + PR.t("接受") + '</button><button class="btn sm line" data-smart-action="edit">' + PR.t("修改") + '</button><button class="btn sm line danger" data-smart-action="reject">' + PR.t("拒絕") + '</button></div></article>';
@@ -87,9 +87,12 @@
   function smartHtml() {
     const list = smartItems();
     const pending = list.filter((a) => a.locatable).length;
+    const running = smartJob && ["queued", "running"].includes(smartJob.state);
     let h = '<section class="np-smart"><div class="np-smart-head"><div><b>' + PR.t("AI 待確認標註") + '</b><span class="smart-count">' + list.length + '</span></div><span class="grow"></span>' +
-      (smartJob && ["queued", "running"].includes(smartJob.state) ? '<button class="btn sm line" data-smart-cancel>' + PR.t("取消分析") + '</button>' : pending ? '<button class="btn sm primary" data-smart-action="accept-all">' + PR.t("批次接受") + '</button>' : '') + '</div>' +
-      (smartJob && ["queued", "running"].includes(smartJob.state) ? '<p class="hint smart-progress"><span class="spin"></span> ' + PR.t("正在分析論文，完成後會顯示待確認項目…") + '</p>' : '') +
+      (running ? '<button class="btn sm line" data-smart-cancel>' + PR.t("取消分析") + '</button>' :
+        (pending ? '<button class="btn sm primary" data-smart-action="accept-all">' + PR.t("批次接受") + '</button>' : '') +
+        (list.length ? '<button class="btn sm line danger" data-smart-action="reject-all">' + PR.t("批次拒絕") + '</button>' : '')) + '</div>' +
+      (running ? '<p class="hint smart-progress"><span class="spin"></span> ' + PR.t("正在分析論文，完成後會顯示待確認項目…") + '</p>' : '') +
       (list.length ? '<div class="np-smart-list">' + list.map(smartCard).join("") + '</div>' : '<p class="hint smart-empty">' + PR.t("尚未產生 AI 標註建議。先按「智慧標註」開始分析。") + '</p>') + '</section>';
     return h;
   }
@@ -226,10 +229,16 @@
       const card = smartButton.closest("[data-smart-id]");
       const id = card && card.dataset.smartId;
       if (smartButton.dataset.smartAction === "accept-all") return smartAction("accept_all");
+      if (smartButton.dataset.smartAction === "reject-all") return smartAction("reject_all");
       const annotation = id && (S.reader.ai_annotations || {})[id];
       if (!annotation) return;
       if (smartButton.dataset.smartAction === "edit") return smartEdit(card, annotation);
       return smartAction(smartButton.dataset.smartAction, id);
+    }
+    const smartCardEl = e.target.closest(".smart-card");
+    if (smartCardEl && !e.target.closest("button, a")) {
+      if (smartCardEl.dataset.anchor) PR.jumpTo("b-" + smartCardEl.dataset.anchor);
+      return;
     }
     if (e.target.closest("[data-smart-cancel]") && smartJob) {
       try { await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotate-cancel", { method: "POST", body: { job: smartJob.id } }); }
@@ -244,7 +253,7 @@
       editing = card.dataset.note; PR.renderNotesPanel(editing); return;
     }
     if (PR.cardClick(e, true)) return;
-    if (card.dataset.anchor) { PR.jumpTo("b-" + card.dataset.anchor); if (card.dataset.note) setTimeout(() => PR.$$('mark[data-note="' + card.dataset.note + '"]').forEach((m) => m.classList.add("active")), 400); }
+    if (card.dataset.anchor) { PR.jumpTo("b-" + card.dataset.anchor); if (card.dataset.note) setTimeout(() => PR.$$('mark[data-note="' + card.dataset.note + '"], .math-body[data-note="' + card.dataset.note + '"]').forEach((m) => m.classList.add("active")), 400); }
   });
 
   async function waitSmartJob(job) {
@@ -304,6 +313,7 @@
   function translatedExportQuote(item) {
     const d = item.data || {};
     if (!d.quote) return { text: "", translated: false };
+    if (d.target === "formula") return { text: d.quote, translated: false, formula: true };
     const pair = exportTextPair(d.key || d.anchor);
     if (!pair.zh) return { text: d.quote, translated: false };
     // 新標註會明確記錄 side；較早的手動劃線可能沒有 side，
@@ -343,7 +353,8 @@
     const side = item.data.side;
     return {
       text: result.text,
-      label: side === "en" ? PR.t(result.translated ? "引用（中文譯文；原始劃線為英文）" : "引用（英文原文；尚無譯文對齊）") : PR.t("引用（中文譯文）"), // i18n-ok: all export labels are passed to PR.t.
+      label: result.formula ? PR.t("公式") : side === "en" ? PR.t(result.translated ? "引用（中文譯文；原始劃線為英文）" : "引用（英文原文；尚無譯文對齊）") : PR.t("引用（中文譯文）"), // i18n-ok: all export labels are passed to PR.t.
+      formula: !!result.formula,
     };
   }
 
@@ -356,7 +367,11 @@
     const quote = exportQuoteDetails(item, pick);
     const noteLabel = d.kind === "question" ? PR.t("我的問題") : PR.t("我的注記");
     const lines = [];
-    if (quote.text) {
+    if (quote.formula) {
+      lines.push("- **" + quote.label + "**");
+      lines.push("  $$", ...String(quote.text).split("\n").map((line) => "  " + line), "  $$");
+      if (d.body) lines.push("  - **" + noteLabel + "：** " + markdownLines(d.body, "    ").join("\n")); // i18n-ok: Markdown formatting punctuation, not UI copy.
+    } else if (quote.text) {
       lines.push("- **" + quote.label + "**");
       lines.push("  > 「" + quote.text + "」"); // i18n-ok: Markdown quote punctuation, not UI copy.
       if (d.body) lines.push("  - **" + noteLabel + "：** " + markdownLines(d.body, "    ").join("\n")); // i18n-ok: Markdown formatting punctuation, not UI copy.

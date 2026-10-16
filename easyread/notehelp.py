@@ -1,7 +1,7 @@
-"""论文笔记的 AI 帮手：点评、帮我改、起草稿。
+"""論文筆記的 AI 助手：點評、幫我改、起草稿。
 
-和“问 AI”对话分开：结果直接流回笔记面板，不进对话记录；由读者决定要不要替换或追加到笔记里。
-输出格式和对话一样：一行一个 JSON，{"t": 片段} … 最后 {"done": true} 或 {"error": …}。
+和「問 AI」對話分開：結果直接流回筆記面板，不進對話記錄；由讀者決定要不要替換或追加到筆記裡。
+輸出格式和對話一樣：一行一個 JSON，{"t": 片段} … 最後 {"done": true} 或 {"error": …}。
 """
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ from .store import Workspace
 PAPER_BUDGET = 14000  # 不能自己读文件的引擎：随提示词附上的译文字数上限
 
 ASK = {
-    "review": ("请点评这份笔记：哪些理解是准确的；哪些地方和论文不符或理解有误（说清论文实际怎么说、在哪一节）；"  # i18n-ok 提示词
-               "漏掉了哪些重要内容；还可以往哪想。直接、具体，分条写，不要客套，不要重写整份笔记。"),  # i18n-ok
-    "revise": ("请帮读者修改这份笔记：保留他的观点、结构和口吻，修正和论文不符的地方，补上明显漏掉的要点，把表达理顺。"  # i18n-ok
-               "只输出修改后的完整笔记（Markdown，公式写 $TeX$），不要解释改了什么。"),  # i18n-ok
-    "draft": ("读者还没写笔记。请帮他起一个读书笔记草稿，留出他自己思考的空间：核心问题、方法要点、主要结论、"  # i18n-ok
-              "局限或疑问（这一项只列问题，不替他下结论）。用 Markdown，简洁，公式写 $TeX$。只输出笔记本身。"),  # i18n-ok
+    "review": ("請點評這份筆記：哪些理解是準確的；哪些地方和論文不符或理解有誤（說清論文實際怎麼說、在哪一節）；"  # i18n-ok 提示詞
+               "漏掉了哪些重要內容；還可以往哪想。直接、具體，分條寫，不要客套，不要重寫整份筆記。"),  # i18n-ok
+    "revise": ("請幫讀者修改這份筆記：保留他的觀點、結構和口吻，修正和論文不符的地方，補上明顯漏掉的要點，把表達理順。"  # i18n-ok
+               "只輸出修改後的完整筆記（Markdown，公式寫 $TeX$），不要解釋改了什麼。"),  # i18n-ok
+    "draft": ("讀者還沒寫筆記。請幫他起一份讀書筆記草稿，留出他自己思考的空間：核心問題、方法要點、主要結論、"  # i18n-ok
+              "局限或疑問（這一項只列問題，不替他下結論）。使用 Markdown，簡潔，公式寫 $TeX$。只輸出筆記本身。"),  # i18n-ok
 }
 
 
@@ -36,7 +36,7 @@ def _paper_text(ws: Workspace) -> str:
         if not t:
             continue
         if used + len(t) > PAPER_BUDGET:
-            out.append("……（后面的内容略）")  # i18n-ok 提示词
+            out.append("……（後面的內容省略）")  # i18n-ok 提示詞
             break
         out.append(t)
         used += len(t)
@@ -46,10 +46,10 @@ def _paper_text(ws: Workspace) -> str:
 def prompt(ws: Workspace, mode: str, note: str, engine: str) -> str:
     meta = ws.load("paper").get("meta", {})
     title = meta.get("title_zh") or meta.get("title_en") or ""
-    paper = ("论文全文在当前目录的 paper.json 里（blocks 里是译文和原文），需要核对时用 Read 工具去读。"  # i18n-ok 提示词
-             if engine == "claude" else "论文译文（节选）：\n" + _paper_text(ws))  # i18n-ok
-    return (f"你在帮读者整理读论文《{title}》的笔记。用{langs.reply_lang(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
-            + (f"读者的笔记：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
+    paper = ("論文全文在目前目錄的 paper.json 裡（blocks 裡是譯文和原文），需要核對時使用 Read 工具讀取。"  # i18n-ok 提示詞
+             if engine == "claude" else "論文譯文（節錄）：\n" + _paper_text(ws))  # i18n-ok
+    return (f"你正在幫讀者整理論文《{title}》的筆記。{langs.reply_language_rule(meta)}。{ASK[mode]}\n\n{paper}\n\n"  # i18n-ok
+            + (f"讀者的筆記：\n<<<\n{note}\n>>>" if note.strip() else ""))  # i18n-ok
 
 
 def handle(handler, ws: Workspace, body: dict) -> None:

@@ -5,8 +5,9 @@
   const body = document.body;
 
   /* 当前阅读的块：视口上部 30% 那条线穿过的块 */
+  PR.readingLine = () => innerHeight * 0.3;
   PR.readingBlock = function () {
-    const line = innerHeight * 0.3;
+    const line = PR.readingLine();
     let best = null;
     for (const el of PR.$$("#paper > .blk, #paper > .paper-head")) {
       if (el.getBoundingClientRect().top <= line) best = el; else break;
@@ -25,14 +26,6 @@
   };
 
   let lastBlock = null;
-  const saveProgress = PR.debounce(() => {
-    const id = PR.readingBlock();
-    const max = document.documentElement.scrollHeight - innerHeight;
-    const ratio = Math.round((max > 0 ? scrollY / max : 0) * 100) / 100;
-    const p = S.reader.progress || {};
-    if (id !== p.block || Math.abs((p.ratio || 0) - ratio) > 0.02) PR.commit({ op: "progress", block: id, ratio: Math.max(ratio, 0) });
-  }, 5000);
-
   const onScroll = PR.throttle(() => {
     const max = document.documentElement.scrollHeight - innerHeight;
     PR.$("#progress i").style.width = (max > 0 ? (scrollY / max) * 100 : 0) + "%";
@@ -43,7 +36,7 @@
       PR.$(".bar-section").textContent = h ? (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id) || h.zh) : "";
       PR.syncPage(false);
     }
-    saveProgress();
+    PR.saveProgress && PR.saveProgress();
   }, 120);
 
   /* ---------- 快捷键 ---------- */
@@ -51,9 +44,13 @@
     if (e.target.closest("textarea, input, [contenteditable]") || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (PR.hasPendingSelection() && PR.keysOn) {
-      const m = { 1: "yellow", 2: "green", 3: "blue", 4: "pink" }[k];
+      // An active IME can report "Process" outside editors. Resolve physical
+      // keys only here; keep the selected pen and existing modifier behavior.
+      const digit = !e.shiftKey && { Digit1: "1", Digit2: "2", Digit3: "3", Digit4: "4" }[e.code];
+      const selectionKey = digit || { KeyN: "n", KeyQ: "q" }[e.code] || k;
+      const m = { 1: "yellow", 2: "green", 3: "blue", 4: "pink" }[selectionKey];
       if (m) { e.preventDefault(); return PR.selectionAction("highlight", m); }
-      if (k === "n" || k === "q") { e.preventDefault(); return PR.selectionAction(k === "n" ? "note" : "question"); }
+      if (selectionKey === "n" || selectionKey === "q") { e.preventDefault(); return PR.selectionAction(selectionKey === "n" ? "note" : "question"); }
     }
     if (k === "escape") {
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
@@ -154,14 +151,8 @@
       setTimeout(() => PR.jumpTo(id, { noBack: true, instant: true }), 200);
       Promise.all([document.fonts ? document.fonts.ready : null, new Promise((r) => setTimeout(r, 900))])
         .then(() => PR.jumpTo(id, { noBack: true, instant: true, noFlash: true }));
-    } else {
-      const b = PR.blockById[(S.reader.progress || {}).block];
-      if (b && scrollY < 50) {
-        let h = null;
-        for (const x of S.paper.blocks) { if (x.type === "heading") h = x; if (x.id === b.id) break; }
-        PR.toast(h ? PR.t("上次读到「{sec}」", { sec: (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id)) }) : PR.t("上次读到第 {page} 页", { page: b.page }),
-          { label: PR.t("接着读"), fn: () => PR.jumpTo("b-" + b.id, { noBack: true }) }, 8000);
-      } else if (!PR.ls.get("easyread-hint-seen", false)) {
+    } else if (!(PR.restoreProgress && PR.restoreProgress())) {
+      if (!PR.ls.get("easyread-hint-seen", false)) {
         PR.ls.set("easyread-hint-seen", true);
         const touch = matchMedia("(pointer: coarse)").matches;  // 手机上没有右键和键盘
         const tip = S.demo ? PR.t("在线演示：点段落、选中文字试试划线和笔记；顶栏“问 AI”里有一段真实的 AI 对话。")
@@ -170,6 +161,7 @@
         setTimeout(() => PR.toast(tip, null, 9000), 800);
       }
     }
+    PR.watchProgress && PR.watchProgress();
   }
   boot();
 })(window.PR);

@@ -10,6 +10,27 @@
   };
 
   function paperTitle() { return S.paper?.meta?.title_zh || S.paper?.meta?.title_en || PR.t("這篇論文"); }
+  function cleanTopicQuery(title) {
+    if (!title) return "";
+    let s = String(title).trim();
+    const colonMatch = s.match(/^([A-Za-z0-9_.-]{2,25})\s*:\s*(.+)$/);
+    if (colonMatch) {
+      const prefix = colonMatch[1], rest = colonMatch[2];
+      if (rest.length >= 10 && !/^(?:a|an|the|on|towards?)\b/i.test(prefix)) {
+        s = rest;
+      }
+    }
+    s = s.replace(/^(?:a|an|the)\s+/i, "");
+    s = s.replace(/^(?:towards?|on|about)\s+/i, "");
+    s = s.replace(/^(?:understanding|exploring|investigating|evaluating|advancing|benchmarking|rethinking|improving)\s+/i, "");
+    s = s.replace(/^(?:novel|new|efficient|effective|scalable|robust|unified|comprehensive|empirical|comparative|systematic|exploratory)\s+/i, "");
+    s = s.replace(/^(?:approach|framework|study|survey|analysis|method|methodology|investigation|evaluation|perspective|architecture|system|paradigm)\s+(?:for|to|on|of|in)\s+/i, "");
+    s = s.replace(/^(?:for|to|on|of|in)\s+/i, "");
+    s = s.replace(/^(?:a|an|the)\s+/i, "");
+    s = s.replace(/[:\-–—]\s*(?:an?\s+)?(?:novel|empirical|comprehensive|systematic|comparative)?\s*(?:approach|framework|study|survey|analysis|perspective|review|benchmarking?|tutorial)\s*$/i, "");
+    s = s.replace(/\s+/g, " ").trim();
+    return s || String(title).trim();
+  }
   function openUrl(path, params) { const url = new URLSearchParams(params); return path + "?" + url.toString(); }
   function mindmapEmpty() {
     return '<div class="rp-map-empty"><svg viewBox="0 0 180 104" role="img" aria-label="研究心智圖示意圖" xmlns="http://www.w3.org/2000/svg"><path d="M90 50 42 24M90 50 139 24M90 50 42 80M90 50 139 80" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="67" y="36" width="46" height="28" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/><rect x="18" y="12" width="48" height="23" rx="8" fill="var(--surface)" stroke="currentColor"/><rect x="115" y="12" width="48" height="23" rx="8" fill="var(--surface)" stroke="currentColor"/><rect x="18" y="69" width="48" height="23" rx="8" fill="var(--surface)" stroke="currentColor"/><rect x="115" y="69" width="48" height="23" rx="8" fill="var(--surface)" stroke="currentColor"/><circle cx="90" cy="50" r="4" fill="var(--accent)"/></svg><p>' + PR.t("尚未產生心智圖") + '</p><span>' + PR.t("產生後會在這裡呈現論文的研究脈絡。") + '</span></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
@@ -66,11 +87,35 @@
   async function render() {
     const box = PR.$("#researchpanel"), id = PR.pid, item = S.item || {};
     const title = paperTitle();
-    const params = { mode: "topic", q: S.paper?.meta?.title_en || title, start_title: title,
-      start_doi: S.paper?.meta?.doi || "", start_openalex: S.paper?.meta?.openalex_id || "" };
-    const researchLink = openUrl("/research", params);
+    const openalexId = S.paper?.meta?.openalex_id || S.item?.openalex_id || "";
+    const doi = S.paper?.meta?.doi || S.item?.doi || "";
+    const cleanTopic = cleanTopicQuery(S.paper?.meta?.title_en || title);
+    let researchLink;
+    if (openalexId || doi) {
+      researchLink = openUrl("/research", {
+        mode: "relation",
+        work: openalexId || ("doi:" + doi),
+        relation: "related",
+        start_title: title,
+        start_doi: doi,
+        q: cleanTopic,
+      });
+    } else {
+      researchLink = openUrl("/research", {
+        mode: "topic",
+        q: cleanTopic,
+        start_title: title,
+      });
+    }
+    const params = {
+      mode: "path",
+      q: cleanTopic,
+      start_title: title,
+      start_doi: doi,
+      start_openalex: openalexId,
+    };
     const interested = Boolean(item.starred ?? item.interested);
-    box.innerHTML = '<div class="research-v2-head"><b>' + PR.t("研究脈絡") + '</b><button data-rp-close aria-label="關閉">×</button></div><div class="research-v2-body"><div class="rp-current">' + PR.esc(title) + '</div><section class="rp-section"><h3>' + PR.t("論文心智圖") + '</h3><p class="hint">' + PR.t("根據目前論文整理研究問題、方法、發現、貢獻與限制。") + '</p><div id="rp-mindmap" class="rp-mindmap"></div><button class="btn accent" id="rp-map-generate">' + PR.t("產生／更新心智圖") + '</button></section><section class="rp-section"><h3>' + PR.t("延伸探索") + '</h3><a class="btn line" href="' + PR.esc(researchLink) + '">' + PR.t("以此論文探索相關研究") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", { ...params, mode: "path" })) + '">' + PR.t("探索研究方向與閱讀路徑") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", { ...params, mode: "candidates" })) + '">' + PR.t("前往候選清單") + '</a></section><section class="rp-section"><h3>' + PR.t("閱讀狀態") + '</h3><div class="rp-status-controls"><div id="rp-status-options" class="seg rp-status-segment" role="group" aria-label="閱讀狀態"></div><button type="button" class="btn icon line rp-interest-star' + (interested ? ' is-interested' : '') + '" id="rp-interested" aria-label="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" title="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" aria-pressed="' + interested + '">' + PR.icon("star", "sm") + '</button></div><p class="hint">' + PR.t("閱讀進度依閱讀器紀錄，和是否理解或整理論文分開。") + '</p><div id="rp-status-feedback" class="hint" role="status" aria-live="polite"></div></section></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    box.innerHTML = '<div class="research-v2-head"><b>' + PR.t("研究脈絡") + '</b><button data-rp-close aria-label="關閉">×</button></div><div class="research-v2-body"><div class="rp-current">' + PR.esc(title) + '</div><section class="rp-section"><h3>' + PR.t("論文心智圖") + '</h3><p class="hint">' + PR.t("根據目前論文整理研究問題、方法、發現、貢獻與限制。") + '</p><div id="rp-mindmap" class="rp-mindmap"></div><button class="btn accent" id="rp-map-generate">' + PR.t("產生／更新心智圖") + '</button></section><section class="rp-section"><h3>' + PR.t("延伸探索") + '</h3><a class="btn line" href="' + PR.esc(researchLink) + '">' + PR.t("以此論文探索相關研究") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", params)) + '">' + PR.t("探索研究方向與閱讀路徑") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", { mode: "candidates", q: cleanTopic, start_title: title })) + '">' + PR.t("前往候選清單") + '</a></section><section class="rp-section"><h3>' + PR.t("閱讀狀態") + '</h3><div class="rp-status-controls"><div id="rp-status-options" class="seg rp-status-segment" role="group" aria-label="閱讀狀態"></div><button type="button" class="btn icon line rp-interest-star' + (interested ? ' is-interested' : '') + '" id="rp-interested" aria-label="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" title="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" aria-pressed="' + interested + '">' + PR.icon("star", "sm") + '</button></div><p class="hint">' + PR.t("閱讀進度依閱讀器紀錄，和是否理解或整理論文分開。") + '</p><div id="rp-status-feedback" class="hint" role="status" aria-live="polite"></div></section></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     renderMindmap(box);
     try {
       const data = await PR.api(API);

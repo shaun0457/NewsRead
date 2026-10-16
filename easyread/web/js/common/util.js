@@ -115,6 +115,10 @@ window.PR = window.PR || {};
     } else PR.api("/api/prefs", { method: "POST", body }).catch(() => { /* 下次改动再存 */ });
   }
   window.addEventListener("pagehide", () => flushPrefs(true));
+  /* 桌面版退出前会来问一句：把偏好和补存写回去再停后端（见 electron/main.cjs） */
+  if (window.easyreadDesktop && window.easyreadDesktop.onBeforeQuit) {
+    window.easyreadDesktop.onBeforeQuit(() => Promise.all([flushPrefs(true), PR.flushProgress?.()]));
+  }
   PR.loadPrefs = async function () {
     if (location.protocol === "file:") return {};
     try {
@@ -144,6 +148,7 @@ window.PR = window.PR || {};
     redo: "M15.5 8.5A6 6 0 1 0 16 12M16 4v4.5h-4.5",
     copy: "M7 7h9v9H7zM4 13V4h9",
     trash: "M4 6h12M8 6V4h4v2M5.5 6l.8 10h7.4l.8-10",
+    archive: "M3 4h14v3.5H3zM4.5 7.5h11V16h-11zM7.5 10.5h5",
     pdf: "M5 2.5h6.5L15 6v11.5H5zM7.5 10h5M7.5 13h5",
     book: "M3.5 4.5c2.5-.8 4.8-.5 6.5.8 1.7-1.3 4-1.6 6.5-.8v11c-2.5-.8-4.8-.5-6.5.8-1.7-1.3-4-1.6-6.5-.8zM10 5.3v11",
     panel: "M3.5 4h13v12h-13zM12 4v12",
