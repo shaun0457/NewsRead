@@ -27,6 +27,35 @@ mimetypes.add_type("image/webp", ".webp")
 mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("text/javascript", ".js")
 MAX_UPLOAD = 200 * 1024 * 1024
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def host_name(header: str | None) -> str:
+    """Host header 去掉 port 與結尾的點：'[::1]:8765' → '::1'，'LocalHost:8765' → 'localhost'。"""
+    h = (header or "").strip().lower()
+    if h.startswith("["):
+        h = h[1:].split("]", 1)[0]
+    elif h.count(":") == 1:
+        h = h.split(":", 1)[0]
+    return h.rstrip(".")
+
+
+def allowed_hosts(bind_host: str | None = None, public_host: str | None = None, extra: str | None = None) -> frozenset:
+    """可接受的 Host：本機迴環、明確綁定的位址、PAPERREAD_PUBLIC_HOST，以及 PAPERREAD_ALLOWED_HOSTS（逗號分隔）。
+
+    擋 DNS rebinding：惡意網域解析到 127.0.0.1 時，瀏覽器送來的 Host 仍是那個網域，
+    若不檢查，對方頁面可以讀到 /api/library 的 token，再拿去發 POST。
+    """
+    hosts = set(LOOPBACK_HOSTS)
+    if bind_host and bind_host not in ("0.0.0.0", "::"):
+        hosts.add(host_name(bind_host))
+    if public_host:
+        hosts.add(host_name(public_host))
+    for item in (extra or "").split(","):
+        if item.strip():
+            hosts.add(host_name(item))
+    hosts.discard("")
+    return frozenset(hosts)
 
 
 def _safe(base: Path, rel: str) -> Path | None:
@@ -47,6 +76,16 @@ class App:
 class Handler(BaseHTTPRequestHandler):
     app: App
     protocol_version = "HTTP/1.1"
+    allowed_hosts: frozenset = LOOPBACK_HOSTS  # launch.serve() 依綁定位址與環境變數覆寫
+
+    def _host_ok(self) -> bool:
+        """沒有 Host 的舊式用戶端放行（瀏覽器一定會送）；有就必須在白名單內。"""
+        host = self.headers.get("Host")
+        if host is None or host_name(host) in self.allowed_hosts:
+            return True
+        self.close_connection = True
+        self._json(403, {"error": "bad host"})
+        return False
 
     def log_message(self, fmt, *args):
         if args and str(args[1]).startswith(("4", "5")):
@@ -173,6 +212,8 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_GET(self):
+        if not self._host_ok():
+            return
         try:
             with self.app.location.request(self.command, self.path):
                 self._get()
@@ -298,6 +339,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- POST ----------
     def do_POST(self):
+        if not self._host_ok():
+            return
         if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
             return self._json(403, {"error": "bad token"})
         try:

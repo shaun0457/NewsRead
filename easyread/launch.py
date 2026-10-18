@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer
 from . import __version__, config, detect
 from .log import log, setup as setup_log
 from .presence import Presence
-from .server import App, Handler
+from .server import App, Handler, allowed_hosts
 from .store import now_iso, read_json, write_json_atomic
 
 
@@ -40,6 +40,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     if not public_host:
         public_host = "127.0.0.1" if bind_host in ("0.0.0.0", "::") else bind_host
     url = f"http://{public_host}:{httpd.server_address[1]}"
+    Handler.allowed_hosts = allowed_hosts(bind_host, public_host, os.environ.get("PAPERREAD_ALLOWED_HOSTS"))
     log.info("startup http-bound +%.0fms", (time.monotonic() - started) * 1000)
     app.shutdown = httpd.shutdown
     app.location.marker.start()
