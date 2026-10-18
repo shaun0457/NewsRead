@@ -1793,5 +1793,6 @@
  "所选论文都已经在封存区了": "Selected papers are already archived",
  "此論文目前已封存，不會出現在閱讀看板中。": "This paper is archived and will not appear on the reading board.",
  "移出封存": "Unarchive",
- "移出封存（恢復）": "Unarchive (Restore)"
+ "移出封存（恢復）": "Unarchive (Restore)",
+ "PAPERREAD_PUBLIC_HOST 必須包含有效的主機名稱": "PAPERREAD_PUBLIC_HOST must contain a valid host name"
 }

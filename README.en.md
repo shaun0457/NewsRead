@@ -106,13 +106,13 @@ The Docker edition runs PaperRead as a local web service and works on Linux, mac
 docker compose up -d
 ```
 
-Open <http://localhost:8765>. The Compose file stores the library and settings in the named `paperread-data` volume, so `docker compose down` does not remove your data. If Ollama runs on the host machine, use `http://host.docker.internal:11434/v1` as its OpenAI-compatible endpoint; the included Compose configuration provides the host mapping. Keep the service on a trusted local network and do not expose it directly to the public Internet without authentication and a firewall.
+Open <http://localhost:8765>. The Compose file stores the library and settings in the named `paperread-data` volume, so `docker compose down` does not remove your data. If Ollama runs on the host machine, use `http://host.docker.internal:11434/v1` as its OpenAI-compatible endpoint; the included Compose configuration provides the host mapping. PaperRead has no login, so the Compose file publishes the port on `127.0.0.1` only. To use it from other devices, put an authenticating reverse proxy in front of it; if you deliberately open it on your LAN, change the port mapping to `"8765:8765"` and list the hostnames or IPs you will use in `PAPERREAD_ALLOWED_HOSTS` (comma-separated), otherwise requests are rejected by the Host check. Never expose the port directly to the public Internet.
 
 Each release also publishes a prebuilt image to GitHub Container Registry:
 
 ```bash
 docker pull ghcr.io/yuriylin/paperread:v1.4.7
-docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
+docker run -d --name paperread --restart unless-stopped -p 127.0.0.1:8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
 ```
 
 Open <http://localhost:8765>. The `paperread-data` volume keeps the library and settings between container restarts.

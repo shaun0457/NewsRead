@@ -3,12 +3,19 @@ services:
     build: .
     image: paperread:local
     ports:
-      - "${PAPERREAD_PORT:-8765}:8765"
+      # Bind to loopback only: PaperRead has no login. To reach it from other
+      # devices, put an authenticating reverse proxy in front instead, or change
+      # this to "${PAPERREAD_PORT:-8765}:8765" and list the hostnames you use in
+      # PAPERREAD_ALLOWED_HOSTS.
+      - "127.0.0.1:${PAPERREAD_PORT:-8765}:8765"
     environment:
       EASYREAD_HOME: /data/PaperRead
       PAPERREAD_HOST: 0.0.0.0
       PAPERREAD_PORT: 8765
       PAPERREAD_PUBLIC_HOST: localhost
+      # Extra Host header values to accept besides localhost/127.0.0.1/::1,
+      # comma-separated (e.g. "paperread.lan,192.168.1.20").
+      PAPERREAD_ALLOWED_HOSTS: ${PAPERREAD_ALLOWED_HOSTS:-}
     volumes:
       - paperread-data:/data/PaperRead
     extra_hosts:

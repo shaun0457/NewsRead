@@ -250,13 +250,13 @@ docker compose up -d
 
 接著開啟 <http://localhost:8765>。停止服務但保留資料可使用 `docker compose down`；重新啟動仍會使用同一個 `paperread-data` volume。
 
-若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。不要把 PaperRead port 直接暴露到公網；若要給其他裝置使用，請另外設定防火牆與登入驗證的反向代理。
+若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。PaperRead 沒有登入機制，因此 Docker Compose 預設只綁定本機 `127.0.0.1`。若要給其他裝置使用，建議在前面加一層有登入驗證的反向代理；若確定要直接在區域網路開放，需同時把 port 對應改成 `"8765:8765"`，並在 `PAPERREAD_ALLOWED_HOSTS` 列出你用來連線的主機名稱或 IP（逗號分隔），否則請求會因 Host 檢查被拒絕。不要把 PaperRead port 直接暴露到公網。
 
 每個版本也會發布預建的 GitHub Container Registry 映像，不必在本機編譯：
 
 ```bash
 docker pull ghcr.io/yuriylin/paperread:v1.4.7
-docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
+docker run -d --name paperread --restart unless-stopped -p 127.0.0.1:8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
 ```
 
 接著開啟 <http://localhost:8765>。`paperread-data` volume 會保留論文庫與設定。
