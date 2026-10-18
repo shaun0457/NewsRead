@@ -44,7 +44,8 @@ def main():
         pdf.write_bytes(probe_pdf())
         env = dict(os.environ, EASYREAD_HOME=str(home), EASYREAD_LIBRARY=str(home / "library"), PYTHONUTF8="1")
         (home / "config.json").write_text(json.dumps({"engine": "none"}), encoding="utf-8")
-        imported = subprocess.run([str(exe), "import", str(pdf), "--no-translate"], env=env, capture_output=True, text=True, timeout=120)
+        imported = subprocess.run([str(exe), "import", str(pdf), "--no-translate"], env=env, capture_output=True,
+                                  text=True, encoding="utf-8", errors="replace", timeout=120)
         if imported.returncode:
             raise RuntimeError(imported.stderr or imported.stdout)
         ws = next((home / "library").iterdir())
@@ -82,12 +83,24 @@ def main():
             finally:
                 if os.name == "nt":  # onefile 在 Windows 上是两层进程，只杀外层的话里层还占着 easyread.log，临时目录删不掉
                     subprocess.run(["taskkill", "/pid", str(proc.pid), "/t", "/f"], capture_output=True)
-                proc.terminate()
+                if proc.poll() is None:
+                    proc.terminate()
                 try:
                     proc.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
+        if os.name == "nt":
+            # Windows can release the frozen process' rotating log handle a
+            # moment after the process exits; remove it before TemporaryDirectory
+            # attempts to delete the whole fixture.
+            log_path = home / "easyread.log"
+            for _ in range(20):
+                try:
+                    log_path.unlink(missing_ok=True)
+                    break
+                except PermissionError:
+                    time.sleep(0.25)
         print("PASS: frozen PDF render, text, character coordinates, Web UI, original images at 1000/1200/1400/1600px")
 
 

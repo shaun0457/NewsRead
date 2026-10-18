@@ -33,7 +33,11 @@ LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 def host_name(header: str | None) -> str:
     """Host header 去掉 port 與結尾的點：'[::1]:8765' → '::1'，'LocalHost:8765' → 'localhost'。"""
     h = (header or "").strip().lower()
-    if h.startswith("["):
+    if "://" in h:
+        # 設定值偶爾會以完整 URL 傳入；只取 hostname，避免 allowlist
+        # 收到「https」或帶路徑的錯誤項目。
+        h = urlparse(h).hostname or ""
+    elif h.startswith("["):
         h = h[1:].split("]", 1)[0]
     elif h.count(":") == 1:
         h = h.split(":", 1)[0]
@@ -79,12 +83,12 @@ class Handler(BaseHTTPRequestHandler):
     allowed_hosts: frozenset = LOOPBACK_HOSTS  # launch.serve() 依綁定位址與環境變數覆寫
 
     def _host_ok(self) -> bool:
-        """沒有 Host 的舊式用戶端放行（瀏覽器一定會送）；有就必須在白名單內。"""
+        """瀏覽器必須提供 Host，且只能使用啟動時建立的白名單。"""
         host = self.headers.get("Host")
-        if host is None or host_name(host) in self.allowed_hosts:
+        if host is not None and host_name(host) in self.allowed_hosts:
             return True
         self.close_connection = True
-        self._json(403, {"error": "bad host"})
+        self._json(400 if host is None else 403, {"error": "missing host" if host is None else "bad host"})
         return False
 
     def log_message(self, fmt, *args):

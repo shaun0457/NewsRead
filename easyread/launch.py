@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer
 from . import __version__, config, detect
 from .log import log, setup as setup_log
 from .presence import Presence
-from .server import App, Handler, allowed_hosts
+from .server import App, Handler, allowed_hosts, host_name
 from .store import now_iso, read_json, write_json_atomic
 
 
@@ -36,7 +36,10 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
         httpd = _Server((bind_host, port), Handler)
     except OSError:
         httpd = _Server((bind_host, 0), Handler)
-    public_host = os.environ.get("PAPERREAD_PUBLIC_HOST")
+    configured_public_host = os.environ.get("PAPERREAD_PUBLIC_HOST", "").strip()
+    public_host = host_name(configured_public_host) if configured_public_host else ""
+    if configured_public_host and not public_host:
+        raise ValueError("PAPERREAD_PUBLIC_HOST 必须包含有效的主机名称")
     if not public_host:
         public_host = "127.0.0.1" if bind_host in ("0.0.0.0", "::") else bind_host
     url = f"http://{public_host}:{httpd.server_address[1]}"
