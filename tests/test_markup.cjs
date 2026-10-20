@@ -13,6 +13,54 @@ function markup(realKatex = false) {
   return PR;
 }
 
+test("title formulas render with real KaTeX while citations and HTML stay inert", () => {
+  const PR = markup(true);
+  PR.refById = { 13: { text: "Reference thirteen" } };
+  const html = PR.titleHtml(String.raw`$\mathrm{Harness}^{2}$ [13] <img src=x onerror=alert(1)>`);
+  assert.ok(html.includes('class="katex"'));
+  assert.ok(!html.includes('class="cite"'));
+  assert.ok(!html.includes('<img'));
+  assert.ok(html.includes('&lt;img'));
+  const body = PR.md("Text $^{13}$ and reference [13].");
+  assert.equal((body.match(/data-ref="13"/g) || []).length, 1);
+  assert.ok(body.includes('class="katex"'));
+});
+
+test("footnotes and same-number references have separate destinations", () => {
+  const PR = markup();
+  const blocks = [{id:"p2", page:2}, {id:"p3", page:3},
+    {id:"note2", type:"para", role:"footnote", num:"13", page:2},
+    {id:"note3", type:"para", role:"footnote", num:"13", page:3}];
+  PR.blockById = Object.fromEntries(blocks.map(b => [b.id, b]));
+  PR.buildFootnoteIndex(blocks);
+  PR.refById = {13: {}, 2: {}};
+  const html = PR.md("Footnote[^13], bibliography [13] and [2].", PR.footnoteOptions("p2"));
+  assert.ok(html.includes('href="#b-note2"'));
+  assert.ok(html.includes('data-ref="13"'));
+  assert.ok(html.includes('data-ref="2"'));
+  assert.ok(PR.md("[^13]", PR.footnoteOptions("p3")).includes('href="#b-note3"'));
+  assert.equal(PR.md("[^13]"), "<sup>13</sup>"); // ambiguous without a page
+  assert.equal(PR.md("[^99]"), "<sup>99</sup>"); // missing target never links to references
+  assert.equal(PR.md("`[^13]`"), "<code>[^13]</code>");
+  PR.buildFootnoteIndex([blocks[2]]);
+  assert.ok(PR.md("[^13]").includes('href="#b-note2"')); // unique note across pages
+  PR.buildFootnoteIndex([blocks[2], {...blocks[2],id:"duplicate"}]);
+  assert.equal(PR.md("[^13]", PR.footnoteOptions("p2")), "<sup>13</sup>");
+});
+
+test("titles preserve literal punctuation, links and code while rendering only math", () => {
+  const PR = markup(true);
+  const literal = 'A * B * C **D** [Benchmark](https://example.com) `$x$`';
+  assert.equal(PR.titleHtml(literal), literal);
+  for (const formula of ["$x$", "$$x$$", String.raw`\(x\)`, String.raw`\[x\]`]) {
+    const html = PR.titleHtml(literal + " " + formula);
+    assert.ok(html.startsWith(literal + " "));
+    assert.ok(html.includes('class="katex"'));
+    assert.ok(!html.includes('class="katex-display"'));
+    assert.ok(!html.includes("<a "));
+  }
+});
+
 test("inline external links preserve labels and URLs without linking code or unsafe schemes", () => {
   const PR = markup();
   const html = PR.md("Read [here](https://example.com/docs?q=1&lang=en), [此处](https://example.com/other), and `[here](https://example.com/code)`.");

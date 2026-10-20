@@ -252,3 +252,27 @@ test("reading board taskCard renders archive icon button with data-action='archi
   assert.ok(wsSource.includes('data-action="archive-task"'));
   assert.ok(wsSource.includes('class="linkish archive-btn"'));
 });
+
+test("reading board Quick Peek keeps overview, records and paper navigation hooks", () => {
+  const wsSource = source("research/workspace.js");
+  assert.ok(wsSource.includes('class="rw-quick-section"'));
+  assert.ok(wsSource.includes('data-action="quick-peek-category"'));
+  assert.ok(wsSource.includes('data-action="quick-peek-status"'));
+  assert.ok(wsSource.includes('"quick-peek-previous"'));
+  assert.ok(wsSource.includes('"quick-peek-next"'));
+  assert.ok(wsSource.includes('"/api/p/" + encodeURIComponent(task.id) + "/state"'));
+});
+
+test("reader note review prompt uses Traditional Chinese wording", () => {
+  const marginSource = source("reader/margin.js");
+  assert.ok(marginSource.includes("這是我閱讀這段內容時寫的筆記，請點評"));
+  assert.ok(!marginSource.includes("这是我读这里时写的笔记，请点评"));
+});
+
+test("Quick Peek separates questions from notes and labels recent questions", () => {
+  const wsSource = source("research/workspace.js");
+  assert.ok(wsSource.includes('PR.t("最近問題")'));
+  assert.ok(wsSource.includes('n.kind !== "question"'));
+  assert.ok(wsSource.includes('questions: recent.filter((n) => n.kind === "question")'));
+  assert.ok(wsSource.includes('PR.t("我的問題")'));
+});

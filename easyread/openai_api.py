@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import math
+import mimetypes
 import threading
 import time
 import urllib.error
@@ -58,7 +59,7 @@ def _headers(o: dict, stream: bool = False) -> dict:
 
 
 def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: float | None) -> dict:
-    urls = ["data:image/jpeg;base64," + base64.b64encode(p.read_bytes()).decode() for p in images] if o.get("vision") else []
+    urls = ["data:" + (mimetypes.guess_type(str(p))[0] or "image/png") + ";base64," + base64.b64encode(p.read_bytes()).decode() for p in images] if o.get("vision") else []
     if kind(o) == "responses":
         content = [{"type": "input_text", "text": prompt}] + [{"type": "input_image", "image_url": u} for u in urls]
         body = {"model": o["model"], "input": [{"role": "user", "content": content}], "store": False}
@@ -220,10 +221,10 @@ def _sleep(seconds: float, cancel) -> None:
 
 
 # ---------- 逐字输出（问 AI 用） ----------
-def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
+def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = None) -> Iterator[str]:
     if cancel.is_set():
         raise Cancelled()
-    body = _body(o, text, [], True, None if kind(o) == "responses" else 0.4)
+    body = _body(o, text, images or [], True, None if kind(o) == "responses" else 0.4)
     try:
         r = _open(o, body, True)
     except urllib.error.HTTPError as e:

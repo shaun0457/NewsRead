@@ -7,15 +7,32 @@ import re
 from . import langs, links, sentences
 from .store import Workspace
 
+
+def _tw_prompt(text: str) -> str:
+    """只轉換送給 zh-TW 模型的固定指令，不碰論文原文或使用者內容。"""
+    from .i18n import _tw_converter
+
+    converter = _tw_converter()
+    return converter.convert(text) if converter else text
+
+
+def _target_prompt(text: str, target: str) -> str:
+    return _tw_prompt(text) if target == "zh-TW" else text
+
+MATH_RULES = r"""- 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX）：即使只有一个变量，也必须有成对的 $；变量、下标、上标都用 TeX，不要直接照抄 PDF 抽取出的散乱字符或用 Unicode 拼。
+- en 和 zh、标题、列表、表头、单元格、图内文字及题注都遵守同一公式规则。例如：原文 "Let $x_i \in \mathbb{R}^d$."，译文 "令 $x_i \in \mathbb{R}^d$。"；不要输出裸露的 x_i、\alpha 或 \frac{a}{b}，不要把整句正文包进 $。
+- 行间公式单独成 math 块，tex 只放公式内容（不带 $、$$ 或 \[\]），照原页保留上下标、分式、矩阵和运算符，原编号放 tag。看不清时标明待核对，不猜公式。
+- 代码围栏、行内代码、路径和网址保持原样，不为其中的符号添加数学定界符；普通金额的美元符号写成 \$。输出前逐项检查公式是否有定界符、是否成对，JSON 中的 TeX 反斜杠必须写两个。"""
 RULES = """翻译要求：
 - 忠实：保留原文的论证顺序、章节编号、公式、表格、引用号 [n]、限定词（may/suggest/likely/at least）、否定和比较对象。可以调整中文语序、拆长句，读起来要像中文母语者写的学术文字。
 - 只翻译，不解释、不总结、不加原文没有的内容。原文的笔误照录，不要改。
 - 保留材料中的 Markdown 链接 [文字](URL)：原文保留链接文字，译文翻译链接文字，两边 URL 必须原样保留，不猜网址，不把链接移到段落外。
 - 但要留心原文自己的问题：数字前后对不上（表和正文、两张表之间）、公式和文字说的不一致、符号用错、明显的笔误。发现了就写进 checks，正文照录不改；没有就不写，不要为了写而写，也不要写翻译说明。
 - 术语全文统一；首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。
-- 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
+""" + MATH_RULES + """
 - 表格重排成 table 块，数字与公式原样。图使用 figure 块，只保留 page、num 与图注（caption_en / caption_zh）；不要识别、抄写或翻译图内文字，不输出 image_en、image_zh 或裁切框，不截取图片，src 留空。读者将在原 PDF 核对图片。
 - 参考文献列表不翻译：输出一个 references 块，条目放进 references 数组（id 是编号，text 是原文）。
+- 脚注与参考文献独立：文献引用使用 [13]，脚注标记使用 [^13]（13 换成原编号），en/zh 两边保持一致，不要混用。脚注内容单独输出 para 块，加 "role":"footnote","num":"13"，page 填脚注所在页；块的 en/zh 只放脚注正文，不重复编号。脚注不得放入 references 数组，也不能当页脚丢弃。同号文献与脚注可以同时存在；不确定时保留原标记，不猜。
 - 看不清的地方写“此处识别不清，请核对原文第 N 页”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
 
@@ -72,7 +89,7 @@ def _swap(text: str, pairs, target: str) -> str:
 
 def rules(target: str = "zh") -> str:
     if target == "zh-TW":
-        return RULES + "\n- 所有譯文欄位一律使用繁體中文與臺灣學術用語；保留模型、資料集及指標的英文名稱，不可使用簡體字。"
+        return _tw_prompt(RULES) + "\n- 所有譯文欄位一律使用繁體中文與臺灣學術用語；保留模型、資料集及指標的英文名稱，不可使用簡體字。"
     if target == "zh":
         return RULES
     name = langs.prompt_name(target)
@@ -81,7 +98,8 @@ def rules(target: str = "zh") -> str:
 
 
 def schema(target: str = "zh") -> str:
-    return _swap(SCHEMA, _SCHEMA_SWAP, target)
+    text = _swap(SCHEMA, _SCHEMA_SWAP, target)
+    return _tw_prompt(text) if target == "zh-TW" else text
 
 
 _NOTE = re.compile(r"^\s*(\$\^|[¹²³⁴⁵⁶⁷⁸⁹*†‡]|\d{1,2}\s*https?:)|^\S*https?://\S*\s*$")
@@ -90,6 +108,8 @@ _NOTE_PLAIN = re.compile(r"^\s*\d{1,2}\s?[A-Z][a-z]")
 
 
 def _is_note(b: dict) -> bool:
+    if b.get("role") == "footnote":
+        return True
     text = b.get("en") or ""
     if _NOTE.search(text):
         return True
@@ -186,7 +206,8 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     see += peek_note(engine, pages, list(peek))
     target = langs.of_paper(ws.load("paper").get("meta"))
-    return (f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
+    lead = _target_prompt(f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}", target)
+    return (lead + "\n\n"
             f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else "")
             + _page_texts(ws, pages) + look)
 
@@ -198,7 +219,9 @@ def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> s
         for t in it["terms"]:
             terms[t["en"]] = {"术语表译法": t["want"], "全文用了术语表译法的段数": agree.get(t["en"], 0)}
     rows = [{"key": it["key"], "terms": [t["en"] for t in it["terms"]], "en": it["en"], "zh": it["zh"]} for it in items]
-    return (f"下面是一篇学术论文{target_name}译文里术语可能不统一的地方。terms 里是英文术语、术语表登记的译法、全文有几段用了这个译法；"
+    target = "zh-TW" if target_name == langs.prompt_name("zh-TW") else target_name
+    intro = _target_prompt(f"下面是一篇学术论文{target_name}译文里术语可能不统一的地方。terms 里是英文术语、术语表登记的译法、全文有几段用了这个译法；", target)
+    return (intro +
             "passages 是原文出现了这个术语、译文里却没用术语表译法的段落。只做判断，不要改写段落：\n"
             "1. use：给每个术语定一个全文统一用的译法。看全文多数段落怎么译、哪个说法在这个领域最通行，不一定是术语表登记的那个。\n"
             "2. fixes：逐段看，这段把术语译成了别的说法时，写出这段译文里那个说法的原样（from，必须是这段 zh 里一字不差的连续文字，"
@@ -208,8 +231,10 @@ def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> s
             + json.dumps({"terms": terms, "passages": rows}, ensure_ascii=False, indent=1))
 
 
-def repair(original_json: str, problems: list[str]) -> str:
-    return ("下面这份论文翻译 JSON 有问题，请修好后输出完整的 JSON（格式不变，只输出 JSON）：\n"
+def repair(original_json: str, problems: list[str], target: str = "zh") -> str:
+    intro = _target_prompt("下面这份论文翻译 JSON 有问题，请修好后输出完整的 JSON（格式不变，只输出 JSON）：", target)
+    rules_text = _target_prompt("只修列出的问题，保留所有块、键、正文和公式含义。缺公式定界符时给完整公式补上 $TeX$，不要删除公式或把整句正文包进去；JSON 中 TeX 反斜杠写两个。", target)
+    return (intro + "\n" + rules_text + "\n"
             + "\n".join(f"- {p}" for p in problems[:30]) + "\n\nJSON：\n" + original_json)
 
 
@@ -269,11 +294,15 @@ def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
     near = "\n".join(_block_text(x) for x in blocks[max(0, idx - 2): idx + 3] if x is not b)
     gl = "；".join(f"{g['en']} = {g['zh']}" for g in paper.get("glossary", []))
     target = langs.of_paper(paper.get("meta"))
-    return (f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。\n{rules(target)}\n\n术语表：{gl}\n\n前后文（译文）：\n{near}\n\n"
-            f"英文原文：\n{en}\n\n现在的译文：\n{zh}\n\n"
-            + (f"读者觉得不好的地方：{hint}\n\n" if hint else "")
-            + ("英文里的 ‖ 是句子分界：新译文在对应的句子交界处也插 ‖，个数和英文的一样。\n\n" if ends else "")
-            + '只输出 JSON：{"zh": "新译文"}'), ends
+    lead = _target_prompt(f"请重新翻译论文里的一段，译成{langs.prompt_name(target)}。", target)
+    labels = _target_prompt("术语表：", target), _target_prompt("前后文（译文）：", target), _target_prompt("英文原文：", target), _target_prompt("现在的译文：", target)
+    hint_text = _target_prompt("读者觉得不好的地方：", target)
+    align = _target_prompt("英文里的 ‖ 是句子分界：新译文在对应的句子交界处也插 ‖，个数和英文的一样。", target)
+    tail = _target_prompt('只输出 JSON：{"zh": "新译文"}', target)
+    return (lead + "\n" + rules(target) + "\n\n" + labels[0] + gl + "\n\n" + labels[1] + "\n" + near + "\n\n"
+            + labels[2] + "\n" + en + "\n\n" + labels[3] + "\n" + zh + "\n\n"
+            + (hint_text + hint + "\n\n" if hint else "")
+            + (align + "\n\n" if ends else "") + tail), ends
 
 
 def dump(obj) -> str:

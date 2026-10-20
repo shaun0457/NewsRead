@@ -11,7 +11,9 @@ const settled = () => new Promise(resolve => setImmediate(resolve));
 async function reader(threads = [], options = {}) {
   const listeners = new Map(), events = new Map(), nodes = new Map(), requests = [], copied = [], confirmations = [];
   let finish;
-  const panel = { addEventListener() {}, classList: { add() {}, remove() {} } };
+  const pendingReads = [];
+  const panelEvents = new Map();
+  const panel = { addEventListener(name, fn) { panelEvents.set(name, fn); }, classList: { add() {}, remove() {} } };
   Object.defineProperty(panel, "innerHTML", {
     get() { return this.html || ""; },
     set(html) {
@@ -34,7 +36,7 @@ async function reader(threads = [], options = {}) {
     on(name, fn) { events.set(name, fn); }, openSide(side) { this.side = side; }, readingBlock: () => null, blockById: {}, myNotes: () => [],
     api: async () => ({ threads: structuredClone(threads), models: [{ id: "m", label: "Model" }, { id: "m2", label: "Other model" }], default: "m" }),
     confirm: async opts => { confirmations.push(opts); return true; },
-    nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {},
+    nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {}, imageUrl: name => "/p/test/" + name,
     esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), errorText: error => String(error?.message || error), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
     throttle: fn => fn, debounce: fn => fn, usageChip: () => "", usagePop: () => "", toast() {},
   };
@@ -42,11 +44,12 @@ async function reader(threads = [], options = {}) {
     window: { PR }, katex: require("../easyread/web/vendor/katex/katex.min.js"),
   });
   vm.runInNewContext(source("chat-effort"), { window: { PR } });
-  vm.runInNewContext(source("chat"), {
+  vm.runInNewContext(source("chat-images") + "\n" + source("chat"), {
     window: { PR, addEventListener() {} },
     document: { addEventListener(name, fn) { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(fn); } },
     navigator: { clipboard: { async writeText(text) { copied.push(text); } } },
     setTimeout() {}, AbortController, TextDecoder,
+    FileReader: class { readAsDataURL(file) { this.result = file.data; if (options.slowImages) pendingReads.push(() => this.onload()); else this.onload(); } },
     fetch: async (url, opts) => {
       requests.push(JSON.parse(opts.body));
       if (options.failFirst && requests.length === 1) return new Response(JSON.stringify({ error: "连接失败" }), { status: 400 });
@@ -81,6 +84,8 @@ async function reader(threads = [], options = {}) {
   await settled();
   const setStyle = async value => { if (nodes.get("#chatAnswerStyle").value !== value) await click("style"); };
   return { PR, panel, nodes, requests, copied, confirmations, dispatch, click, selectThread, setStyle,
+    finishImages: () => pendingReads.splice(0).forEach(done => done()),
+    paste: files => { let prevented = false; return Promise.resolve(panelEvents.get("paste")({ target: { id: "chatInput" }, clipboardData: { items: files.map(file => ({ kind: "file", type: file.type, getAsFile: () => file })) }, preventDefault: () => { prevented = true; } })).then(() => prevented); },
     emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish() };
 }
 
@@ -261,7 +266,7 @@ test("Markdown export includes all conversations and complete answers, online an
     };
     dlg.addEventListener = (name, fn) => { go = fn; };
     PR.$ = selector => selector === "#readerDlg" ? dlg : selector === "#notespanel" ? panel : null;
-    const target = { closest: selector => selector === "[data-exp-go]" ? exportButton : null };
+    const target = { closest: selector => selector === "[data-exp-download]" ? exportButton : null };
     vm.runInNewContext(source("notespanel"), context);
     vm.runInNewContext(source("export"), context);
     await go({ target });
@@ -288,7 +293,7 @@ test("a failed chat export keeps the dialog open, creates no file, and treats th
     toast: text => notices.push(text), notesMarkdown() { downloaded = true; },
   };
   vm.runInNewContext(source("export"), { window: { PR } });
-  await go({ target: { closest: selector => selector === "[data-exp-go]" ? exportButton : null } });
+  await go({ target: { closest: selector => selector === "[data-exp-download]" ? exportButton : null } });
   assert.equal(closed, false);
   assert.equal(downloaded, false);
   assert.ok(notices[0].includes('&lt;img'));
@@ -318,4 +323,63 @@ test("Ollama thinking menu reflects its on/off behavior and defaults to thinking
   const model = { engine: "openai", preset: "ollama", model: "qwen3.5-4b:latest" };
   assert.deepEqual(Array.from(r.PR.chatEffort.levels(model, {})), ["none", "high"]);
   assert.equal(r.PR.chatEffort.fallback({ catalog: {} }, model), "none");
+});
+
+const pastedImage = { type: "image/png", size: 20, data: "data:image/png;base64,aW1hZ2U=" };
+test("pending image reads cannot enter a new or different conversation", async () => {
+  for (const switchThread of [false, true]) {
+    const r = await reader([{ id: "saved", title: "Saved", messages: [] }], { slowImages: true });
+    const pending = r.paste([pastedImage]);
+    if (switchThread) await r.selectThread("saved"); else await r.click("new");
+    r.finishImages(); await pending;
+    assert.ok(!r.panel.innerHTML.includes(pastedImage.data));
+    const next = r.paste([pastedImage]);
+    r.finishImages(); await next;
+    assert.ok(r.panel.innerHTML.includes(pastedImage.data));
+  }
+});
+
+test("clipboard images preview, can be removed, and travel with an image-only question", async () => {
+  const r = await reader();
+  assert.ok(r.panel.innerHTML.includes("输入问题，或粘贴截图…"));
+  assert.ok(!r.panel.innerHTML.includes('class="ch-images"'));
+  assert.equal(await r.paste([pastedImage]), true);
+  assert.ok(r.panel.innerHTML.includes(pastedImage.data));
+  assert.ok(r.panel.innerHTML.includes('aria-label="移除图片 1"'));
+  await r.click("unimage", null, null, { i: "0" });
+  assert.ok(!r.panel.innerHTML.includes(pastedImage.data));
+  await r.paste([pastedImage]);
+  const sending = r.click("send"); await settled();
+  assert.equal(r.requests[0].text, "请解释这张图片。");
+  assert.deepEqual(r.requests[0].images, [pastedImage.data]);
+  r.finish(); await sending;
+});
+
+test("paste validation retains text and failed sends retain images until a new conversation", async () => {
+  const r = await reader([], { failFirst: true });
+  r.nodes.get("#chatInput").value = "Keep this question";
+  assert.equal(await r.paste([]), false, "plain text stays with the browser");
+  await r.paste(Array(5).fill(pastedImage));
+  assert.ok(r.panel.innerHTML.includes('role="alert"'));
+  assert.ok(r.panel.innerHTML.includes("最多粘贴 4 张"));
+  assert.equal(r.nodes.get("#chatInput").value, "Keep this question");
+  await r.paste([{ ...pastedImage, type: "image/svg+xml" }]);
+  assert.ok(r.panel.innerHTML.includes("仅支持 PNG"));
+  await r.paste([{ ...pastedImage, size: 9 * 1024 * 1024 }]);
+  assert.ok(r.panel.innerHTML.includes("单张最多 8 MB"));
+  await r.paste([pastedImage]); await r.click("send");
+  assert.equal(r.nodes.get("#chatInput").value, "Keep this question");
+  assert.ok(r.panel.innerHTML.includes('data-c="unimage"'));
+  await r.click("new");
+  assert.equal(r.nodes.get("#chatInput").value, "");
+  assert.ok(!r.panel.innerHTML.includes('data-c="unimage"'));
+});
+
+test("saved attachments use scoped URLs and malformed image paths are ignored", async () => {
+  const image = "chat-media/" + "a".repeat(32) + ".png";
+  const r = await reader([{ id: "saved", title: "With image", messages: [{ role: "user", content: "Look", images: [image, "../../config.json", "javascript:alert(1)"] }] }]);
+  await r.selectThread("saved");
+  assert.ok(r.panel.innerHTML.includes('/p/test/' + image));
+  assert.ok(!r.panel.innerHTML.includes("../../config.json"));
+  assert.ok(!r.panel.innerHTML.includes("javascript:alert"));
 });

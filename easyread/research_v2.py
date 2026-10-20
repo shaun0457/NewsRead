@@ -24,6 +24,50 @@ _last_request = 0.0
 _summary_worker_lock = threading.Lock()
 _summary_workers: set[str] = set()
 _summary_recovered_roots: set[str] = set()
+READING_PATH_TASK_CACHE_KEY = "reading-path:task"
+
+
+def _persist_reading_path_task(root: Path, request: dict, task: dict) -> None:
+    previous, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
+    same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
+    clean_task = {key: value for key, value in task.items() if key != "result"}
+    result = task.get("result")
+    if isinstance(result, dict):
+        clean_task["result"] = result
+    planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, {
+        "task": clean_task,
+        "request": request,
+        "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
+    })
+
+
+def _current_reading_path_task(root: Path) -> dict | None:
+    from .research import tasks
+    scope = tasks.scope_id(root)
+    live = next((task for task in tasks.list_tasks(scope=scope)
+                 if task.get("kind") == "reading-path"), None)
+    saved, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
+    record = saved if isinstance(saved, dict) else {}
+    stored = record.get("task") if isinstance(record.get("task"), dict) else None
+    if live:
+        same_task = bool(stored and stored.get("id") == live.get("id"))
+        full_live = tasks.get(live["id"], scope=scope) or live
+        result = full_live.get("result") if same_task else None
+        if not isinstance(result, dict) and same_task:
+            result = stored.get("result")
+        return {**live, **({"result": result} if isinstance(result, dict) else {}),
+                "acknowledged": bool(record.get("acknowledged")) if same_task else False,
+                "request": record.get("request") if stored and stored.get("id") == live.get("id")
+                and live.get("state") in ("failed", "interrupted") else None}
+    if not stored:
+        return None
+    if stored.get("state") in ("queued", "running", "cancelling"):
+        stored = {**stored, "state": "interrupted", "phase": "interrupted",
+                  "message": tr("分析已中斷；可保留輸入並手動重新產生。")}
+        record = {**record, "task": stored}
+        planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, record)
+    retry_request = record.get("request") if stored.get("state") in ("failed", "interrupted") else None
+    return {**stored, "acknowledged": bool(record.get("acknowledged")), "request": retry_request}
 
 
 def _root(app) -> Path:
@@ -138,6 +182,109 @@ def _key(work: dict) -> str:
     return "title:" + sha256(ident.encode("utf-8")).hexdigest()[:24]
 
 
+def _paper_aliases(work: dict) -> set[str]:
+    aliases = set()
+    doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", str(work.get("doi") or "").strip(), flags=re.I).casefold()
+    if doi:
+        aliases.add("doi:" + doi)
+    arxiv = re.sub(r"v\d+$", "", str(work.get("arxiv") or "").strip(), flags=re.I).casefold()
+    if arxiv:
+        aliases.add("arxiv:" + arxiv)
+    for value in (work.get("openalex_id"), work.get("id")):
+        match = re.search(r"(?:openalex\.org/)?(W\d+)$", str(value or "").rstrip("/"), re.I)
+        if match:
+            aliases.add("openalex:" + match.group(1).upper())
+    if not aliases:
+        title = _normalize_title_key(str(work.get("title") or ""))
+        if title:
+            aliases.add("title:" + title)
+    return aliases
+
+
+def _balanced_candidates(seed: dict | None, candidate_pool: list, reference_pool: list,
+                         related_pool: list, search_pool: list, limit: int = 24) -> list[dict]:
+    """Merge DOI/OpenAlex aliases, then pick round-robin across source pools."""
+    sources = [([seed] if isinstance(seed, dict) else []), candidate_pool, reference_pool, related_pool, search_pool]
+    canonical: list[dict] = []
+    alias_index: dict[str, dict] = {}
+    normalized_pools: list[list[dict]] = []
+    for pool_index, pool in enumerate(sources):
+        normalized = []
+        local_seen = set()
+        for raw in pool:
+            if not isinstance(raw, dict) or not str(raw.get("title") or "").strip():
+                continue
+            aliases = _paper_aliases(raw)
+            target = next((alias_index[alias] for alias in aliases if alias in alias_index), None)
+            if target is None:
+                target = dict(raw)
+                canonical.append(target)
+            else:
+                # Keep any nonempty, richer metadata from repeated source records.
+                target.update({key: value for key, value in raw.items() if value not in (None, "", [], {})})
+            for alias in aliases:
+                alias_index[alias] = target
+            marker = id(target)
+            if marker in local_seen:
+                continue
+            local_seen.add(marker)
+            normalized.append(target)
+            if pool_index == 2:
+                target.setdefault("seed_relation", "reference")
+            elif pool_index == 3:
+                target.setdefault("seed_relation", "related")
+            elif pool_index == 0:
+                target["is_start_paper"] = True
+        normalized_pools.append(normalized)
+    if not normalized_pools:
+        return []
+    selected: list[dict] = []
+    selected_ids = set()
+    # The seed is an analysis anchor and must be available to the model.
+    for work in normalized_pools[0]:
+        if len(selected) >= limit:
+            break
+        selected.append(work); selected_ids.add(id(work))
+    pools = normalized_pools[1:]
+    offsets = [0] * len(pools)
+    while len(selected) < limit:
+        advanced = False
+        for index, pool in enumerate(pools):
+            while offsets[index] < len(pool) and id(pool[offsets[index]]) in selected_ids:
+                offsets[index] += 1
+            if offsets[index] < len(pool):
+                work = pool[offsets[index]]
+                offsets[index] += 1
+                selected.append(work)
+                selected_ids.add(id(work))
+                advanced = True
+                if len(selected) >= limit:
+                    break
+        if not advanced:
+            break
+    return selected
+
+
+def _summary_export_document(record: dict) -> dict:
+    """Convert a stored candidate summary to the shared Vault export shape."""
+    paper = record.get("paper") if isinstance(record.get("paper"), dict) else {}
+    paper_key = str(record.get("paper_key") or "").strip()
+    if not paper_key or not str(record.get("summary_markdown") or "").strip():
+        raise ValueError("找不到可匯出的摘要。")  # i18n-ok: Research workspace message is fixed Traditional Chinese.
+    identity = "paper-summary:" + sha256(paper_key.encode("utf-8")).hexdigest()[:32]
+    title = str(paper.get("title_en") or paper.get("title") or paper.get("title_zh") or "論文摘要").strip()  # i18n-ok: Exported Markdown keeps a stable Traditional Chinese fallback.
+    bibliography = [
+        "## 書目資料", "",  # i18n-ok: Exported Markdown section heading is fixed Traditional Chinese.
+        "- English title: " + str(paper.get("title_en") or "未提供"),  # i18n-ok: Exported Markdown fallback is content, not UI.
+        "- 作者：" + str(paper.get("authors") or "未提供"),  # i18n-ok: Exported Markdown label is fixed Traditional Chinese.
+        "- 年份：" + str(paper.get("year") or "未提供"),  # i18n-ok: Exported Markdown label is fixed Traditional Chinese.
+        "- DOI: " + str(paper.get("doi") or "未提供"),  # i18n-ok: Exported Markdown fallback is content, not UI.
+    ]
+    body = "\n".join(bibliography) + "\n\n## 來源摘要整理\n\n" + str(record["summary_markdown"]).strip()  # i18n-ok: Exported Markdown section heading is fixed Traditional Chinese.
+    return {"id": identity, "kind": "summary", "paper_id": paper_key, "title": title + " - 摘要",  # i18n-ok: Exported Markdown title suffix is fixed Traditional Chinese.
+            "filename": title, "body": body, "links": []}
+
+
 def _abstract(index: dict | None) -> str:
     if not isinstance(index, dict):
         return ""
@@ -192,6 +339,8 @@ def _work(raw: dict) -> dict:
         "cited_by_count": raw.get("cited_by_count"), "is_oa": bool((raw.get("open_access") or {}).get("is_oa")),
         "pdf_url": pdf_url, "url": landing, "source": "OpenAlex",
         "referenced_works": referenced, "related_works": related,
+        "_references_complete": "referenced_works" in raw,
+        "_related_complete": "related_works" in raw,
         "keywords": keywords[:8], "topics": topics[:5],
     }
 
@@ -374,6 +523,9 @@ def _identifier_search(root: Path, query: str) -> dict | None:
             return None
         endpoint = "/works/https://doi.org/" + urllib.parse.quote(exact_doi, safe="")
     cache_key = "identifier:" + sha256(endpoint.casefold().encode()).hexdigest()
+    cached = _fresh_cache(root, cache_key)
+    if cached is not None:
+        return cached
     try:
         select = "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index,referenced_works,related_works"
         try:
@@ -659,6 +811,22 @@ def get(app, path_query: str):
         return {**state, "items": items, "candidates": planning_store.candidates(_root(app)),
                 "summaries": planning_store.summaries_list(_root(app)), "categories": tags,
                 "provider": "OpenAlex", "api_key_required": False}
+    if endpoint == "reading-path/latest":
+        snapshot = planning_store.latest_reading_path(_root(app))
+        return {"path": snapshot, "found": bool(snapshot)}
+    if endpoint == "reading-path/tasks/current":
+        return {"task": _current_reading_path_task(_root(app))}
+    if endpoint.startswith("reading-path/tasks/"):
+        from .research import tasks
+        identity = endpoint.rsplit("/", 1)[-1]
+        scope = tasks.scope_id(_root(app))
+        task = tasks.get(identity, scope=scope)
+        if task and task.get("kind") == "reading-path":
+            saved, _ = planning_store.cache_get(_root(app), READING_PATH_TASK_CACHE_KEY)
+            task["acknowledged"] = bool(saved.get("acknowledged")) if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity else False
+            return {"task": task}
+        current = _current_reading_path_task(_root(app))
+        return {"task": current if current and current.get("id") == identity else None}
     if endpoint.startswith("paper/"):
         tail = endpoint.split("/", 1)[1]
         pid, _, action = tail.partition("/")
@@ -1069,7 +1237,7 @@ def _resolve_step_paper(step: dict, by_exact: dict, by_alias: dict, by_title: di
     return None
 
 
-def post(app, endpoint: str, body: dict):
+def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
     # Accept both server-normalized paths and callers that provide a bare or
     # trailing-slash endpoint (for example, /candidate/).
     endpoint = "/" + str(endpoint or "").strip("/")
@@ -1079,6 +1247,119 @@ def post(app, endpoint: str, body: dict):
         return obsidian_export.export_to_vault(body.get("documents"))
     if endpoint == "/export/zip":
         return obsidian_export.export_zip(body.get("documents"))
+    if endpoint == "/reading-path/reorder":
+        order = body.get("paper_keys") if isinstance(body.get("paper_keys"), list) else []
+        return {"path": planning_store.reorder_reading_path(
+            root, str(body.get("path_id") or ""), int(body.get("revision") or 0), order)}
+    if endpoint == "/reading-path/relations":
+        path_id = str(body.get("path_id") or "")
+        revision = int(body.get("revision") or 0)
+        snapshot = planning_store.latest_reading_path(root)
+        if not snapshot or snapshot.get("path_id") != path_id:
+            raise ValueError(tr("這份閱讀路徑已被較新的結果取代，請重新載入。"))
+        if int(snapshot.get("revision") or 0) != revision:
+            raise ValueError(tr("閱讀路徑已在其他頁面更新，請重新載入後再更新引用資料。"))
+        steps = list(snapshot.get("results") or [])[:30]
+        by_openalex = {}
+        paper_by_wid = {}
+        for step in steps:
+            paper = step.get("paper") if isinstance(step, dict) else {}
+            wid = str((paper or {}).get("openalex_id") or (paper or {}).get("id") or "").rstrip("/").split("/")[-1].upper()
+            if re.fullmatch(r"W\d+", wid):
+                by_openalex[wid] = str(step.get("paper_key") or "")
+                paper_by_wid[wid] = paper or {}
+        force = body.get("force") is True
+        refs_by_wid = {}
+        failures = []
+        missing = []
+        for wid, paper in paper_by_wid.items():
+            if not force and paper.get("_references_complete", "referenced_works" in paper):
+                refs_by_wid[wid] = paper.get("referenced_works") or []
+            else:
+                missing.append(wid)
+        relation_cache_key = "path-relations:" + sha256(json.dumps(sorted(missing), ensure_ascii=False).encode()).hexdigest()
+        cached_relations = _fresh_cache(root, relation_cache_key) if missing and not force else None
+        records = (cached_relations or {}).get("works") if cached_relations else None
+        if missing and records is None:
+            try:
+                raw = _openalex("/works", {
+                    "filter": "openalex_id:" + "|".join(missing[:30]),
+                    "per-page": min(30, len(missing)),
+                    "select": "id,referenced_works",
+                })
+                records = raw.get("results") or []
+                planning_store.cache_put(root, relation_cache_key, {"works": records, "checked_at": _now().isoformat()})
+            except Exception as error:
+                failures.extend(f"{wid}: {error}" for wid in missing)
+                records = []
+        for item in records or []:
+            wid = str(item.get("id") or "").rstrip("/").split("/")[-1].upper()
+            if wid in by_openalex:
+                refs_by_wid[wid] = item.get("referenced_works") or []
+        for wid in missing:
+            if wid not in refs_by_wid and not any(item.startswith(wid + ":") for item in failures):
+                failures.append(f"{wid}: " + tr("來源未回傳這篇論文的引用資料"))
+        successful_sources = set(refs_by_wid)
+        relations = [dict(source=rel.get("source"), target=rel.get("target"))
+                     for rel in snapshot.get("relations") or []
+                     if rel.get("source") not in successful_sources]
+        for wid, refs in refs_by_wid.items():
+            source_key = by_openalex[wid]
+            for referenced in refs:
+                target_key = by_openalex.get(str(referenced).rstrip("/").split("/")[-1].upper())
+                if target_key and target_key != source_key:
+                    relations.append({"source": source_key, "target": target_key})
+        saved = planning_store.save_reading_path_relations(
+            root, path_id, revision, relations, checked_at=_now().isoformat(), error="；".join(failures)[:500])  # i18n-ok: separator for per-paper transport failures.
+        return {"path": saved, "partial": bool(failures)}
+    if endpoint == "/reading-path/tasks":
+        from .research import tasks
+        request = {key: value for key, value in body.items()
+                   if key in ("topic", "goal", "start_paper", "papers", "candidate_papers", "search_results", "model")}
+        candidate_values = request.get("candidate_papers", request.get("papers", [])) or []
+        search_values = request.get("search_results", []) or []
+        if not isinstance(candidate_values, list) or not isinstance(search_values, list):
+            raise ValueError(tr("候選論文資料格式不正確。"))
+        if request.get("start_paper") is not None and not isinstance(request.get("start_paper"), dict):
+            raise ValueError(tr("起點論文資料格式不正確。"))
+        candidate_count, search_count = len(candidate_values), len(search_values)
+        if candidate_count > 30 or search_count > 30 or candidate_count + search_count > 60:
+            raise ValueError(tr("候選資料過多，請減少候選論文後重試。"))
+        if not str(request.get("topic") or "").strip() and not str((request.get("start_paper") if isinstance(request.get("start_paper"), dict) else {}).get("title") or "").strip():
+            raise ValueError(tr("請輸入研究主題，或指定一篇起點論文。"))
+        scope = tasks.scope_id(root)
+        def persist(task):
+            _persist_reading_path_task(root, request, task)
+        def run(cancel, report):
+            result = post(app, "/reading-path", request, _cancel=cancel, _report=report)
+            if not result.get("results") or not result.get("path_id"):
+                raise ValueError(tr("AI 沒有產生可用的閱讀路徑，舊路徑仍已保留。"))
+            return {"path_id": result["path_id"], "revision": result["revision"],
+                    "result_count": len(result["results"]), "warning": result.get("warning") or ""}
+        task = tasks.submit("reading-path", run, retry_failed=True, scope=scope, on_update=persist)
+        return {"task": task}
+    if endpoint.startswith("/reading-path/tasks/") and endpoint.endswith("/cancel"):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        task = tasks.cancel(identity, scope=tasks.scope_id(root))
+        if not task or task.get("kind") != "reading-path":
+            raise ValueError(tr("找不到這個閱讀路徑分析工作。"))
+        return {"task": task}
+    if endpoint.startswith("/reading-path/tasks/") and endpoint.endswith("/ack"):
+        identity = endpoint.split("/")[-2]
+        saved, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
+        if not isinstance(saved, dict) or (saved.get("task") or {}).get("id") != identity:
+            raise ValueError(tr("找不到這個閱讀路徑分析工作。"))
+        saved["acknowledged"] = True
+        planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, saved)
+        task = _current_reading_path_task(root)
+        return {"task": task}
+    if endpoint == "/export/summary":
+        paper_key = str(body.get("paper_key") or "").strip()
+        record = planning_store.summary(_root(app), paper_key) if paper_key else None
+        if not record:
+            raise ValueError("找不到這篇論文的摘要。")  # i18n-ok: Research workspace message is fixed Traditional Chinese.
+        return obsidian_export.export_to_vault([_summary_export_document(record)])
     if endpoint.startswith("/paper/") and endpoint.endswith("/mindmap"):
         pid = endpoint.strip("/").split("/")[1]
         ws = app.lib.ws(pid)
@@ -1299,79 +1580,121 @@ def post(app, endpoint: str, body: dict):
             raise ValueError("模型未回傳可用的改寫建議，請重試或自行修改。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         return {"suggestions": [str(x).strip()[:2000] for x in suggestions if str(x).strip()][:2], "model": model.get("name", model.get("id", "")), "usage": meter.snapshot()}
     if endpoint == "/reading-path":
+        from . import engines
+        cancel = _cancel or threading.Event()
+        report = _report or (lambda *_args: None)
+        def check_cancel():
+            if cancel.is_set():
+                raise engines.Cancelled()
         topic = str(body.get("topic") or "").strip()[:400]
         goal = str(body.get("goal") or "").strip()[:500]
         start_paper = body.get("start_paper") if isinstance(body.get("start_paper"), dict) else {}
-        supplied = body.get("papers") if isinstance(body.get("papers"), list) else []
-        if len(supplied) > 30:
-            raise ValueError("一次最多可依據 30 篇論文規劃閱讀路徑。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        papers = []
-        seen = set()
-        def include(work):
-            if not isinstance(work, dict) or not work.get("title"):
-                return
-            key = _key(work)
-            if key not in seen:
-                seen.add(key)
-                papers.append(work)
-        for work in supplied:
-            include(work)
+        legacy_pool = body.get("papers") if isinstance(body.get("papers"), list) else []
+        candidate_pool = body.get("candidate_papers") if isinstance(body.get("candidate_papers"), list) else legacy_pool
+        search_pool = body.get("search_results") if isinstance(body.get("search_results"), list) else []
+        if len(candidate_pool) > 30 or len(search_pool) > 30:
+            raise ValueError("候選資料過多，請減少候選論文後重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        reference_pool, related_pool, discovery_warnings = [], [], []
         if topic:
-            for work in _search_works(root, topic, sort="relevance_score:desc").get("results", []):
-                include(work)
+            report("search", 0, 5, tr("正在搜尋相關論文。"))
+            check_cancel()
+            topic_search = _search_works(root, topic, sort="relevance_score:desc")
+            if topic_search.get("stale"):
+                discovery_warnings.append(tr("目前使用先前快取的搜尋資料，可能不是最新結果。"))
+            search_pool = [*search_pool, *(topic_search.get("results") or [])]
         if start_paper.get("title"):
+            report("seed", 1, 5, tr("正在補齊起點論文與參考資料。"))
+            check_cancel()
             exact = None
+            seed_aliases = _paper_aliases(start_paper)
+            seed_title = _normalize_title_key(str(start_paper.get("title") or ""))
+            for candidate in [*candidate_pool, *search_pool]:
+                if isinstance(candidate, dict) and (
+                    seed_aliases.intersection(_paper_aliases(candidate))
+                    or (seed_title and seed_title == _normalize_title_key(str(candidate.get("title") or "")))
+                ):
+                    exact = candidate
+                    break
             identifier = start_paper.get("openalex_id") or start_paper.get("doi")
-            if identifier:
+            if identifier and not exact:
                 lookup = _identifier_search(root, str(identifier))
                 exact = next(iter(lookup.get("results", [])), None) if lookup else None
+                if lookup and lookup.get("stale"):
+                    discovery_warnings.append(tr("起點論文使用先前快取的識別資料，可能不是最新結果。"))
             if not exact:
                 title_result = _search_works(root, str(start_paper.get("title")), sort="relevance_score:desc")
                 normalized_title = " ".join(str(start_paper.get("title")).casefold().split())
                 exact = next((work for work in title_result.get("results", []) if " ".join(str(work.get("title") or "").casefold().split()) == normalized_title), None)
-            start_work = exact or start_paper
+                if title_result.get("stale"):
+                    discovery_warnings.append(tr("目前使用先前快取的起點搜尋資料，可能不是最新結果。"))
+            start_work = dict(exact or start_paper)
+            if exact:
+                start_work.update({key: value for key, value in start_paper.items() if value not in (None, "", [], {}) and key not in ("title", "referenced_works", "related_works")})
+            references_complete = bool(start_work.get("_references_complete", "referenced_works" in start_work))
+            related_complete = bool(start_work.get("_related_complete", "related_works" in start_work))
+            if (not references_complete or not related_complete) and (start_work.get("openalex_id") or start_work.get("doi")):
+                check_cancel()
+                hydrated = _identifier_search(root, str(start_work.get("openalex_id") or start_work.get("doi")))
+                hydrated_work = next(iter(hydrated.get("results", [])), None) if hydrated else None
+                if hydrated_work:
+                    start_work.update({key: value for key, value in hydrated_work.items() if value not in (None, "", [], {})})
+                    references_complete = hydrated_work.get("_references_complete", True)
+                    related_complete = hydrated_work.get("_related_complete", True)
             start_work["is_start_paper"] = True
-            include(start_work)
-
-            # Auto-expand key foundational references and related follow-up works for the start paper
-            ref_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("referenced_works") or []) if x][:8]
-            rel_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("related_works") or []) if x][:8]
-            expand_ids = [ident for ident in (ref_ids + rel_ids) if ident and ("openalex:" + ident.upper()) not in seen]
-            if expand_ids:
+            ref_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("referenced_works") or []) if x][:8] if references_complete else []
+            rel_ids = [str(x).rstrip("/").split("/")[-1] for x in (start_work.get("related_works") or []) if x][:8] if related_complete else []
+            typed_ids = [("reference", ident.upper()) for ident in ref_ids] + [("related", ident.upper()) for ident in rel_ids]
+            typed_ids = list(dict.fromkeys((kind, ident) for kind, ident in typed_ids if re.fullmatch(r"W\d+", ident)))
+            known_ids = set()
+            for paper in [*candidate_pool, *search_pool]:
+                for alias in _paper_aliases(paper):
+                    if alias.startswith("openalex:"):
+                        known_ids.add(alias.split(":", 1)[1])
+            missing_ids = [(kind, ident) for kind, ident in typed_ids if ident not in known_ids]
+            expansion_key = "path-expansion:" + sha256(json.dumps(sorted(missing_ids), ensure_ascii=False).encode()).hexdigest()
+            cached_expansion = _fresh_cache(root, expansion_key) if missing_ids else None
+            expansion_works = (cached_expansion or {}).get("works") if cached_expansion else None
+            if missing_ids and expansion_works is None:
                 try:
+                    check_cancel()
                     batch = _openalex("/works", {
-                        "filter": "openalex_id:" + "|".join(expand_ids[:15]),
+                        "filter": "openalex_id:" + "|".join(ident for _, ident in missing_ids[:16]),
                         "per-page": 15,
                         "select": "id,doi,title,authorships,publication_year,primary_location,best_oa_location,locations,open_access,cited_by_count,abstract_inverted_index"
                     })
-                    for item in batch.get("results", []):
-                        w = _work(item)
-                        ident = (w.get("openalex_id") or "").rstrip("/").split("/")[-1]
-                        if ident in ref_ids:
-                            w["seed_relation"] = "reference"
-                        elif ident in rel_ids:
-                            w["seed_relation"] = "related"
-                        include(w)
-                except Exception:
-                    pass
-        if not papers:
+                    expansion_works = [_work(item) for item in batch.get("results", [])]
+                    planning_store.cache_put(root, expansion_key, {"works": expansion_works, "checked_at": _now().isoformat()})
+                except Exception as error:
+                    if cancel.is_set():
+                        raise engines.Cancelled()
+                    previous, checked = planning_store.cache_get(root, expansion_key)
+                    if isinstance(previous, dict) and isinstance(previous.get("works"), list):
+                        expansion_works = previous["works"]
+                        discovery_warnings.append(tr("參考資料查詢失敗，改用先前快取的資料。"))
+                    else:
+                        expansion_works = []
+                        discovery_warnings.append(tr("部分起點參考資料暫時無法取得。"))
+            relation_by_id = {}
+            for relation, ident in typed_ids:
+                relation_by_id.setdefault(ident, relation)
+            for work in expansion_works or []:
+                ident = str(work.get("openalex_id") or work.get("id") or "").rstrip("/").split("/")[-1].upper()
+                relation = relation_by_id.get(ident)
+                if relation == "reference": reference_pool.append({**work, "seed_relation": "reference"})
+                elif relation == "related": related_pool.append({**work, "seed_relation": "related"})
+        else:
+            start_work = None
+        report("candidates", 2, 5, tr("正在整理候選論文。"))
+        check_cancel()
+        if not any((candidate_pool, reference_pool, related_pool, search_pool, [start_work] if start_work else [])):
             raise ValueError("找不到可用的論文資料，請先搜尋主題或選擇候選論文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         if not topic and not start_paper.get("title"):
             raise ValueError("請輸入研究主題，或指定一篇起點論文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        from . import chat_models, engines, usage
+        from . import chat_models, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
 
-        # Prioritize candidates: start paper first, then user candidates/references, capped at 24 for weak-model stability
-        capped_papers = []
-        seen_capped = set()
-        for w in papers:
-            k = _key(w)
-            if k not in seen_capped:
-                seen_capped.add(k)
-                capped_papers.append(w)
-            if len(capped_papers) >= 24:
-                break
+        capped_papers = _balanced_candidates(start_work, candidate_pool, reference_pool, related_pool, search_pool, 24)
 
         by_exact, by_alias, by_title = _build_paper_index(capped_papers)
         source = []
@@ -1405,7 +1728,11 @@ def post(app, endpoint: str, body: dict):
             f"候選論文：{json.dumps(source, ensure_ascii=False)}"  # i18n-ok: prompt
         )
 
-        answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
+        report("planning", 3, 5, tr("AI 正在規劃閱讀順序。"))
+        check_cancel()
+        answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], cancel, meter)
+        report("validate", 4, 5, tr("正在驗證並保存閱讀路徑。"))
+        check_cancel()
         plan = _unwrap_json_list(engines.parse_json(answer))
         if not isinstance(plan, list):
             raise ValueError("模型回傳的閱讀路徑格式不正確，請重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -1428,12 +1755,23 @@ def post(app, endpoint: str, body: dict):
                 priority = len(output) + 1
             output.append({
                 "paper": work,
+                "paper_key": wk,
                 "role": str(step.get("role") or tr("延伸探索"))[:80],
                 "reason": str(step.get("reason") or "")[:800],
                 "priority": max(1, min(30, priority)),
             })
         output.sort(key=lambda x: x["priority"])
-        return {"results": output, "model": model.get("name", model.get("id", "")), "source_count": len(capped_papers), "usage": meter.snapshot()}
+        if not output:
+            return {"results": [], "model": model.get("name", model.get("id", "")), "source_count": len(capped_papers), "usage": meter.snapshot()}
+        check_cancel()
+        snapshot = planning_store.replace_reading_path(root, {
+            "topic": topic, "goal": goal, "start_paper": start_paper,
+            "results": output, "model": model.get("name", model.get("id", "")),
+            "source_count": len(capped_papers), "discovery_warnings": discovery_warnings,
+        })
+        return {"results": output, "path": snapshot, "path_id": snapshot["path_id"], "revision": snapshot["revision"],
+                "model": model.get("name", model.get("id", "")), "source_count": len(capped_papers),
+                "warning": "；".join(discovery_warnings), "usage": meter.snapshot()}  # i18n-ok: separator in localized warning text.
     if endpoint == "/ai-query":
         query = str(body.get("query") or "").strip()[:500]
         title = str(body.get("title") or "").strip()[:400]

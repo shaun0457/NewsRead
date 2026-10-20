@@ -31,6 +31,7 @@
   };
 
   function buildIndex() {
+    if (PR.buildFootnoteIndex) PR.buildFootnoteIndex(S.paper.blocks);
     PR.blockById = {};
     PR.xindex = { eq: {}, tab: {}, fig: {}, sec: {} };
     PR.headings = [];
@@ -50,7 +51,7 @@
 
   function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="' + PR.t("你改过这段之后，译者稿又更新了") + '">' + PR.t("译者稿有更新") + "</button>" : ""; }
   // 段落和列表项有句子对齐时一句一个 span（sentences.js），没有就整段
-  const sentMd = (key, side, text) => (PR.sentMd ? PR.sentMd(key, side, text) : PR.md(text));
+  const sentMd = (key, side, text) => (PR.sentMd ? PR.sentMd(key, side, text) : PR.md(text, PR.footnoteOptions ? PR.footnoteOptions(key) : undefined));
   function zhDiv(key) {
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + PR.esc(key) + '">' + sentMd(key, "zh", PR.textFor(key)) + staleTag(key) + "</div>";
@@ -62,7 +63,8 @@
     const key = b.id + "#caption";
     const text = PR.textFor(key);
     const m = text.match(/^([^：:]{1,12})[：:]/);
-    const body = m ? '<span class="label">' + PR.esc(m[1]) + "</span>" + PR.md(text.slice(m[1].length)) : PR.md(text);
+    const opts = PR.footnoteOptions ? PR.footnoteOptions(b.id) : undefined;
+    const body = m ? '<span class="label">' + PR.esc(m[1]) + "</span>" + PR.md(text.slice(m[1].length), opts) : PR.md(text, opts);
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="caption"><div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + key + '">' + body + staleTag(key) + "</div>" + enIfZh(key, b.caption_en) + "</div>";
   }
@@ -73,10 +75,10 @@
       const tag = (b.level || 1) === 1 ? "h2" : "h3";
       const en = PR.isEnKey(b.id);
       return "<" + tag + ' class="zh' + (en ? ' en-main" lang="en"' : '"') + ' data-key="' + b.id + '">' + (b.num ? '<span class="num">' + PR.esc(b.num) + "</span>" : "") +
-        "<span>" + PR.md(PR.textFor(b.id)) + "</span>" + staleTag(b.id) +
+        "<span>" + PR.md(PR.textFor(b.id), PR.footnoteOptions ? PR.footnoteOptions(b.id) : undefined) + "</span>" + staleTag(b.id) +
         (b.en && !en ? '<span class="en-title" lang="en">' + PR.md(b.en, { cite: false, xref: false }) + "</span>" : "") + "</" + tag + ">";
     },
-    para: (b) => zhDiv(b.id) + enIfZh(b.id, b.en),
+    para: (b) => (b.role === "footnote" ? '<span class="footnote-label"><sup>' + PR.esc(b.num || "") + "</sup></span>" : "") + zhDiv(b.id) + enIfZh(b.id, b.en),
     list(b) {
       const tag = b.ordered ? "ol" : "ul";
       const items = Array.isArray(b.items) ? b.items : [];
@@ -109,6 +111,7 @@
     if (b.type === "references") c += " blk-heading h1";
     if (b.cont) c += " cont";
     if (b.role === "abstract") c += " abstract";
+    if (b.role === "footnote") c += " footnote";
     return c;
   }
   const edited = (b) => PR.blockKeys(b).some((k) => PR.editOf(k));
@@ -146,8 +149,8 @@
       (tr.note ? "　" + PR.esc(tr.note) : "") +
       "";
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
-      "<h1>" + PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）")) + "</h1>" +
-      (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +
+      "<h1>" + (PR.titleHtml ? PR.titleHtml(m.title_zh || m.title_en || PR.t("（正在识别标题）")) : PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）"))) + "</h1>" +
+      (m.title_zh && m.title_en && m.title_zh !== m.title_en ? '<p class="title-en" lang="' + (m.target === "en" ? "" : "en") + '">' + (PR.titleHtml ? PR.titleHtml(m.title_en) : PR.esc(m.title_en)) + "</p>" : "") +
       (by ? '<p class="byline">' + by + "</p>" : "") + '<p class="scope">' + scope + "</p>" + creditHtml() + "</header>";
   }
 

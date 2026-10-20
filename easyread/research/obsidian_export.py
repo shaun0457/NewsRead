@@ -18,6 +18,7 @@ EXPORT_FOLDERS = {
     "mindmap": "02-心智圖",
     "annotations": "03-閱讀標註",
     "comparison": "04-跨論文比較",
+    "summary": "05-論文摘要",
 }
 MANAGED_START = "<!-- paperread:managed:start -->"
 MANAGED_END = "<!-- paperread:managed:end -->"
@@ -50,6 +51,16 @@ def _safe_title(value: str, fallback: str) -> str:
     if title.upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
         title = "_" + title
     return title
+
+
+def _safe_subfolder(value: str) -> str:
+    """Allow one generated folder name without accepting path traversal."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw in {".", ".."} or "/" in raw or "\\" in raw:
+        raise ValueError("匯出資料夾名稱不受支援。")  # i18n-ok: export validation message is fixed Traditional Chinese.
+    return _safe_title(raw, "Research")
 
 
 def _relative(root: Path, path: Path) -> str:
@@ -164,12 +175,19 @@ def _plan(root: Path, documents: list[dict], index: dict) -> tuple[list[dict], d
         body = str(doc.get("body") or "")
         if len(body.encode("utf-8")) > MAX_DOCUMENT_SIZE:
             raise ValueError("單一匯出檔案過大，請拆分後再匯出。")  # i18n-ok: export validation message is fixed Traditional Chinese.
+        folder = root / "Research" / EXPORT_FOLDERS[kind]
+        subfolder = _safe_subfolder(doc.get("subfolder"))
+        if subfolder:
+            folder /= subfolder
+        filename = _safe_title(str(doc.get("filename") or doc.get("title") or ""), kind) + ".md"
+        desired = folder / filename
         existing = _existing_path(root, identity, index)
+        if desired.is_file() and _read_research_id(desired) == identity:
+            existing = desired
         if existing:
             rel = _relative(root, existing)
         else:
-            filename = _safe_title(str(doc.get("filename") or doc.get("title") or ""), kind) + ".md"
-            candidate = root / "Research" / EXPORT_FOLDERS[kind] / filename
+            candidate = desired
             if candidate.exists() and identity not in used:
                 candidate = candidate.with_name(candidate.stem + "-" + identity.replace(":", "-")[-12:] + candidate.suffix)
             rel = _relative(root, candidate)

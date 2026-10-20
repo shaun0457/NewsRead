@@ -9,8 +9,9 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import consistency, engines, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
+from . import blank_pages, consistency, engines, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
 from .checks import block_problems, tex_problems
+from .repair_guard import retains_content
 from .figures import normalize_figure, prepare_figures
 from .i18n import tr
 from .log import log
@@ -125,6 +126,14 @@ def journal(ws: Workspace, line: str) -> None:
         f.write(f"{now_iso()[:19].replace('T', ' ')}  {line}\n")
 
 
+def _fill_problems(zh: dict) -> list[str]:
+    # Fill responses use keys instead of blocks; table heads still need math checks.
+    blocks = [{"id": k, "type": "table", "head": v} if k.endswith("#head") else
+              {"id": k, "type": "para", "zh": v}
+              for k, v in zh.items() if isinstance(v, str) or k.endswith("#head")]
+    return _problems({"blocks": blocks})
+
+
 def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=None) -> None:
     """只读原文整理过的页：不重排，只给已有的块补译文。漏译的键抛错，重试时只译剩下的。"""
     blocks = [b for b in ws.load("paper").get("blocks", []) if b.get("page") in batch]
@@ -137,13 +146,15 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
     data = engines.parse_json(text)
     if not isinstance(data, dict) or not isinstance(data.get("zh"), dict):
         raise engines.EngineError(tr("模型输出的格式不对（缺 zh）"))
-    fake = [{"id": k, "type": "para", "zh": v} for k, v in data["zh"].items() if isinstance(v, str)]
-    problems = _problems({"blocks": fake})
+    problems = _fill_problems(data["zh"])
     if problems:
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
-            if isinstance(fixed, dict) and isinstance(fixed.get("zh"), dict) and len(fixed["zh"]) >= len(data["zh"]):
+            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter))
+            if (isinstance(fixed, dict) and isinstance(fixed.get("zh"), dict)
+                    and data["zh"].keys() <= fixed["zh"].keys()
+                    and retains_content(data, fixed)
+                    and len(_fill_problems(fixed["zh"])) < len(problems)):
                 data = fixed
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
@@ -179,9 +190,9 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     if problems:  # 给一次修的机会
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems), ws.root, None, cancel, meter))
+            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter))
             fixed = _normalize(fixed, batch, _taken(ws, batch))
-            if fixed["blocks"] and len(_problems(fixed)) < len(problems):
+            if fixed["blocks"] and retains_content(data, fixed) and len(_problems(fixed)) < len(problems):
                 data = fixed
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
@@ -260,6 +271,21 @@ def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]
 def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, meter=None, read=False) -> dict[int, str]:
     """翻译给定的页（已完成的页会重译并替换；只读原文整理过的页就地补译文）。report(done, total, message)；
     meter 收集 token 用量。read：只读原文，把页整理成块但不翻译。返回没做成的页 {页码: 原因}。"""
+    if cancel.is_set():
+        raise engines.Cancelled()
+    blank = blank_pages.find(ws, pages, cancel)
+    if cancel.is_set():
+        raise engines.Cancelled()
+    if blank:
+        with _merge_lock:
+            merge_blocks(ws, {"blocks": []}, done=blank)
+        pages = [n for n in pages if n not in blank]
+    if not pages:
+        report(len(blank), len(blank), tr("结束，全部成功"))
+        return {}
+    if blank:
+        original_report = report
+        report = lambda done, total, message: original_report(done + len(blank), total + len(blank), message)
     cfg = engines.for_translation(cfg)  # 本机 CLI 不加载用户的 MCP、多余的工具定义（问 AI 不走这里）
     paper = ws.load("paper")
     total_pages = paper.get("meta", {}).get("page_count") or 0

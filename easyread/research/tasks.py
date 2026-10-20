@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from hashlib import sha256
 
 from ..i18n import tr
 
@@ -13,18 +14,36 @@ _TASKS: dict[str, dict] = {}
 _CANCEL: dict[str, threading.Event] = {}
 
 
-def _public(task: dict) -> dict:
-    return {key: value for key, value in task.items() if key != "_runner"}
+def _public(task: dict, include_result: bool = True) -> dict:
+    return {key: value for key, value in task.items()
+            if not key.startswith("_") and (include_result or key != "result")}
 
 
-def submit(kind: str, runner, retry_failed: bool = False) -> dict:
+def _notify(callback, snapshot: dict) -> None:
+    if callback:
+        try:
+            callback(snapshot)
+        except Exception:
+            # Persistence/notification hooks must not turn a successful task into a failure.
+            pass
+
+
+def scope_id(root) -> str:
+    """Stable, non-reversible identifier for one local library task scope."""
+    return sha256(str(root.resolve()).casefold().encode("utf-8")).hexdigest()[:20]
+
+
+def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on_update=None) -> dict:
+    scope = str(scope or "")
     with _LOCK:
         active = next((task for task in _TASKS.values()
-                       if task["kind"] == kind and task["state"] in ("queued", "running", "cancelling")), None)
+                       if task["kind"] == kind and task.get("scope", "") == scope
+                       and task["state"] in ("queued", "running", "cancelling")), None)
         if active:
             return _public(active)
         recent_failure = next((task for task in _TASKS.values()
-                               if task["kind"] == kind and task["state"] in ("failed", "cancelled")
+                               if task["kind"] == kind and task.get("scope", "") == scope
+                               and task["state"] in ("failed", "cancelled")
                                and time.time() - task["updated"] < 60), None)
         if recent_failure and not retry_failed:
             return _public(recent_failure)
@@ -34,7 +53,8 @@ def submit(kind: str, runner, retry_failed: bool = False) -> dict:
             _TASKS.pop(old["id"], None)
         identity = str(uuid.uuid4())
         task = {"id": identity, "kind": kind, "state": "queued", "phase": "queued", "done": 0,
-                "total": 0, "message": tr("排入背景工作…"), "created": time.time(), "updated": time.time()}
+                "total": 0, "message": tr("排入背景工作…"), "created": time.time(), "updated": time.time(),
+                "scope": scope, "_on_update": on_update}
         cancel = threading.Event()
         _TASKS[identity] = task
         _CANCEL[identity] = cancel
@@ -45,10 +65,14 @@ def submit(kind: str, runner, retry_failed: bool = False) -> dict:
                 return
             task.update(phase=phase, done=max(0, int(done or 0)), total=max(0, int(total or 0)),
                         message=str(message or "")[:240], updated=time.time())
+            snapshot = _public(task)
+        _notify(on_update, snapshot)
 
     def work():
         with _LOCK:
             task.update(state="running", phase="starting", message=tr("背景工作開始"), updated=time.time())
+            snapshot = _public(task)
+        _notify(on_update, snapshot)
         try:
             result = runner(cancel, report)
             with _LOCK:
@@ -57,37 +81,67 @@ def submit(kind: str, runner, retry_failed: bool = False) -> dict:
                 else:
                     task.update(state="completed", phase="completed", message=tr("工作完成"), result=result)
                 task["updated"] = time.time()
+                snapshot = _public(task)
+            _notify(on_update, snapshot)
         except Exception as error:  # noqa: BLE001
             with _LOCK:
                 task.update(state="cancelled" if cancel.is_set() else "failed",
                             phase="cancelled" if cancel.is_set() else "failed",
                             message=tr("工作已取消") if cancel.is_set() else str(error)[:500], updated=time.time())
+                snapshot = _public(task)
+            _notify(on_update, snapshot)
         finally:
             with _LOCK:
                 _CANCEL.pop(identity, None)
 
+    snapshot = _public(task)
+    _notify(on_update, snapshot)
     threading.Thread(target=work, name=f"research-{kind}-{identity[:8]}", daemon=True).start()
-    return _public(task)
+    return snapshot
 
 
-def get(identity: str) -> dict | None:
+def get(identity: str, scope: str | None = None) -> dict | None:
     with _LOCK:
         task = _TASKS.get(identity)
+        if task and scope is not None and task.get("scope", "") != scope:
+            return None
         return _public(task) if task else None
 
 
-def list_tasks() -> list[dict]:
+def list_tasks(scope: str | None = None) -> list[dict]:
     with _LOCK:
-        return [_public(task) for task in sorted(_TASKS.values(), key=lambda item: item["created"], reverse=True)[:20]]
+        items = [task for task in _TASKS.values() if scope is None or task.get("scope", "") == scope]
+        return [_public(task, include_result=False) for task in sorted(items, key=lambda item: item["created"], reverse=True)[:20]]
 
 
-def cancel(identity: str) -> dict | None:
+def cancel(identity: str, scope: str | None = None) -> dict | None:
     with _LOCK:
         task = _TASKS.get(identity)
+        if task and scope is not None and task.get("scope", "") != scope:
+            return None
         event = _CANCEL.get(identity)
         if not task:
             return None
         if event and task["state"] in ("queued", "running"):
             event.set()
             task.update(state="cancelling", phase="cancelling", message=tr("正在取消工作…"), updated=time.time())
-        return _public(task)
+            snapshot = _public(task)
+        else:
+            snapshot = _public(task)
+    if event:
+        _notify(task.get("_on_update"), snapshot)
+    return snapshot
+
+
+def acknowledge(identity: str, scope: str | None = None) -> dict | None:
+    with _LOCK:
+        task = _TASKS.get(identity)
+        if not task or (scope is not None and task.get("scope", "") != scope):
+            return None
+        task["acknowledged"] = True
+        return _public(task, include_result=False)
+
+
+def busy() -> bool:
+    with _LOCK:
+        return any(task["state"] in ("queued", "running", "cancelling") for task in _TASKS.values())

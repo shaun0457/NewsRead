@@ -23,12 +23,12 @@
     notes.forEach((n) => (noteById[n.id] = n));
     for (const n of notes) {
       if (n.kind === "highlight" && !(n.body || "").trim() && PR.editingNote !== n.id) continue;
-      push(anchorOf(n.anchor), { src: "mine", side: n.ai_generated ? "right" : "left", t: n.created || n.updated || "", data: n });
+      push(anchorOf(n.anchor), { src: "mine", side: n.ai_generated ? "left" : "right", t: n.created || n.updated || "", data: n });
     }
     for (const e of S.discussion.entries || []) {
       const host = e.reply_to && noteById[e.reply_to];
-      // 問答較接近使用者的閱讀思考，放在左側；解釋、補充與核對提示留在右側。
-      const side = e.kind === "qa" || e.kind === "reply" ? "left" : "right";
+      // 手動筆記與問題固定在右側；AI 點評、回答與核對提示固定在左側。
+      const side = "left";
       push(PR.anchorOfEntry(e), { src: "agent", side, t: host ? (host.created || "") + "~" + (e.at || "") : e.at || "", data: e });
     }
     for (const list of Object.values(groups)) list.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
@@ -220,7 +220,7 @@
     if (!n) return;
     const answered = PR.repliesTo(nid).length > 0;
     if (n.kind === "question" && answered) return PR.chatAsk({ anchor: n.anchor, quote: n.quote, draft: "" });
-    const text = n.kind === "question" ? n.body : "这是我读这里时写的笔记，请点评：我理解得对不对、有没有漏掉或想错的地方、还可以往哪想。\n\n我的笔记：" + n.body;  // i18n-ok 发给模型的提示词
+    const text = n.kind === "question" ? n.body : "這是我閱讀這段內容時寫的筆記，請點評：我的理解是否正確、是否遺漏或誤解，還可以從哪些方向思考。\n\n我的筆記：" + n.body;  // i18n-ok 發給模型的提示詞
     PR.chatAsk({ anchor: n.anchor, quote: n.quote, text, note: nid });
   };
   PR.on("job-finished", (j) => {

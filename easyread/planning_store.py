@@ -554,6 +554,97 @@ def cache_put(root: Path, key: str, payload: dict):
         db.commit()
 
 
+# The reading-path map is intentionally a single, versioned snapshot per
+# library.  Keeping it in the existing cache table avoids a second migration
+# for a small piece of workspace state, while the dedicated key means normal
+# discovery-cache expiry rules never apply to it.
+READING_PATH_CACHE_KEY = "reading-path:latest"
+
+
+def latest_reading_path(root: Path) -> dict | None:
+    value, _ = cache_get(root, READING_PATH_CACHE_KEY)
+    return value if isinstance(value, dict) else None
+
+
+def _validate_reading_path_steps(steps: list[dict]) -> list[str]:
+    keys = [str(step.get("paper_key") or "").strip() for step in steps if isinstance(step, dict)]
+    if not keys or len(keys) != len(steps) or len(set(keys)) != len(keys):
+        raise ValueError(tr("閱讀路徑資料不完整，請重新產生。"))
+    return keys
+
+
+def replace_reading_path(root: Path, snapshot: dict) -> dict:
+    steps = list(snapshot.get("results") or [])
+    _validate_reading_path_steps(steps)
+    now = _now()
+    record = {**snapshot, "path_id": "rp-" + uuid4().hex, "revision": 1,
+              "created_at": now, "updated_at": now, "relations": [],
+              "relations_checked_at": "", "relations_error": ""}
+    with _db(root) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("INSERT INTO cache(cache_key,payload_json,updated) VALUES(?,?,?) "
+                   "ON CONFLICT(cache_key) DO UPDATE SET payload_json=excluded.payload_json,updated=excluded.updated",
+                   (READING_PATH_CACHE_KEY, json.dumps(record, ensure_ascii=False), now))
+        db.commit()
+    return record
+
+
+def reorder_reading_path(root: Path, path_id: str, revision: int, paper_keys: list[str]) -> dict:
+    with _db(root) as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT payload_json FROM cache WHERE cache_key=?", (READING_PATH_CACHE_KEY,)).fetchone()
+        record = json.loads(row[0]) if row else None
+        if not isinstance(record, dict) or record.get("path_id") != path_id:
+            raise ValueError(tr("這份閱讀路徑已被較新的結果取代，請重新載入。"))
+        if int(record.get("revision") or 0) != int(revision):
+            raise ValueError(tr("閱讀路徑已在其他頁面更新，請重新載入後再調整。"))
+        current = _validate_reading_path_steps(list(record.get("results") or []))
+        order = [str(key or "").strip() for key in paper_keys]
+        if len(order) != len(current) or len(set(order)) != len(order) or set(order) != set(current):
+            raise ValueError(tr("閱讀順序必須包含目前路徑中的每一篇論文，且不能重複。"))
+        by_key = {step["paper_key"]: step for step in record["results"]}
+        record["results"] = [{**by_key[key], "priority": index + 1} for index, key in enumerate(order)]
+        record["manual_order"] = True
+        record["revision"] = int(record["revision"]) + 1
+        record["updated_at"] = _now()
+        db.execute("UPDATE cache SET payload_json=?,updated=? WHERE cache_key=?",
+                   (json.dumps(record, ensure_ascii=False), record["updated_at"], READING_PATH_CACHE_KEY))
+        db.commit()
+    return record
+
+
+def save_reading_path_relations(root: Path, path_id: str, revision: int, relations: list[dict], *, checked_at: str = "", error: str = "") -> dict:
+    with _db(root) as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT payload_json FROM cache WHERE cache_key=?", (READING_PATH_CACHE_KEY,)).fetchone()
+        record = json.loads(row[0]) if row else None
+        if not isinstance(record, dict) or record.get("path_id") != path_id:
+            raise ValueError(tr("這份閱讀路徑已被較新的結果取代，請重新載入。"))
+        if int(record.get("revision") or 0) != int(revision):
+            raise ValueError(tr("閱讀路徑已在其他頁面更新，請重新載入後再更新引用資料。"))
+        valid_keys = set(_validate_reading_path_steps(list(record.get("results") or [])))
+        clean, seen = [], set()
+        for relation in relations or []:
+            if not isinstance(relation, dict):
+                continue
+            source = str(relation.get("source") or "").strip()
+            target = str(relation.get("target") or "").strip()
+            pair = (source, target)
+            if source not in valid_keys or target not in valid_keys or source == target or pair in seen:
+                continue
+            seen.add(pair)
+            clean.append({"source": source, "target": target, "evidence": "openalex"})
+        record["relations"] = clean
+        record["relations_checked_at"] = checked_at or _now()
+        record["relations_error"] = str(error or "")[:500]
+        record["revision"] = int(record["revision"]) + 1
+        record["updated_at"] = _now()
+        db.execute("UPDATE cache SET payload_json=?,updated=? WHERE cache_key=?",
+                   (json.dumps(record, ensure_ascii=False), record["updated_at"], READING_PATH_CACHE_KEY))
+        db.commit()
+    return record
+
+
 def skip(root: Path, key: str):
     with _db(root) as db:
         db.execute("INSERT OR IGNORE INTO skipped(paper_key,created) VALUES(?,?)", (key, _now()))

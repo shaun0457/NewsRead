@@ -44,7 +44,7 @@ function reader(mode = "server") {
     devicePixelRatio: 1, Image: class {}, setTimeout: () => 1, clearTimeout() {},
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/page-zoom.js"), "utf8"), sandbox);
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/pageview.js"), "utf8"), sandbox);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/pdf-panel.js"), "utf8"), sandbox);
   return { PR, node, events, documentEvents, scrolls, read: id => { reading = id; }, select: id => { selected = id; } };
 }
 

@@ -42,11 +42,12 @@ class PageCapTest(unittest.TestCase):
         return ws
 
     def fake_engine(self, cfg, prompt, cwd, images=None, cancel=None, meter=None):
-        match = re.search(r"这次只(?:处理|翻译)第 ([\d, ]+) 页", prompt)
+        match = re.search(r"(?:這次只(?:處理|翻譯)第|这次只(?:处理|翻译)第) ([\d, ]+) (?:頁|页)", prompt)
         pages = [int(n) for n in match[1].split(",")]
         self.calls.append({"pages": pages, "cfg": cfg, "root": str(cwd)})
-        if "要翻译的内容（键 → 英文）：\n" in prompt:
-            items = json.loads(prompt.split("要翻译的内容（键 → 英文）：\n", 1)[1])
+        marker = next((m for m in ("要翻譯的內容（鍵 → 英文）：\n", "要翻译的内容（键 → 英文）：\n") if m in prompt), None)
+        if marker:
+            items = json.loads(prompt.split(marker, 1)[1])
             return json.dumps({"zh": {key: "译文" for key in items}})
         return json.dumps({"blocks": [{"id": f"p{n}-1", "type": "para", "page": n, "en": "Original text", "zh": "译文"} for n in pages]})
 

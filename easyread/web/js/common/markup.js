@@ -54,6 +54,31 @@
     return html;
   };
 
+  // Titles allow math, but preserve literal Markdown punctuation and links.
+  PR.titleHtml = function (text) {
+    const saved = tokens(String(text == null ? "" : text), false);
+    return PR.esc(saved.text).replace(saved.inline, (match, index) => {
+      const token = saved.values[index];
+      return token.code || token.link ? PR.esc(token.raw) : PR.tex(token.text, false);
+    });
+  };
+
+  PR.buildFootnoteIndex = function (blocks) {
+    const index = { pages: new Map(), all: new Map() };
+    const add = (map, key, id) => map.set(key, map.has(key) ? null : id);
+    for (const b of blocks || []) {
+      if (b.type !== "para" || b.role !== "footnote" || !/^\d{1,3}$/.test(String(b.num || ""))) continue;
+      add(index.pages, b.page + ":" + b.num, b.id);
+      add(index.all, String(b.num), b.id);
+    }
+    PR.footnoteIndex = index;
+  };
+  PR.footnoteOptions = function (key) {
+    const b = (PR.blockById || {})[String(key).split("#")[0]];
+    if (!b) return {};
+    return { footnotePage: b.page };
+  };
+
   function citeLinks(s) {
     return s.replace(/\[(\d+(?:\s*[,，–-]\s*\d+)*)\]/g, (m, inner) => {
       const parts = inner.split(/(\s*[,，–-]\s*)/);
@@ -101,6 +126,12 @@
     let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+    s = s.replace(/(?<!\\)\[\^(\d{1,3})\]/g, (raw, n) => {
+      const ix = PR.footnoteIndex, key = opts.footnotePage + ":" + n;
+      const id = ix && (ix.pages.has(key) ? ix.pages.get(key) : ix.all.get(n));
+      const label = "<sup>" + n + "</sup>";
+      return id ? '<a class="footnote-ref" href="#b-' + PR.esc(id) + '" data-footnote="b-' + PR.esc(id) + '">' + label + "</a>" : label;
+    });
     if (opts.cite !== false) s = citeLinks(s);
     if (opts.xref !== false) s = xrefLinks(s);
     return s.replace(/\n/g, "<br>");

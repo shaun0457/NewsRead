@@ -1,5 +1,6 @@
 """分段并行：怎么切段、交界怎么告诉模型、术语冲突怎么统一。  python -m unittest tests.test_segments"""
 import json
+import re
 import shutil
 import threading
 import unittest
@@ -114,7 +115,7 @@ class SkipHeadTest(unittest.TestCase):
         lock = threading.Lock()
 
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+            page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             with lock:
                 seen[page] = prompt
             return json.dumps({"glossary": gl(page), "blocks": [{"id": f"p{page}-1", "type": "para", "page": page,
@@ -138,8 +139,8 @@ class SkipHeadTest(unittest.TestCase):
         with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"page-{n}.jpg"), \
                 mock.patch.object(translate.netcheck, "problem", lambda cfg: None):
             seen = self.run_job(cfg, list(range(1, 9)))
-        self.assertIn("extract/page-005.jpg 的开头", seen[3])  # 前一段最后一批看下一页开头
-        self.assertIn("extract/page-004.jpg 的末尾", seen[5])  # 后一段第一批看上一页末尾
+        self.assertTrue(any(mark in seen[3] for mark in ("extract/page-005.jpg 的开头", "extract/page-005.jpg 的開頭")))  # 前一段最後一批看下一頁開頭
+        self.assertTrue(any(mark in seen[5] for mark in ("extract/page-004.jpg 的末尾", "extract/page-004.jpg 的末尾")))  # 後一段第一批看上一頁末尾
         self.assertNotIn("另外用", seen[1])
         self.assertNotIn("另外用", seen[7])
 
@@ -160,7 +161,7 @@ class SkipHeadTest(unittest.TestCase):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
 
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+            page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             blocks = [{"id": "refs", "type": "references", "page": page, "en": "References", "zh": "参考文献"}] if page >= 3 else \
                 [{"id": f"p{page}-1", "type": "para", "page": page, "en": "x", "zh": "译文"}]
             return json.dumps({"blocks": blocks, "references": [{"id": str(page), "text": f"ref {page}"}]})

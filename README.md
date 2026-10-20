@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-支援-2f6070" alt="支援平台：Windows x64、macOS arm64、Linux x64">
+  <img src="https://img.shields.io/badge/Windows%20x64%20%7C%20macOS%20arm64%20%7C%20Linux%20x64-支援-2f6070" alt="支援平臺：Windows x64、macOS arm64、Linux x64">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT License">
 </p>
 
@@ -32,7 +32,7 @@ PaperRead 是以 EasyRead 為基礎整理的個人研究工具。它保留原有
 | 研究流程 | 新增「研究探索、閱讀看板、候選清單、已整理摘要、閱讀路徑」工作區。 |
 | 研究視覺化 | 可根據目前論文內容產生繁體中文 Mermaid 心智圖，協助理解研究問題、方法、發現、貢獻與限制。 |
 | 智慧標註 | 可依全文、章節或研究目的產生 AI 標註建議；接受前先逐筆審閱，不會覆蓋手動標註。 |
-| 影像與表格 | 論文圖片和表格保留版面佔位，直接回到原 PDF 查看；不把裁切結果硬塞進譯文排版。 |
+| 影像與表格 | 論文圖片和表格保留版面佔位，直接回到原 PDF 檢視；不把裁切結果硬塞進譯文排版。 |
 | 資料相容性 | 使用者資料遷移至 `PaperRead` 資料夾；Python package、CLI、舊資料格式與 `easyread://` 連結協定仍保留相容層。 |
 
 ## 主要工作流程
@@ -42,11 +42,11 @@ PaperRead 是以 EasyRead 為基礎整理的個人研究工具。它保留原有
     ↓
 加入候選清單
     ↓
-查看候選論文與背景摘要
+檢視候選論文與背景摘要
     ↓
 選擇要整理的論文
     ↓
-產生／查看／匯出摘要
+產生／檢視／匯出摘要
     ↓
 加入閱讀看板並拖曳調整順序
     ↓
@@ -87,12 +87,12 @@ PaperRead 會依來源拆分查詢，支援常見的學術會議與期刊。結�
 
 每張論文卡片只保留研究探索階段需要的操作：
 
-- **加入候選**：先保存論文，不會立刻生成摘要或下載 PDF。
+- **加入候選**：先儲存論文，不會立刻生成摘要或下載 PDF。
 - **論文來源**：開啟可查證的出版頁、DOI 或來源連結。
 
 ## 閱讀看板
 
-閱讀看板是研究探索頁面的主要工作區。論文可以拖曳到不同狀態欄位，狀態由使用者決定，不會因為開啟 PDF 或讀到最後一頁而自動改變。
+閱讀看板是研究探索頁面的主要工作區。論文可以拖曳到不同狀態列位，狀態由使用者決定，不會因為開啟 PDF 或讀到最後一頁而自動改變。
 
 預設狀態包含：
 
@@ -107,22 +107,22 @@ PaperRead 會依來源拆分查詢，支援常見的學術會議與期刊。結�
 
 ## 候選清單
 
-候選清單用來保存「值得之後研究」的論文。它會跨頁面保留，與閱讀看板及已整理摘要分開管理。
+候選清單用來儲存「值得之後研究」的論文。它會跨頁面保留，與閱讀看板及已整理摘要分開管理。
 
-加入候選後，PaperRead 會在背景批次整理來源摘要。一次加入多篇時會排入佇列，避免同時發送大量請求。你仍然可以自行決定：
+加入候選後，PaperRead 會在背景批次整理來源摘要。一次加入多篇時會排入佇列，避免同時傳送大量請求。你仍然可以自行決定：
 
-1. 查看候選論文。
+1. 檢視候選論文。
 2. 移除不再需要的論文。
 3. 對個別論文重新整理摘要。
-4. 查看 Markdown 摘要。
-5. 使用「匯出摘要」保存檔案。
+4. 檢視 Markdown 摘要。
+5. 使用「匯出摘要」儲存檔案。
 6. 將選定論文加入閱讀看板。
 
 候選論文不會自動變成已讀，也不會自動覆蓋你的正式筆記。
 
 ## 已整理摘要
 
-已整理摘要會獨立保存，即使論文之後移出候選清單，摘要仍可保留。摘要內容以 Markdown 儲存並使用與筆記一致的安全渲染方式，支援：
+已整理摘要會獨立儲存，即使論文之後移出候選清單，摘要仍可保留。摘要內容以 Markdown 儲存並使用與筆記一致的安全渲染方式，支援：
 
 - 標題與副標題
 - 粗體、斜體
@@ -134,7 +134,7 @@ PaperRead 會依來源拆分查詢，支援常見的學術會議與期刊。結�
 主要操作順序是：
 
 ```text
-查看摘要 → 重新整理摘要 → 匯出摘要 → 移到回收站
+檢視摘要 → 重新整理摘要 → 匯出摘要 → 移到回收站
 ```
 
 摘要由模型根據實際取得的論文資料產生；缺少的來源資訊會標示「未提供」，不捏造研究結果或出版資訊。
@@ -175,15 +175,15 @@ AI 只能重組已查詢到的論文資料，不能自行新增不存在的論�
 └── 研究限制
 ```
 
-節點會盡量保持簡短，內容只使用目前論文提供的文字、公式和數據。生成中的狀態會顯示載入動畫，失敗時可以重試；生成後可在閱讀頁查看，也能透過筆記匯出流程一併匯出。
+節點會盡量保持簡短，內容只使用目前論文提供的文字、公式和資料。生成中的狀態會顯示載入動畫，失敗時可以重試；生成後可在閱讀頁檢視，也能透過筆記匯出流程一併匯出。
 
 ## 論文閱讀與 AI
 
 PaperRead 的 Human Reading Interface 仍以原文核對為中心：
 
 - 原文、譯文、AI 解釋和個人筆記分開顯示。
-- 圖片與表格保留排版位置，點擊後回到原 PDF 查看。
-- 螢光筆、下劃線、問題和筆記會綁定原文 block、頁碼與定位資訊。
+- 圖片與表格保留排版位置，點選後回到原 PDF 檢視。
+- 螢光筆、下劃線、問題和筆記會繫結原文 block、頁碼與定位資訊。
 - 可以選取文字後執行 AI 改寫，不會固定套用搜尋結果中的第一組詞。
 - AI 回答和摘要都會顯示載入、失敗與重試狀態。
 
@@ -195,7 +195,7 @@ PaperRead 的 Human Reading Interface 仍以原文核對為中心：
 - **AI 自動標註**、逐筆審閱的**AI 建議標註**，或依研究目的篩選。
 - 是否輸入研究目的，例如「找出可用於 3D segmentation 的方法與限制」。
 
-每筆建議都會顯示原文定位、頁碼、顏色、標註類型、AI 註記與標註原因。使用者可以逐筆接受、修改或拒絕，也可以批次接受已確認能定位的項目。未能可靠定位的內容會保留在待確認清單，不會直接套用到正文。
+每筆建議都會顯示原文定位、頁碼、顏色、標註型別、AI 註記與標註原因。使用者可以逐筆接受、修改或拒絕，也可以批次接受已確認能定位的專案。未能可靠定位的內容會保留在待確認清單，不會直接套用到正文。
 
 顏色有固定語意：黃色表示核心概念與主要主張，綠色表示方法與實作細節，藍色表示實驗證據與量化結果，紅色表示限制、失敗案例與待研究問題。接受後會沿用既有螢光筆或底線標註系統，不會覆蓋手動建立的標註。
 
@@ -207,13 +207,13 @@ AI 分析同時參考穩定的英文原文與目前的繁體中文譯文，正�
 
 可在設定中選擇主流 API 或本地模型：
 
-| 類型 | 例子 |
+| 型別 | 例子 |
 |---|---|
 | 雲端 API | OpenAI、Anthropic、Google Gemini、DeepSeek、智譜 GLM、阿里雲百煉、Kimi、OpenRouter、Groq、Cerebras |
 | 本地模型 | Ollama、LM Studio |
 | 自訂介面 | OpenAI-compatible Chat Completions 或 Responses endpoint |
 
-Ollama 使用本機 API，例如 `http://127.0.0.1:11434`。啟用 thinking 的模型會依模型支援的參數傳遞；只有支援布林值的模型會使用 `think: true/false`，不會強行送出不相容的 `low/high` 層級。
+Ollama 使用本機 API，例如 `http://127.0.0.1:11434`。啟用 thinking 的模型會依模型支援的引數傳遞；只有支援布林值的模型會使用 `think: true/false`，不會強行送出不相容的 `low/high` 層級。
 
 ## 安裝與執行
 
@@ -225,7 +225,7 @@ Ollama 使用本機 API，例如 `http://127.0.0.1:11434`。啟用 thinking 的�
 
 ### Linux AppImage
 
-從 [PaperRead Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載 `PaperRead-x.x.x.AppImage`。Linux AppImage 會包含 Electron 桌面程式與打包好的 Python 後端；下載後加入執行權限即可：
+從 [PaperRead Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載 `PaperRead-x.x.x.AppImage`。Linux AppImage 會包含 Electron 桌面程式與打包好的 Python 後端；下載後加入執行許可權即可：
 
 ```bash
 chmod +x PaperRead-*.AppImage
@@ -240,7 +240,7 @@ chmod +x PaperRead-*.AppImage
 
 ### Docker 瀏覽器版
 
-Docker 版本適合 Linux、macOS 或 Windows 上沒有原生桌面安裝需求的情境。它啟動 PaperRead 網頁服務，論文庫與設定持久保存於 Docker volume：
+Docker 版本適合 Linux、macOS 或 Windows 上沒有原生桌面安裝需求的情境。它啟動 PaperRead 網頁服務，論文庫與設定持久儲存於 Docker volume：
 
 ```bash
 git clone https://github.com/YuriyLin/PaperRead.git
@@ -250,7 +250,7 @@ docker compose up -d
 
 接著開啟 <http://localhost:8765>。停止服務但保留資料可使用 `docker compose down`；重新啟動仍會使用同一個 `paperread-data` volume。
 
-若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。PaperRead 沒有登入機制，因此 Docker Compose 預設只綁定本機 `127.0.0.1`。若要給其他裝置使用，建議在前面加一層有登入驗證的反向代理；若確定要直接在區域網路開放，需同時把 port 對應改成 `"8765:8765"`，並在 `PAPERREAD_ALLOWED_HOSTS` 列出你用來連線的主機名稱或 IP（逗號分隔），否則請求會因 Host 檢查被拒絕。不要把 PaperRead port 直接暴露到公網。
+若 Ollama 執行在主機上，Docker Compose 已提供 `host.docker.internal` 對應，可在 PaperRead 設定中使用 `http://host.docker.internal:11434/v1`。PaperRead 沒有登入機制，因此 Docker Compose 預設只繫結本機 `127.0.0.1`。若要給其他裝置使用，建議在前面加一層有登入驗證的反向代理；若確定要直接在區域網路開放，需同時把 port 對應改成 `"8765:8765"`，並在 `PAPERREAD_ALLOWED_HOSTS` 列出你用來連線的主機名稱或 IP（逗號分隔），否則請求會因 Host 檢查被拒絕。不要把 PaperRead port 直接暴露到公網。
 
 每個版本也會發布預建的 GitHub Container Registry 映像，不必在本機編譯：
 
@@ -303,11 +303,11 @@ macOS: `~/PaperRead`
 Linux Docker: Docker volume `paperread-data` 內的 `/data/PaperRead`
 ```
 
-舊版 `EasyRead` 資料會在首次啟動時嘗試遷移；若遷移失敗，程式會保留原資料並以相容方式讀取。為了避免破壞既有腳本與使用者資料，程式內部仍保留 `easyread` 的 Python module、CLI、環境變數和舊連結協定名稱。
+舊版 `EasyRead` 資料會在首次啟動時嘗試遷移；若遷移失敗，程式會保留原資料並以相容方式讀取。為了避免破壞既有指令碼與使用者資料，程式內部仍保留 `easyread` 的 Python module、CLI、環境變數和舊連結協定名稱。
 
 ## 開發與測試
 
-前端使用原生 HTML、CSS、JavaScript，沒有額外的前端 build step；後端使用 Python。修改 `easyread/web/` 後重新整理頁面即可查看變更。
+前端使用原生 HTML、CSS、JavaScript，沒有額外的前端 build step；後端使用 Python。修改 `easyread/web/` 後重新整理頁面即可檢視變更。
 
 ```bash
 python -m unittest discover tests

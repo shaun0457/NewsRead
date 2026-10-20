@@ -89,7 +89,7 @@ class ComparisonTest(unittest.TestCase):
             state = root / ".research-os"
             def fake_model(_cfg, prompt, *_args):
                 return "## 比較範圍\n\n兩篇論文。\n\n## 候選研究問題\n\n待驗證：資料集差異。" if "請輸出：" in prompt else "方法與實驗摘要。"
-            def run_now(kind, runner, retry_failed=False):
+            def run_now(kind, runner, retry_failed=False, *, scope="", on_update=None):
                 self.assertEqual(kind, "comparison")
                 return {"state": "completed", "result": runner(threading.Event(), lambda *_args: None)}
             with mock.patch.object(comparison, "vault_path", lambda: root), \
@@ -100,7 +100,9 @@ class ComparisonTest(unittest.TestCase):
                  mock.patch("easyread.chat_models.engine_cfg", lambda *_args: ({"engine": "test"}, {"id": "test", "name": "Test"})), \
                  mock.patch("easyread.engines.for_translation", lambda cfg: cfg), \
                  mock.patch("easyread.engines.run", fake_model):
-                result = comparison.start(self.Library(), ["paper-1", "paper-2"], ["核心方法", "限制"])
+                library = self.Library()
+                library.root = root
+                result = comparison.start(library, ["paper-1", "paper-2"], ["核心方法", "限制"])
                 proposal = result["result"]["proposal"]
                 destination = root / proposal["target"]
                 self.assertEqual(proposal["status"], "pending")

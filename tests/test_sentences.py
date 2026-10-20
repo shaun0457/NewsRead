@@ -1,5 +1,6 @@
 """句子级对齐：模型插的 ‖ 去掉后记成 sents；旧数据没有 sents 照常；补译、重译、修正都兼容。  python -m unittest tests.test_sentences"""
 import json
+import re
 import shutil
 import threading
 import unittest
@@ -143,8 +144,8 @@ class PipelineTest(unittest.TestCase):
 
     def test_translate_batch_and_check_quote(self):
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            self.assertIn("句子对齐", prompt)
-            page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+            self.assertTrue(any(mark in prompt for mark in ("句子對齊", "句子对齐")))
+            page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             return json.dumps({"blocks": [{"id": f"p{page}-1", "type": "para", "page": page, "en": "One. ‖ Two.", "zh": "一。‖二。"}],
                                "checks": [{"anchor": f"p{page}-1", "quote": "一。‖二", "body": "x"}]})
         with mock.patch.object(engines, "run", run):
@@ -155,13 +156,14 @@ class PipelineTest(unittest.TestCase):
 
     def test_fill_after_read_aligns_with_program_split(self):
         def structure(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+            page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             return json.dumps({"blocks": [{"id": f"p{page}-1", "type": "para", "page": page, "en": "First. Second one."},
                                           {"id": f"s{page}", "type": "heading", "page": page, "en": "Intro. Part"}]})
         seen = []
 
         def fill(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            items = json.loads(prompt.split("要翻译的内容（键 → 英文）：\n", 1)[1])
+            marker = next(m for m in ("要翻譯的內容（鍵 → 英文）：\n", "要翻译的内容（键 → 英文）：\n") if m in prompt)
+            items = json.loads(prompt.split(marker, 1)[1])
             seen.append(items)
             self.assertIn("‖ 是句子分界", prompt)
             return json.dumps({"zh": {k: ("第一。‖第二。" if "‖" in v else "标题") for k, v in items.items()}})

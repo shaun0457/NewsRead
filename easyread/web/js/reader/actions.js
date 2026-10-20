@@ -171,6 +171,8 @@
   });
   document.addEventListener("mouseout", (e) => { if (e.target.closest && e.target.closest("a.cite, a.xref")) { clearTimeout(hoverT); PR.hidePopoverSoon(); } });
   document.addEventListener("click", (e) => {
+    const footnote = e.target.closest("a.footnote-ref");
+    if (footnote) { e.preventDefault(); PR.jumpTo(footnote.dataset.footnote); return; }
     const a = e.target.closest("a.cite, a.xref");
     if (!a) return;
     e.preventDefault();
@@ -186,7 +188,7 @@
     if (!b) return "";
     if (b.type === "math") return '<div class="hd">' + PR.t("公式 ({tag}) · 第 {page} 页", { tag: PR.esc(b.tag), page: b.page }) + '</div><div class="eq">' + PR.tex(b.tex, true) + "</div>";
     if (b.type === "table" || b.type === "figure") return '<div class="hd">' + PR.t("第 {page} 页", { page: b.page }) + '</div><div class="cap">' + PR.md(PR.textFor(b.id + "#caption"), { xref: false }) + "</div>";
-    return '<div class="hd">' + PR.t("跳到") + '</div><div class="cap">' + PR.esc((b.num ? b.num + "　" : "") + PR.plain(PR.textFor(b.id))) + "</div>";
+    return '<div class="hd">' + PR.t("跳到") + '</div><div class="cap">' + (b.num ? '<span class="n">' + PR.esc(b.num) + "　</span>" : "") + PR.titleHtml(PR.textFor(b.id)) + "</div>";
   }
 
   /* 所有跳转都用这个：目标放在屏幕正中（比一屏还高的才顶到上面），不被顶栏挡住 */

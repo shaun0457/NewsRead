@@ -24,12 +24,22 @@ class LangsTest(unittest.TestCase):
         shutil.rmtree(self.ws.root, ignore_errors=True)
 
     def test_chinese_prompt_unchanged(self):
+        set_meta(self.ws, target="zh")
         self.assertIs(prompts.rules("zh"), prompts.RULES)
         self.assertIs(prompts.schema("zh"), prompts.SCHEMA)
         with mock.patch.object(langs, "of_paper", lambda meta, cfg=None: "zh"):
             text = prompts.translate(self.ws, [1], "text", "")
         self.assertIn("译成中文，这次只处理第 1 页", text)
         self.assertIn("standard error 译“标准误差”", text)
+
+    def test_traditional_translation_prompt_converts_fixed_instructions(self):
+        set_meta(self.ws, target="zh-TW")
+        rules = prompts.rules("zh-TW")
+        schema = prompts.schema("zh-TW")
+        self.assertIn("翻譯要求", rules)
+        self.assertIn("輸出格式", schema)
+        self.assertNotIn("翻译要求", rules)
+        self.assertNotIn("输出格式", schema)
 
     def test_every_swap_applies(self):
         for old, _ in prompts._RULES_SWAP:

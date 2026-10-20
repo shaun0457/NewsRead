@@ -177,7 +177,7 @@
       return '<p class="hint">' + PR.t("加载中…") + "</p>";
     }
     return '<nav class="toc recent-list">' + recent.map((i) => '<a href="/read/' + i.id + '" class="l1' + (i.id === PR.pid ? " on" : "") + '"><span class="cnt">' + (i.progress > 0.02 ? Math.round(i.progress * 100) + "%" : "") + "</span>" +
-      PR.esc(i.title_zh || i.title_en || PR.t("（未命名）")) + "</a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">' + PR.t("打开文献库") + "</a>";
+      PR.titleHtml(i.title_zh || i.title_en || PR.t("（未命名）")) + "</a>").join("") + '</nav><a class="btn sm line" href="/" style="margin-top:12px">' + PR.t("打开文献库") + "</a>";
   }
   function countByHeading() {
     const counts = {};
@@ -195,8 +195,8 @@
     let html = '<nav class="toc">', app = false;
     for (const h of PR.headings) {
       if (h.appendix && !app) { html += '<div class="group">' + PR.t("附录") + "</div>"; app = true; }
-      html += '<a href="#b-' + h.id + '" data-go="' + h.id + '" class="' + (h.level === 2 ? "l2" : "l1") + (cur === h.id ? " on" : "") + '">' +
-        (counts[h.id] ? '<span class="cnt">' + counts[h.id] + "</span>" : "") + '<span class="n">' + PR.esc(h.num || "") + "</span>" + PR.esc(PR.plain(PR.textFor(h.id) || h.zh)) + "</a>";
+      html += '<a href="#b-' + h.id + '" data-go="' + h.id + '" class="' + "l" + h.level + (cur === h.id ? " on" : "") + '">' +
+        (counts[h.id] ? '<span class="cnt">' + counts[h.id] + "</span>" : "") + '<span class="n">' + PR.esc(h.num || "") + "</span>" + PR.titleHtml((PR.textFor(h.id) || h.zh || "").replace(/\*\*/g, "")) + "</a>";
     }
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = ((S.paper.meta || {}).pages || []).filter((p) => !done.has(p.n));

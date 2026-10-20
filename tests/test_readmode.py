@@ -1,5 +1,6 @@
 """只读原文：整理成只有英文的块，之后翻译时就地补中文、块 id 不变。  python -m unittest tests.test_readmode"""
 import json
+import re
 import shutil
 import threading
 import unittest
@@ -12,8 +13,8 @@ from tests.test_translate import make_ws
 def structure_engine(calls: list):
     """只读原文：每页一个段落、一个表，只有英文。"""
     def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-        assert "不要翻译" in prompt
-        page = int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+        assert any(mark in prompt for mark in ("不要翻譯", "不要翻译"))
+        page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
         calls.append(page)
         return json.dumps({"blocks": [
             {"id": f"p{page}-1", "type": "para", "page": page, "en": f"Text {page}."},
@@ -25,8 +26,9 @@ def structure_engine(calls: list):
 def fill_engine(calls: list, skip: set = frozenset()):
     """补译文：把要译的键都译成“中文 键”，skip 里的键故意漏掉。"""
     def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-        assert "这次只翻译第" in prompt
-        items = json.loads(prompt.split("要翻译的内容（键 → 英文）：\n", 1)[1])
+        assert any(mark in prompt for mark in ("這次只翻譯第", "这次只翻译第"))
+        marker = next(m for m in ("要翻譯的內容（鍵 → 英文）：\n", "要翻译的内容（键 → 英文）：\n") if m in prompt)
+        items = json.loads(prompt.split(marker, 1)[1])
         calls.append(sorted(items))
         zh = {k: ([["模型", "准确率"]] if k.endswith("#head") else "中文 " + k) for k in items if k not in skip}
         return json.dumps({"zh": zh})

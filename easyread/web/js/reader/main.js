@@ -33,7 +33,7 @@
     if (id !== lastBlock) {
       lastBlock = id;
       const h = PR.blockById[PR.currentHeading()];
-      PR.$(".bar-section").textContent = h ? (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id) || h.zh) : "";
+      PR.$(".bar-section").innerHTML = h ? PR.esc(h.num ? h.num + " " : "") + PR.titleHtml(PR.textFor(h.id) || h.zh) : "";
       PR.syncPage(false);
     }
     PR.saveProgress && PR.saveProgress();
@@ -81,7 +81,7 @@
       if (changed.includes("paper") || changed.includes("reader")) {
         PR.rerenderKeepingPlace();
         const m = S.paper.meta || {};
-        PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
+        PR.$(".bar-title").innerHTML = PR.titleHtml(m.short_zh || m.title_zh || m.title_en || "");
       } else if (changed.includes("job")) {
         const pend = PR.$(".pending-pages .pending, .page-cap");
         if (pend || (S.job || {}).state === "confirm") PR.rerenderKeepingPlace();
@@ -124,7 +124,7 @@
     PR.applyFeatures();
     const m = S.paper.meta || {};
     document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · PaperRead";
-    PR.$(".bar-title").textContent = m.short_zh || m.title_zh || m.title_en || "";
+    PR.$(".bar-title").innerHTML = PR.titleHtml(m.short_zh || m.title_zh || m.title_en || "");
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));
     PR.renderPaper();

@@ -115,10 +115,11 @@
     const title = PR.$("#paper .paper-head h1"), meta = S.paper.meta;
     const secondary = PR.$("#paper .title-en");
     if (title && secondary && meta && meta.title_zh && meta.title_en) {
-      title.textContent = first ? meta.title_en : meta.title_zh;
-      secondary.textContent = first ? meta.title_zh : meta.title_en;
-      title.lang = first ? "en" : "";
-      secondary.lang = first ? "" : "en";
+      title.innerHTML = PR.titleHtml(first ? meta.title_en : meta.title_zh);
+      secondary.innerHTML = PR.titleHtml(first ? meta.title_zh : meta.title_en);
+      const orig = meta.target === "en" ? "" : "en";  // 译成英文时原标题不一定是英文
+      title.lang = first ? orig : "";
+      secondary.lang = first ? "" : orig;
     }
     const description = PR.$(".reading-language-description");
     if (description && !document.body.classList.contains("en-only") && !((S.paper.translation || {}).en_pages || []).length) {

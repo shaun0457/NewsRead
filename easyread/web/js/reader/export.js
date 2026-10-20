@@ -6,8 +6,7 @@
     ["paper", PR.t("论文笔记（整篇的感悟）")], ["note", PR.t("我的筆記")], ["highlight", PR.t("我的劃線")], ["question", PR.t("我的問題")],
     ["ai", PR.t("AI 的回答和解释（页边）")], ["chat", PR.t("问 AI 的对话记录")], ["quote", PR.t("每条附上原文引用")], ["mindmap", PR.t("論文心智圖")],
   ];
-  const ORDERABLE = ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
-  const DEFAULT_ORDER = [...ORDERABLE];
+  const EXPORT_ORDER = ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
 
   function counts() {
     const notes = PR.myNotes();
@@ -74,51 +73,24 @@
     return true;
   }
 
-  function saveOrder(dlg) {
-    PR.ls.set("easyread-export-order", PR.$$('[data-exp-row]', dlg).map((row) => row.dataset.expRow));
-  }
-
-  function setupDrag(dlg) {
-    const options = dlg.querySelector(".exp-opts");
-    options.addEventListener("dragstart", (event) => {
-      const row = event.target.closest("[data-exp-row]");
-      if (!row) return;
-      event.dataTransfer.setData("text/plain", row.dataset.expRow); event.dataTransfer.effectAllowed = "move"; row.classList.add("dragging");
-    });
-    options.addEventListener("dragend", (event) => event.target.closest("[data-exp-row]")?.classList.remove("dragging"));
-    options.addEventListener("dragover", (event) => { if (event.target.closest("[data-exp-row]")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } });
-    options.addEventListener("drop", (event) => {
-      const target = event.target.closest("[data-exp-row]"), key = event.dataTransfer.getData("text/plain");
-      const source = dlg.querySelector('[data-exp-row="' + CSS.escape(key) + '"]');
-      if (!target || !source || target === source) return;
-      event.preventDefault();
-      const before = event.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2;
-      target.parentNode.insertBefore(source, before ? target : target.nextSibling); saveOrder(dlg);
-    });
-  }
-
   PR.openExport = function () {
     const c = counts();
     const saved = PR.ls.get("easyread-export", { paper: true, note: true, highlight: true, question: true, ai: true, chat: false, quote: true, mindmap: false });
-    const storedOrder = PR.ls.get("easyread-export-order", DEFAULT_ORDER);
-    const savedOrder = Array.isArray(storedOrder) ? storedOrder : DEFAULT_ORDER;
-    const order = [...savedOrder.filter((key) => ORDERABLE.includes(key)), ...DEFAULT_ORDER.filter((key) => !savedOrder.includes(key))];
     const labels = Object.fromEntries(KINDS.map(([key, label]) => [key, label]));
     const dlg = PR.$("#readerDlg");
-    const rows = order.map((key) => '<div class="exp-row" draggable="true" data-exp-row="' + key + '"><span class="exp-grip" aria-hidden="true" title="' + PR.t("拖曳調整順序") + '">⠿</span><label><input type="checkbox" data-exp="' + key + '"' + (saved[key] ? " checked" : "") + ">" + labels[key] +
+    const rows = EXPORT_ORDER.map((key) => '<div class="exp-row" data-exp-row="' + key + '"><label><input type="checkbox" data-exp="' + key + '"' + (saved[key] ? " checked" : "") + ">" + labels[key] +
       (c[key] != null ? '<span class="n">' + PR.t("{n} 条", { n: c[key] }) + "</span>" : "") + "</label></div>").join("");
     const quote = KINDS.find(([key]) => key === "quote");
-    dlg.querySelector(".dialog").innerHTML = "<h2>" + PR.t("匯出筆記") + "</h2><p class=\"hint exp-hint\">" + PR.t("拖曳各項目可調整匯出順序。") + "</p><div class=\"exp-opts\">" + rows +
-      '<div class="exp-row exp-quote"><span class="exp-grip exp-grip-muted" aria-hidden="true">·</span><label><input type="checkbox" data-exp="quote"' + (saved.quote ? " checked" : "") + ">" + quote[1] + '</label></div></div><p class="hint">' + PR.t("順序只會調整匯出的 Markdown，不會改動閱讀器中的筆記。") +
-      '</p><div class="actions"><button class="btn" data-exp-close>' + PR.t("關閉") + '</button><button class="btn" data-exp-zip>' + PR.t("下載 ZIP") + '</button><button class="btn" data-exp-go data-exp-mode="markdown">' + PR.t("下載 Markdown") + '</button><button class="btn primary" data-exp-vault>' + PR.t("匯出至 Obsidian Vault") + '</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    setupDrag(dlg); dlg.classList.add("open");
+    dlg.querySelector(".dialog").innerHTML = "<h2>" + PR.t("匯出筆記") + "</h2><div class=\"exp-opts\">" + rows +
+      '<div class="exp-row exp-quote"><label><input type="checkbox" data-exp="quote"' + (saved.quote ? " checked" : "") + ">" + quote[1] + '</label></div></div><div class="actions"><button class="btn" data-exp-close>' + PR.t("關閉") + '</button><button class="btn" data-exp-download>' + PR.t("下載") + '</button><button class="btn primary" data-exp-vault>' + PR.t("匯出至 Obsidian Vault") + '</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    dlg.classList.add("open");
   };
 
   async function prepare() {
     const dlg = PR.$("#readerDlg"), pick = {};
     PR.$$('[data-exp]', dlg).forEach((input) => { pick[input.dataset.exp] = input.checked; });
-    const order = PR.$$('[data-exp-row]', dlg).map((row) => row.dataset.expRow);
-    PR.ls.set("easyread-export", pick); PR.ls.set("easyread-export-order", order);
+    const order = EXPORT_ORDER;
+    PR.ls.set("easyread-export", pick);
     let chat = [];
     if (pick.chat) {
       let data = S.chat || {};
@@ -166,24 +138,29 @@
         const result = await PR.api("/api/research/v2/export/zip", { method: "POST", body: { documents: documents(prepared) } });
         await saveBase64(filenameStem() + "-research.zip", result.content_base64, [{ name: "ZIP", extensions: ["zip"], mime: "application/zip" }]);
       } else {
-        await saveBase64(filenameStem() + "-notes.md", null, [{ name: "Markdown", extensions: ["md"], mime: "text/markdown" }], prepared.text); // i18n-ok: filename suffix is exported data, not UI copy.
+        const selected = EXPORT_ORDER.filter((key) => prepared.pick[key]);
+        if (!selected.length) throw new Error(PR.t("請至少選擇一項匯出內容。"));
+        if (selected.length === 1) {
+          await saveBase64(filenameStem() + "-notes.md", null, [{ name: "Markdown", extensions: ["md"], mime: "text/markdown" }], prepared.text); // i18n-ok: filename suffix is exported data, not UI copy.
+        } else {
+          const result = await PR.api("/api/research/v2/export/zip", { method: "POST", body: { documents: documents(prepared) } });
+          await saveBase64(filenameStem() + "-research.zip", result.content_base64, [{ name: "ZIP", extensions: ["zip"], mime: "application/zip" }]);
+        }
       }
       prepared.dlg.classList.remove("open");
     } catch (error) {
       const message = PR.errorText ? PR.errorText(error) : String(error && error.message || error);
       if (PR.toast) PR.toast(PR.t("匯出失敗：{message}", { message: PR.esc ? PR.esc(message) : message }));
-      button.disabled = false; button.textContent = PR.t("下載 Markdown");
+      button.disabled = false; button.textContent = PR.t("下載");
     }
   }
 
   PR.$("#readerDlg").addEventListener("click", async (event) => {
     const dlg = PR.$("#readerDlg");
     if (event.target.closest("[data-exp-close]")) return dlg.classList.remove("open");
-    // Keep the selectors separate so older embedded/offline readers that only
-    // expose the original data-exp-go selector continue to work.
-    const button = event.target.closest("[data-exp-go]") || event.target.closest("[data-exp-vault]") || event.target.closest("[data-exp-zip]");
+    const button = event.target.closest("[data-exp-download]") || event.target.closest("[data-exp-vault]");
     if (!button) return;
-    const mode = button.dataset?.expMode || (button.hasAttribute?.("data-exp-vault") ? "vault" : button.hasAttribute?.("data-exp-zip") ? "zip" : "markdown");
+    const mode = button.hasAttribute?.("data-exp-vault") ? "vault" : "download";
     return run(mode, button);
   });
 })(window.PR);

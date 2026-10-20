@@ -211,6 +211,19 @@ class ResearchV2Test(unittest.TestCase):
         self.assertEqual(len(planning_store.summaries_list(self.root)), 2)
         self.assertTrue(all(item["summary_status"] == "ready" for item in planning_store.candidates(self.root)))
 
+    def test_candidate_summary_exports_to_configured_vault(self):
+        paper = {"doi": "10.1234/export-summary", "title": "Exportable Paper", "title_en": "Exportable Paper", "abstract": "Source."}
+        with mock.patch.object(research_v2, "_ensure_summary_worker"):
+            research_v2.post(self.app, "/candidate", {"paper": paper})
+        key = "doi:10.1234/export-summary"
+        planning_store.candidate_save_summary(self.root, key, "## Summary\n\nEvidence.", "test-model")
+        with tempfile.TemporaryDirectory() as vault, mock.patch.object(research_v2.obsidian_export, "vault_path", lambda: Path(vault)):
+            result = research_v2.post(self.app, "/export/summary", {"paper_key": key})
+            self.assertEqual(len(result["written"]), 1)
+            exported = Path(vault) / "Research" / "05-論文摘要" / "Exportable Paper.md"
+            self.assertTrue(exported.is_file())
+            self.assertIn("Evidence.", exported.read_text(encoding="utf-8"))
+
     def test_interrupted_summary_jobs_are_requeued_and_semantic_scholar_is_disabled(self):
         paper = {"doi": "10.1234/recovery", "title": "Recovery Paper", "abstract": "Source."}
         with mock.patch.object(research_v2, "_ensure_summary_worker"):
@@ -639,29 +652,92 @@ class ResearchV2Test(unittest.TestCase):
         self.assertEqual(result["results"][0]["role"], "基礎入門")
         self.assertEqual(result["results"][0]["paper"]["title"], "Paper Foundations")
         self.assertEqual(result["results"][1]["paper"]["title"], "Paper Core")
+        self.assertTrue(result["path_id"])
+        latest = research_v2.get(self.app, "/api/research/v2/reading-path/latest")
+        self.assertTrue(latest["found"])
+        self.assertEqual(latest["path"]["path_id"], result["path_id"])
+
+    def test_reading_path_reorder_requires_current_complete_order(self):
+        snapshot = planning_store.replace_reading_path(self.root, {
+            "topic": "topic", "goal": "goal", "results": [
+                {"paper_key": "openalex:W1", "paper": {"title": "One"}, "priority": 1},
+                {"paper_key": "openalex:W2", "paper": {"title": "Two"}, "priority": 2},
+            ],
+        })
+        reordered = research_v2.post(self.app, "/reading-path/reorder", {
+            "path_id": snapshot["path_id"], "revision": snapshot["revision"],
+            "paper_keys": ["openalex:W2", "openalex:W1"],
+        })["path"]
+        self.assertEqual([step["paper_key"] for step in reordered["results"]], ["openalex:W2", "openalex:W1"])
+        with self.assertRaisesRegex(ValueError, "重新載入"):
+            research_v2.post(self.app, "/reading-path/reorder", {
+                "path_id": snapshot["path_id"], "revision": snapshot["revision"],
+                "paper_keys": ["openalex:W2", "openalex:W1"],
+            })
+        with self.assertRaises(ValueError):
+            planning_store.reorder_reading_path(self.root, reordered["path_id"], reordered["revision"], ["openalex:W1"])
+
+    def test_reading_path_snapshots_are_isolated_and_empty_generation_keeps_previous(self):
+        snapshot = planning_store.replace_reading_path(self.root, {
+            "topic": "topic", "goal": "goal", "results": [
+                {"paper_key": "openalex:W1", "paper": {"title": "One"}, "priority": 1},
+            ],
+        })
+        with tempfile.TemporaryDirectory() as other_dir:
+            other = Path(other_dir)
+            planning_store.init(other)
+            self.assertIsNone(planning_store.latest_reading_path(other))
+        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+             mock.patch("easyread.engines.for_translation", return_value={}), \
+             mock.patch("easyread.engines.run", return_value="[]"):
+            result = research_v2.post(self.app, "/reading-path", {
+                "papers": [{"id": "https://openalex.org/W2", "title": "Two"}], "topic": "topic", "goal": "goal",
+            })
+        self.assertEqual(result["results"], [])
+        self.assertEqual(planning_store.latest_reading_path(self.root)["path_id"], snapshot["path_id"])
+
+    def test_reading_path_relations_only_use_openalex_references(self):
+        snapshot = planning_store.replace_reading_path(self.root, {
+            "topic": "topic", "goal": "goal", "results": [
+                {"paper_key": "openalex:W1", "paper": {"title": "One", "openalex_id": "https://openalex.org/W1", "related_works": ["W2"]}, "priority": 1},
+                {"paper_key": "openalex:W2", "paper": {"title": "Two", "openalex_id": "https://openalex.org/W2"}, "priority": 2},
+            ],
+        })
+        def fake_openalex(path, params=None, **kwargs):
+            self.assertEqual(path, "/works")
+            self.assertIn("W1|W2", str((params or {}).get("filter")))
+            return {"results": [
+                {"id": "https://openalex.org/W1", "referenced_works": ["https://openalex.org/W2", "https://openalex.org/W1"]},
+                {"id": "https://openalex.org/W2", "referenced_works": []},
+            ]}
+        with mock.patch.object(research_v2, "_openalex", side_effect=fake_openalex):
+            result = research_v2.post(self.app, "/reading-path/relations", {
+                "path_id": snapshot["path_id"], "revision": snapshot["revision"],
+            })
+        self.assertEqual(result["path"]["relations"], [{"source": "openalex:W1", "target": "openalex:W2", "evidence": "openalex"}])
 
     def test_reading_path_expands_seed_paper_references_and_related(self):
         start_paper = {
-            "id": "https://openalex.org/W_START",
+            "id": "https://openalex.org/W100",
             "title": "Start Paper",
             "year": 2024,
-            "referenced_works": ["https://openalex.org/W_REF1"],
-            "related_works": ["https://openalex.org/W_REL1"],
+            "referenced_works": ["https://openalex.org/W101"],
+            "related_works": ["https://openalex.org/W102"],
         }
-        ref_work = {"id": "https://openalex.org/W_REF1", "title": "Reference Paper", "publication_year": 2020}
-        rel_work = {"id": "https://openalex.org/W_REL1", "title": "Related Paper", "publication_year": 2024}
+        ref_work = {"id": "https://openalex.org/W101", "title": "Reference Paper", "publication_year": 2020}
+        rel_work = {"id": "https://openalex.org/W102", "title": "Related Paper", "publication_year": 2024}
 
         def mock_openalex(path, params=None, *args, **kwargs):
             p = params or {}
             filt = str(p.get("filter") or "")
-            if "W_REF1" in filt or "W_REL1" in filt:
+            if "W101" in filt or "W102" in filt:
                 return {"results": [ref_work, rel_work]}
             return {"results": []}
 
         model_output = json.dumps([
-            {"id": "W_REF1", "role": "基礎背景", "reason": "先讀參考文獻", "priority": 1},
-            {"id": "W_START", "role": "起點核心", "reason": "當前論文", "priority": 2},
-            {"id": "W_REL1", "role": "延伸探索", "reason": "後續延伸", "priority": 3},
+            {"id": "W101", "role": "基礎背景", "reason": "先讀參考文獻", "priority": 1},
+            {"id": "W100", "role": "起點核心", "reason": "當前論文", "priority": 2},
+            {"id": "W102", "role": "延伸探索", "reason": "後續延伸", "priority": 3},
         ], ensure_ascii=False)
 
         with mock.patch.object(research_v2, "_openalex", side_effect=mock_openalex), \

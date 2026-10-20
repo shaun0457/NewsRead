@@ -22,7 +22,7 @@ KINDS = {
 
 # New multi-file Obsidian export layout.  The legacy folders above remain
 # readable for compatibility with existing Research OS notes.
-EXPORT_FOLDERS = ("01-論文分析", "02-心智圖", "03-閱讀標註", "04-跨論文比較")
+EXPORT_FOLDERS = ("01-論文分析", "02-心智圖", "03-閱讀標註", "04-跨論文比較", "05-論文摘要")
 
 
 def state_dir() -> Path:

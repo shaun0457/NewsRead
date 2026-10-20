@@ -6,16 +6,17 @@ from __future__ import annotations
 import json
 
 from . import langs, links
-from .prompts import _context, _page_texts, peek_note, rules
+from .prompts import MATH_RULES, _context, _page_texts, _target_prompt, peek_note, rules
 from .store import Workspace
 
 RULES_EN = """整理要求（不翻译）：
 - 只把原文整理好，不翻译、不解释、不总结，不加原文没有的内容。原文的笔误照录。
 - 保留材料中的 Markdown 链接 [文字](URL)，文字和 URL 原样保留，不猜网址，不把链接移到段落外。
 - 保留原文的阅读顺序、章节编号、引用号 [n]。双栏论文按栏读，断在行尾的连字符单词拼回去。
-- 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX），变量、下标、上标都要用 TeX，不要用 Unicode 拼。行间公式单独成 math 块，照原页重排，原编号放 tag。
+""" + MATH_RULES + """
 - 表格重排成 table 块，数字与公式原样。图使用 figure 块，只保留 page、num 与图注（caption_en / caption_zh）；不要识别、抄写或翻译图内文字，不输出 image_en、image_zh 或裁切框，不截取图片，src 留空。读者将在原 PDF 核对图片。
 - 参考文献列表：输出一个 references 块，条目放进 references 数组（id 是编号，text 是原文）。
+- 脚注与参考文献独立：文献引用使用 [13]，脚注标记使用 [^13]（13 换成原编号），en/zh 两边保持一致，不要混用。脚注内容单独输出 para 块，加 "role":"footnote","num":"13"，page 填脚注所在页；块的 en/zh 只放脚注正文，不重复编号。脚注不得放入 references 数组，也不能当页脚丢弃。同号文献与脚注可以同时存在；不确定时保留原标记，不猜。
 - 看不清的地方写“[unclear, see page N]”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
 
@@ -46,8 +47,12 @@ def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
         see = "\n附上了这几页的原页图，以原页为准核对公式、表格和阅读顺序。"
     see += peek_note(engine, pages, list(peek))
     look = ("\n===== 下一页开头（只用来把本批最后一段补完整，其余不要输出）=====\n" + next_head) if next_head else ""
-    return (f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}\n\n"
-            f"{_context(ws, pages, skip_head=skip_head)}\n\n{RULES_EN}\n\n{SCHEMA_EN}\n\n" + _page_texts(ws, pages) + look)
+    target = langs.of_paper(ws.load("paper").get("meta"))
+    lead = _target_prompt(f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}", target)
+    rules_text = _target_prompt(RULES_EN, target)
+    schema_text = _target_prompt(SCHEMA_EN, target)
+    return (lead + "\n\n" + f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules_text}\n\n{schema_text}\n\n"
+            + _page_texts(ws, pages) + look)
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:
@@ -78,14 +83,20 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     name = langs.prompt_name(target)
     meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target in ("zh", "zh-TW") else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
-    return (f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。\n\n"
-            f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target)}\n"
-            f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。\n"
-            + (f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。\n"
-               if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
-            "输出格式：只输出一个 JSON 对象，不要任何别的文字。\n{\n" + meta +
-            '  "glossary": [{"en": "standard error", "zh": "' + ("標準誤差" if target == "zh-TW" else "标准误差" if target == "zh" else name + "译名") + '"}],   // 本批新出现的核心术语\n'
-            '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // 原文有问题时才写\n'
-            '  "zh": {"键": "' + name + '译文", …}   // 下面每个键都要有，一个不漏\n}\n'
-            "注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。" + ("字串內的中文引號請用「」或『』。" if target == "zh-TW" else "字符串里的中文引号用“”或「”。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
-            "要翻译的内容（键 → 英文）：\n" + json.dumps(items, ensure_ascii=False, indent=1))
+    lead = _target_prompt(f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。", target)
+    head_rule = _target_prompt(f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。", target)
+    sentence_rule = _target_prompt(f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。", target)
+    output_rule = _target_prompt("输出格式：只输出一个 JSON 对象，不要任何别的文字。", target)
+    glossary = _target_prompt("本批新出现的核心术语", target)
+    checks = _target_prompt("原文有问题时才写", target)
+    keys_rule = _target_prompt("下面每个键都要有，一个不漏", target)
+    tex_rule = _target_prompt("注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。", target)
+    content_rule = _target_prompt("要翻译的内容（键 → 英文）：", target)
+    return (lead + "\n\n" + f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target)}\n" + head_rule + "\n"
+            + (sentence_rule + "\n" if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
+            + output_rule + "\n{\n" + meta +
+            '  "glossary": [{"en": "standard error", "zh": "' + ("標準誤差" if target == "zh-TW" else "标准误差" if target == "zh" else name + "译名") + '"}],   // ' + glossary + '\n'
+            '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // ' + checks + '\n'
+            '  "zh": {"键": "' + name + '译文", …}   // ' + keys_rule + '\n}\n'
+            + tex_rule + ("字串內的中文引號請用「」或『』。" if target == "zh-TW" else "字符串里的中文引号用“”或「”。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
+            + content_rule + "\n" + json.dumps(items, ensure_ascii=False, indent=1))

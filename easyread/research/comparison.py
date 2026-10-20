@@ -239,4 +239,5 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
         report("review", total_chunks + len(loaded) + 1, total_chunks + len(loaded) + 1, tr("報告已完成，等待審閱。"))
         return {"proposal": proposal, "papers": [item for item, _ in loaded]}
 
-    return tasks.submit("comparison", run, retry_failed=True)
+    return tasks.submit("comparison", run, retry_failed=True,
+                        scope=tasks.scope_id(library.root))

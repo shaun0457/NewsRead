@@ -1,6 +1,7 @@
 """每段第一批的前文参考、全文译完后的术语一致性检查、合并时术语统一的误伤、不能看图的引擎在段交界。不调真模型。
 python -m unittest tests.test_consistency"""
 import json
+import re
 import shutil
 import threading
 import unittest
@@ -11,7 +12,7 @@ from tests.test_translate import make_ws
 
 
 def page_of(prompt: str) -> int:
-    return int(prompt.split("这次只处理第 ")[1].split(" ")[0].split(",")[0])
+    return int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
 
 
 def run_pages(ws, cfg, pages, engine, cancel=None, plan=None):
@@ -42,7 +43,7 @@ class FrontContextTest(unittest.TestCase):
         self.assertIn("DPO, short for direct preference optimization", text)  # 前面定义的缩写
         self.assertIn("2 Method（第 3 页）", text)
         self.assertIn("then we keep", text)  # 页首半句话前面的那整句
-        self.assertIn("不要翻译", text)
+        self.assertTrue(any(mark in text for mark in ("不要翻譯", "不要翻译")))
         self.assertEqual(front_context.build(self.ws.root, 1), "")
         self.assertNotIn("【论文开头】", front_context.build(self.ws.root, 2))  # 上一页就是第 1 页，不重复
 
@@ -57,7 +58,7 @@ class FrontContextTest(unittest.TestCase):
         seen = {}
 
         def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            if "这次只处理第" not in prompt:  # 最后的一致性检查
+            if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):  # 最后的一致性检查
                 return '{"fixes": []}'
             page = page_of(prompt)
             seen[page] = "前文参考" in prompt
@@ -200,7 +201,7 @@ class ConsistencyTest(unittest.TestCase):
         cancel = threading.Event()
 
         def engine(cfg, prompt, cwd, images=None, cancel_=None, meter=None):
-            if "这次只处理第" not in prompt:
+            if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):
                 cancel.set()
                 raise engines.Cancelled()
             page = page_of(prompt)
@@ -225,7 +226,7 @@ class TermsUnifyTest(unittest.TestCase):
 class SeamTest(unittest.TestCase):
     def engine(self, seen):
         def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
-            if "这次只处理第" not in prompt:
+            if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):
                 return '{"fixes": []}'
             page = page_of(prompt)
             seen[page] = (prompt, list(images or []))
