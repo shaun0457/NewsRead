@@ -39,7 +39,7 @@
 .rw-candidate-more .menu-list { position:absolute; right:0; bottom:calc(100% + 8px); z-index:20; background:var(--surface); border:1px solid var(--rule); border-radius:10px; box-shadow:var(--shadow); }
 .rw-candidate-more .menu-list .btn { border:0; box-shadow:none; background:transparent; justify-content:flex-start; height:auto; min-height:36px; white-space:normal; }
 .rw-candidate-more .menu-list .btn:hover { background:var(--accent-soft); }
-.rw-candidate-more .menu-list [data-action="remove-candidate"] { color:var(--danger); }
+.rw-candidate-more .menu-list [data-action="remove-candidate"],.rw-candidate-more .menu-list [data-action="trash-summary"] { color:var(--danger); }
 .rw-candidate-more summary:focus-visible,.rw-candidate-more .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .rw-chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--rule); border-radius:999px; padding:2px 8px; color:var(--ink-3); font-size:11px; }
 .rw-chip.oa { color:var(--ok); border-color:color-mix(in srgb,var(--ok) 35%,var(--rule)); }
