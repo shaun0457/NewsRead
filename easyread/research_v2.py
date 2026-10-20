@@ -13,7 +13,7 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, planning_store, sources
+from . import config, http, planning_store, sources
 from .research import obsidian_export
 from .i18n import tr
 
@@ -358,7 +358,7 @@ def _openalex(path: str, params: dict | None = None, timeout=15) -> dict:
                 _time.sleep(delay)
             _last_request = _time.monotonic()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with http.urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if attempt == 0 and exc.code in (429, 500, 502, 503, 504):
@@ -447,7 +447,7 @@ def _search_works(root: Path, query: str, *, sort="relevance_score:desc", year_f
 def _external_json(url: str, source: str, timeout: int = 12) -> dict:
     request = urllib.request.Request(url, headers={"User-Agent": "PaperRead/1.4 (local research reading tool)", "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with http.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:

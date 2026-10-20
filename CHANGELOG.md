@@ -1,6 +1,11 @@
 # 更新紀錄
 
-## 未發布更新（2026-10-21）
+## v1.5.0（2026-10-21）
+
+**Linux／Docker 閱讀器導覽修正（Issue #6）**
+- 修正 Linux Firefox 使用 Docker 版時，頂部的 PDF、筆記、問 AI、研究按鈕，以及段落浮動工具列的 PDF／問 AI 操作失效問題。
+- 將原頁面面板以明確的 `pdf-panel.js` 載入，確保 `togglePages`、`openPage` 與 `openSide` 在閱讀器初始化時可用。
+- 同步將 Issue template 與相關介面文字整理為臺灣繁體中文。
 
 **研究工作區與背景分析**
 - **互動閱讀路徑地圖**：研究工作區新增地圖／清單切換、縮放、平移、節點選取、閱讀順序調整與引用關係顯示；閱讀順序與引用連線使用不同線型及方向，保留既有論文操作與最近路徑保存。
@@ -30,7 +35,8 @@
 - 擴充前端與 Python 測試，涵蓋公式渲染、腳註、圖片貼上、多模態傳輸、裸露 TeX 修復守衛、研究任務、閱讀路徑地圖、封存與 Quick Peek。
 - i18n checker 維持缺英文 0、未套用中文 0；PaperRead UI 修改依全域開發規則以程式檢查及人工驗收為主，不自動執行瀏覽器 E2E。
 
-## v1.4.8（2026-10-21）
+**macOS DMG 打包版研究探索 SSL 憑證修正（Issue #7）**
+- **統一使用系統信任與隨附憑證庫（http.urlopen）**：修正 `easyread/research_v2.py` 中的 `_openalex()` 與 `_external_json()`（DBLP 與 Crossref 查詢）直接呼叫標準庫 `urllib.request.urlopen` 而未套用 `truststore` 與 `certifi` 的問題，徹底解決 macOS 打包版因預設 CA 路徑不存在導致探索搜尋時報「目前無法連線到 OpenAlex」的錯誤。
 
 **目錄與標題數學公式渲染修復（TOC & Title LaTeX Math Rendering）**
 - **閱讀器目錄抽屜與頂部標題渲染**：修復目錄抽屜（TOC）、頂部標題（Top Bar Section）、最近閱讀面板與浮動卡片中 LaTeX 數學符號未渲染為 KaTeX 的問題（由原本呼叫 `PR.plain()` 與字元跳脫轉為安全調用 `PR.titleHtml()`），正確顯示如 $C \leq 3$、$\alpha$ 等行內數學符號與上下標。

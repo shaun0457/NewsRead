@@ -32,7 +32,10 @@ The reader remains the place for close reading: bilingual text, equations, page-
 | **Reading Board** | Move papers by drag and drop between **To read**, **Reading**, **To organize**, and **Completed**. Reading progress and the interest star are independent and remain synchronized with the library and reader. |
 | **Candidates** | Keep a separate list of papers worth reviewing. Adding a candidate does not silently replace the search results or force a download. |
 | **Organized Summaries** | Generate and review a paper summary when you choose, render it as Markdown, and export it for later use. Summaries can be removed to the recycle bin. |
-| **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. |
+| **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. The result has map/list views, citation relations, reordering, and background notifications. |
+| **Quick Peek** | Open a right-side drawer from a board card to inspect overview, summary, recent notes, highlights, and recent questions without leaving the board. Status, category, and star can be edited in place. |
+| **Obsidian knowledge base** | Export summaries, paper analysis, annotations, mind maps, and comparisons directly into a Vault with stable IDs, evidence, and WikiLinks. |
+| **Linux/Docker compatibility** | Fix reader navigation and paragraph toolbar actions in Docker on Linux Firefox, and use bundled/system trust for research API queries in packaged macOS builds. |
 | **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
 | **Smart Annotations** | Generate reviewable AI highlight or underline suggestions for the full paper, a section, or a research purpose. Suggestions never overwrite manual annotations before you accept them. |
 
@@ -48,6 +51,8 @@ The interface is localized for Taiwan Traditional Chinese usage. English technic
 6. Generate a **Reading Path** or a **Paper Mind Map** when you need a broader view of the research area.
 
 When adding a paper to the Reading Board, categories are shown as selectable cards rather than a keyboard-dependent multi-select list. You can assign multiple research directions at once, or add the paper without a category and organize it later.
+
+Clicking the empty area of a board card opens **Quick Peek** on the right. It shows bibliographic details, summary, category, reading status, star, progress, source information, recent notes, highlights, and recent questions. Clicking a record returns to its reader anchor; the drawer footer provides previous, next, and continue reading actions.
 
 ## Reading and evidence
 
@@ -76,6 +81,12 @@ When **Quote the original with each item** is enabled during Markdown export, th
 PaperRead can use configured cloud APIs, CLI-based model services, or local OpenAI-compatible endpoints. Common options include OpenAI/Codex, Anthropic, Gemini, DeepSeek, Zhipu GLM, SiliconFlow, Ollama, LM Studio, and custom endpoints. Local models can be selected from the model list when the service is running, for example an Ollama model at `http://127.0.0.1:11434`.
 
 Model availability, rate limits, and response formats depend on the selected provider. Basic reading, the library, the candidate list, and the board remain usable when an AI provider is unavailable. AI-generated summaries, reading paths, and mind maps should be reviewed against the original paper before being used as research conclusions.
+
+The map/list view supports zoom, pan, node selection, and moving a paper earlier or later in the reading order. Dashed arrows represent the suggested reading order; solid arrows represent in-map citation relations that OpenAlex can verify. Reading-path and paper-comparison analysis run in the background, so closing the dialog or changing pages does not cancel them. PaperRead notifies you when a result is ready instead of forcing navigation.
+
+Paper comparisons preserve research questions, core methods, cost, limitations, differences, evaluation conditions, and candidate questions. They can be exported to `Research/04-跨論文比較` in Obsidian. If a selected paper has not yet been exported as a single-paper note, the comparison can still be generated, but its WikiLink may be created after the single-paper note is exported.
+
+Summaries can be imported directly into an Obsidian Vault under `Research/05-論文摘要`. Filenames use a shortened English paper title and do not create an extra child folder. Downloading one item produces Markdown; downloading multiple items produces a ZIP with the full folder structure.
 
 ## Install on Windows
 
@@ -111,8 +122,8 @@ Open <http://localhost:8765>. The Compose file stores the library and settings i
 Each release also publishes a prebuilt image to GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/yuriylin/paperread:v1.4.7
-docker run -d --name paperread --restart unless-stopped -p 127.0.0.1:8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.4.7
+docker pull ghcr.io/yuriylin/paperread:v1.5.0
+docker run -d --name paperread --restart unless-stopped -p 127.0.0.1:8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:v1.5.0
 ```
 
 Open <http://localhost:8765>. The `paperread-data` volume keeps the library and settings between container restarts.
@@ -123,8 +134,11 @@ The web interface uses plain HTML, CSS, and JavaScript. The backend is Python an
 
 ```bash
 python -m unittest discover tests
-node tests/e2e.cjs library/<paper-id>
+node --test tests/test_*.cjs
+python scripts/i18n_check.py
 ```
+
+Browser E2E is not run automatically for PaperRead UI changes. Manually verify the reading path, background notifications, Quick Peek, reader panels, and Obsidian export flows after code-level checks pass.
 
 To create the Windows installer, macOS arm64 DMG, or Linux AppImage after testing locally:
 

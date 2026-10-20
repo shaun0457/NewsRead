@@ -275,6 +275,17 @@ class ResearchV2Test(unittest.TestCase):
         self.assertEqual(work["venue"], "CVPR")
         self.assertEqual(work["pdf_url"], "https://arxiv.org/pdf/1234")
 
+    def test_openalex_and_external_json_use_bundled_http_ssl_context(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"results": []}'
+        with mock.patch.object(research_v2.http, "urlopen", return_value=response) as http_call:
+            research_v2._openalex("/works")
+            self.assertEqual(http_call.call_count, 1)
+
+        with mock.patch.object(research_v2.http, "urlopen", return_value=response) as http_call:
+            research_v2._external_json("https://api.crossref.org/works/10.1234/test", "Crossref")
+            self.assertEqual(http_call.call_count, 1)
+
     def test_openalex_retries_a_transient_error_but_not_unknown_ids(self):
         response = mock.MagicMock()
         response.__enter__.return_value.read.return_value = b'{"results": []}'
