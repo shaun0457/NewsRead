@@ -410,7 +410,7 @@
       S.compareTask = await PR.api(RESEARCH_API + "/comparison", { method: "POST", body: {
         paper_ids: selected, dimensions: [...S.compareDimensions], focus: S.compareFocus,
       } });
-      PR.researchTaskMonitor?.track(S.compareTask);
+      PR.researchTaskMonitor?.track(S.compareTask, true);
       S.compareSetupOpen = false;
       S.compareSelection = new Set();
       history.replaceState({}, "", "/research?mode=comparisons");

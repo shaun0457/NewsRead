@@ -1874,6 +1874,7 @@
   "分析已中斷": "Analysis interrupted",
   "分析未完成": "Analysis did not complete",
   "你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。": "You can close this window and keep using PaperRead. You will be notified when it is done.",
+  "跨論文比較可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。": "Cross-paper comparison may take longer. You can close this window and keep using PaperRead; you will be notified when it is done.",
   "正在搜尋相關論文。": "Searching for related papers.",
   "正在補齊起點論文與參考資料。": "Retrieving the starting paper and its references.",
   "正在整理候選論文。": "Preparing candidate papers.",

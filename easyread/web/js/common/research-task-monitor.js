@@ -55,13 +55,15 @@
     const focusedAction = wasVisible ? ["continue", "cancel", "view", "retry"].find((name) =>
       document.activeElement?.hasAttribute("data-task-" + name)) : "";
     const isPath = taskType(task) === "path", running = active(task);
+    const runningHelp = isPath ? PR.t("你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。")
+      : PR.t("跨論文比較可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
     let title = running ? (isPath ? PR.t("正在分析閱讀路徑") : PR.t("正在整理跨論文比較…"))
       : task.state === "completed" ? (isPath ? PR.t("閱讀路徑已完成") : PR.t("跨論文比較已完成"))
       : task.state === "cancelled" ? PR.t("分析已取消")
       : task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
     let detail = task.state === "completed" && task.result?.warning
       ? task.result.warning
-      : task.message || (running ? PR.t("你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。") : "");
+      : task.message || (running ? runningHelp : "");
     const signature = [task.id, task.state, task.phase, title, detail].join("\n");
     if (!modal.hidden && modal.dataset.signature === signature) return;
     const controls = running
@@ -71,7 +73,7 @@
         : (task.state === "failed" || task.state === "interrupted")
           ? '<button class="btn accent" type="button" data-task-retry>' + PR.t("返回重試") + '</button>'
           : '<button class="btn line" type="button" data-task-continue>' + PR.t("關閉") + '</button>';
-    modal.innerHTML = '<div class="pr-task-dialog" role="dialog" aria-modal="true" aria-labelledby="pr-task-title"><div class="pr-task-head"><span class="pr-task-indicator' + (running ? ' is-running' : '') + '"></span><h2 id="pr-task-title">' + esc(title) + '</h2><button type="button" class="pr-task-close" data-task-continue aria-label="' + esc(PR.t("關閉")) + '">×</button></div><p class="pr-task-kind">' + esc(label(task)) + '</p><p class="pr-task-message" role="status">' + esc(detail) + '</p>' + (running && isPath ? '<p class="pr-task-help">' + PR.t("你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。") + '</p>' : '') + '<div class="pr-task-actions">' + controls + '</div></div>';
+    modal.innerHTML = '<div class="pr-task-dialog" role="dialog" aria-modal="true" aria-labelledby="pr-task-title"><div class="pr-task-head"><span class="pr-task-indicator' + (running ? ' is-running' : '') + '"></span><h2 id="pr-task-title">' + esc(title) + '</h2><button type="button" class="pr-task-close" data-task-continue aria-label="' + esc(PR.t("關閉")) + '">×</button></div><p class="pr-task-kind">' + esc(label(task)) + '</p><p class="pr-task-message" role="status">' + esc(detail) + '</p>' + (running ? '<p class="pr-task-help">' + esc(runningHelp) + '</p>' : '') + '<div class="pr-task-actions">' + controls + '</div></div>';
     modal.dataset.signature = signature;
     modal.hidden = false;
     state.dialogOpen = true;
