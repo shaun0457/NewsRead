@@ -16,7 +16,7 @@ from . import __version__, config, http
 from .log import log
 from .store import read_json, write_json_atomic
 
-REPO = os.environ.get("EASYREAD_UPDATE_REPOSITORY", "").strip()
+REPO = os.environ.get("EASYREAD_UPDATE_REPOSITORY", "YuriyLin/PaperRead").strip()
 API = f"https://api.github.com/repos/{REPO}/releases/latest" if REPO else ""
 EVERY = 24 * 3600   # 成功问到后多久再问
 RETRY = 3 * 3600    # 没问到（没网）多久后再试
@@ -47,7 +47,7 @@ def _fetch() -> dict:
 def check(force: bool = False) -> dict:
     """{"current", "latest", "newer", "url", "notes", "published", "enabled"}。force：手动点“检查更新”，关掉自动检查也照样问。"""
     out = {"current": __version__, "latest": "", "newer": False,
-           "enabled": bool(REPO and config.load().get("check_updates", False))}
+           "enabled": bool(REPO and config.load().get("check_updates", True))}
     if not REPO or (not out["enabled"] and not force):
         return out
     with _lock:  # 两个页面同时打开只问一次

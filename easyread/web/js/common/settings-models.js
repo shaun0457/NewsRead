@@ -3,7 +3,14 @@
 (function (PR) {
   "use strict";
   const FALLBACK = { claude: { models: [{ id: "opus", name: "Opus", desc: PR.t("最强") }, { id: "sonnet", name: "Sonnet", desc: PR.t("快、省") }, { id: "haiku", name: "Haiku", desc: PR.t("最快最省") }] },
-    codex: { default: "", models: [] } };
+    codex: { default: "", models: [] },
+    antigravity: { default: "gemini-4-argon", models: [
+      { id: "gemini-4-argon", name: "Gemini 4 Argon" },
+      { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5" },
+      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+      { id: "gpt-oss-120b", name: "GPT-OSS 120B" }
+    ] } };
   const lists = (s) => (s.models || FALLBACK);
 
   /* 下拉框的选项：[[value, label]]，选项就写模型名。Codex 一个模型都没查到时才留一项“Codex 默认” */
@@ -12,8 +19,11 @@
     let opts;
     if (engine === "claude") {
       opts = L.models.map((m) => [m.id, m.actual || "Claude " + m.name]);
+    } else if (engine === "antigravity") {
+      opts = (L.models || []).map((m) => [m.id, m.name || m.id]);
+      if (!opts.length) opts.unshift(["", PR.t("Antigravity 預設")]);
     } else {
-      opts = L.models.map((m) => [m.id, m.name]);
+      opts = (L.models || []).map((m) => [m.id, m.name]);
       if (!opts.length) opts.unshift(["", PR.t("Codex 默认")]);
     }
     if (value && !opts.some(([v]) => v === value)) opts.push([value, value]);
@@ -23,9 +33,9 @@
     "<select class=\"input\" " + attrs + ">" + PR.opt(PR.cliModelOptions(s, engine, value), value) + "</select>";
   /* 以前存的“跟随 CLI 默认”（模型空着）→ 换成它现在实际用的那个，翻译固定用一个模型，不随 CLI 设置变 */
   PR.cliPin = function (s, engine, model) {
-    if (model || (engine !== "claude" && engine !== "codex") || !s.models) return model;
+    if (model || (engine !== "claude" && engine !== "codex" && engine !== "antigravity") || !s.models) return model;
     const L = s.models[engine] || {};
-    if (engine === "codex") return L.default || "";
+    if (engine === "codex" || engine === "antigravity") return L.default || "";
     const hit = (L.models || []).find((m) => m.actual && m.actual === L.default);
     return hit ? hit.id : "opus";
   };
@@ -46,11 +56,12 @@
     let levels = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
     if (f.kind === "codex") levels = model && model.reasoning_levels && model.reasoning_levels.length ? model.reasoning_levels : ["low", "medium", "high", "xhigh", "max"];
     if (f.kind === "claude") levels = /haiku/i.test(f.model) ? [] : ["low", "medium", "high", "xhigh", "max"];
+    if (f.kind === "antigravity") levels = ["low", "medium", "high", "xhigh", "max"];
     const opts = [["", PR.modelDefaultLabel(s, f, "reasoning_effort")], ...levels.map((v) => [v, v])];
     if (f.reasoning_effort && !levels.includes(f.reasoning_effort)) opts.push([f.reasoning_effort, f.reasoning_effort]);
     const field = (key, label, options) => '<label class="field"><span>' + label + '</span><select class="input" data-reasoning="' + key + '">' + PR.opt(options, f[key] || "") + '</select></label>';
     return '<div class="grid2">' + field("reasoning_effort", PR.t("推理强度"), opts) +
-      (f.kind === "claude" ? "" : field("service_tier", "Fast", [["", PR.modelDefaultLabel(s, f, "service_tier")], ["fast", PR.t("开启 Fast")], ["default", PR.t("标准速度")]])) + '</div>';
+      (f.kind === "claude" || f.kind === "antigravity" ? "" : field("service_tier", "Fast", [["", PR.modelDefaultLabel(s, f, "service_tier")], ["fast", PR.t("开启 Fast")], ["default", PR.t("标准速度")]])) + '</div>';
 
   };
 

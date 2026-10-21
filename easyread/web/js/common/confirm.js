@@ -1,5 +1,6 @@
 /* 页面内的确认框和输入框，代替浏览器自带的 confirm() / prompt()（那种灰框太丑，也不跟主题）。
    PR.confirm({title, body, ok, danger, at}) → Promise<boolean>
+     再给 alt（第三个按钮的字）时，点它得到 "alt"；center: true 一定放在屏幕中间。
    PR.promptText({title, value, placeholder, ok, at}) → Promise<string|null>
    at：贴着哪个元素或哪个点弹出；不给就用刚才菜单弹出的位置，再没有就放在屏幕中间。
    Enter 确定，Esc 或点外面取消。 */
@@ -35,11 +36,12 @@
         '<div class="cf-title">' + PR.esc(o.title || "") + "</div>" +
         (o.body ? '<div class="cf-body">' + PR.esc(o.body) + "</div>" : "") +
         (withInput ? '<input class="input cf-input" maxlength="' + (o.max || 60) + '" placeholder="' + PR.esc(o.placeholder || "") + '">' : "") +
-        '<div class="cf-acts"><button class="btn sm" data-cf="no">' + PR.t("取消") + '</button><button class="btn sm ' + (o.danger ? "danger-fill" : "accent") + '" data-cf="ok">' + PR.esc(o.ok || PR.t("确定")) + "</button></div>");
+        '<div class="cf-acts"><button class="btn sm" data-cf="no">' + PR.t("取消") + '</button>' +
+        (o.alt && !withInput ? '<button class="btn sm line" data-cf="alt">' + PR.esc(o.alt) + "</button>" : "") + '<button class="btn sm ' + (o.danger ? "danger-fill" : "accent") + '" data-cf="ok">' + PR.esc(o.ok || PR.t("确定")) + "</button></div>");
       document.body.appendChild(box);
       const inp = box.querySelector(".cf-input");
       if (inp) inp.value = o.value || "";
-      place(box, o.at || PR.lastMenuAt);
+      place(box, o.center ? null : o.at || PR.lastMenuAt);
       requestAnimationFrame(() => box.classList.add("open"));
       const result = (ok) => (withInput ? (ok ? inp.value.trim() || null : null) : ok);
       const onKey = (e) => {
@@ -47,7 +49,7 @@
         else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); e.stopPropagation(); close(result(true)); }
       };
       const onDown = (e) => { if (!box.contains(e.target)) close(result(false)); };
-      box.addEventListener("click", (e) => { const b = e.target.closest("[data-cf]"); if (b) close(result(b.dataset.cf === "ok")); });
+      box.addEventListener("click", (e) => { const b = e.target.closest("[data-cf]"); if (b) close(b.dataset.cf === "alt" ? "alt" : result(b.dataset.cf === "ok")); });
       cur = { box, done, onKey, onDown };
       document.addEventListener("keydown", onKey, true);
       setTimeout(() => document.addEventListener("mousedown", onDown, true), 0);

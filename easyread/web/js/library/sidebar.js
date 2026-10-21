@@ -1,6 +1,7 @@
 /* 文献库左侧栏，学 Claude / ChatGPT 的侧栏：
    - 置顶：单篇论文和分类都能置顶，放最上面。
-   - 分类：“全部”固定；在读 / 未读 / 已读 / 星标是内置分类，可以隐藏；自己建的分类可以改名、删除。
+   - 分类：“全部”固定；在读 / 未读 / 已读 / 星标是内置分类，可以隐藏；自己建的分类可以改名、删除，可以建子分类、移到别的分类下、折叠。
+     分类的增删改在 categories.js，层级的规则在 cat-tree.js；分类树（展开后列出里面的论文）在 sidebar-tree.js。
      点“＋”新建；右键或“⋯”打开菜单；把论文拖到分类上就放进去（拖到在读 / 未读 / 已读是改状态，拖到星标是加星标）。一篇论文可以在好几个分类里（存在论文的 tags 里）。
    - 最近阅读：默认 5 篇，展开最多 10 篇；显示短标题。置顶了的论文、分类只出现在“置顶”里，不在下面重复。
    - 侧栏右边缘可以拖动调宽度。
@@ -17,7 +18,7 @@
   let BUILTIN = [ALL].concat(DEFAULT_STATUS.map((s) => [s.id, s.label, s.id === "done" ? "check" : "book", (i) => !i.archived && (i.status || "unread") === s.id]), [STARRED]);
   const AUTO = [  // 有内容时才出现，不用管理
     ["questions", PR.t("有待回答的问题"), "question", (i) => !i.archived && i.open_questions > 0],
-    ["translating", PR.t("翻译中"), "sparkle", (i) => !i.archived && i.job && ["queued", "running"].includes(i.job.state)],
+    ["translating", PR.t("翻译中"), "sparkle", (i) => !i.archived && i.job && ["queued", "running"].includes(i.job.state) && i.job.type !== "prepare"],  // 只准备原页（导入不翻译、Zotero 迁移）不算
   ];
   const ARCHIVED = ["archived", PR.t("已封存"), "archive", (i) => Boolean(i.archived)];
   L.VIEWS = BUILTIN.concat(AUTO, [ARCHIVED]);
@@ -28,96 +29,45 @@
   };
   const statusMap = () => Object.fromEntries((L.statuses && L.statuses.length ? L.statuses : DEFAULT_STATUS).map((s) => [s.id, PR.t(s.label)]));
   const RECENT_SHORT = 5, RECENT_MAX = 10;
-  const ui = { adding: false, renaming: null, recentOpen: false };
-
-  /* ---------- 侧栏设置 ---------- */
-  L.side = Object.assign({ cats: [], hidden: [], pinned: [] }, PR.ls.get("easyread-lib-side", {}));
-  function saveSide() {
-    PR.ls.set("easyread-lib-side", L.side);
-    PR.savePrefs("library", { cats: L.side.cats, hidden: L.side.hidden, pinned: L.side.pinned });
-  }
-  L.useServerSide = (p) => { if (p && p.library) { Object.assign(L.side, p.library); PR.ls.set("easyread-lib-side", L.side); L.render(); } };
-
-  /* 全部自建分类：设置里记下的顺序 + 论文上已有但没记下的（旧版的标签） */
-  L.cats = function () {
-    const out = L.side.cats.slice();
-    L.items.forEach((i) => (i.tags || []).forEach((t) => { if (!out.includes(t)) out.push(t); }));
-    return out;
+  const ui = { adding: false, addUnder: "", renaming: null, recentOpen: false };
+  const T = PR.catTree || {
+    depth: () => 0,
+    leaf: (c) => c,
+    label: (c) => c,
+    under: () => false,
+    parent: () => "",
+    children: () => [],
+    MAX_NAME: 30,
+    MAX_PATH: 120,
   };
-  const isPinned = (key) => L.side.pinned.includes(key);
-  L.togglePin = (key) => {
-    L.side.pinned = isPinned(key) ? L.side.pinned.filter((k) => k !== key) : [key].concat(L.side.pinned);
-    saveSide(); L.render();
-  };
-
-  async function patchMany(changes) {  // [[id, {字段}]]：先改界面，再逐个存（批量操作 batch.js 也用）
-    changes.forEach(([id, f]) => Object.assign(L.byId(id) || {}, f));
-    L.render();
-    for (const [id, f] of changes) await PR.api("/api/p/" + id + "/item", { method: "POST", body: f }).catch((e) => PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })));
-    L.load();
-  }
-  L.patchMany = patchMany;
-  L.addCat = function (name, paperId) {
-    name = (name || "").trim().slice(0, 30);
-    if (!name) return L.render();
-    if (!L.cats().includes(name)) { L.side.cats.push(name); saveSide(); }
-    const add = [].concat(paperId || []).map(L.byId).filter((it) => it && !(it.tags || []).includes(name));  // 一篇的 id，或多选拖过来的一组
-    if (add.length) return patchMany(add.map((it) => [it.id, { tags: (it.tags || []).concat(name) }]));
-    L.render();
-  };
-  L.renameCat = function (from, to) {
-    to = (to || "").trim().slice(0, 30);
-    if (!to || to === from) return L.render();
-    if (L.cats().includes(to)) { PR.toast(PR.t("已经有叫“{name}”的分类", { name: PR.esc(to) })); return L.render(); }
-    L.side.cats = L.cats().map((c) => (c === from ? to : c));
-    L.side.pinned = L.side.pinned.map((k) => (k === "c:" + from ? "c:" + to : k));
-    L.side.hidden = L.side.hidden.map((k) => (k === "c:" + from ? "c:" + to : k));
-    if (L.tag === from) L.tag = to;
-    saveSide();
-    patchMany(L.items.filter((i) => (i.tags || []).includes(from)).map((i) => [i.id, { tags: i.tags.map((t) => (t === from ? to : t)) }]));
-  };
-  L.deleteCat = async function (name, at) {
-    const n = L.items.filter((i) => (i.tags || []).includes(name)).length;
-    if (!(await PR.confirm({ title: PR.t("删除分类“{name}”？", { name }), body: n ? PR.t("里面的 {n} 篇论文不会删，只是不再属于这个分类。", { n }) : "", ok: PR.t("删除"), danger: true, at }))) return;
-    L.side.cats = L.cats().filter((c) => c !== name);
-    L.side.pinned = L.side.pinned.filter((k) => k !== "c:" + name);
-    L.side.hidden = L.side.hidden.filter((k) => k !== "c:" + name);
-    if (L.tag === name) L.tag = null;
-    saveSide();
-    patchMany(L.items.filter((i) => (i.tags || []).includes(name)).map((i) => [i.id, { tags: i.tags.filter((t) => t !== name) }]));
-  };
-  L.toggleInCat = function (id, name) {
-    const it = L.byId(id);
-    if (!it) return;
-    const has = (it.tags || []).includes(name);
-    patchMany([[id, { tags: has ? it.tags.filter((t) => t !== name) : (it.tags || []).concat(name) }]]);
-  };
-  L.setHidden = function (view, hide) {
-    L.side.hidden = hide ? Array.from(new Set(L.side.hidden.concat(view))) : L.side.hidden.filter((v) => v !== view);
-    if (hide && L.view === view) L.view = "all";
-    saveSide(); L.render();
-  };
-  L.moveCat = function (name, d) {
-    const list = L.cats(), i = list.indexOf(name), j = i + d;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
-    L.side.cats = list; saveSide(); L.render();
-  };
+  const isPinned = L.isPinned || ((key) => (L.side && L.side.pinned ? L.side.pinned : []).includes(key));
+  const foldSlot = (kids, open) => (PR.foldSlot ? PR.foldSlot(kids, open) : '<span class="fold-slot"></span>');
 
   /* ---------- 画面 ---------- */
   const count = (fn) => L.items.filter(fn).length;
   const more = '<span class="more" data-more title="' + PR.t("更多") + '">' + PR.icon("more", "sm") + "</span>";
+  /* “分类”这一组的行（内置分类和自建分类树）左边都留箭头槽，图标对齐；置顶、最近阅读不留 */
   function viewRow(v, pinnedRow) {
     const [k, label, icon, fn] = v;
     const statusAttr = (L.statuses || []).some((s) => s.id === k) ? " data-status-view" : "";
-    return '<div class="srow' + (L.view === k && !L.tag ? " on" : "") + '" data-view="' + k + '"' + statusAttr + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon(icon, "sm") + "<span class=\"t\">" + label +
+    return '<div class="srow' + (pinnedRow ? "" : " tree") + (L.view === k && !L.tag ? " on" : "") + '" data-view="' + k + '"' + statusAttr + (pinnedRow ? " data-pinrow" : "") + ">" + (pinnedRow ? "" : foldSlot(false)) + PR.icon(icon, "sm") + "<span class=\"t\">" + label +
       '</span><span class="n">' + count(fn) + "</span>" + (k === "all" && !pinnedRow ? "" : more) + "</div>";
   }
-  function catRow(c, pinnedRow) {
-    if (ui.renaming === c && !pinnedRow) return '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-rename="' + PR.esc(c) + '" value="' + PR.esc(c) + '" maxlength="30"></div>';
-    return '<div class="srow' + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + ">" + PR.icon("folder", "sm") +
-      '<span class="t">' + PR.esc(c) + '</span><span class="n">' + count((i) => !i.archived && (i.tags || []).includes(c)) + "</span>" + more + "</div>";
+  const lvl = (d) => (d ? ' style="--lvl:' + d + '"' : "");
+  function catRow(c, pinnedRow, kids, open) {
+    const d = pinnedRow ? 0 : T.depth(c);
+    const slot = pinnedRow ? "" : foldSlot(kids, open), tree = pinnedRow ? "" : " tree";
+    if (ui.renaming === c && !pinnedRow) return '<div class="srow tree editing"' + lvl(d) + ">" + slot + PR.icon("folder", "sm") + '<input class="side-input" data-rename="' + PR.esc(c) + '" value="' + PR.esc(T.leaf(c)) + '" maxlength="' + T.MAX_NAME + '"></div>';
+    return '<div class="srow' + tree + (L.tag === c ? " on" : "") + '" data-cat="' + PR.esc(c) + '"' + (pinnedRow ? " data-pinrow" : "") + lvl(d) + ' title="' + PR.esc(T.label(c)) + '">' + slot + PR.icon("folder", "sm") +
+      '<span class="t">' + PR.esc(pinnedRow ? T.label(c) : T.leaf(c)) + '</span><span class="n">' + count((i) => !i.archived && L.inCat(i, c)) + "</span>" + more + "</div>";
   }
+  const addRow = (d) => '<div class="srow tree editing"' + lvl(d) + ">" + foldSlot(false) + PR.icon("folder", "sm") + '<input class="side-input" data-new placeholder="' + (ui.addUnder ? PR.t("子分类名，回车") : PR.t("分类名，回车")) + '" maxlength="' + T.MAX_PATH + '"></div>';
+  /* 自建分类的树（sidebar-tree.js）：隐藏的分类连同子分类都不画；置顶的只出现在“置顶”里 */
+  const catTree = (cats) => PR.sideTreeHtml ? PR.sideTreeHtml(cats, {
+    catRow: (c, kids, open) => catRow(c, false, kids, open), addRow,
+    skip: (c) => isPinned("c:" + c) || ((L.side && L.side.hidden) ? L.side.hidden : []).includes("c:" + c),
+    addUnder: ui.adding ? ui.addUnder : null,
+  }) : cats.map((c) => catRow(c)).join("");
   /* 侧栏放短标题（PR.titles 里定：翻译时起的短标题，或主标题冒号前那半句） */
   const shortTitle = (i) => PR.titles(i).short;
   function paperRow(i, pinnedRow) {
@@ -129,21 +79,23 @@
   PR.renderSide = function () {
     const box = PR.$("#side");
     if (box.contains(document.activeElement) && document.activeElement.matches(".side-input")) return;  // 正在输入分类名
-    const cats = L.cats();
-    const pinned = L.side.pinned.map((key) => {
+    const cats = typeof L.cats === "function" ? L.cats() : (L.side && L.side.cats ? L.side.cats : []);
+    const pinnedList = (L.side && L.side.pinned) ? L.side.pinned : [];
+    const pinned = pinnedList.map((key) => {
       const [t, v] = [key.slice(0, 1), key.slice(2)];
       if (t === "p") { const it = L.byId(v); return it ? paperRow(it, true) : ""; }
       if (t === "c") return cats.includes(v) ? catRow(v, true) : "";
       const view = L.VIEWS.find((x) => x[0] === v);
       return view ? viewRow(view, true) : "";
     }).join("");
+    const hiddenList = (L.side && L.side.hidden) ? L.side.hidden : [];
     let h = pinned ? '<h3>' + PR.t("置顶") + '</h3><div class="sgroup">' + pinned + "</div>" : "";
     h += '<h3>' + PR.t("分类") + '<button class="h-add" data-add title="' + PR.t("新建分类") + '">' + PR.icon("plus", "sm") + "</button></h3><div class=\"sgroup\" data-drop-zone>" +
-      BUILTIN.filter(([k]) => k === "all" || (!L.side.hidden.includes(k) && !isPinned("v:" + k))).map((v) => viewRow(v)).join("") +
-      AUTO.filter(([k, , , fn]) => count(fn) && !L.side.hidden.includes(k)).map((v) => viewRow(v)).join("") +
-      cats.filter((c) => !isPinned("c:" + c) && !L.side.hidden.includes("c:" + c)).map((c) => catRow(c)).join("") +
-      (ui.adding ? '<div class="srow editing">' + PR.icon("folder", "sm") + '<input class="side-input" data-new placeholder="' + PR.t("分类名，回车") + '" maxlength="30"></div>' : "") +
-      (!ui.adding ? '<button class="srow hint-row" data-add>' + PR.icon("plus", "sm") + '<span class="t">' + (cats.length ? PR.t("新建分类") : PR.t("新建分类，把论文拖进来")) + "</span></button>" : "") + "</div>";
+      BUILTIN.filter(([k]) => k === "all" || (!hiddenList.includes(k) && !isPinned("v:" + k))).map((v) => viewRow(v)).join("") +
+      AUTO.filter(([k, , , fn]) => count(fn) && !hiddenList.includes(k)).map((v) => viewRow(v)).join("") +
+      catTree(cats) +
+      (ui.adding && !ui.addUnder ? addRow(0) : "") +
+      (!ui.adding ? '<button class="srow tree hint-row" data-add>' + foldSlot(false) + PR.icon("plus", "sm") + '<span class="t">' + (cats.length ? PR.t("新建分类") : PR.t("新建分类，把论文拖进来")) + "</span></button>" : "") + "</div>";
     const recent = L.items.filter((i) => !i.archived && i.last_opened && !isPinned("p:" + i.id)).sort((a, b) => String(b.last_opened).localeCompare(String(a.last_opened)));
     if (recent.length) {
       const shown = recent.slice(0, ui.recentOpen ? RECENT_MAX : RECENT_SHORT);
@@ -159,6 +111,13 @@
   };
 
   /* ---------- 菜单 ---------- */
+  const startAdd = (under, paper) => { ui.adding = paper || true; ui.addUnder = under || ""; L.render(); };
+  /* 移到…：放到哪个分类下面（不能是自己或自己的子分类，也不用是现在的父分类），或者移到最外层 */
+  const moveTargets = (c) => (typeof L.cats === "function" ? L.cats() : (L.side && L.side.cats ? L.side.cats : [])).filter((x) => !T.under(x, c) && x !== T.parent(c));
+  function moveMenu(c, where) {
+    PR.menu(where, (T.parent(c) ? [{ label: PR.t("移到最外层"), icon: "folder", fn: () => L.moveCatTo(c, "") }, "-"] : [])
+      .concat(moveTargets(c).map((x) => ({ label: "　".repeat(T.depth(x)) + T.leaf(x), icon: "folder", fn: () => L.moveCatTo(c, x) }))));
+  }
   function rowMenu(row, where) {
     if (row.dataset.view) {
       const k = row.dataset.view, key = "v:" + k;
@@ -167,16 +126,19 @@
       return PR.menu(where, items);
     }
     if (row.dataset.cat) {
-      const c = row.dataset.cat, key = "c:" + c, i = L.cats().indexOf(c);
+      const c = row.dataset.cat, key = "c:" + c;
+      const sibs = T.children(L.cats(), T.parent(c)), i = sibs.indexOf(c);
       return PR.menu(where, [
         { label: isPinned(key) ? PR.t("取消置顶") : PR.t("置顶"), icon: "pin", fn: () => L.togglePin(key) },
+        { label: PR.t("新建子分类"), icon: "plus", fn: () => startAdd(c) },
         { label: PR.t("改名"), icon: "edit", fn: () => { ui.renaming = c; L.render(); } },
+        { label: PR.t("移到…"), icon: "folder", disabled: !T.parent(c) && !moveTargets(c).length, fn: () => moveMenu(c, where) },
         { label: PR.t("上移"), disabled: i <= 0, fn: () => L.moveCat(c, -1) },
-        { label: PR.t("下移"), disabled: i >= L.cats().length - 1, fn: () => L.moveCat(c, 1) },
-        { label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden("c:" + c, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: PR.esc(c) })); } },
+        { label: PR.t("下移"), disabled: i < 0 || i >= sibs.length - 1, fn: () => L.moveCat(c, 1) },
+        { label: PR.t("在侧栏隐藏"), icon: "x", fn: () => { L.setHidden("c:" + c, true); PR.toast(PR.t("已隐藏“{name}”，可以在 设置 → 侧边栏 里再打开", { name: PR.esc(T.label(c)) })); } },
         "-",
         { label: PR.t("批量操作这个分类的论文"), icon: "check", fn: () => { L.tag = c; L.view = "all"; L.startPick(L.filtered().map((paper) => paper.id)); } },
-        { label: PR.t("导出这个分类的引用"), icon: "copy", fn: () => PR.openCiteExport(L.items.filter((paper) => (paper.tags || []).includes(c)), c) },
+        { label: PR.t("导出这个分类的引用"), icon: "copy", fn: () => PR.openCiteExport(L.items.filter((paper) => !paper.archived && L.inCat(paper, c)), T.leaf(c)) },
         { label: PR.t("删除分类"), icon: "trash", fn: () => L.deleteCat(c) },
       ]);
     }
@@ -189,11 +151,11 @@
       ]);
     }
   }
-  /* 论文行（列表里、详情里）用的“放进分类”菜单项 */
+  /* 论文行（列表里、详情里）用的“放进分类”菜单项：子分类缩进 */
   L.catMenuItems = function (id) {
     const it = L.byId(id);
-    return L.cats().map((c) => ({ label: ((it.tags || []).includes(c) ? "✓ " : "　 ") + c, icon: "folder", fn: () => L.toggleInCat(id, c) }))
-      .concat({ label: PR.t("新建分类并放进去…"), icon: "plus", fn: () => { ui.adding = id; L.render(); } });
+    return L.cats().map((c) => ({ label: ((it.tags || []).includes(c) ? "✓ " : "　 ") + "　".repeat(T.depth(c)) + T.leaf(c), icon: "folder", fn: () => L.toggleInCat(id, c) }))
+      .concat({ label: PR.t("新建分类并放进去…"), icon: "plus", fn: () => startAdd("", id) });
   };
 
   /* ---------- 事件 ---------- */
@@ -202,12 +164,19 @@
     if (e.target.closest(".side-input")) return;
     const m = e.target.closest("[data-more]");
     const row = e.target.closest(".srow");
+    if (row && (row.dataset.leaf || row.dataset.allIn)) return;  // 树里的论文行、“还有 N 篇”归 sidebar-tree.js
     if (m && row) { e.preventDefault(); e.stopPropagation(); return rowMenu(row, m); }
-    if (e.target.closest("[data-add]")) { ui.adding = true; return L.render(); }
+    if (e.target.closest("[data-fold]") && row) return L.toggleFold(row.dataset.cat);
+    if (e.target.closest("[data-add]")) return startAdd("");
     if (e.target.closest("[data-recent]")) { ui.recentOpen = !ui.recentOpen; return L.render(); }
     if (!row) return;
     if (row.dataset.view) { L.view = row.dataset.view; L.tag = null; L.render(); }
-    else if (row.dataset.cat) { L.tag = L.tag === row.dataset.cat ? null : row.dataset.cat; L.view = "all"; L.render(); }
+    else if (row.dataset.cat) {
+      L.tag = L.tag === row.dataset.cat ? null : row.dataset.cat; L.view = "all";
+      // 双击（第二下）：筛选回到双击前，切换折叠。第一下已经重画了侧栏，dblclick 落不到原来的行上，所以按 click 的 detail 认
+      if (e.detail === 2 && row.querySelector("[data-fold]")) return L.toggleFold(row.dataset.cat);
+      L.render();
+    }
     // 论文行是链接，直接打开
   });
   side.addEventListener("contextmenu", (e) => {
@@ -221,9 +190,13 @@
     inp.dataset.done = "1";
     inp.blur();  // 输入框还有焦点时侧栏不重画（见 renderSide），先让它失焦，回车后新分类才会马上出现
     const val = inp.value;
-    const forPaper = ui.adding === true ? null : ui.adding;
-    if (inp.dataset.new !== undefined) { ui.adding = false; if (!cancel) L.addCat(val, forPaper); else L.render(); }
-    else { const from = inp.dataset.rename; ui.renaming = null; if (!cancel) L.renameCat(from, val); else L.render(); }
+    const forPaper = ui.adding === true ? null : ui.adding, under = ui.addUnder;
+    if (inp.dataset.new !== undefined) { ui.adding = false; ui.addUnder = ""; if (!cancel) L.addCat(val, forPaper, under); else L.render(); }
+    else {  // 改名只改这一级的名字，父分类不变
+      const from = inp.dataset.rename, parent = T.parent(from);
+      ui.renaming = null;
+      if (!cancel && val.trim()) L.renameCat(from, (parent ? parent + T.SEP : "") + val.replace(/\//g, " ")); else L.render();
+    }
   }
   side.addEventListener("keydown", (e) => {
     const inp = e.target.closest(".side-input");
@@ -251,7 +224,7 @@
 
   /* 把论文从列表拖到侧栏的分类上 */
   let dragId = null;
-  document.addEventListener("dragstart", (e) => { const r = e.target.closest && e.target.closest(".row[data-id]"); if (r) { dragId = r.dataset.id; e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "copy"; side.classList.add("dragging"); } });
+  document.addEventListener("dragstart", (e) => { const r = e.target.closest && e.target.closest(".row[data-id], .srow[data-leaf]"); if (r) { dragId = r.dataset.id || r.dataset.leaf; e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "copy"; side.classList.add("dragging"); } });
   document.addEventListener("dragend", () => { dragId = null; side.classList.remove("dragging"); PR.$$(".srow.drop", side).forEach((x) => x.classList.remove("drop")); });
   /* 能放的地方：自建分类、在读 / 未读 / 已读（改状态）、星标、已封存、“新建分类” */
   const STATUS = statusMap;
@@ -266,7 +239,7 @@
     const row = dropTarget(e);
     if (!row) return;
     e.preventDefault();
-    if (row.dataset.add !== undefined) { ui.adding = L.picking && L.picked.has(dragId) ? Array.from(L.picked) : dragId; side.classList.remove("dragging"); return L.render(); }  // 拖到“新建分类”：建一个，把这篇放进去
+    if (row.dataset.add !== undefined) { side.classList.remove("dragging"); return startAdd("", L.picking && L.picked.has(dragId) ? Array.from(L.picked) : dragId); }  // 拖到“新建分类”：建一个，把这篇放进去
     side.classList.remove("dragging"); row.classList.remove("drop");
     // 多选时拖的是勾着的一篇，就把勾着的全部一起放过去
     const its = (L.picking && L.picked.has(dragId) ? Array.from(L.picked) : [dragId]).map(L.byId).filter(Boolean);
@@ -284,8 +257,9 @@
     else if (STATUS()[v]) { L.patchMany(its.map((i) => [i.id, { status: v, archived: false }])); PR.toast(n > 1 ? PR.t("{n} 篇已標為{status}", { n, status: STATUS()[v] }) : PR.t("已標為{status}", { status: STATUS()[v] })); }
     else {
       const add = its.filter((i) => !(i.tags || []).includes(c));
-      if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c), archived: false }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(c) }) : PR.t("已放进“{name}”", { name: PR.esc(c) })); }
-      else PR.toast(PR.t("已经在“{name}”里了", { name: PR.esc(c) }));
+      const name = PR.esc(T.label(c));
+      if (add.length) { L.patchMany(add.map((i) => [i.id, { tags: (i.tags || []).concat(c), archived: false }])); PR.toast(n > 1 ? PR.t("已把 {n} 篇放进“{name}”", { n, name }) : PR.t("已放进“{name}”", { name })); }
+      else PR.toast(PR.t("已经在“{name}”里了", { name }));
     }
   });
 })(window.PR);

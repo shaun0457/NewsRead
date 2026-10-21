@@ -6,6 +6,18 @@ from easyread.store import Workspace
 
 
 class ReaderOpsTest(unittest.TestCase):
+    def test_ink_strokes_merge_by_id_and_reject_invalid_coordinates(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Workspace(Path(d))
+            stroke = {"id": "i1", "group": "g1", "anchor": "p1", "textHash": "1234abcd", "ref": [200, 100],
+                      "points": [[1, 2], [3.5, 8]], "color": "#d94b4b", "width": 2}
+            ws.apply_reader_ops([{"op": "ink", "stroke": stroke, "at": "2026-10-01T00:01:00Z"}])
+            ws.apply_reader_ops([{"op": "ink_del", "id": "i1", "at": "2026-10-01T00:02:00Z"}])
+            ws.apply_reader_ops([{"op": "ink", "stroke": stroke, "at": "2026-10-01T00:01:00Z"}])
+            self.assertTrue(ws.load("reader")["ink"]["i1"]["deleted"])
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "ink", "stroke": {**stroke, "id": "bad", "points": [[float("nan"), 1]]}}])
+
     def test_deletion_wins_over_delayed_creation_in_both_orders(self):
         note = {"op": "note", "note": {"id": "n1", "body": "旧笔记", "updated": "2026-10-01T00:01:00Z"}}
         delete = {"op": "note_del", "id": "n1", "at": "2026-10-01T00:02:00Z"}

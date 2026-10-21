@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -20,6 +22,14 @@ SCHEMA = 2
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="milliseconds")
+
+
+class DataReadError(ValueError):
+    """A saved JSON file is unreadable; callers must not overwrite it with defaults."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        super().__init__(f"Cannot read data file: {self.path}; the original file has been preserved")
 
 
 def read_json(path: Path, default=None):
@@ -94,7 +104,7 @@ def file_version(path: Path) -> str:
 
 
 def empty_reader() -> dict:
-    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "ai_annotations": {}, "paper_note": {}, "progress": {}}
+    return {"schema": SCHEMA, "rev": 0, "edits": {}, "notes": {}, "ai_annotations": {}, "ink": {}, "paper_note": {}, "progress": {}}
 
 
 def empty_discussion() -> dict:
@@ -113,6 +123,7 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
     edits = reader.setdefault("edits", {})
     notes = reader.setdefault("notes", {})
     ai_annotations = reader.setdefault("ai_annotations", {})
+    ink = reader.setdefault("ink", {})
     progress = reader.setdefault("progress", {})
     for op in ops:
         kind = op.get("op")
@@ -158,6 +169,34 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
             annotation["updated_at"] = annotation.get("updated_at") or at
             ai_annotations[aid] = annotation
             applied.append(f"ai_annotation:{aid}")
+        elif kind in ("ink", "ink_del"):
+            stroke = dict(op.get("stroke") or {}) if kind == "ink" else {"id": str(op.get("id") or "")}
+            sid = str(stroke.get("id") or "")
+            if not sid or len(sid) > 80:
+                continue
+            cur = ink.get(sid) or {}
+            if _newer(at, cur.get("updated")):
+                if kind == "ink":
+                    points = stroke.get("points")
+                    if (not isinstance(points, list) or not 1 <= len(points) <= 2000 or
+                            any(not isinstance(p, list) or len(p) != 2 or
+                                any(not isinstance(v, (int, float)) or isinstance(v, bool) or abs(v) > 5000 or not math.isfinite(v) for v in p)
+                                for p in points)):
+                        raise ValueError("Invalid ink stroke points")
+                    if (not isinstance(stroke.get("anchor"), str) or len(stroke["anchor"]) > 200 or
+                            not isinstance(stroke.get("group"), str) or len(stroke["group"]) > 80 or
+                            not isinstance(stroke.get("textHash"), str) or len(stroke["textHash"]) != 8 or
+                            any(c not in "0123456789abcdef" for c in stroke["textHash"].lower()) or
+                            not isinstance(stroke.get("color"), str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", stroke["color"]) or
+                            not isinstance(stroke.get("width"), (int, float)) or isinstance(stroke.get("width"), bool) or
+                            not 1 <= stroke["width"] <= 12 or not math.isfinite(stroke["width"]) or
+                            not isinstance(stroke.get("ref"), list) or len(stroke["ref"]) != 2 or
+                            any(not isinstance(v, (int, float)) or isinstance(v, bool) or not 1 <= v <= 5000 or not math.isfinite(v) for v in stroke["ref"])):
+                        raise ValueError("Invalid ink stroke")
+                    ink[sid] = {**stroke, "updated": at}
+                else:
+                    ink[sid] = {**cur, "id": sid, "deleted": True, "updated": at}
+                applied.append(f"ink:{sid}")
         elif kind == "paper_note":
             cur = reader.get("paper_note") or {}
             if _newer(at, cur.get("at")):
@@ -216,7 +255,11 @@ class Workspace:
 
     def load(self, name: str):
         defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}}
-        return read_json(self.root / f"{name}.json", defaults.get(name))
+        path = self.root / f"{name}.json"
+        try:
+            return read_json(path, defaults.get(name))
+        except (UnicodeError, json.JSONDecodeError) as e:
+            raise DataReadError(path) from e
 
     def versions(self) -> dict:
         v = {n: file_version(self.root / f"{n}.json") for n in self.PARTS}

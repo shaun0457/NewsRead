@@ -1,6 +1,6 @@
 {
   "name": "paperread-desktop",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "PaperRead personal research workspace",
   "author": {
     "name": "YuriyLin"
@@ -96,9 +96,20 @@
         }
       ],
       "category": "Office"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YuriyLin",
+        "repo": "PaperRead"
+      }
+    ]
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuriyLin/PaperRead.git"
   }
 }

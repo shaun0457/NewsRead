@@ -76,3 +76,15 @@ test("offline deletes survive delayed note creation and export/import", async ()
     assert.ok(!PR.state.reader.notes.n1.deleted);
   }
 });
+
+test("ink strokes persist independently and deletion prevents a delayed replay", async () => {
+  const PR = await offlineReader();
+  const stroke = { id: "i1", group: "g1", anchor: "p1", textHash: "1234abcd", ref: [200, 100], points: [[1, 2], [3, 8]], color: "#d94b4b", width: 2 };
+  PR.commit({ op: "ink", stroke, at: "2026-10-01T00:01:00Z" });
+  assert.equal(PR.state.reader.ink.i1.points.length, 2);
+  PR.commit({ op: "ink_del", id: "i1", at: "2026-10-01T00:02:00Z" });
+  PR.commit({ op: "ink", stroke, at: "2026-10-01T00:01:00Z" });
+  assert.equal(PR.state.reader.ink.i1.deleted, true);
+  assert.equal(PR.exportOps().ops.filter(op => op.op.startsWith("ink")).length, 1);
+  assert.equal(PR.exportOps().ops.find(op => op.op === "ink_del").id, "i1");
+});

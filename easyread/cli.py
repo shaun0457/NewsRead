@@ -83,8 +83,10 @@ def cmd_list(a):
 def cmd_import(a):
     L = lib()
     src = a.source
-    if Path(src).exists():
-        ws, fresh = L.create_from_pdf(Path(src).read_bytes(), Path(src).name)
+    if getattr(a, "link", False):
+        ws, fresh = L.import_pdf_path(src, link=True)
+    elif Path(src).exists():
+        ws, fresh = L.import_pdf_path(src)
     else:
         data, name, meta = L.fetch(src)
         ws, fresh = L.create_from_pdf(data, name, meta)
@@ -188,7 +190,7 @@ def cmd_locate(a):
 
 def cmd_export(a):
     from .build import build
-    out(str(build(find(a.id))))
+    out(str(build(find(a.id), mobile=bool(getattr(a, "mobile", False)))))
 
 
 def cmd_demo(a):
@@ -221,10 +223,11 @@ def main(argv=None):
     p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（start.cmd / start.sh 用）")
     p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
-    p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.set_defaults(fn=cmd_import)
+    p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.add_argument("--link", action="store_true", help="链接外部本地 PDF，不复制"); p.set_defaults(fn=cmd_import)
     p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)
     for name, fn in (("status", cmd_status), ("check", cmd_check), ("locate", cmd_locate), ("export", cmd_export)):
         p = sub.add_parser(name); p.add_argument("id"); p.set_defaults(fn=fn)
+        if name == "export": p.add_argument("--mobile", action="store_true", help="手机版：只读，不带 PDF 原页图")
     p = sub.add_parser("blocks"); p.add_argument("id"); p.add_argument("--from", dest="from_file", required=True)
     p.add_argument("--done"); p.add_argument("--replace", action="store_true"); p.set_defaults(fn=cmd_blocks)
     p = sub.add_parser("discuss"); p.add_argument("id"); p.add_argument("--from", dest="from_file"); p.add_argument("--delete")

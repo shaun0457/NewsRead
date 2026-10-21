@@ -11,6 +11,8 @@
 <link rel="stylesheet" href="/web/css/library.css">
 <link rel="stylesheet" href="/web/css/cite-export.css">
 <link rel="stylesheet" href="/web/css/batch.css">
+<link rel="stylesheet" href="/web/css/categories.css">
+<link rel="stylesheet" href="/web/css/bulk-import.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/pick-pages.css">
@@ -40,6 +42,7 @@
       <h1 id="viewTitle">全部论文</h1>
       <span class="count" id="count"></span>
       <span class="grow"></span>
+      <button class="btn sm line danger" id="stopAllBtn" hidden></button>
       <button class="btn sm line" id="pickBtn" disabled></button>
       <div class="batch-bar" id="batchBar"></div>
       <label class="sort">排序
@@ -59,6 +62,7 @@
 <div class="drop-overlay" id="dropOverlay"><div><div class="big">松手导入</div><div class="hint">可以一次拖多个 PDF</div></div></div>
 
 <div class="dialog-backdrop" id="importDlg"><div class="dialog" role="dialog" aria-label="导入论文"></div></div>
+<div class="dialog-backdrop" id="bulkDlg"><div class="dialog" role="dialog" aria-label="成批导入"></div></div>
 <div class="dialog-backdrop" id="settingsDlg"><div class="dialog wide" role="dialog" aria-label="设置"></div></div>
 <div class="dialog-backdrop" id="trashDlg"><div class="dialog wide" role="dialog" aria-label="回收站"></div></div>
 <div class="dialog-backdrop" id="textDlg"><div class="dialog wide" role="dialog"></div></div>
@@ -83,10 +87,16 @@
 <script src="/web/js/common/page-cap.js"></script>
 <script src="/web/js/library/cite-export.js"></script>
 <script src="/web/js/library/batch.js"></script>
+<script src="/web/js/library/stop-jobs.js"></script>
+<script src="/web/js/library/cat-tree.js"></script>
+<script src="/web/js/library/categories.js"></script>
+<script src="/web/js/library/sidebar-tree.js"></script>
 <script src="/web/js/library/sidebar.js"></script>
 <script src="/web/js/library/detail.js"></script>
 <script src="/web/js/library/pick-pages.js"></script>
 <script src="/web/js/library/import.js"></script>
+<script src="/web/js/common/pick-folder.js"></script>
+<script src="/web/js/library/bulk-import.js"></script>
 <script src="/web/js/common/settings-models.js"></script>
 <script src="/web/js/common/settings-api.js"></script>
 <script src="/web/js/common/settings.js"></script>
@@ -94,6 +104,7 @@
 <script src="/web/js/common/settings-chat.js"></script>
 <script src="/web/js/library/settings-library.js"></script>
 <script src="/web/js/library/help.js"></script>
+<script src="/web/js/library/update.js"></script>
 <script src="/web/js/library/trash.js"></script>
 <script src="/web/js/common/research-task-monitor.js"></script>
 </body>

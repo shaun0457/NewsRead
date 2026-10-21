@@ -5,6 +5,7 @@
   const K = (keys, what) => "<tr><td>" + keys.split(" ").map((k) => "<kbd>" + k + "</kbd>").join(" ") + "</td><td>" + what + "</td></tr>";
 
   PR.openHelp = function () {
+    const inkKeys = PR.keysOn ? ["inkToggle", "inkEraser"].filter(id => PR.keyOf(id)).map(id => K(PR.keyOf(id), id === "inkToggle" ? PR.t("切換手寫") : PR.t("切換橡皮擦"))).join("") : "";
     dlg.querySelector(".dialog").innerHTML =
       '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>PaperRead</h2><div class=\"hint\">" + PR.t("版本 {v} · 本地运行，论文和笔记只存在你的电脑上", { v: PR.esc(PR.lib.version || "") }) + "</div></div></div>" +
       '<div class="help-cols"><div><h4>' + PR.t("文献库") + '</h4><table class="keys">' +
@@ -13,6 +14,7 @@
       "<h4>" + PR.t("翻译引擎") + "</h4><p class=\"hint\">" + PR.t("本机装了 Claude Code 或 Codex 就能直接用，不用 Key；也可以用 DeepSeek、智谱、通义、Gemini 等 API，或本机 Ollama。在设置里换。") + "</p></div>" +
       '<div><h4>' + PR.t("阅读页") + '</h4><table class="keys">' +
       K("J K", PR.t("下一段 / 上一段")) + K("N Q", PR.t("给当前段写笔记 / 提问")) + K("A", PR.t("问 AI（带当前段）")) + K("E", PR.t("改译文")) + K("R", PR.t("让模型重译这段")) +
+      inkKeys +
       K("B", PR.t("单语 / 双语")) + K("O", PR.t("原文页面板")) + K("M", PR.t("笔记面板")) + K("T", PR.t("目录")) + K("= - 0", PR.t("字号大 / 小 / 默认")) + K("1 2 3 4", PR.t("选中文字后四色划线")) +
       "</table></div></div>" +
       '<div class="actions"><button class="btn" data-close>' + PR.t("关闭") + "</button></div>";

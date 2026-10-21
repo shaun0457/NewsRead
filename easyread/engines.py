@@ -31,7 +31,7 @@ class Cancelled(RuntimeError):
     pass
 
 
-ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "openai": "API", "none": "不翻译"}  # i18n-ok 显示时用 engine_name()
+ENGINE_NAMES = {"claude": "Claude Code", "codex": "Codex CLI", "antigravity": "Antigravity CLI", "openai": "API", "none": "不翻译"}  # i18n-ok 显示时用 engine_name()
 
 
 def engine_name(engine: str | None) -> str:
@@ -56,6 +56,8 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
         return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
     if engine == "codex":
         return run_codex(cfg["codex"], prompt, cwd, images or [], cancel, meter)
+    if engine == "antigravity":
+        return run_antigravity(cfg["antigravity"], prompt, cwd, cancel, meter)
     if engine == "openai":
         return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
     raise EngineError(tr("没有配置翻译引擎（设置 → 模型）"))
@@ -75,7 +77,7 @@ def who(cfg: dict) -> str:
     engine = cfg.get("engine")
     if engine == "openai":
         return cfg["openai"].get("model") or "API"
-    return {"claude": "claude", "codex": "codex"}.get(engine, "")
+    return {"claude": "claude", "codex": "codex", "antigravity": "antigravity"}.get(engine, "")
 
 
 # ---------- 本机 CLI ----------
@@ -173,11 +175,59 @@ def option_unknown(err) -> bool:
 def for_translation(cfg: dict) -> dict:
     """本机 CLI 只带用得到的东西（见 run_claude、run_codex）：整篇翻译、问 AI、回答笔记、重译一段都走这里。"""
     out = dict(cfg)
-    for e in ("claude", "codex"):
+    for e in ("claude", "codex", "antigravity"):
         if isinstance(cfg.get(e), dict):
             out[e] = {**cfg[e], "lean": True}
     return out
 
+
+
+
+def antigravity_path(c: dict) -> str | None:
+    cmd = c.get("command") or "agy"
+    found = shutil.which(cmd)
+    if found:
+        return found
+    if os.name == "nt":
+        local_app = Path.home() / "AppData" / "Local" / "agy" / "bin" / "agy.exe"
+        if local_app.exists():
+            return str(local_app)
+    return shutil.which("antigravity")
+
+
+def run_antigravity(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
+    exe = antigravity_path(c)
+    if not exe:
+        raise EngineError(tr("找不到 Antigravity CLI 命令：{cmd}（先裝好並登入 Antigravity CLI）", cmd=c.get("command") or "agy"))
+    args = [exe, "--output-format", "json", "--dangerously-skip-permissions", "--disable-slash-commands"]
+    model = (c.get("model") or "").strip()
+    effort = (c.get("reasoning_effort") or "").strip()
+    if model:
+        clean_model = re.sub(r"-(low|medium|high|xhigh|max)$", "", model)
+        args += ["--model", clean_model]
+    if effort:
+        args += ["--effort", effort]
+    args += list(c.get("extra_args") or [])
+    out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
+    try:
+        res = json.loads(out)
+    except json.JSONDecodeError:
+        lines = [line.strip() for line in out.splitlines() if line.strip().startswith("{") and line.strip().endswith("}")]
+        res = None
+        for line in reversed(lines):
+            try:
+                res = json.loads(line)
+                break
+            except Exception:
+                continue
+        if res is None:
+            raise EngineError(tr("Antigravity CLI 输出不是 JSON：{out}", out=out[:300]))
+    if meter is not None:
+        meter.add(**usage.from_antigravity(res))
+    if res.get("status") != "SUCCESS":
+        msg = res.get("error") or res.get("response") or res.get("status") or tr("未知错误")
+        raise EngineError(tr("Antigravity CLI 出错：{msg}", msg=msg))
+    return res.get("response") or ""
 
 def _codex_once(exe: str, c: dict, prompt: str, cwd: Path, images: list[Path], cancel, extra: list[str]) -> tuple[str, str]:
     fd, last = tempfile.mkstemp(suffix=".txt", prefix="easyread-codex-")
@@ -292,8 +342,8 @@ def _version(exe: str) -> str:
 def test(cfg: dict) -> dict:
     """设置页“测试”按钮：真的让模型回一句，确认引擎能用。"""
     engine = cfg.get("engine")
-    if engine in ("claude", "codex"):
-        exe = (claude_path if engine == "claude" else codex_path)(cfg[engine])
+    if engine in ("claude", "codex", "antigravity"):
+        exe = (claude_path if engine == "claude" else codex_path if engine == "codex" else antigravity_path)(cfg[engine])
         if not exe:
             return {"ok": False, "message": tr("找不到 {engine} 命令，先安装并登录", engine=engine)}
     if engine == "none":

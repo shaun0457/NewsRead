@@ -1,0 +1,24 @@
+/* 成批导入的对话框：从 Zotero 迁移、导入整个文件夹 */
+.zt-lead { font-size: 13.5px; color: var(--ink-2); line-height: 1.7; margin: 0 0 14px; }
+.zt-paths { display: grid; gap: 6px; margin-bottom: 8px; }
+.zt-path { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--rule); border-radius: 8px; font-size: 13px; cursor: pointer; word-break: break-all; }
+.zt-path:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.zt-src { font-size: 12px; color: var(--ink-3); word-break: break-all; margin: 0 0 12px; }
+.zt-warn { font-size: 12.5px; line-height: 1.6; color: var(--ink); background: color-mix(in srgb, var(--danger) 10%, transparent); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+.zt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.zt-stat { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; }
+.zt-stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.zt-stat span { font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+.zt-opt { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; margin: 10px 0; cursor: pointer; }
+.zt-opt input { margin-top: 3px; }
+.zt-more { margin: 6px 0 10px; font-size: 12.5px; }
+.zt-more summary { cursor: pointer; color: var(--accent); }
+.zt-list { max-height: 180px; overflow: auto; margin: 6px 0 0; padding-left: 18px; }
+.zt-list li { margin: 3px 0; }
+.zt-list small { display: block; color: var(--ink-3); word-break: break-all; }
+.zt-bar { height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; margin: 6px 0 10px; }
+.zt-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.zt-now { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 12px; }
+.zt-done { font-size: 14px; margin: 0 0 12px; }
+.imp-bulk { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 4px; }  /* 导入对话框里的两个入口 */
+.imp-bulk .linkish { display: inline-flex; align-items: center; gap: 6px; margin: 0; }

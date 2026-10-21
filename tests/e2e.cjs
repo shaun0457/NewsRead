@@ -208,12 +208,12 @@ const cli = (...args) => execFileSync(PY, ['-m', 'easyread', ...args], { env, cw
     const marginLayout = await page.evaluate(() => {
       const box = (e) => { const r = e?.getBoundingClientRect(); return r && { left: r.left, right: r.right }; };
       return { paper: box(document.querySelector('#paper')), mine: box(document.querySelector('#margin .card.mine')),
-        agent: box(document.querySelector('#margin-left .card.agent')), ai: box(document.querySelector('#margin-left [data-note="layout-ai-note"]')),
+        agent: box(document.querySelector('#margin-left .card.agent')), ai: box(document.querySelector('#margin [data-note="layout-ai-note"]')),
         hasSvgArrows: !!document.querySelector('#margin-arrows') };
     });
     ok(marginLayout.mine && marginLayout.mine.left > marginLayout.paper.right, '個人筆記排在正文右側');
     ok(marginLayout.agent && marginLayout.agent.right < marginLayout.paper.left, 'AI 問答排在正文左側');
-    ok(marginLayout.ai && marginLayout.ai.right < marginLayout.paper.left, 'AI 智慧標註排在正文左側');
+    ok(marginLayout.ai && marginLayout.ai.left > marginLayout.paper.right, 'AI 智慧標註的我的劃線排在正文右側');
     ok(!marginLayout.hasSvgArrows, '移除 SVG 連線設計，僅保留雙欄呈現');
     await shot('dual-margin');
 

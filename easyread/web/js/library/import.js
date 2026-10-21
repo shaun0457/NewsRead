@@ -8,6 +8,7 @@
   const AFTER = [["translate", PR.t("翻译成"), PR.t("后台逐页翻译，随时对照原文；译成哪种语言在右边选")],
     ["read", PR.t("读英文原文"), PR.t("不翻译：模型只把公式、表格、段落排好，正文就是英文，比翻译省用量；想看译文了随时点“翻译成{lang}”", { lang: PR.targetName(PR.target) })],
     ["none", PR.t("先不处理"), PR.t("不用模型，阅读页先放原页图片")]];
+  const BULK = 5;  // 一次超过这么多篇，先问要不要翻译
 
   const pref = () => {
     const saved = PR.ls.get("easyread-import", null);
@@ -29,8 +30,11 @@
       '<div class="or">' + PR.t("或者") + "</div>" +
       '<label class="field"><span>' + PR.t("链接、arXiv 编号、DOI 或论文标题") + '</span><div class="inline"><input class="input" id="arxivRef" placeholder="' + PR.t("2411.00640 · 10.18653/v1/N19-1423 · 论文网页链接 · 论文标题") + '">' +
       '<button class="btn accent" id="arxivGo">' + PR.t("导入") + "</button></div></label>" +
+      '<div class="imp-bulk"><button class="linkish" id="folderGo">' + PR.icon("folder", "sm") + PR.t("导入整个文件夹") + "</button>" +
+      '<button class="linkish" id="zoteroGo">' + PR.icon("upload", "sm") + PR.t("从 Zotero 迁移整个文献库") + "</button></div>" +
       '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div>" +
         '<select class="input imp-target" id="impTarget" title="' + PR.t("译成哪种语言") + '"' + (after === "translate" ? "" : " hidden") + ">" + PR.opt(PR.TARGETS, PR.target) + "</select></div>" +
+      '<p class="hint" id="enTargetHint"' + (after === "translate" && PR.target === "en" ? "" : " hidden") + '>' + PR.t("原文本来就是英文的话，选“读英文原文”就行，不用翻译，更省用量。") + "</p>" +
       '<p class="hint" id="originalModelHint"' + (after === "read" ? "" : " hidden") + '>' + PR.t("读英文原文仍需可用模型整理段落、公式和表格，会消耗模型额度；只看 PDF 可选“先不处理”。") + "</p>" +
       '<div class="imp-opts' + (after === "none" ? " dim" : "") + '" id="scopeRow"><span class="imp-lbl">' + PR.t("范围") + '</span><div class="seg" id="scopeSeg">' + SCOPES.map(([k, l]) => '<button data-scope="' + k + '" class="' + (p.scope === k ? "on" : "") + '">' + l + "</button>").join("") + "</div>" +
       '<span class="first-n"' + (p.scope === "range" ? "" : " hidden") + '>' + PR.t("第 {from} 到 {to} 页", { from: '<input class="input" id="pgFrom" type="number" min="1" value="' + p.from + '">', to: '<input class="input" id="pgTo" type="number" min="1" value="' + p.to + '">' }) + "</span></div>" +
@@ -72,6 +76,8 @@
     if (e.target.closest("#pick")) PR.$("#fileInput").click();
     if (e.target.closest("#arxivGo")) importRef(PR.$("#arxivRef").value);
     if (e.target.closest("#impEngine")) { close(); PR.openSettings(); }
+    if (e.target.closest("#zoteroGo")) { close(); PR.openZotero(); }
+    if (e.target.closest("#folderGo")) { close(); PR.openFolderImport(); }
     const a = e.target.closest("[data-after]");
     if (a && !a.disabled) {
       savePref({ after: a.dataset.after });
@@ -80,6 +86,7 @@
       PR.$("#modelRow").classList.toggle("dim", a.dataset.after === "none");
       PR.$("#impTarget").hidden = a.dataset.after !== "translate";
       PR.$("#originalModelHint").hidden = a.dataset.after !== "read";
+      enHint();
     }
     const s = e.target.closest("[data-scope]");
     if (s) {
@@ -88,7 +95,9 @@
       PR.$(".first-n", dlg).hidden = s.dataset.scope !== "range";
     }
   });
-  dlg.addEventListener("change", (e) => { if (e.target.id === "impModel") savePref({ model: e.target.value }); });
+  // 译成英语（#48）：原文本来就是英文时不用翻译，提示改选“读英文原文”
+  const enHint = () => { const t = PR.$("#impTarget"); PR.$("#enTargetHint").hidden = t.hidden || t.value !== "en"; };
+  dlg.addEventListener("change", (e) => { if (e.target.id === "impModel") savePref({ model: e.target.value }); if (e.target.id === "impTarget") enHint(); });
   dlg.addEventListener("input", (e) => {  // 边输边存：输完直接点“导入”也用新的页码
     if (e.target.id === "pgFrom") savePref({ from: +e.target.value || 1 });
     if (e.target.id === "pgTo") savePref({ to: +e.target.value || 1 });
@@ -101,7 +110,17 @@
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
     if (!pdfs.length) return PR.toast(PR.t("只支持 PDF 文件"));
     close();
-    const o = opts();
+    let o = opts();
+    // 一次拖进来很多篇：默认先只导入，免得按上次的设置把额度一下子用光
+    if (pdfs.length > BULK && o.translate) {
+      const pick = await PR.confirm({
+        title: PR.t("一次导入 {n} 篇，先不翻译？", { n: pdfs.length }),
+        body: (o.read ? PR.t("按上次的设置，导入后会用模型整理全部 {n} 篇的原文，比较费额度。", { n: pdfs.length }) : PR.t("按上次的设置，导入后会翻译全部 {n} 篇，比较费额度。", { n: pdfs.length })) +
+          PR.t("先只导入的话，之后在想读的论文上点翻译，或勾选几篇一起翻译。"),
+        ok: PR.t("只导入"), alt: o.read ? PR.t("照样整理全部") : PR.t("照样翻译全部"), center: true });
+      if (!pick) return;
+      if (pick === true) o = Object.assign(o, { translate: false, read: false, model: "", target: "" });
+    }
     let last = null;
     for (const [k, f] of pdfs.entries()) {
       PR.toast(PR.t("正在导入 {i}/{n}：{name}", { i: k + 1, n: pdfs.length, name: PR.esc(f.name) }), null, 60000);

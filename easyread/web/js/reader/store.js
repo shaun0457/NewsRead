@@ -1,6 +1,6 @@
 /* 阅读页的数据与保存。
    - paper / discussion / layout / job 来自翻译方，只读；
-   - reader（我的修改、笔记、论文笔记、进度）只通过“操作”改：先进浏览器里的待存队列，再发给本地服务，
+   - reader（我的修改、笔记、手写、论文笔记、进度）只通过“操作”改：先进浏览器里的待存队列，再发给本地服务，
      服务确认写进 reader.json 后才从队列删。断网、服务没开、页面崩了，队列都还在，下次自动补发。
    - 离线版（导出的单文件）没有服务，队列本身就是存储，可导出后并回。 */
 (function (PR) {
@@ -22,6 +22,7 @@
     reader.edits = reader.edits || {};
     reader.notes = reader.notes || {};
     reader.ai_annotations = reader.ai_annotations || {};
+    reader.ink = reader.ink || {};
     reader.progress = reader.progress || {};
     for (const op of ops) {
       const at = op.at || PR.nowIso();
@@ -46,6 +47,13 @@
         const id = annotation.annotation_id || annotation.id;
         const cur = id && reader.ai_annotations[id];
         if (id && (!cur || (annotation.updated_at || at) >= (cur.updated_at || ""))) reader.ai_annotations[id] = { ...annotation, annotation_id: id };
+      } else if (op.op === "ink" || op.op === "ink_del") {
+        const stroke = op.op === "ink" ? op.stroke : { id: op.id };
+        const id = stroke && String(stroke.id || "");
+        const cur = id && reader.ink[id];
+        if (id && (!cur || at >= (cur.updated || ""))) reader.ink[id] = op.op === "ink"
+          ? { ...stroke, updated: at }
+          : { ...(cur || { id }), deleted: true, updated: at };
       } else if (op.op === "paper_note") {
         const cur = reader.paper_note || {};
         if (at >= (cur.at || "")) reader.paper_note = { body: op.body || "", at };
@@ -73,6 +81,12 @@
     op.at = op.at || PR.nowIso();
     // 同一目标还没发出去的旧操作合并掉，避免队列无限长
     if (op.op === "note") outbox = outbox.filter((o) => !(o.op === "note" && o.note.id === op.note.id));
+    if (op.op === "ink" || op.op === "ink_del") {
+      const id = op.op === "ink" ? op.stroke.id : op.id;
+      const current = S.reader.ink && S.reader.ink[id];
+      if (current && (current.updated || "") > op.at) return;
+      outbox = outbox.filter(o => !(o.op === op.op && (op.op === "ink" ? o.stroke.id : o.id) === id));
+    }
     if (op.op === "edit") outbox = outbox.filter((o) => !(o.op === "edit" && o.block === op.block));
     if (op.op === "progress" || op.op === "paper_note") outbox = outbox.filter((o) => o.op !== op.op);
     outbox.push(op);
@@ -240,6 +254,9 @@
     const ops = [];
     for (const [block, e] of Object.entries(S.reader.edits || {})) if (e.zh != null) ops.push({ op: "edit", block, zh: e.zh, base: e.base, at: e.at });
     for (const n of Object.values(S.reader.notes || {})) ops.push({ op: "note", note: n, at: n.updated });
+    for (const stroke of Object.values(S.reader.ink || {})) ops.push(stroke.deleted
+      ? { op: "ink_del", id: stroke.id, at: stroke.updated }
+      : { op: "ink", stroke, at: stroke.updated });
     if ((S.reader.paper_note || {}).body) ops.push({ op: "paper_note", body: S.reader.paper_note.body, at: S.reader.paper_note.at });
     return { paper: PR.paperKey, exported: PR.nowIso(), ops };
   };

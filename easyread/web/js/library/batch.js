@@ -46,10 +46,11 @@
       (hiddenN ? '<span class="pick-hidden" title="' + PR.t("在别的分类或搜索结果里勾的，也会一起处理") + '">' + PR.t("（{n} 篇不在当前列表）", { n: hiddenN }) + "</span>" : "") +
       '<span class="grow"></span><div class="batch-tools"' + (n ? "" : " data-empty") + ">" +
       tool("cat", PR.t("加入分类"), "folder") +
-      (L.tag || L.view === "starred" ? tool("uncat", PR.t("移出“{name}”", { name: L.tag || PR.t("星标") }), "x") : "") +
+      (L.tag || L.view === "starred" ? tool("uncat", PR.t("移出“{name}”", { name: L.tag ? PR.catTree.leaf(L.tag) : PR.t("星标") }), "x") : "") +
       (L.view === "archived" ? tool("unarchive", PR.t("移出封存"), "archive") : tool("archive", PR.t("封存"), "archive")) +
       tool("status", PR.t("切换状态"), "book") +
       tool("translate", PR.t("翻译"), "sparkle") +
+      (pickedItems().some(L.modelBusy) ? tool("stop", PR.t("停止翻译"), "stop") : "") +
       tool("compare", PR.t("跨論文比較"), "copy", PR.t("選擇 2 至 5 篇已完成全文整理的論文，前往比較設定")) +
       tool("cite", PR.t("导出引用"), "copy") +
       tool("trash", "", "trash", PR.t("移到回收站")) + "</div>" +
@@ -67,11 +68,12 @@
   }
   function addTo(name) {
     const n = setTags((tags) => (tags.includes(name) ? tags : tags.concat(name)));
-    PR.toast(n ? PR.t("已把 {n} 篇放进“{name}”", { n, name: PR.esc(name) }) : PR.t("都已经在“{name}”里了", { name: PR.esc(name) }));
+    const label = PR.esc(PR.catTree.label(name));
+    PR.toast(n ? PR.t("已把 {n} 篇放进“{name}”", { n, name: label }) : PR.t("都已经在“{name}”里了", { name: label }));
   }
   function removeFrom(name) {
-    const n = setTags((tags) => tags.filter((t) => t !== name));
-    PR.toast(PR.t("已把 {n} 篇移出“{name}”", { n, name: PR.esc(name) }));
+    const n = setTags((tags) => tags.filter((t) => !PR.catTree.under(t, name)));  // 连同它的子分类
+    PR.toast(PR.t("已把 {n} 篇移出“{name}”", { n, name: PR.esc(PR.catTree.label(name)) }));
     if (name === L.tag) L.endPick();  // 勾着的都不在当前列表了，留着勾选只会让人找不着
   }
   async function newCat(then) {
@@ -93,7 +95,7 @@
     PR.menu(at, [
       entry(PR.t("星标"), "star", (i) => i.starred, setFields({ starred: true }, PR.t("{n} 篇已加星标", { n: total }))),
       "-",
-      ...L.cats().map((c) => entry(c, "folder", (i) => (i.tags || []).includes(c), () => addTo(c))),
+      ...L.cats().map((c) => entry("　".repeat(PR.catTree.depth(c)) + PR.catTree.leaf(c), "folder", (i) => (i.tags || []).includes(c), () => addTo(c))),
       { label: PR.t("新建分类并放进去…"), icon: "plus", fn: () => newCat(addTo) },
     ]);
   }
@@ -174,8 +176,9 @@
     else if (act === "unarchive") unarchiveAll();
     else if (act === "status") statusMenu(at);
     else if (act === "translate") translateAll(at);
+    else if (act === "stop") PR.stopJobs(pickedItems(), at);
     else if (act === "compare") compareAll(at).catch((error) => { const message = error.message || PR.t("跨論文比較無法開始。"); PR.toast(PR.t(message)); });
-    else if (act === "cite") PR.openCiteExport(pickedItems(), L.tag || PR.$("#viewTitle").textContent);
+    else if (act === "cite") PR.openCiteExport(pickedItems(), L.tag ? PR.catTree.leaf(L.tag) : PR.$("#viewTitle").textContent);
     else if (act === "trash") trashAll(at);
   }
 
@@ -215,10 +218,11 @@
     const at = { x: e.clientX, y: e.clientY };
     PR.menu(at, [
       { label: PR.t("加入分类…"), icon: "folder", fn: () => catMenu(at) },
-      ...(L.tag || L.view === "starred" ? [{ label: PR.t("移出“{name}”", { name: L.tag || PR.t("星标") }), icon: "x", fn: removeCurrent }] : []),
+      ...(L.tag || L.view === "starred" ? [{ label: PR.t("移出“{name}”", { name: L.tag ? PR.catTree.leaf(L.tag) : PR.t("星标") }), icon: "x", fn: removeCurrent }] : []),
       ...(L.view === "archived" ? [{ label: PR.t("移出封存（恢復）"), icon: "archive", fn: unarchiveAll }] : [{ label: PR.t("封存論文"), icon: "archive", fn: archiveAll }]),
       { label: PR.t("切换状态…"), icon: "book", fn: () => statusMenu(at) },
       { label: PR.t("翻译"), icon: "sparkle", fn: () => translateAll(at) },
+      ...(pickedItems().some(L.modelBusy) ? [{ label: PR.t("停止翻译"), icon: "stop", fn: () => PR.stopJobs(pickedItems(), at) }] : []),
       { label: PR.t("导出引用"), icon: "copy", fn: () => run("cite") },
       "-",
       { label: PR.t("移到回收站"), icon: "trash", fn: () => trashAll(at) },

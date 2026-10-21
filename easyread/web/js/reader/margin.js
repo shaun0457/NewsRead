@@ -23,7 +23,8 @@
     notes.forEach((n) => (noteById[n.id] = n));
     for (const n of notes) {
       if (n.kind === "highlight" && !(n.body || "").trim() && PR.editingNote !== n.id) continue;
-      push(anchorOf(n.anchor), { src: "mine", side: n.ai_generated ? "left" : "right", t: n.created || n.updated || "", data: n });
+      // 接受後的智慧標註仍是「我的劃線／筆記」，與手動批註一樣放在右欄。
+      push(anchorOf(n.anchor), { src: "mine", side: "right", t: n.created || n.updated || "", data: n });
     }
     for (const e of S.discussion.entries || []) {
       const host = e.reply_to && noteById[e.reply_to];

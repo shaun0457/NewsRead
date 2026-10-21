@@ -10,7 +10,6 @@ import copy
 import re
 from pathlib import Path
 
-from . import engines
 from .presets import PRESETS
 from .i18n import tr
 
@@ -20,7 +19,9 @@ DEFAULT_MODELS = [
     {"id": "opus", "name": "Claude Opus", "engine": "claude", "model": "opus"},
     {"id": "sonnet", "name": "Claude Sonnet", "engine": "claude", "model": "sonnet"},
     {"id": "gpt", "name": "GPT", "engine": "codex", "model": ""},
+    {"id": "antigravity", "name": "Gemini 4 Argon", "engine": "antigravity", "model": "gemini-4-argon"},
 ]
+DEFAULT_CHAT = {"models": DEFAULT_MODELS, "default": "opus"}
 _SEEN_PATH = None  # config.HOME / ".models-seen.json"，懒加载避免循环导入
 
 
@@ -51,7 +52,6 @@ def remember(alias: str, actual: str) -> None:
 def actual_of(alias: str) -> str:
     from .store import read_json
     return (read_json(_seen_path(), {}) or {}).get(alias, "")
-DEFAULT_CHAT = {"models": DEFAULT_MODELS, "default": "opus"}
 
 
 def codex_default_model() -> str:
@@ -94,7 +94,7 @@ def engine_cfg(cfg: dict, mid: str | None) -> tuple[dict, dict]:
     m = find(cfg, mid)
     out = copy.deepcopy(cfg)
     out["engine"] = m["engine"]
-    if m["engine"] in ("claude", "codex"):
+    if m["engine"] in ("claude", "codex", "antigravity"):
         out[m["engine"]]["model"] = m.get("model") or ""
         for key in ("reasoning_effort", "service_tier"):
             out[m["engine"]][key] = m.get(key) or ""
@@ -106,7 +106,8 @@ def engine_cfg(cfg: dict, mid: str | None) -> tuple[dict, dict]:
                          "api": m.get("api") or (p or {}).get("api") or "chat",
                          "reasoning_effort": m.get("reasoning_effort") or "", "service_tier": m.get("service_tier") or ""}
     else:
-        raise engines.EngineError(tr("不认识的模型来源：{engine}", engine=m.get("engine")))
+        from .engines import EngineError
+        raise EngineError(tr("不认识的模型来源：{engine}", engine=m.get("engine")))
     return out, m
 
 
@@ -118,7 +119,7 @@ def translation_id(cfg: dict) -> str:
             continue
         if any((m.get(k) or "") != (cfg.get(e, {}).get(k) or "") for k in ("reasoning_effort", "service_tier")):
             continue
-        if e in ("claude", "codex") and (m.get("model") or "") == (cfg.get(e, {}).get("model") or ""):
+        if e in ("claude", "codex", "antigravity") and (m.get("model") or "") == (cfg.get(e, {}).get("model") or ""):
             return m["id"]
         if e == "openai":
             o = cfg.get("openai", {})
@@ -135,6 +136,11 @@ def label(m: dict) -> str:
         from . import cli_models  # 用 Codex 里 /model 显示的名字，比如 GPT-6-Astra
         slug = m.get("model") or codex_default_model()
         return next((x["name"] for x in cli_models.codex()["models"] if x["id"] == slug), slug or "GPT")
+    if m.get("engine") == "antigravity" and (not m.get("name") or m.get("name") in ("Gemini", "Gemini (Antigravity)", "Gemini 4 Argon", m.get("model"))):
+        from . import cli_models
+        slug = m.get("model") or "gemini-4-argon"
+        clean_slug = re.sub(r"-(low|medium|high|xhigh|max)$", "", slug)
+        return next((x["name"] for x in cli_models.antigravity()["models"] if x["id"] in (slug, clean_slug)), clean_slug or "Gemini")
     return m.get("name") or m.get("model") or tr("模型")
 
 
@@ -145,9 +151,9 @@ def listing(cfg: dict) -> dict:
     out = []
     for m in models(cfg):
         e = m.get("engine")
-        if e in ("claude", "codex"):
+        if e in ("claude", "codex", "antigravity"):
             ready = bool(found.get(e, {}).get("found"))
-            source = "Claude Code" if e == "claude" else "Codex CLI"
+            source = "Claude Code" if e == "claude" else ("Codex CLI" if e == "codex" else "Antigravity CLI")
             hint = "" if ready else tr("本机没找到 {source}", source=source)
         else:
             p = next((x for x in PRESETS if x["id"] == m.get("preset")), None)
@@ -166,7 +172,7 @@ def sanitize(items: list[dict]) -> list[dict]:
     out, seen = [], set()
     for k, m in enumerate(items or []):
         e = m.get("engine")
-        if e not in ("claude", "codex", "openai") or (e == "openai" and not (m.get("preset") or m.get("base_url"))):
+        if e not in ("claude", "codex", "openai", "antigravity") or (e == "openai" and not (m.get("preset") or m.get("base_url"))):
             continue
         mid = re.sub(r"[^\w\-]", "-", str(m.get("id") or f"m{k}"))[:40] or f"m{k}"
         while mid in seen:

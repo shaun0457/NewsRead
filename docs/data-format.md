@@ -83,11 +83,14 @@ JSON 裡 TeX 的反斜槓要寫兩個（`\\frac`）。`\f` `\b` `\t` `\n` `\r` �
   "notes": { "n…": { "id": "n…", "anchor": "s1-p2", "key": "s1-p2", "quote": "…", "prefix": "…", "suffix": "…",
                     "kind": "note | question | highlight", "color": "yellow | green | blue | pink",
                     "body": "…", "created": "…", "updated": "…", "deleted": false } },
+  "ink": { "i…": { "id": "i…", "group": "g…", "anchor": "s1-p2", "textHash": "1234abcd", "ref": [620, 180],
+                    "points": [[20, 30], [22, 34]], "color": "#d94b4b", "width": 2,
+                    "updated": "…", "deleted": false } },
   "paper_note": { "body": "整篇的論文筆記", "at": "…" },
   "progress": { "block": "s3-1-p2", "ratio": 0.35, "at": "…" } }
 ```
 
-編輯的鍵：普通塊是塊 id，表/圖題注是 `id#caption`，列表項是 `id#序號`。頁面只透過 `/api/p/ID/ops` 發操作（`edit`、`note`、`note_del`、`paper_note`、`progress`），每個操作冪等、帶時間戳，同一物件以較新的為準；服務端加鎖、原子寫、記日誌。離線版匯出的修改用 `easyread merge ID --from 匯出.json` 並回。
+編輯的鍵：普通塊是塊 id，表/圖題注是 `id#caption`，列表項是 `id#序號`。頁面只透過 `/api/p/ID/ops` 發操作（`edit`、`note`、`note_del`、`ink`、`ink_del`、`paper_note`、`progress`），每個操作冪等、帶時間戳，同一物件以較新的為準；服務端加鎖、原子寫、記日誌。`ink` 是錨定正文段落的 SVG 向量筆劃資料；目前 Markdown／Obsidian 匯出會提示但不包含筆跡。離線版匯出的修改用 `easyread merge ID --from 匯出.json` 並回。
 
 ## item.json（只讀）
 

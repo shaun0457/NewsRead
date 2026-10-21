@@ -12,7 +12,7 @@ from pathlib import Path
 from . import page_check, sources
 from .i18n import tr
 from .log import log
-from .store import SCHEMA, Workspace, empty_discussion, empty_reader, now_iso, read_json, write_json_atomic
+from .store import SCHEMA, DataReadError, Workspace, dir_lock, empty_discussion, empty_reader, now_iso, read_json, write_json_atomic
 
 
 
@@ -81,7 +81,16 @@ class Library:
         }
 
     def list(self) -> list[dict]:
-        return [self.summary(ws) for ws in self.all()]
+        items = []
+        for ws in self.all():
+            try:
+                items.append(self.summary(ws))
+            except DataReadError as e:
+                # Keep the entry visible without treating unreadable notes as
+                # empty data, and without blocking unrelated papers.
+                msg = tr("无法读取数据文件：{path}；已保留原文件，请稍后重试或手动检查", path=str(e.path))
+                items.append({"id": ws.id, "title_en": ws.id, "tags": [], "status": "unread", "load_error": msg})
+        return items
 
     # ---------- 导入 ----------
     def create_from_pdf(self, data: bytes, filename: str, meta: dict | None = None) -> tuple[Workspace, bool]:
@@ -89,16 +98,71 @@ class Library:
         if not data.startswith(b"%PDF"):
             raise ValueError(tr("不是 PDF 文件"))
         digest = sha256_bytes(data)
+        return self._create_pdf(digest, filename, meta, data=data)
+
+    def import_pdf_path(self, source: str | Path, meta: dict | None = None, *, link: bool = False) -> tuple[Workspace, bool]:
+        """Import a local PDF. Duplicate imports never change existing storage."""
+        if not link:
+            source = Path(source).expanduser()
+            return self.create_from_pdf(source.read_bytes(), source.name, meta)
+        source, digest = self._linked_pdf(source)
+        return self._create_pdf(digest, source.name, meta, linked=source)
+
+    def _linked_pdf(self, source: str | Path) -> tuple[Path, str]:
+        if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", str(source)):
+            raise ValueError(tr("链接导入只支持本地 PDF 文件"))
+        path = Path(source).expanduser().resolve()
+        if path.is_relative_to(self.root):
+            raise ValueError(tr("链接的 PDF 必须在 PaperRead 文献库之外"))
+        if not path.is_file():
+            raise ValueError(tr("PDF 不存在或不可读：{path}", path=str(path)))
+        try:
+            return path, _pdf_digest(path)
+        except OSError:
+            raise ValueError(tr("PDF 不存在或不可读：{path}", path=str(path))) from None
+
+    def convert_pdf_to_link(self, pid: str, source: str | Path, *, remove_copy: bool = False) -> Workspace:
+        """Replace an equal stored PDF with an external reference."""
+        ws = self.ws(pid)
+        if not ws:
+            raise KeyError(pid)
+        source, digest = self._linked_pdf(source)
+        with dir_lock(ws.root):
+            paper = ws.load("paper")
+            meta = paper.setdefault("meta", {})
+            if digest[:12] != pid or meta.get("source_sha256") != digest:
+                raise ValueError(tr("PDF 内容不同，不能转换为链接"))
+            copied = ws.root / "source.pdf"
+            if copied.is_symlink():
+                raise ValueError(tr("只支持转换文献库中的普通 PDF 副本"))
+            if copied.exists() and (not copied.is_file() or _pdf_digest(copied) != digest):
+                raise ValueError(tr("PDF 内容不同，不能转换为链接"))
+            if copied.exists() and not remove_copy:
+                raise ValueError(tr("转换为链接需要明确允许删除文献库中的 PDF 副本"))
+            if not copied.exists() and not meta.get("source_pdf_path"):
+                raise ValueError(tr("只支持转换文献库中的普通 PDF 副本"))
+            meta["source_pdf_path"] = str(source)
+            write_json_atomic(ws.paper_path, paper)
+            copied.unlink(missing_ok=True)
+        return ws
+
+    def _create_pdf(self, digest: str, filename: str, meta: dict | None, *, data: bytes | None = None,
+                    linked: Path | None = None) -> tuple[Workspace, bool]:
         pid = digest[:12]
         ws = Workspace(self.root / pid)
         if (ws.root / "paper.json").exists():
             return ws, False
         ws.root.mkdir(parents=True, exist_ok=True)
-        (ws.root / "source.pdf").write_bytes(data)
+        if linked is None:
+            (ws.root / "source.pdf").write_bytes(data)
         base_meta = {"title_zh": "", "title_en": "", "authors": "", "source": filename, "source_sha256": digest, "pdf": "source.pdf"}
         base_meta.update(meta or {})
+        base_meta.update(source_sha256=digest, pdf="source.pdf")
+        base_meta.pop("source_pdf_path", None)
+        if linked is not None:
+            base_meta["source_pdf_path"] = str(linked)
         if not base_meta.get("title_en"):
-            base_meta["title_en"] = _pdf_title(ws.root / "source.pdf") or Path(filename).stem
+            base_meta["title_en"] = _pdf_title(linked or ws.root / "source.pdf") or Path(filename).stem
         write_json_atomic(ws.paper_path, {
             "schema": SCHEMA, "meta": base_meta,
             "translation": {"scope": "未开始", "done_pages": [], "note": ""},  # i18n-ok 存进 paper.json
@@ -165,6 +229,18 @@ def _pdf_title(path: Path) -> str:
         return str(t).strip()
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _pdf_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        header = stream.read(4)
+        if header != b"%PDF":
+            raise ValueError(tr("不是 PDF 文件"))
+        digest.update(header)
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def migrate_folder(src: Path, lib: Library) -> Workspace:

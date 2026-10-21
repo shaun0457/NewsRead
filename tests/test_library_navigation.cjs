@@ -54,6 +54,8 @@ function page(url = "http://127.0.0.1:8765/", storage = new Map(), state = null,
     localStorage: { getItem: key => { if (blocked) throw new Error("storage blocked"); return storage.get(key) || null; },
       setItem: (key, value) => { if (blocked) throw new Error("storage blocked"); storage.set(key, value); } },
     requestAnimationFrame: fn => frames.push(fn), setTimeout() {}, clearTimeout() {},
+    AbortController: globalThis.AbortController,
+    fetch: async () => ({ ok: true, json: async () => ({ items: structuredClone(items), engine: "none" }) }),
   };
   vm.runInNewContext(source("common/library-nav.js"), context);
   return { PR, location, history, storage, node, listeners, windowEvents,

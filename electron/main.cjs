@@ -342,7 +342,7 @@ if (!app.requestSingleInstanceLock()) {
     deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
-      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "",
+      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "YuriyLin/PaperRead",
       getWindow: () => mainWindow,
       prepareInstall: stopBackendGracefully,
       recover: async () => {

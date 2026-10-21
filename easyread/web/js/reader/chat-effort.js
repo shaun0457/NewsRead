@@ -22,6 +22,7 @@
       if (cat.configured_reasoning) return cat.configured_reasoning;
       if (m.engine === "openai" && m.preset === "ollama") return "none";
       if (m.engine === "codex") { const hit = (cat.models || []).find((x) => x.id === (m.model || cat.default)); return (hit && hit.default_reasoning) || ""; }
+      if (m.engine === "antigravity") return ["low", "medium", "high", "xhigh", "max"];
       if (m.engine !== "claude") return "";
       const hit = (cat.models || []).find((x) => x.id === m.model);
       const actual = (hit && hit.actual) || (m.model ? "" : cat.default) || m.label || "";

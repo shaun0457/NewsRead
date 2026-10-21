@@ -165,16 +165,18 @@ def _from_s2(p: dict | None, what: str) -> tuple[bytes, str, dict]:
 
 
 # ---------- 网页里的 PDF 链接 ----------
-_META_RE = re.compile(r"<meta\s+[^>]*?(?:name|property)\s*=\s*[\"']([^\"']+)[\"'][^>]*?content\s*=\s*[\"']([^\"']*)[\"']", re.I)
-_META_RE2 = re.compile(r"<meta\s+[^>]*?content\s*=\s*[\"']([^\"']*)[\"'][^>]*?(?:name|property)\s*=\s*[\"']([^\"']+)[\"']", re.I)
+# content 的值按开头的引号配对：标题、作者名里常有撇号（Don't、O'Brien），不能见到另一种引号就截断
+_CONTENT = r"content\s*=\s*(?:\"([^\"]*)\"|'([^']*)')"
+_META_RE = re.compile(r"<meta\s+[^>]*?(?:name|property)\s*=\s*[\"']([^\"']+)[\"'][^>]*?" + _CONTENT, re.I)
+_META_RE2 = re.compile(r"<meta\s+[^>]*?" + _CONTENT + r"[^>]*?(?:name|property)\s*=\s*[\"']([^\"']+)[\"']", re.I)
 
 
 def _page_meta(page: str) -> dict[str, list[str]]:
     tags: dict[str, list[str]] = {}
-    for k, v in _META_RE.findall(page):
-        tags.setdefault(k.lower(), []).append(html.unescape(v))
-    for v, k in _META_RE2.findall(page):
-        tags.setdefault(k.lower(), []).append(html.unescape(v))
+    for k, dq, sq in _META_RE.findall(page):
+        tags.setdefault(k.lower(), []).append(html.unescape(dq or sq))
+    for dq, sq, k in _META_RE2.findall(page):
+        tags.setdefault(k.lower(), []).append(html.unescape(dq or sq))
     return tags
 
 

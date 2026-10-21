@@ -139,10 +139,11 @@
   /* ---------- 翻译设置：存的时候从 cfg 取（页面在 settings-chat.js，改动随时写回 cfg） ---------- */
   PR.settingsTabs.engine = {
     collect(state) {
-      const c = state.cfg, o = c.openai;
+      const c = state.cfg, o = c.openai, a = c.antigravity || {};
       return { engine: c.engine, batch_pages: c.batch_pages, concurrency: c.concurrency, page_cap: c.page_cap, auto_translate: c.auto_translate,
         claude: { model: c.claude.model, command: c.claude.command, reasoning_effort: c.claude.reasoning_effort || "" },
         codex: { model: c.codex.model, command: c.codex.command, reasoning_effort: c.codex.reasoning_effort || "", service_tier: c.codex.service_tier || "" },
+        antigravity: { model: a.model || "", command: a.command || "agy", reasoning_effort: a.reasoning_effort || "" },
         openai: { preset: o.preset, base_url: o.base_url, api: o.api, model: o.model, api_key: o.api_key, vision: o.vision,
           reasoning_effort: o.reasoning_effort || "", service_tier: o.service_tier || "" } };
     },

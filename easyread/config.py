@@ -39,6 +39,7 @@ DEFAULTS = {
     "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "reasoning_effort": "", "service_tier": "", "extra_args": [], "timeout": 1200},
+    "antigravity": {"command": "agy", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     # api：chat（/chat/completions）| responses（/responses），见 openai_api.py
     "openai": {"preset": "", "base_url": "", "api": "chat", "api_key": "", "model": "", "vision": False, "timeout": 600},
     # 阅读页右侧“问 AI”的模型名单和默认模型，见 chat_models.py

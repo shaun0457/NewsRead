@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import re
 
+from .codeblocks import CODE, has_fence
+
 MARK = "‖"
 _MATH = re.compile(r"\$\$.+?\$\$|(?<!\\)\$(?:\\\$|[^$])+?(?<!\\)\$", re.S)
 # 句号后面跟着这些缩写不算断句（Fig. 3、et al. (2020)、e.g. the …）
@@ -32,7 +34,7 @@ _BEFORE = set("‖.?!:;,)]\"'”’。？！：；，、）】」』")  # i18n-o
 def _pieces(text: str) -> list[str]:
     """按句界 ‖ 切开：公式外、前面是标点或两边都是空白的才算；公式里的和贴着字母的是范数符号，不动。"""
     out, last = [], 0
-    spans = [m.span() for m in _MATH.finditer(text)]
+    spans = [m.span() for pattern in (CODE, _MATH) for m in pattern.finditer(text)]
     for i, c in enumerate(text):
         if c != MARK or any(a <= i < b for a, b in spans):
             continue
@@ -71,6 +73,8 @@ def _pair(en: str, zh: str):
     """返回（干净的 en、干净的 zh、sents 或 None）。"""
     en2, ee = unmark(en)
     zh2, ze = unmark(zh)
+    if has_fence(en2) or has_fence(zh2):
+        return en2, zh2, None  # Sentence spans cannot wrap a <pre> block.
     if ee and ze and len(ee) == len(ze):
         return en2, zh2, [[a, b] for a, b in zip(ee, ze)] + [[u16(en2), u16(zh2)]]
     return en2, zh2, None

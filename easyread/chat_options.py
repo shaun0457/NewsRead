@@ -18,6 +18,8 @@ def apply(ecfg: dict, options: dict | None) -> dict:
             match = next((m for m in listing["models"] if m["id"] == model), {})
             if match.get("reasoning_levels"):
                 allowed = ["", *match["reasoning_levels"]]
+        elif engine == "antigravity":
+            allowed = ["", "low", "medium", "high", "xhigh", "max"]
         if effort not in allowed:
             raise ValueError("Unsupported reasoning effort")
         ecfg[engine]["reasoning_effort"] = effort

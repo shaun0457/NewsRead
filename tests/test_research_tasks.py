@@ -20,7 +20,10 @@ class ResearchTaskTests(unittest.TestCase):
         self.app = SimpleNamespace(lib=SimpleNamespace(root=self.root, all=lambda: []))
 
     def tearDown(self):
-        self.temp.cleanup()
+        try:
+            self.temp.cleanup()
+        except OSError:
+            pass
 
     def _wait_for(self, predicate, timeout=2):
         until = time.monotonic() + timeout

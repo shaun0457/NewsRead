@@ -1,41 +1,76 @@
 /* 新版本提示：打开文献库时问一次服务（服务一天最多问一次 GitHub），有新版本就在顶栏放一个“新版本 x.y.z”，
-   第一次看到这个版本时再弹一条提示。点开看这次更新了什么，Windows 安装版直接点“更新”。
-   帮助里有“检查更新”和“自动检查新版本”开关。 */
+   第一次看到这个版本时再弹一条提示。点开看这次更新了什么，Windows、macOS 安装版和 Linux AppImage 直接点“更新”。
+   顶栏问号里有“检查更新”和“自动检查新版本”开关。 */
 (function (PR) {
   "use strict";
   const SEEN = "easyread-seen-update";
   const desktop = /Electron/i.test(navigator.userAgent);
   const bridge = window.easyreadDesktop;
   let nativeUpdate = { supported: false, phase: "idle" };
-  /* 弹窗下半部分。Windows 安装版：只有“稍后”和“更新”，按钮自己显示进度；其他平台没有应用内更新，给下载链接 */
+  let readyNotified = "";
+  /* 更新弹窗是否开着（#textDlg 别的弹窗也用，所以还要看里面是不是更新的内容） */
+  function dialogOpen() {
+    const dlg = PR.$("#textDlg");
+    return !!(dlg && dlg.classList.contains("open") && dlg.querySelector("#upFoot"));
+  }
+  /* 弹窗下半部分。安装版（Windows、macOS、Linux AppImage）：只有“关闭”和“更新”，按钮自己显示进度；下载中关掉弹窗照样下，
+     进度显示在顶栏的新版本按钮上。从源码运行的没有应用内更新，给下载链接 */
   function renderNativeUpdate() {
     const status = document.querySelector("#upStatus"), foot = document.querySelector("#upFoot");
     if (!status || !foot) return;
     const u = PR.update, n = nativeUpdate, phase = n.phase;
     const pct = Math.floor(n.percent || 0);
     status.hidden = !n.supported || phase !== "downloading";
-    status.innerHTML = '<div class="up-bar"><i style="width:' + pct + '%"></i></div>';
+    if (!status.firstChild) status.innerHTML = '<div class="up-bar"><i></i></div>';
+    status.querySelector("i").style.width = pct + "%";
     if (!n.supported) {
       foot.innerHTML = '<p class="hint up-how">' + howTo() + '</p><button class="btn" data-close>' + PR.t("关闭") + '</button><a class="btn accent" href="' + PR.esc(u.url) + '" target="_blank" rel="noopener">' + PR.t("去下载") + "</a>";
       return;
     }
-    const labels = { checking: PR.t("正在检查…"), downloading: PR.t("正在下载 {p}%", { p: pct }), downloaded: PR.t("重启并更新"), installing: PR.t("正在重启…"), error: PR.t("重试"), current: PR.t("已经是最新版") };
+    const labels = { checking: PR.t("正在检查…"), downloading: PR.t("正在下载 {p}%", { p: pct }), downloaded: PR.t("更新并重启"), installing: PR.t("正在重启…"), error: PR.t("重试"), current: PR.t("已经是最新版") };
     const off = ["checking", "downloading", "installing", "current"].includes(phase);
+    const label = labels[phase] || PR.t("更新");
+    // 下载进度一秒来好几次：只改按钮上的字。整排重画的话按下和松开落在两个不同的按钮上，“关闭”就点不动
+    const key = phase + "|" + (n.error || "");
+    if (foot.dataset.key === key) { foot.querySelector("[data-native-update]").textContent = label; return; }
+    foot.dataset.key = key;
     foot.innerHTML = (n.error ? '<p class="hint up-err">' + PR.esc(n.error) + "</p>" : "") +
-      '<button class="btn" data-close>' + PR.t("稍后") + '</button><button class="btn accent" data-native-update' + (off ? " disabled" : "") + ">" + (labels[phase] || PR.t("更新")) + "</button>";
+      '<button class="btn" data-close>' + PR.t("关闭") + '</button><button class="btn accent" data-native-update' + (off ? " disabled" : "") + ">" + label + "</button>";
   }
-  function acceptNativeUpdate(state) { nativeUpdate = state; renderNativeUpdate(); }
-  /* 点一次“更新”：下载完直接重启安装（等下载那次调用返回再装，主进程那时才空出来）；
-     后台正在翻译等原因装不了，会带着原因停在“重启并更新” */
+  /* 顶栏新版本按钮跟着下载走：下载中显示百分比，下好了显示“更新并重启” */
+  function renderChip() {
+    const u = PR.update, phase = nativeUpdate.phase;
+    if (!u || !u.newer || !nativeUpdate.supported) return;
+    const text = phase === "downloading" ? PR.t("正在下载 {p}%", { p: Math.floor(nativeUpdate.percent || 0) })
+      : phase === "downloaded" ? PR.t("更新并重启") : PR.t("新版本 {v}", { v: PR.esc(u.latest) });
+    // 只换字，不重画整个按钮：下载时一秒更新好几次，重画会让点击落空
+    const label = chip.querySelector(".chip-text");
+    if (label) label.innerHTML = text;
+    else chip.innerHTML = '<span class="dot"></span><span class="chip-text">' + text + "</span>";
+  }
+  /* 弹窗关着时下好了：不擅自重启，提示一下，点了再装 */
+  function notifyReady() {
+    const v = nativeUpdate.version || (PR.update && PR.update.latest) || "";
+    if (readyNotified === v || dialogOpen()) return;
+    readyNotified = v;
+    PR.toast(PR.t("PaperRead {v} 已经下好了", { v: PR.esc(v) }), { label: PR.t("更新并重启"), fn: () => { PR.openUpdate(); runUpdate(); } }, 15000);
+  }
+  function acceptNativeUpdate(state) {
+    const was = nativeUpdate.phase;
+    nativeUpdate = state;
+    renderNativeUpdate();
+    renderChip();
+    if (state.phase === "downloaded" && was !== "downloaded") notifyReady();
+  }
+  /* 点一次“更新”：弹窗开着就下载完直接重启安装（等下载那次调用返回再装，主进程那时才空出来）；
+     中途点了“关闭”就只下载，下好了提示再装。后台正在翻译等原因装不了，会带着原因停在“更新并重启” */
   async function runUpdate() {
     try {
       if (nativeUpdate.phase !== "downloaded") acceptNativeUpdate(await bridge.downloadUpdate());
-      if (nativeUpdate.phase === "downloaded") acceptNativeUpdate(await bridge.installUpdate());
+      if (nativeUpdate.phase !== "downloaded") return;
+      if (dialogOpen()) acceptNativeUpdate(await bridge.installUpdate());
+      else notifyReady();
     } catch (error) { acceptNativeUpdate({ ...nativeUpdate, phase: "error", error: error.message }); }
-  }
-  if (bridge && bridge.updateState) {
-    bridge.onUpdateState(acceptNativeUpdate);
-    bridge.updateState().then(acceptNativeUpdate).catch(() => {});
   }
   document.addEventListener("click", async event => {
     if (!event.target.closest("[data-native-update]")) return;
@@ -46,6 +81,10 @@
   const chip = PR.el("button", { class: "engine-chip update-chip", id: "updateChip", hidden: "" });
   PR.$("#engineChip").before(chip);
   chip.onclick = () => PR.openUpdate();
+  if (bridge && bridge.updateState) {
+    bridge.onUpdateState(acceptNativeUpdate);
+    bridge.updateState().then(acceptNativeUpdate).catch(() => {});
+  }
 
   /* Release 说明是 Markdown：只认段落、“- ”列表、**粗体**、[链接](地址)、`代码`，够用了 */
   function inline(s) {
@@ -78,8 +117,11 @@
     PR.update = u;
     const on = !!(u && u.newer);
     chip.hidden = !on;
+    const help = PR.$("#helpBtn");
+    if (help) help.classList.toggle("has-update", on);  // 问号上也亮个小点
     if (!on) return;
-    chip.innerHTML = '<span class="dot"></span><span>' + PR.t("新版本 {v}", { v: PR.esc(u.latest) }) + "</span>";
+    chip.innerHTML = '<span class="dot"></span><span class="chip-text">' + PR.t("新版本 {v}", { v: PR.esc(u.latest) }) + "</span>";
+    renderChip();
     chip.title = PR.t("PaperRead {v} 已发布，点开看更新了什么", { v: u.latest });
     if (PR.ls.get(SEEN, "") !== u.latest) {  // 每个新版本只弹一次
       PR.ls.set(SEEN, u.latest);
@@ -101,7 +143,7 @@
     renderNativeUpdate();
   };
 
-  /* 帮助里用：force 为真时马上问 GitHub */
+  /* 问号面板里用：force 为真时马上问 GitHub */
   PR.checkUpdate = async function (force) {
     const u = await PR.api("/api/update" + (force ? "?force=1" : ""));
     show(u);
@@ -111,28 +153,34 @@
     show(await PR.api("/api/update", { method: "POST", body: { enabled: on } }));
   };
 
-  /* 设置 → 阅读最下面：版本、检查更新、自动检查开关 */
-  function updateLine() {
-    const u = PR.update;
-    if (!u) return "";
-    if (u.newer) return PR.t("有新版本 {v}", { v: '<a href="#" data-help="open">' + PR.esc(u.latest) + "</a>" });
-    return u.latest ? PR.t("已经是最新版") : "";
+  /* 问号面板最上面（help.js）：版本、检查更新、自动检查开关。有新版本时主按钮换成“看看更新了什么” */
+  // bad：这次没查成（没连上 GitHub 或接口报错），圆点和小字都标红，不能看着像“已经是最新版”
+  function panelInner(msg, bad) {
+    const u = PR.update, newer = !!(u && u.newer);
+    bad = bad || (!msg && !newer && !!(u && u.failed));
+    const line = msg || (bad ? PR.t("没连上 GitHub，稍后再试") : newer ? PR.t("新版本 {v} 可以更新", { v: PR.esc(u.latest) }) : u && u.latest ? PR.t("已经是最新版") : "");
+    return '<div class="hu-row"><span class="hu-dot' + (bad ? " fail" : newer ? " new" : "") + '"></span><div class="hu-text"><b>' + PR.t("版本 {v}", { v: PR.esc(PR.lib.version || "") }) +
+      '</b><span class="hint' + (bad ? " hu-fail" : "") + '" id="helpUpdateMsg">' + line + "</span></div>" +
+      (newer ? '<button class="btn sm accent" data-help="open">' + PR.t("看看更新了什么") + "</button>"
+        : '<button class="btn sm line" data-help="check">' + PR.t("检查更新") + "</button>") + "</div>" +
+      '<label class="check"><input type="checkbox" data-help="auto"' + (!u || u.enabled !== false ? " checked" : "") + ">" + PR.t("自动检查新版本（一天一次）") + "</label>";
   }
-  PR.updateSection = () => '<h4 class="set-h">' + PR.t("版本") + '</h4><div class="help-update"><span>' + PR.esc(PR.lib.version || "") + "</span>" +
-    '<button class="btn sm line" data-help="check">' + PR.t("检查更新") + '</button><span class="hint" id="helpUpdateMsg">' + updateLine() + "</span>" +
-    '<label class="check"><input type="checkbox" data-help="auto"' + (!PR.update || PR.update.enabled !== false ? " checked" : "") + ">" + PR.t("自动检查新版本（一天一次，只问 GitHub）") + "</label></div>";
+  PR.updatePanel = () => '<div class="help-update" id="helpUpdate">' + panelInner() + "</div>";
   document.addEventListener("click", async (e) => {
     const b = e.target.closest('[data-help="check"], [data-help="open"]');
     if (!b) return;
     e.preventDefault();
     if (b.dataset.help === "open") return PR.openUpdate();
-    const msg = PR.$("#helpUpdateMsg");
-    b.disabled = true; msg.textContent = PR.t("正在检查…");
+    const box = PR.$("#helpUpdate");
+    if (!box) return;
+    b.disabled = true; PR.$("#helpUpdateMsg").textContent = PR.t("正在检查…");
+    PR.$("#helpUpdateMsg").classList.remove("hu-fail"); box.querySelector(".hu-dot").className = "hu-dot busy";
+    let msg = "";
     try {
       const u = await PR.checkUpdate(true);
-      msg.innerHTML = u.latest ? updateLine() : PR.t("没连上 GitHub，稍后再试");
-    } catch (err) { msg.textContent = PR.t("检查失败：") + err.message; }
-    b.disabled = false;
+      if (!u.latest || u.failed) msg = PR.t("没连上 GitHub，稍后再试");  // failed 时 latest 是旧缓存，不能说“已经是最新版”
+    } catch (err) { msg = PR.t("检查失败：") + PR.esc(err.message); }
+    if (box.isConnected) box.innerHTML = panelInner(msg, !!msg);
   });
   document.addEventListener("change", (e) => {
     if (e.target.dataset.help === "auto") PR.setAutoUpdate(e.target.checked).catch((err) => PR.toast(PR.t("保存失败：") + PR.esc(err.message)));

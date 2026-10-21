@@ -62,7 +62,8 @@ class LibraryLocation:
 
     def _busy(self):
         # Jobs.bulk.get() 与登记 cancels 之间有短暂空档；持久 job 状态也必须核对。
-        return self.app.jobs.busy() or any((ws.load("job") or {}).get("state") in ("queued", "running")
+        mig = getattr(self.app, "bulk", None)  # 正在从 Zotero 迁移或导入文件夹
+        return self.app.jobs.busy() or bool(mig and mig.busy()) or any((ws.load("job") or {}).get("state") in ("queued", "running")
                                            for ws in self.app.lib.all())
 
     def move(self, body: dict) -> dict:
@@ -139,7 +140,7 @@ def post(app, path: str, body: dict):
         return inspect(body)
     if path == "/api/library/pick-folder":  # 浏览器版：后端弹系统的选文件夹窗口
         from .folder_pick import pick
-        chosen = pick(tr("选择放文献库的文件夹"))
+        chosen = pick(str(body.get("title") or "")[:100] or tr("选择放文献库的文件夹"))
         return {"supported": chosen is not None, "path": chosen or ""}
     if path == "/api/library/cleanup":
         return cloudlib.cleanup(body.get("path", ""), app.lib.root)
@@ -154,4 +155,4 @@ def post(app, path: str, body: dict):
     return None
 
 
-POST = {"/api/shutdown"}
+POST = {"/api/shutdown", "/api/library/pick-folder"}

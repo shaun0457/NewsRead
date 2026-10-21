@@ -62,6 +62,15 @@
       return token.code || token.link ? PR.esc(token.raw) : PR.tex(token.text, false);
     });
   };
+  PR.titleText = function (text) {
+    return String(text == null ? "" : text)
+      .replace(/\$\$([\s\S]+?)\$\$|\$([^$]+)\$|\\\\\[([\s\S]+?)\\\\\]|\\\\\(([^)]*?)\\\\\)/g, (m, block, inline, bracket, paren) => block ?? inline ?? bracket ?? paren ?? m)
+      .replace(/\\[a-zA-Z]+(?:\{([^}]*)\})?/g, (m, inner) => inner || "")
+      .replace(/<\/?sup>/gi, "")
+      .replace(/[{}]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
 
   PR.buildFootnoteIndex = function (blocks) {
     const index = { pages: new Map(), all: new Map() };

@@ -1,0 +1,18 @@
+/* 侧栏“分类”这一组（sidebar.js / sidebar-tree.js），学 VS Code 资源管理器：
+   每行左边一个 16px 的箭头槽，没有子项的行也留空槽，所以同级的图标、文字左边对齐；
+   每深一级缩进 20px（槽宽 + 槽和图标的间距），子级的箭头正好在父级图标下面；论文叶子行和同级子分类一样深。 */
+.side .srow.tree { padding-left: calc(4px + var(--lvl, 0) * 20px); }
+.side .srow .tw { width: 16px; height: 16px; flex: none; margin-right: -5px; display: grid; place-items: center; border-radius: 4px; color: var(--ink-3); }
+.side .srow .tw.fold { cursor: pointer; }
+.side .srow .tw.fold svg.i { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform .12s; }
+.side .srow .tw.fold.open svg.i { transform: none; }
+.side .srow .tw.fold:hover { background: var(--surface); color: var(--ink); }
+/* “⋯”：悬停或选中时出现（不是人人都知道右键） */
+.side .srow.on .more { display: grid; }
+/* 论文叶子行 */
+.side .srow.leaf { font-size: 13px; }
+.side .srow.leaf svg.i { color: var(--ink-3); }
+.side .srow.leaf.sel { background: var(--accent-soft-2); color: var(--ink); }
+.side .srow.leaf.sel .more { display: grid; }
+.side .srow.show-all { height: 28px; color: var(--ink-3); font-size: 12.5px; }
+.side .srow.show-all:hover { color: var(--accent); }

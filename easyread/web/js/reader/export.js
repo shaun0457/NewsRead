@@ -24,6 +24,11 @@
     return m.title_zh || m.title_en || PR.t("論文");
   }
 
+  function inkWarning() {
+    const count = Object.values(S.reader.ink || {}).filter(stroke => !stroke.deleted).length;
+    return count ? PR.t("本次匯出未包含 {n} 筆手寫註記。", { n: count }) : "";
+  }
+
   function shortFilename(value, fallback) {
     let name = String(value || "").replace(/[\r\n\t]+/g, " ").replace(/[\\/:*?"<>|\x00-\x1f]/g, "-").replace(/\s+/g, " ").trim();
     if (name.length > 80) name = (name.slice(0, 80).replace(/\s+\S*$/, "").trim() || name.slice(0, 80)).trim();
@@ -105,7 +110,9 @@
       if (!result.mermaid) throw new Error(PR.t("沒有取得心智圖內容。"));
       mindmap = result.mermaid;
     }
-    return { dlg, pick, order, chat, mindmap, text: PR.notesMarkdown(pick, chat, { order, chat, mindmap }) };
+    const warning = inkWarning();
+    const text = PR.notesMarkdown(pick, chat, { order, chat, mindmap });
+    return { dlg, pick, order, chat, mindmap, text: warning ? warning + "\n\n" + text : text, warning };
   }
 
   function documents(prepared) {
@@ -113,13 +120,13 @@
     const analysisId = "paper:" + paperId + ":analysis", mindmapId = "paper:" + paperId + ":mindmap", annotationsId = "paper:" + paperId + ":annotations";
     const bibliography = ["## 書目資料", "", m.title_en ? "- English title: " + m.title_en : "", m.authors ? "- " + PR.t("作者") + "：" + m.authors : "", m.date ? "- " + PR.t("年份") + "：" + m.date : "", m.doi ? "- DOI: " + m.doi : "", m.url ? "- URL: " + m.url : ""].filter(Boolean).join("\n"); // i18n-ok: exported Markdown content headings are data, not interface copy.
     const note = (S.reader.paper_note || {}).body;
-    const analysis = [bibliography, pick.paper && note ? "## " + PR.t("論文筆記") + "\n\n" + note : ""].filter(Boolean).join("\n\n");
+    const analysis = [bibliography, pick.paper && note ? "## " + PR.t("論文筆記") + "\n\n" + note : "", prepared.warning].filter(Boolean).join("\n\n");
     const annotations = PR.notesMarkdown({ paper: false, note: !!pick.note, highlight: !!pick.highlight, question: !!pick.question, ai: !!pick.ai, chat: !!pick.chat, quote: !!pick.quote }, chat, { order, chat, mindmap: "" });
     const result = [];
     const stem = filenameStem();
     if (pick.paper) result.push({ id: analysisId, kind: "analysis", paper_id: paperId, title: title() + " - " + PR.t("論文分析"), filename: stem + "-analysis", body: analysis, links: [mindmapId, annotationsId] });
     if (pick.mindmap && mindmap) result.push({ id: mindmapId, kind: "mindmap", paper_id: paperId, title: title() + " - " + PR.t("心智圖"), filename: stem + "-mind-map", body: "## " + PR.t("論文心智圖") + "\n\n```mermaid\n" + mindmap + "\n```", links: [analysisId] });
-    if (annotations.trim()) result.push({ id: annotationsId, kind: "annotations", paper_id: paperId, title: title() + " - " + PR.t("閱讀標註"), filename: stem + "-annotations", body: annotations, links: [analysisId, mindmapId] });
+    if (annotations.trim() || prepared.warning) result.push({ id: annotationsId, kind: "annotations", paper_id: paperId, title: title() + " - " + PR.t("閱讀標註"), filename: stem + "-annotations", body: [annotations, prepared.warning].filter(Boolean).join("\n\n"), links: [analysisId, mindmapId] });
     const available = new Set(result.map((item) => item.id));
     result.forEach((item) => { item.links = item.links.filter((target) => available.has(target)); });
     return result;
@@ -127,8 +134,20 @@
 
   async function run(mode, button) {
     if (button.disabled) return;
+    const label = button.innerHTML;
     button.disabled = true; button.innerHTML = '<i class="spin"></i> ' + PR.t("正在準備匯出…"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     try {
+      if (mode === "vault") {
+        const status = await PR.api("/api/research/v1/status");
+        if (!status.configured) {
+          const path = window.easyreadDesktop && typeof window.easyreadDesktop.pickFolder === "function"
+            ? await window.easyreadDesktop.pickFolder()
+            : (await PR.api("/api/library/pick-folder", { method: "POST", body: {} })).path || "";
+          if (!path) { button.disabled = false; button.innerHTML = label; return; }
+          await PR.api("/api/research/v1/setup", { method: "POST", body: { vault: path } });
+          PR.toast(PR.t("已連結 Obsidian Vault。"));
+        }
+      }
       const prepared = await prepare();
       if (mode === "vault") {
         const result = await PR.api("/api/research/v2/export/obsidian", { method: "POST", body: { documents: documents(prepared) } });
@@ -151,7 +170,7 @@
     } catch (error) {
       const message = PR.errorText ? PR.errorText(error) : String(error && error.message || error);
       if (PR.toast) PR.toast(PR.t("匯出失敗：{message}", { message: PR.esc ? PR.esc(message) : message }));
-      button.disabled = false; button.textContent = PR.t("下載");
+      button.disabled = false; button.innerHTML = label;
     }
   }
 

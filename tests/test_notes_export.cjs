@@ -5,6 +5,7 @@ const vm = require("node:vm");
 const { test } = require("node:test");
 
 const source = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/notespanel.js"), "utf8");
+const exportSource = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/export.js"), "utf8");
 
 function loadReader({ notes, blocks, entries = [] }) {
   const noopNode = { addEventListener() {}, classList: { add() {}, remove() {} }, contains() { return false; } };
@@ -54,4 +55,89 @@ test("page-side AI explanations do not gain a quote from the export checkbox", (
   const markdown = PR.notesMarkdown({ paper: false, note: false, highlight: false, question: false, ai: true, chat: false, quote: true }, [], { order: ["ai"], chat: [] });
   assert.ok(!markdown.includes("「原文」"));
   assert.match(markdown, /說明/);
+});
+
+function loadExporter({ configured = false, selectedPath = "C:\\Vault", desktop = true, ink = {} } = {}) {
+  const requests = [];
+  const fields = [{ dataset: { exp: "paper" }, checked: true }];
+  const dialogContent = {};
+  const dialog = {
+    closed: false,
+    classList: { add() {}, remove() { dialog.closed = true; } },
+    addEventListener(_event, handler) { dialog.click = handler; },
+    querySelector() { return dialogContent; },
+  };
+  const button = {
+    disabled: false,
+    innerHTML: "匯出至 Obsidian Vault",
+    hasAttribute(name) { return name === "data-exp-vault"; },
+  };
+  const PR = {
+    state: { paper: { meta: { title_en: "Paper" }, blocks: [] }, reader: { paper_note: { body: "note" }, notes: {}, ink }, discussion: { entries: [] } },
+    ls: { get: (_key, fallback) => fallback, set() {} },
+    $: () => dialog,
+    $$: () => fields,
+    t: (text, values) => values ? text.replace(/\{(\w+)\}/g, (_match, key) => values[key]) : text,
+    api: async (path, options = {}) => {
+      requests.push({ path, options });
+      if (path === "/api/research/v1/status") return { configured };
+      if (path === "/api/library/pick-folder") return { path: selectedPath };
+      return {};
+    },
+    notesMarkdown: () => "# Notes",
+    pid: "paper-id",
+    toast() {},
+  };
+  const window = { PR, ...(desktop ? { easyreadDesktop: { pickFolder: async () => selectedPath } } : {}) };
+  vm.runInNewContext(exportSource, { window });
+  return {
+    requests,
+    button,
+    dialog,
+    click: () => dialog.click({ target: { closest: (selector) => selector === "[data-exp-vault]" ? button : null } }),
+  };
+}
+
+test("Obsidian note export prompts for a vault, saves it, then exports", async () => {
+  const app = loadExporter();
+  await app.click();
+  assert.deepEqual(app.requests.map((request) => request.path), [
+    "/api/research/v1/status", "/api/research/v1/setup", "/api/research/v2/export/obsidian",
+  ]);
+  assert.equal(app.requests[1].options.body.vault, "C:\\Vault");
+  assert.equal(app.dialog.closed, true);
+});
+
+test("canceling vault selection keeps the export dialog usable", async () => {
+  const app = loadExporter({ selectedPath: null });
+  await app.click();
+  assert.deepEqual(app.requests.map((request) => request.path), ["/api/research/v1/status"]);
+  assert.equal(app.button.disabled, false);
+  assert.equal(app.button.innerHTML, "匯出至 Obsidian Vault");
+  assert.equal(app.dialog.closed, false);
+});
+
+test("browser note export uses the server folder picker", async () => {
+  const app = loadExporter({ desktop: false });
+  await app.click();
+  assert.deepEqual(app.requests.map((request) => request.path), [
+    "/api/research/v1/status", "/api/library/pick-folder", "/api/research/v1/setup", "/api/research/v2/export/obsidian",
+  ]);
+});
+
+test("configured vault exports without prompting for another folder", async () => {
+  const app = loadExporter({ configured: true });
+  await app.click();
+  assert.deepEqual(app.requests.map((request) => request.path), [
+    "/api/research/v1/status", "/api/research/v2/export/obsidian",
+  ]);
+});
+
+test("Obsidian export warns about handwritten strokes but excludes deleted strokes from the count", async () => {
+  const app = loadExporter({ configured: true, ink: {
+    one: { id: "one" }, two: { id: "two" }, gone: { id: "gone", deleted: true },
+  } });
+  await app.click();
+  const docs = app.requests.find(request => request.path === "/api/research/v2/export/obsidian").options.body.documents;
+  assert.ok(docs.every(doc => doc.body.includes("本次匯出未包含 2 筆手寫註記。")));
 });

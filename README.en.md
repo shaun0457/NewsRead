@@ -22,9 +22,9 @@ PaperRead combines a comfortable PDF reading experience with research exploratio
 
 PaperRead provides **Windows x64**, **macOS arm64**, and **Linux x64** desktop packages. The installer, DMG, and AppImage bundle the Electron application, Python backend, and required dependencies; Python and Node.js are not required for normal use. Docker is also available for Linux, macOS, and Windows hosts.
 
-## What PaperRead adds to EasyRead
+## Feature overview
 
-The reader remains the place for close reading: bilingual text, equations, page-aware PDF locating, highlights, notes, questions, and Ask AI. PaperRead adds a research workflow around that reader:
+PaperRead brings literature management, close reading, and research planning into one local workspace:
 
 | Area | PaperRead behavior |
 |---|---|
@@ -35,6 +35,10 @@ The reader remains the place for close reading: bilingual text, equations, page-
 | **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. The result has map/list views, citation relations, reordering, and background notifications. |
 | **Quick Peek** | Open a right-side drawer from a board card to inspect overview, summary, recent notes, highlights, and recent questions without leaving the board. Status, category, and star can be edited in place. |
 | **Obsidian knowledge base** | Export summaries, paper analysis, annotations, mind maps, and comparisons directly into a Vault with stable IDs, evidence, and WikiLinks. |
+| **Literature management** | Organize papers with nested categories; import folders or a Zotero library; link local PDFs without copying them. |
+| **Background jobs** | Track import progress, confirm before translating large batches, and stop queued or running translation jobs. |
+| **Reader improvements** | Add and erase mouse-drawn notes with undo/redo and autosave; render LaTeX in titles and abstracts; export a mobile-friendly HTML copy. |
+| **Reliability and updates** | Isolate damaged paper data so one item does not break the library; download desktop updates in the background and restart when ready. |
 | **Linux/Docker compatibility** | Fix reader navigation and paragraph toolbar actions in Docker on Linux Firefox, and use bundled/system trust for research API queries in packaged macOS builds. |
 | **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
 | **Smart Annotations** | Generate reviewable AI highlight or underline suggestions for the full paper, a section, or a research purpose. Suggestions never overwrite manual annotations before you accept them. |

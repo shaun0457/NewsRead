@@ -34,8 +34,16 @@ def save_chat_models(body: dict) -> dict:
 
 def test_engine(body: dict) -> dict:
     cfg = config.load()
-    if body.get("engine"):
-        cfg["engine"] = body["engine"]
+    engine = body.get("engine") or cfg.get("engine")
+    if not engine or engine == "none":
+        return {"ok": False, "message": tr("没有配置翻译引擎（设置 → 模型）")}
+    cfg["engine"] = engine
+    if isinstance(body.get(engine), dict):
+        cfg.setdefault(engine, {}).update(body[engine])
+    elif body.get("model"):
+        cfg.setdefault(engine, {})["model"] = body["model"]
+        if "reasoning_effort" in body:
+            cfg[engine]["reasoning_effort"] = body["reasoning_effort"]
     return engines.test(cfg)
 
 

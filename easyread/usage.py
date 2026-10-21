@@ -92,6 +92,13 @@ def from_claude(result: dict, rate_event: dict | None) -> dict:
     return rec
 
 
+def from_antigravity(res: dict) -> dict:
+    """agy --output-format json 的返回内容。"""
+    u = (res or {}).get("usage") or {}
+    return {"input": int(u.get("input_tokens") or 0), "cached": int(u.get("cache_read_tokens") or 0),
+            "output": int(u.get("output_tokens") or 0)}
+
+
 def from_codex(event: dict) -> dict:
     """codex exec --json 的 turn.completed 事件。"""
     u = event.get("usage") or {}

@@ -12,7 +12,7 @@ from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
 from .log import log
-from .store import Workspace, now_iso
+from .store import DataReadError, Workspace, now_iso
 
 
 def engine_for(cfg: dict, model: str | None) -> dict:
@@ -45,7 +45,12 @@ class Jobs:
         def apply(job):
             job.update(fields)
             job["updated"] = now_iso()
-        ws.update("job", apply)
+        try:
+            ws.update("job", apply)
+        except FileNotFoundError:
+            # 写入期间整篇论文被删：工作目录没了就跳过，目录还在才抛出。
+            if ws.root.exists():
+                raise
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
                 read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False):
@@ -79,9 +84,40 @@ class Jobs:
             elif job.get("state") == "confirm":
                 self._write(ws, state="done", message=tr("已导入，未整理") if job.get("read") else tr("已导入，未翻译"))
 
+    def stop_model_work(self, ids: list[str] | None = None) -> int:
+        """一键停止：只停用模型的部分（翻译、整理原文、等确认页数的），原页照样渲染。
+        还在排队、原页没渲染的改成只渲染；ids 为空就是全部。返回停了几篇。"""
+        want = set(ids) if ids is not None else None
+        n = 0
+        with self.lock:
+            for ws in self.lib.all():
+                if want is not None and ws.id not in want:
+                    continue
+                job = ws.load("job") or {}
+                state = job.get("state")
+                if state not in ("queued", "running", "confirm") or not job.get("translate"):
+                    continue
+                n += 1
+                if state == "running":
+                    ev = self.cancels.get(ws.id)
+                    if ev:
+                        ev.set()
+                elif state == "confirm":
+                    self._write(ws, state="done", message=tr("已导入，未整理") if job.get("read") else tr("已导入，未翻译"))
+                elif (ws.load("paper") or {}).get("meta", {}).get("pages"):
+                    self._write(ws, state="cancelled", message=tr("已取消"))
+                else:  # 留在队里，轮到时只渲染原页
+                    self._write(ws, type="prepare", translate=False, read=False, message=tr("排队中"))
+        return n
+
     def _resume(self):
         for ws in self.lib.all():
-            job = ws.load("job") or {}
+            try:
+                job = ws.load("job") or {}
+            except DataReadError as e:
+                # 損壞資料保留原樣以利修復；其他論文照常恢復排隊
+                log.exception("Cannot resume task; unreadable data file: %s", e.path)
+                continue
             if job.get("state") in ("queued", "running"):
                 self._write(ws, state="queued", message=tr("排队中（服务重启后继续）"))
                 self.bulk.put(ws.id)
@@ -89,30 +125,46 @@ class Jobs:
     def _bulk_loop(self):
         while True:
             pid = self.bulk.get()
-            with self.lock:
-                ws = self.lib.ws(pid)
-                if not ws:
-                    continue
-                job = ws.load("job") or {}
-                if job.get("state") != "queued":
-                    continue
-                cancel = self.cancels[pid] = threading.Event()
-                self._write(ws, state="running", message=tr("正在开始任务"))
             try:
-                self._run_bulk(ws, job, cancel)
-            except Cancelled:
-                self._write(ws, state="cancelled", message=tr("已取消，已译的部分保留"))
-            except Exception as e:  # noqa: BLE001
-                msg = str(e) if isinstance(e, (EngineError, KeyError, ValueError)) else f"{type(e).__name__}: {e}"
-                self._write(ws, state="error", message=tr("出错了"), error=msg[:800])
+                self._process_bulk(pid)
+            except Exception:  # noqa: BLE001
+                # 论文在排队时被删（工作目录没了）等情况，记一下就接着处理下一篇。
                 log.exception("后台任务出错 %s", pid)
-                try:
-                    translate.journal(ws, tr("出错停止：{msg}", msg=msg[:500]))
-                except OSError:
-                    pass
-            finally:
-                with self.lock:
+
+    def _process_bulk(self, pid: str):
+        with self.lock:
+            ws = self.lib.ws(pid)
+            if not ws:
+                return
+            job = ws.load("job") or {}
+            if job.get("state") != "queued":
+                return
+            cancel = self.cancels[pid] = threading.Event()
+            try:
+                self._write(ws, state="running", message=tr("正在开始任务"))
+            except Exception:
+                self.cancels.pop(pid, None)
+                raise
+        try:
+            self._run_bulk(ws, job, cancel)
+        except Cancelled:
+            self._write(ws, state="cancelled", message=tr("已取消，已译内容已保留"))
+        except Exception as e:  # noqa: BLE001
+            if cancel.is_set():  # 点了停止或模型调用被打断：算已取消
+                self._write(ws, state="cancelled", message=tr("已取消，已译内容已保留"))
+                return
+            msg = str(e) if isinstance(e, (EngineError, KeyError, ValueError)) else f"{type(e).__name__}: {e}"
+            self._write(ws, state="error", message=tr("出错了"), error=msg[:800])
+            log.exception("后台任务出错 %s", pid)
+            try:
+                translate.journal(ws, tr("出错停止：{msg}", msg=msg[:500]))
+            except OSError:
+                pass
+        finally:
+            with self.lock:
+                if self.cancels.get(pid) is cancel:
                     self.cancels.pop(pid, None)
+            self.bulk.task_done()
 
     def _run_bulk(self, ws: Workspace, job: dict, cancel: threading.Event):
         cfg = engine_for(config.load(), job.get("model"))

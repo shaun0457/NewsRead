@@ -1,14 +1,13 @@
 /* 文献库：列表、筛选、排序、键盘操作、状态轮询。 */
 (function (PR) {
   "use strict";
-  const L = (PR.lib = { items: [], view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, engine: "claude", picked: new Set(), picking: false });
+  const L = (PR.lib = { items: [], loadStatus: "loading", loadError: "", view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, engine: "claude", picked: new Set(), picking: false });
   const prefs = PR.ls.get("easyread-prefs", {});
   PR.applyTheme(prefs.theme);
 
-
   PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>" + PR.t("导入论文") + "</span>";
-  PR.$("#settingsBtn").innerHTML = PR.icon("gear");
-  PR.$(".search .si").outerHTML = PR.icon("search", "sm");
+  PR.$("#settingsBtn").innerHTML = PR.icon("settings");
+  PR.$(".search .si").outerHTML = PR.icon("search");
   PR.$("#sort").value = L.sort;
 
   L.byId = (id) => L.items.find((i) => i.id === id);
@@ -38,35 +37,89 @@
     await L.load();
   };
 
-  L.load = async function () { apply(await PR.api("/api/library")); };
-  function apply(d) {
-    L.lastData = d;  // 切换界面语言前存一份，刷新后先拿它画列表，不闪空白（lang-toggle.js）
+  let pollT, loadSeq = 0, loadController, retryMs = 1500, restorePending = true, restoreView = null;
+  const viewKey = () => JSON.stringify([L.view, L.tag, L.q, L.sort, L.selected]);
+  const validData = (d) => d && Array.isArray(d.items) && d.items.every((i) => i && typeof i.id === "string" && Array.isArray(i.tags));
+  // Only this read request has a deadline; never retry an import or another write.
+  L.load = async function () {
+    const seq = ++loadSeq;
+    clearTimeout(pollT);
+    if (loadController) loadController.abort();
+    const controller = (loadController = new AbortController());
+    let timer, responded = false, timedOut = false;
+    if (restorePending && restoreView === null) restoreView = viewKey();
+    if (L.loadStatus !== "ready") { L.loadStatus = "loading"; L.loadError = ""; L.render(); }
+    try {
+      const deadline = new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(new Error(PR.t("文献库加载超时，请重试")));
+          controller.abort();
+        }, 10000);
+      });
+      const request = Promise.resolve().then(() => fetch("/api/library", { cache: "no-store", signal: controller.signal })).then(async (r) => {
+        responded = true;
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || PR.t("请求失败 {status}", { status: r.status }));
+        if (!validData(d)) throw new Error(PR.t("文献库数据不完整，请重试"));
+        return d;
+      });
+      const d = await Promise.race([request, deadline]);
+      if (seq !== loadSeq) return false;
+      apply(d);
+      retryMs = 1500;
+      if (restorePending) {
+        restorePending = false;
+        if (restoreView === viewKey()) restoreReturn();
+      }
+      schedule();
+      return true;
+    } catch (e) {
+      if (seq !== loadSeq) return false;
+      L.loadErrorTitle = responded || timedOut ? PR.t("文献库加载失败") : PR.t("连不上本地服务");
+      L.loadStatus = "error"; L.loadError = e.message || String(e); L.render();
+      pollT = setTimeout(() => L.load(), retryMs);
+      retryMs = Math.min(retryMs * 2, 15000);
+      return false;
+    } finally {
+      clearTimeout(timer);
+      if (seq === loadSeq) loadController = null;
+    }
+  };
+  function apply(d, cached = false) {
+    const changed = cached || L.loadStatus !== "ready" ||
+      JSON.stringify([L.items, L.engine, L.engineLabel, L.firstRun, L.version, L.trashCount, L.statuses]) !==
+      JSON.stringify([d.items, d.engine, d.engine_label, d.first_run, d.version, d.trash || 0, d.research_statuses || []]);
+    L.lastData = d;
     L.statuses = d.research_statuses || L.statuses || [];
     if (L.updateStatusViews) L.updateStatusViews(L.statuses);
-    PR.token = d.token;
+    L.loadStatus = cached ? "loading" : "ready"; L.loadError = "";
+    if (!cached) PR.token = d.token;
     L.engine = d.engine;
     L.engineLabel = d.engine_label;
     L.firstRun = d.first_run;
     L.version = d.version;
     L.trashCount = d.trash || 0;
-    engineChip();
     L.items = d.items;
-    L.render();
-    schedule();
+    if (!cached) {
+      if (PR.libraryLocationNotice) PR.libraryLocationNotice(d);
+      if (PR.libraryNav && PR.libraryNav.rememberList) PR.libraryNav.rememberList(d);
+      if (changed) engineChip();
+    }
+    if (changed) L.render();
   }
 
-  let pollT;
   function schedule() {
     clearTimeout(pollT);
     const busy = L.items.some((i) => i.job && ["queued", "running"].includes(i.job.state));
-    pollT = setTimeout(() => L.load().catch(() => schedule()), busy ? 2500 : 15000);
+    pollT = setTimeout(() => L.load(), busy ? 2500 : 15000);
   }
 
   function filtered() {
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     const q = L.q.trim().toLowerCase();
     let list = L.items.filter(view[3]);
-    if (L.tag) list = list.filter((i) => !i.archived && (i.tags || []).includes(L.tag));
+    if (L.tag) list = list.filter((i) => !i.archived && (L.inCat ? L.inCat(i, L.tag) : (i.tags || []).includes(L.tag)));
     if (q) list = list.filter((i) => [i.title_zh, i.title_en, i.authors, i.venue, i.arxiv, i.abstract, (i.tags || []).join(" "), i.year]
       .join(" ").toLowerCase().includes(q));
     const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => PR.titles(i).main };
@@ -85,6 +138,7 @@
     return basePill;
   }
   L.jobLine = function (i) {
+    if (i.load_error) return '<span class="stat err">' + PR.t("数据文件无法读取") + "</span>";
     const j = i.job;
     if (j && j.state === "confirm") return '<span class="stat">' + PR.t("等你确认") + "</span>";
     if (j && ["queued", "running"].includes(j.state)) {
@@ -103,7 +157,7 @@
     const tt = PR.titles(i), title = tt.main;
     const sub = tt.sub ? '<div class="t2" lang="' + tt.subLang + '">' + (PR.titleHtml ? PR.titleHtml(tt.sub) : PR.esc(tt.sub)) + "</div>" : "";
     const bits = [i.authors && PR.esc(i.authors.split(",").slice(0, 3).join(",") + (i.authors.split(",").length > 3 ? PR.t(" 等") : "")), i.year, i.venue || i.arxiv].filter(Boolean);
-    const tags = (i.tags || []).map((t) => '<span class="chip cat">' + PR.icon("folder", "sm") + PR.esc(t) + "</span>").join("");
+    const tags = (i.tags || []).map((t) => '<span class="chip cat" title="' + PR.esc(PR.catTree ? PR.catTree.label(t) : t) + '">' + PR.icon("folder", "sm") + PR.esc(PR.catTree ? PR.catTree.leaf(t) : t) + "</span>").join("");
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + PR.t("{n} 问待答", { n: i.open_questions }) : "") + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="' + PR.t("阅读进度 {p}%", { p: Math.round(i.progress * 100) }) + '"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
@@ -119,15 +173,23 @@
     PR.renderSide();
     const list = filtered();
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
-    PR.$("#viewTitle").textContent = L.tag ? L.tag : L.view === "all" ? PR.t("全部论文") : view[1];
+    PR.$("#viewTitle").textContent = L.tag ? (PR.catTree ? PR.catTree.label(L.tag) : L.tag) : L.view === "all" ? PR.t("全部论文") : view[1];
     PR.$("#count").textContent = PR.t("{n} 篇", { n: list.length });
     PR.renderBatch && PR.renderBatch(list);
-    PR.$("#list").innerHTML = list.length ? list.map(rowHtml).join("") : emptyHtml();
+    PR.renderStopAll && PR.renderStopAll();
+    const status = L.loadStatus !== "ready" && L.items.length ? '<div class="up-status" role="status">' + loadHtml() + "</div>" : "";
+    PR.$("#list").innerHTML = status + (list.length ? list.map(rowHtml).join("") : emptyHtml());
     if (L.selected && !L.byId(L.selected)) L.select(null);
     else PR.renderDetail && PR.renderDetail();
   };
+  function loadHtml() {
+    if (L.loadStatus === "error") return (L.loadErrorTitle || PR.t("文献库加载失败")) + " · " + PR.esc(L.loadError) +
+      ' <button class="btn sm line" data-library-retry>' + PR.t("重试") + "</button>";
+    return '<span class="spin"></span> ' + (L.items.length ? PR.t("正在更新文献库…") : PR.t("正在加载文献库…"));
+  }
   function emptyHtml() {
     if (L.view === "archived") return '<div class="empty-state"><div class="big">' + PR.t("封存区是空的") + "</div>" + PR.t("可以將已看完或暫不需要的論文拖曳到左側「已封存」，或在選單中封存。") + "</div>";
+    if (!L.items.length && L.loadStatus !== "ready") return '<div class="empty-state" role="status">' + loadHtml() + "</div>";
     if (L.items.length) return '<div class="empty-state"><div class="big">' + PR.t("没有符合条件的论文") + "</div>" + PR.t("换个关键词或筛选试试。") + "</div>";
     const ok = L.engineReady;
     return '<div class="welcome">' + PR.logo("hero") + "<h2>" + PR.t("把英文论文，读成舒服的中文") + "</h2>" +
@@ -162,6 +224,7 @@
     L.selected = id;
     PR.$(".lib").classList.toggle("has-detail", !!id);
     PR.$$(".row").forEach((r) => r.classList.toggle("on", r.dataset.id === id));
+    PR.markSideLeaf && PR.markSideLeaf(id);
     PR.renderDetail && PR.renderDetail();
   };
 
@@ -190,12 +253,13 @@
 
   /* ---------- 事件 ---------- */
   PR.$("#list").addEventListener("click", (e) => {
+    if (e.target.closest("[data-library-retry]")) { L.load(); return; }
     const r = e.target.closest(".row");
     if (r) L.select(r.dataset.id);
   });
   /* 点列表空白处、侧栏、标题栏空白：收起右侧详情 */
   document.addEventListener("click", (e) => {
-    if (!L.selected || e.target.closest(".row, #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
+    if (!L.selected || e.target.closest(".row, .srow[data-leaf], #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
     if (e.target.closest(".main, .side, .topbar")) L.select(null);
   });
   PR.$("#list").addEventListener("dblclick", (e) => { const r = e.target.closest(".row"); if (r) L.openReader(r.dataset.id); });
@@ -227,15 +291,17 @@
 
   PR.onSettingsSaved = () => L.load();
   // 从阅读页按“返回”回来时浏览器可能直接用缓存的旧页面：重新取一次，在读状态、进度马上更新
-  window.addEventListener("pageshow", (e) => { if (e.persisted) L.load().then(restoreReturn).catch(() => {}); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) { restorePending = true; restoreView = null; L.load(); } });
   // 等侧栏、详情这些脚本都加载完再取数据：数据先到、脚本还没到时会出错
   document.addEventListener("DOMContentLoaded", () => {
-    const prefsReady = PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); }).catch(() => {});
+    PR.loadPrefs().then((p) => { if (p.reader && p.reader.theme) PR.applyTheme(p.reader.theme); PR.useServerUi(p); L.useServerSide(p); }).catch(() => {});
+    const cached = PR.libraryNav && PR.libraryNav.cachedList ? PR.libraryNav.cachedList() : null;
+    if (cached) { apply(cached, true); restoreReturn(); }
     try {
       const snap = JSON.parse(sessionStorage.getItem("easyread-lib-snap") || "null");
       sessionStorage.removeItem("easyread-lib-snap");
-      if (snap && Date.now() - snap.t < 15000) apply(snap.d);
+      if (!cached && snap && Date.now() - snap.t < 15000 && validData(snap.d)) apply(snap.d, true);
     } catch (e) { /* 没有就等下面取 */ }
-    Promise.all([prefsReady, L.load()]).then(restoreReturn).catch((e) => { PR.$("#list").innerHTML = '<div class="empty-state"><div class="big">' + PR.t("连不上本地服务") + "</div>" + PR.esc(e.message) + "</div>"; });
+    L.load();
   });
 })(window.PR);

@@ -73,6 +73,8 @@ def target(cfg: dict) -> dict | None:
         url = _codex_base()
         official = "chatgpt.com" in url or "openai.com" in url
         return {"name": tr("OpenAI（Codex）") if official else tr("Codex 配置的中转地址"), "url": url, "vpn": official}
+    if e == "antigravity":
+        return {"name": "Antigravity", "url": "https://antigravity.google", "vpn": False}
     if e == "openai":
         o = cfg.get("openai") or {}
         url = (o.get("base_url") or "").strip().rstrip("/")

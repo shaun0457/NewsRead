@@ -128,6 +128,7 @@
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));
     PR.renderPaper();
+    PR.renderInk && PR.renderInk();
     PR.setupDemo();  // 署名要放在论文标题下面，得等正文渲染出来
     PR.applyMarks();
     PR.renderMargin();

@@ -12,7 +12,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
+from .bulk import api as bulk_api
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
@@ -109,10 +110,10 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, code: int, obj):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
-    def _file(self, path: Path | None, cache=False):
+    def _file(self, path: Path | None, cache=False, ctype=None):
         if not path:
             return self._json(404, {"error": "not found"})
-        ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        ctype = ctype or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
         self._send(200, path.read_bytes(), ctype, cache)
@@ -177,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
             send({"model": model, "thread": tid, "answer_style": style})
             def seen(actual):
                 chat_models.remember(m.get("model", ""), actual)
-                if m.get("engine") == "claude":
+                if m.get("engine") in ("claude", "antigravity"):
                     send({"model": chat_models.label(m)})
             attachments = chat.image_paths(ws, past + [user])
             image_options = {"images": attachments} if attachments else {}
@@ -267,6 +268,8 @@ class Handler(BaseHTTPRequestHandler):
         location = library_api.get(app, path)
         if location is not None:
             return self._json(200, location)
+        if path in bulk_api.GET:
+            return self._json(200, bulk_api.get(app, path))
         if path == "/api/library":
             cfg = config.load()
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
@@ -336,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
                 if app.location.status != "idle":
                     raise app.location._error()
                 from .build import build
-                out = build(ws)
+                out = build(ws, mobile=parse_qs(url.query).get("mobile") == ["1"])
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
             if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
@@ -353,7 +356,9 @@ class Handler(BaseHTTPRequestHandler):
             if ws and re.fullmatch(r"chat-media/[0-9a-f]{32}\.png", rel):
                 return self._file(_safe(ws.root, rel), cache=True)
             if ws and (rel.split("/", 1)[0] in ("pages", "figures") or rel == "source.pdf"):
-                return self._file(_safe(ws.root, rel), cache=rel != "source.pdf")
+                source = ws.source_pdf if rel == "source.pdf" else _safe(ws.root, rel)
+                return self._file(source if source and source.is_file() else None, cache=rel != "source.pdf",
+                                  ctype="application/pdf" if rel == "source.pdf" else None)
         return self._json(404, {"error": "not found"})
 
     # ---------- POST ----------
@@ -409,6 +414,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in library_api.POST:
             return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))
+        if path in jobs_api.POST:  # 一键停止翻译
+            return self._json(200, jobs_api.post(app, path, json.loads(self._body() or b"{}")))
+        if path in bulk_api.POST:  # 从 Zotero 迁移、导入文件夹
+            return self._json(200, bulk_api.post(app, path, json.loads(self._body() or b"{}")))
         if path == "/api/update":  # 开关“自动检查新版本”
             config.save({"check_updates": bool(json.loads(self._body() or b"{}").get("enabled"))})
             return self._json(200, updates.check())

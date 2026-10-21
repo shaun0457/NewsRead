@@ -17,7 +17,7 @@
     const c = s.cfg, e = c.engine;
     if (m.engine !== e) return false;
     if (["reasoning_effort", "service_tier"].some((k) => (m[k] || "") !== (c[e][k] || ""))) return false;
-    if (e === "claude" || e === "codex") return (m.model || "") === (c[e].model || "");
+    if (e === "claude" || e === "codex" || e === "antigravity") return (m.model || "") === (c[e].model || "");
     const o = c.openai, p = preset(s, m.preset);
     return (m.preset || "") === (o.preset || "") && (m.model || "") === (o.model || "") &&
       (m.base_url || (p ? p.base_url : "")) === (o.base_url || "");
@@ -29,11 +29,11 @@
     if (s.pinned || !s.models || !s.chat) return;
     s.pinned = true;
     const c = s.cfg;
-    if (c.engine === "claude" || c.engine === "codex") c[c.engine].model = PR.cliPin(s, c.engine, c[c.engine].model);
+    if (c.engine === "claude" || c.engine === "codex" || c.engine === "antigravity") c[c.engine].model = PR.cliPin(s, c.engine, c[c.engine].model);
     const list = s.chat.models, seen = {};
     for (let i = 0; i < list.length; i++) {
       const m = list[i];
-      if (m.engine === "claude" || m.engine === "codex") {
+      if (m.engine === "claude" || m.engine === "codex" || m.engine === "antigravity") {
         const was = m.model || "";
         m.model = PR.cliPin(s, m.engine, was);
         if (!was && m.model) { const n = autoName(s, { kind: m.engine, model: m.model }); m.name = m.label = n; m.detail = m.model; }
@@ -96,22 +96,23 @@
     const f = s.form;
     const card = (k, title) => '<button data-cmk="' + k + '" class="' + (f.kind === k ? "on" : "") + '"><b>' + title + "</b></button>";
     let h = '<div class="mc-form"><h4 class="set-h">' + (s.editing === "new" ? PR.t("添加模型") : PR.t("修改")) + "</h4>" +
-      '<div class="engine-cards small">' + card("claude", "Claude Code") + card("codex", "Codex CLI") + card("api", PR.t("API 接口")) + "</div>";
-    if (f.kind === "claude" || f.kind === "codex") {
+      '<div class="engine-cards small">' + card("claude", "Claude Code") + card("codex", "Codex CLI") + card("antigravity", "Antigravity CLI") + card("api", PR.t("API 接口")) + "</div>";
+    if (f.kind === "claude" || f.kind === "codex" || f.kind === "antigravity") {
       const found = (s.found || {})[f.kind];
       h += '<label class="field"><span>' + PR.t("模型") + "</span>" + PR.cliModelSelect(s, f.kind, f.model, 'id="cmModel"') + "</label>" +
-        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : "Codex CLI" }) + "</p>" : "");
+        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : (f.kind === "codex" ? "Codex CLI" : "Antigravity CLI") }) + "</p>" : "");
     } else {
       h += PR.apiForm.html(s, f, { keyProp: "key", vision: false });
     }
     h += PR.modelReasoningFields(s, f);
+    h += '<div class="test-line" style="margin-top:10px"><button type="button" class="btn sm line" data-cm="test-form">' + PR.icon("sparkle", "sm") + PR.t("测试此模型") + '</button><span class="test-result" id="formTestRes"></span></div>';
     return h + '<div class="cm-form-acts"><span class="grow"></span>' +
       '<button class="btn sm" data-cm="cancel">' + (s.editing === "new" ? PR.t("取消") : PR.t("关闭")) + '</button>' + (s.editing === "new" ? '<button class="btn sm accent" data-cm="ok">' + PR.t("添加") + "</button>" : "") + "</div></div>";
   }
   function autoName(s, f) {
-    if (f.kind === "claude" || f.kind === "codex") {  // 卡片名就是模型名
+    if (f.kind === "claude" || f.kind === "codex" || f.kind === "antigravity") {  // 卡片名就是模型名
       const o = PR.cliModelOptions(s, f.kind, f.model).find(([v]) => v === (f.model || ""));
-      return o ? o[1] : f.model || (f.kind === "claude" ? "Claude" : "GPT");
+      return o ? o[1] : f.model || (f.kind === "claude" ? "Claude" : (f.kind === "codex" ? "GPT" : "Gemini"));
     }
     const p = preset(s, f.preset);
     return f.model ? PR.apiModelName(s, f.preset, f.model) : p ? p.name : "模型";  // i18n-ok 存进模型名单的名字
@@ -121,8 +122,8 @@
     return { engine: api ? "openai" : f.kind, preset: api ? f.preset : "",
       base_url: api && (!p || f.base_url !== p.base_url) ? f.base_url : "", api: api && (!p || f.api !== (p.api || "chat")) ? f.api : "", model: f.model, name, label: name,
       source: api ? (p ? p.name : "自定义地址") :  // i18n-ok 存进模型名单的来源名
-      f.kind === "claude" ? "Claude Code" : "Codex CLI",
-      reasoning_effort: f.reasoning_effort || "", service_tier: f.kind === "claude" ? "" : f.service_tier || "",
+      f.kind === "claude" ? "Claude Code" : (f.kind === "codex" ? "Codex CLI" : "Antigravity CLI"),
+      reasoning_effort: f.reasoning_effort || "", service_tier: (f.kind === "claude" || f.kind === "antigravity") ? "" : f.service_tier || "",
       detail: f.model, ready: true };
   }
   function readForm(s) {
@@ -152,7 +153,7 @@
     const e = c.engine;
     let h = '<h4 class="set-h">' + (m ? PR.t("翻译：{name}", { name: PR.esc(m.label || m.name) }) : PR.t("翻译")) + "</h4>";
     if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "reasoning_effort")) +
-      (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "service_tier"))) + '</p>';
+      ((e === "claude" || e === "antigravity") ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "service_tier"))) + '</p>';
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";
     h += '<div class="grid2 translation-limits">' +
       '<label class="field"><span>' + PR.t("每批页数") + '</span><select class="input" data-k="batch_pages">' + PR.opt([[1, PR.t("1 页")], [2, PR.t("2 页")], [3, PR.t("3 页")], [4, PR.t("4 页")]], c.batch_pages) + "</select></label>" +
@@ -179,7 +180,12 @@
     if (api && p && p.key && !PR.apiHasKey(s, f.preset) && !typed) { PR.toast(PR.t("这家要填 API Key")); return false; }
     if (api && typed) (s.chatKeys = s.chatKeys || {})[f.preset] = typed;
     const m = toModel(s, f, p);
-    if (s.editing === "new") list.push(Object.assign(m, { id: "m" + Date.now().toString(36) }));
+    if (s.editing === "new") {
+      list.push(Object.assign(m, { id: "m" + Date.now().toString(36) }));
+      if (!s.cfg.engine || s.cfg.engine === "none" || transIndex(s) < 0) {
+        useForTranslation(s, list[list.length - 1]);
+      }
+    }
     else {
       const old = list.find((x) => x.id === s.editing), wasTr = sameAsTranslation(s, old);
       Object.assign(old, m);
@@ -259,6 +265,20 @@
         PR.menu(b, [
           { label: PR.t("设为翻译"), icon: "sparkle", disabled: tr, fn: () => { useForTranslation(s, m); PR.saveModelSettings(); PR.settingsRender(); } },
           { label: PR.t("设为问 AI"), icon: "note", disabled: s.chat.default === m.id, fn: () => { s.chat.default = m.id; PR.saveModelSettings(); PR.settingsRender(); } },
+          { label: PR.t("测试此模型"), icon: "sparkle", fn: async () => {
+            PR.toast(PR.t("正在让模型回一句话…"));
+            try {
+              const body = { engine: m.engine, model: m.model || "", reasoning_effort: m.reasoning_effort || "", service_tier: m.service_tier || "" };
+              if (m.engine === "openai") {
+                const p = preset(s, m.preset), typed = (s.chatKeys || {})[m.preset];
+                body.openai = { preset: m.preset || "", base_url: m.base_url || (p ? p.base_url : ""), api: m.api || "chat", model: m.model, api_key: typed || "••••" };
+              }
+              const r = await PR.api("/api/config/test", { method: "POST", body });
+              PR.toast((r.ok ? "✓ " : "✗ ") + (m.label || m.name) + ": " + r.message);
+            } catch (err) {
+              PR.toast("✗ " + (m.label || m.name) + ": " + err.message);
+            }
+          } },
           "-",
           { label: PR.t("修改"), icon: "edit", fn: () => { readForm(s); s.editing = m.id; startForm(s, m); PR.settingsRender(); } },
           "-",
@@ -271,6 +291,24 @@
             PR.saveModelSettings(); PR.settingsRender();
           } },
         ]);
+        return false;
+      }
+      if (act === "test-form") {
+        readForm(s);
+        const f = s.form, res = PR.$("#formTestRes");
+        if (res) { res.className = "test-result"; res.innerHTML = '<span class="spin"></span> ' + PR.t("正在让模型回一句话…"); }
+        try {
+          const api = isApi(f.kind), p = api ? preset(s, f.preset) : null;
+          const body = { engine: api ? "openai" : f.kind, model: f.model || "", reasoning_effort: f.reasoning_effort || "", service_tier: f.service_tier || "" };
+          if (api) {
+            const typed = f.key && !f.key.startsWith("••••") ? f.key : "";
+            body.openai = { preset: f.preset || "", base_url: f.base_url || (p ? p.base_url : ""), api: f.api || (p && p.api) || "chat", model: f.model || "", api_key: typed || (PR.apiHasKey(s, f.preset) ? "••••" : "") };
+          }
+          const r = await PR.api("/api/config/test", { method: "POST", body });
+          if (res) { res.className = "test-result " + (r.ok ? "ok" : "bad"); res.textContent = (r.ok ? "✓ " : "✗ ") + r.message; }
+        } catch (err) {
+          if (res) { res.className = "test-result bad"; res.textContent = err.message; }
+        }
         return false;
       }
       if (act === "add") { readForm(s); s.editing = "new"; startForm(s); }

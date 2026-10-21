@@ -1,7 +1,15 @@
-// Windows NSIS updates. The renderer never supplies a feed URL or installer path.
-function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prepareInstall, recover, repository = "" }) {
+// In-app updates for the Windows NSIS installer, the macOS app and the Linux AppImage.
+// The renderer never supplies a feed URL or installer path.
+// An AppImage can only replace itself when launched from the .AppImage file (APPIMAGE is set);
+// extracted or source runs keep the download link. macOS releases are signed with a fixed
+// self-signed certificate (scripts/mac_sign.cjs); Squirrel.Mac only accepts an update signed by the same one.
+function canUpdate(platform, env) {
+  return platform === "win32" || platform === "darwin" || (platform === "linux" && !!env.APPIMAGE);
+}
+
+function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prepareInstall, recover, repository = "", platform = process.platform, env = process.env }) {
   const match = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(String(repository).trim());
-  const supported = app.isPackaged && process.platform === "win32" && Boolean(match);
+  const supported = app.isPackaged && canUpdate(platform, env) && Boolean(match);
   let state = { supported, phase: "idle", version: "", percent: 0, error: "" };
   let busy = false;
   const publish = (patch) => {
@@ -53,4 +61,4 @@ function registerUpdates({ app, ipcMain, updater, trustedWindow, getWindow, prep
   });
 }
 
-module.exports = { registerUpdates };
+module.exports = { registerUpdates, canUpdate };

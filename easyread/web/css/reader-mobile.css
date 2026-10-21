@@ -1,0 +1,37 @@
+/* 手机版（mobile.js）：顶栏只剩标题和 Aa，正文只剩论文本身 */
+body.mobile-read #bar > :not(.bar-titles):not(.grow):not([data-act="settings"]) { display: none !important; }
+body.mobile-read #bar .bar-titles { display: block !important; flex: 1; min-width: 0; overflow: hidden; padding-left: 6px; }
+body.mobile-read #bar .bar-title { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: none; font-size: 14px; color: var(--ink-2); }
+body.mobile-read #bar .bar-section { display: none; }
+body.mobile-read #bar > .grow { display: none; }
+body.mobile-read #bar [data-act="settings"] { flex: none; }
+body.mobile-read .paper-head .scope,
+body.mobile-read .pgmark,
+body.mobile-read .edited-dot,
+body.mobile-read #margin,
+body.mobile-read #drawer,
+body.mobile-read #scrim,
+body.mobile-read #blockbar,
+body.mobile-read #selbar { display: none !important; }
+body.mobile-read .blk::before { display: none; }
+/* 顶栏往下读时收起（mobile.js） */
+body.mobile-read #bar { transition: transform .2s ease; }
+body.mobile-read #bar.bar-hidden { transform: translateY(-100%); }
+/* 笔记卡片只读 */
+body.mobile-read .card .acts, body.mobile-read .card .kinds, body.mobile-read .card .dots, body.mobile-read .card .ask { display: none !important; }
+/* 返回按钮抬高，别被阅读 App 底部的工具条挡住 */
+body.mobile-read .jump-back { bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
+/* 字号：− 数字 + */
+body.mobile-read #settings .fs-row { display: flex !important; justify-content: flex-start; align-items: center; gap: 8px; }
+body.mobile-read #settings .fs-row > span { width: auto; margin-right: auto; }
+body.mobile-read #settings .fs-row .btn { width: 40px; height: 34px; padding: 0; justify-content: center; font-size: 18px; }
+body.mobile-read #settings .fs-row input { width: 56px; height: 34px; box-sizing: border-box; text-align: center; font: inherit; font-size: 16px; color: var(--ink); background: transparent; border: 1px solid var(--rule); border-radius: 7px; }
+/* 原文 / 译文 / 双语放在 Aa 最上面；窄屏的规则（reading-language.css）在宽屏打开时也照用 */
+body.mobile-read #settings .view-row-narrow { display: block !important; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+body.mobile-read #settings .view-row-narrow .view-seg { display: flex; width: 100%; box-sizing: border-box; }
+body.mobile-read #settings .view-row-narrow .view-seg > [data-view] { flex: 1; min-width: 0; padding: 0 6px; }
+body.mobile-read #settings .view-row-narrow [data-view="both"] { border-radius: 7px; padding-right: 6px; }
+body.mobile-read #toast button { white-space: nowrap; }
+/* 笔记默认展开；点段落右上角的数字收起（notes-open 在这里当“收起”用） */
+body.mobile-read .blk > .inline-notes { display: block; }
+body.mobile-read .blk.notes-open > .inline-notes { display: none; }

@@ -1503,7 +1503,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         if "tags" in body:
             if not isinstance(body["tags"], list):
                 raise ValueError("分類格式不正確。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-            fields["tags"] = list(dict.fromkeys(str(x)[:80] for x in body["tags"] if str(x).strip()))[:30]
+            fields["tags"] = list(dict.fromkeys(str(x)[:120] for x in body["tags"] if str(x).strip()))[:30]
         return ws.patch_item(fields)
     if endpoint == "/save-paper":
         work = body.get("paper") or {}

@@ -253,7 +253,8 @@ class SeamTest(unittest.TestCase):
         ws.update("paper", lambda p: p["translation"].update(done_pages=[1, 2, 5, 6]))
         cfg = {"engine": "claude", "batch_pages": 2, "concurrency": 1, "claude": {}}
         seen = {}
-        with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"extract/page-{n:03d}.jpg"):
+        with mock.patch.object(translate.pdfwork, "engine_image", lambda root, n: root / f"extract/page-{n:03d}.jpg"), \
+             mock.patch.object(translate.netcheck, "problem", return_value=None):
             run_pages(ws, cfg, [3, 4], self.engine(seen))
         self.assertIn("extract/page-005.jpg", seen[3][0])
 
