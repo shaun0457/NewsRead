@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const { registerUpdates } = require("../electron/desktop-updates.cjs");
 
-function fixture() {
+function fixture(platform = process.platform, env = process.env) {
   const handlers = {};
   const updater = new EventEmitter();
   const calls = [];
@@ -17,6 +17,8 @@ function fixture() {
     ipcMain: { handle: (name, fn) => { handlers[name] = fn; } },
     trustedWindow: event => { if (event !== "trusted") throw Error("Untrusted"); },
     repository: "example/research-os",
+    platform,
+    env,
     getWindow: () => null,
     prepareInstall: async () => { calls.push("shutdown"); },
     recover: async () => { calls.push("recover"); },
@@ -64,14 +66,12 @@ test("unconfigured fork leaves desktop auto-update disabled", async () => {
 });
 
 test("configured repository is the only desktop update feed", () => {
-  const f = fixture();
-  if (process.platform === "win32") {
-    assert.deepEqual(f.feeds[0], { provider: "github", owner: "example", repo: "research-os" });
-  } else {
-    // Desktop auto-update is intentionally Windows-only; other platforms
-    // must not configure an electron-updater feed at all.
-    assert.deepEqual(f.feeds, []);
+  const expected = { provider: "github", owner: "example", repo: "research-os" };
+  for (const platform of ["win32", "darwin"]) {
+    assert.deepEqual(fixture(platform, {}).feeds, [expected]);
   }
+  assert.deepEqual(fixture("linux", {}).feeds, []);
+  assert.deepEqual(fixture("linux", { APPIMAGE: "/tmp/PaperRead.AppImage" }).feeds, [expected]);
 });
 
 test("untrusted renderer cannot invoke update operations", async () => {
