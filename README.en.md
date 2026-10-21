@@ -38,6 +38,7 @@ PaperRead brings literature management, close reading, and research planning int
 | **Literature management** | Organize papers with nested categories; import folders or a Zotero library; link local PDFs without copying them. |
 | **Background jobs** | Track import progress, confirm before translating large batches, and stop queued or running translation jobs. |
 | **Reader improvements** | Add and erase mouse-drawn notes with undo/redo and autosave; render LaTeX in titles and abstracts; export a mobile-friendly HTML copy. |
+| **AI models** | Add Antigravity CLI as a model source, with local model discovery and reasoning effort controls. |
 | **Reliability and updates** | Isolate damaged paper data so one item does not break the library; download desktop updates in the background and restart when ready. |
 | **Linux/Docker compatibility** | Fix reader navigation and paragraph toolbar actions in Docker on Linux Firefox, and use bundled/system trust for research API queries in packaged macOS builds. |
 | **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
