@@ -174,7 +174,7 @@
     if (e.target.matches("[data-ink-custom]")) setColor(e.target.value, e.target);
   });
   document.addEventListener("keydown", e => {
-    if (e.defaultPrevented || e.isComposing || e.target.closest?.("input,textarea,[contenteditable]")) return;
+    if (e.defaultPrevented || e.isComposing || e.target.closest?.("input,textarea,select,[contenteditable],#chatStyleHelp")) return;
     if (!active) return;
     if (e.key === "Escape") {
       e.preventDefault(); e.stopImmediatePropagation(); active = false; tools.hidden = true; erasing = false;

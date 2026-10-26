@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from easyread import chat, chat_store
+from easyread import answer_styles, chat, chat_store
 from easyread.server import Handler
 from easyread.store import Workspace, write_json_atomic
 
@@ -23,7 +23,7 @@ class AnswerStyleTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.ws = Workspace(Path(self.tmp.name))
-        write_json_atomic(self.ws.paper_path, {"meta": {"title_en": "Test paper"}, "blocks": [
+        write_json_atomic(self.ws.paper_path, {"meta": {"title_en": "Test paper", "target": "zh-TW"}, "blocks": [
             {"id": "a", "type": "para", "page": 1, "role": "abstract", "en": "An abstract.", "zh": "摘要"},
             {"id": "b", "type": "para", "page": 2, "en": "A source fact with $x$.", "zh": "当前段落"},
             {"id": "list", "type": "list", "page": 3, "items": [{"en": "A test condition.", "zh": "测试条件"}]},
@@ -38,11 +38,11 @@ class AnswerStyleTest(unittest.TestCase):
             with self.subTest(engine=engine):
                 normal = chat.prompt(self.ws, messages, "b", "引用", engine)
                 ste = chat.prompt(self.ws, messages, "b", "引用", engine, answer_style="ste100")
-                self.assertIn("用中文，直接", normal)
+                self.assertIn("用繁體中文（臺灣用語），不可使用簡體字，直接", normal)
                 self.assertNotIn("本次使用 ASD-STE100", normal)
-                self.assertNotIn("当前已导入的正文", normal)
+                self.assertNotIn("目前已匯入的正文", normal)
                 self.assertNotIn("A final limitation.", normal)
-                self.assertNotIn("用中文，直接", ste)
+                self.assertNotIn("直接、具體，能舉例就舉例", ste)
                 self.assertIn("只輸出繁體中文回答，不附英文答案", ste)
                 self.assertNotIn("## English (ASD-STE100)", ste)
                 for fact in ("Previous answer in English.", "A source fact with $x$.", "引用", "A test condition.", "2%", "$$y=2x$$", "A final limitation."):
@@ -56,7 +56,7 @@ class AnswerStyleTest(unittest.TestCase):
             "r": {"anchor": "b", "quote": "red selection", "body": "red private note", "color": "pink"},
             "b": {"anchor": "c", "quote": "blue selection", "body": "blue private note", "color": "blue"},
         }})
-        for style in ("standard", "ste100"):
+        for style in answer_styles.VALUES:
             with self.subTest(style=style):
                 plain = chat.prompt(self.ws, [{"role": "user", "content": "总结论文"}], "b", "", "openai", answer_style=style)
                 self.assertNotIn("red private note", plain)
@@ -67,7 +67,7 @@ class AnswerStyleTest(unittest.TestCase):
 
     def test_all_modes_and_engines_require_renderable_math_output(self):
         for engine in ("openai", "claude", "codex"):
-            for style in ("standard", "ste100"):
+            for style in answer_styles.VALUES:
                 with self.subTest(engine=engine, style=style):
                     prompt = chat.prompt(self.ws, [{"role": "user", "content": "推导这个公式"}], "eq", "", engine, answer_style=style)
                     self.assertIn("行內公式只使用 $TeX$", prompt)
@@ -99,6 +99,46 @@ class AnswerStyleTest(unittest.TestCase):
         self.assertIn("Start0.", excerpt)
         self.assertIn("Final49.", excerpt)
         self.assertLessEqual(len(excerpt.split("：\n\n", 1)[1]), chat.PAPER_BUDGET)
+
+    def test_xray_includes_sources_and_teaches_without_inventing_evidence(self):
+        for engine in ("openai", "claude", "codex"):
+            with self.subTest(engine=engine):
+                prompt = chat.prompt(self.ws, [{"role": "user", "content": "Explain the method"}],
+                                     "b", "selected source", engine, answer_style="xray")
+                for fact in ("A final limitation.", "A test condition.", "2%", "$$y=2x$$", "selected source"):
+                    self.assertIn(fact, prompt)
+                for rule in ("本次使用精讀模式", "張量形狀", "手算", "教學示例", "資料洩漏",
+                             "論文沒有報告", "不可聲稱已看過或核對原圖", "不能把未提供的內容視為已讀"):
+                    self.assertIn(rule, prompt)
+                self.assertIn("用繁體中文（臺灣用語），不可使用簡體字", prompt)
+                self.assertNotIn("本次使用 ASD-STE100", prompt)
+        self.ws.update("paper", lambda p: p["meta"].pop("target"))
+        with patch("easyread.i18n.lang", return_value="en"):
+            english = chat.prompt(self.ws, [{"role": "user", "content": "Explain"}], "b", "", "openai", answer_style="xray")
+        self.assertIn("用英文（English）", english)
+        self.assertNotIn("只輸出繁體中文", english)
+
+    def test_all_modes_roundtrip_through_http_storage_and_pinning(self):
+        self.start_server()
+        model = {"id": "m", "name": "Model", "engine": "openai", "model": "test"}
+        with patch("easyread.server.config.load", return_value={}), \
+                patch("easyread.server.chat_models.engine_cfg", return_value=({"engine": "openai"}, model)), \
+                patch("easyread.server.chat.stream", side_effect=lambda *a: iter([ANSWER])) as stream:
+            for style in answer_styles.VALUES:
+                with self.subTest(style=style):
+                    events = self.post({"text": "Explain", "anchor": "b", "answer_style": style})
+                    tid = events[0]["thread"]
+                    self.assertEqual(events[0]["answer_style"], style)
+                    saved = chat_store.get(self.ws, tid)
+                    self.assertEqual(saved["messages"][-1]["answer_style"], style)
+                    text = stream.call_args.args[1]
+                    self.assertEqual("A final limitation." in text, style in answer_styles.WHOLE_PAPER)
+                    followup = self.post({"thread": tid, "text": "Continue", "anchor": "b"})
+                    self.assertEqual(followup[0]["answer_style"], style)
+                    chat_store.pin(self.ws, tid, followup[-1]["id"])
+                    entry = self.ws.load("discussion")["entries"][-1]
+                    self.assertEqual(entry["anchor"], "b")
+                    self.assertEqual(entry["body"], ANSWER)
 
     def test_legacy_messages_do_not_inherit_later_ste_badges(self):
         write_json_atomic(self.ws.root / "chat.json", {"messages": [

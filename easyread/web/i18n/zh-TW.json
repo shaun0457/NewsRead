@@ -315,5 +315,7 @@
   "Antigravity 預設": "Antigravity 預設",
   "找不到 Antigravity CLI 命令：{cmd}（先裝好並登入 Antigravity CLI）": "找不到 Antigravity CLI 命令：{cmd}（請先安裝並登入 Antigravity CLI）",
   "测试此模型": "測試此模型",
-  "未知错误": "未知錯誤"
+  "未知错误": "未知錯誤",
+  "简明回答": "簡明回答",
+  "回答方式只能是 standard / ste100 / xray": "回答方式只能是 standard / ste100 / xray"
 }

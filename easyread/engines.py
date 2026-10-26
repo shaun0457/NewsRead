@@ -39,18 +39,19 @@ def engine_name(engine: str | None) -> str:
 
 
 def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None,
-        meter: usage.Meter | None = None) -> str:
+        meter: usage.Meter | None = None, json_mode: bool = False) -> str:
     """meter：传了就把这次调用的 token 用量记进去（整篇翻译时用）。"""
     bad = netcheck.problem(cfg)
     if bad:
         raise EngineError(bad)
     try:
-        return _run(cfg, prompt, cwd, images, cancel, meter)
+        return _run(cfg, prompt, cwd, images, cancel, meter, json_mode)
     except EngineError as e:
         raise EngineError(netcheck.explain(cfg, str(e))) from None
 
 
-def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter) -> str:
+def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter,
+         json_mode: bool = False) -> str:
     engine = cfg.get("engine")
     if engine == "claude":
         return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
@@ -59,7 +60,7 @@ def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: t
     if engine == "antigravity":
         return run_antigravity(cfg["antigravity"], prompt, cwd, cancel, meter)
     if engine == "openai":
-        return run_openai(cfg["openai"], prompt, images or [], cancel, meter)
+        return run_openai(cfg["openai"], prompt, images or [], cancel, meter, json_mode)
     raise EngineError(tr("没有配置翻译引擎（设置 → 模型）"))
 
 
@@ -287,9 +288,9 @@ def _communicate(proc, stdin_text: str, timeout: int, cancel) -> str:
 
 
 # ---------- OpenAI 兼容接口 ----------
-def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
+def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None, json_mode: bool = False) -> str:
     from . import openai_api  # 它要用本文件的 EngineError，放这里免得循环导入
-    return openai_api.complete(c, prompt, images, cancel, meter)
+    return openai_api.complete(c, prompt, images, cancel, meter, json_mode)
 
 
 # 单反斜杠的常见 TeX 命令（\frac、\beta、\theta、\text、\nabla、\rho 等），
@@ -349,7 +350,7 @@ def test(cfg: dict) -> dict:
     if engine == "none":
         return {"ok": True, "message": tr("未启用自动翻译")}
     try:
-        out = run(cfg, '只回复 JSON，不要别的文字：{"ok": true}', Path(tempfile.gettempdir()), None, None)  # i18n-ok
+        out = run(cfg, '只回复 JSON，不要别的文字：{"ok": true}', Path(tempfile.gettempdir()), None, None, json_mode=True)  # i18n-ok
         parse_json(out)
         return {"ok": True, "message": tr("可以用：{out}", out=out.strip()[:40])}
     except (EngineError, Cancelled) as e:

@@ -949,7 +949,7 @@
   "块必须是对象": "Block must be an object",
   "{id}：table.{field} 必须是二维数组": "{id}: table.{field} must be a two-dimensional array",
   "{id}：译文 table.head 必须是二维数组": "{id}: translated table.head must be a two-dimensional array",
-  "回答方式只能是 standard / ste100": "Answer style must be standard or ste100",
+  "回答方式只能是 standard / ste100 / xray": "Answer style must be standard, ste100, or xray",
   "这一块没能显示": "This block could not be displayed",
   "块 {id} 的数据格式有问题，其他内容仍可阅读。": "Block {id} has invalid data. Other content remains readable.",
   "请先停止当前回答": "Stop the current answer first",
@@ -2039,5 +2039,16 @@
   "Antigravity CLI 输出不是 JSON：{out}": "Antigravity CLI output is not JSON: {out}",
   "Antigravity 預設": "Antigravity default",
   "找不到 Antigravity CLI 命令：{cmd}（先裝好並登入 Antigravity CLI）": "Cannot find Antigravity CLI command: {cmd} (please install and sign in to Antigravity CLI first)",
-  "未知错误": "Unknown error"
+  "未知错误": "Unknown error",
+  "回答方式": "Answer style",
+  "標準回答": "Standard",
+  "精讀": "Deep reading",
+  "說明三種回答方式的差異": "Compare the three answer styles",
+  "如何選擇回答方式？": "Which answer style should I choose?",
+  "關閉回答方式說明": "Close answer style help",
+  "依目前段落、引用內容與對話直接回答，必要時補充例子。適合閱讀途中釐清單一問題。": "Answers directly using the current passage, references, and conversation, with examples when useful. Best for clarifying a question while reading.",
+  "用短句與條列整理重點，保留數值、條件與限制。適合快速掌握概念或操作步驟。": "Uses short sentences and lists while keeping numbers, conditions, and limitations. Best for quickly understanding concepts or steps.",
+  "深入說明作者的問題、方法與設計理由，用小例子拆解關鍵公式，檢視實驗證據、對照條件與結論限制。適合想弄懂原理或評估研究。": "Explains the research problem, method, and design choices, works through small examples of key formulas, and examines evidence, comparison conditions, and limitations. Best for understanding mechanisms or assessing research.",
+  "簡明與精讀模式會額外帶入目前已整理的論文正文，通常增加用量；長文會節錄，未匯入的頁面與未附上的圖表影像不會自動補齊。": "Plain answers and deep reading include additional imported paper text and usually use more tokens. Long papers are excerpted; missing pages and unattached figure or table images are not automatically included.",
+  "三種模式使用你選擇的同一個模型；精讀仍是針對這次問題回答，不會自動完成整篇精讀報告。": "All three styles use the model you selected. Deep reading answers this question; it does not automatically create a complete paper analysis."
 }

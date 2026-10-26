@@ -58,6 +58,16 @@ test("disabled shortcuts and missing selections leave IME events alone", () => {
   assert.equal(r.actions.length, 0);
 });
 
+test("answer-style selection and help do not trigger reader shortcuts", () => {
+  const r = reader();
+  for (const selector of ["select", "#chatStyleHelp"]) {
+    const event = r.press({ target: { closest: selectors => selectors.includes(selector) ? {} : null } });
+    assert.equal(event.prevented, undefined);
+  }
+  r.press({ key: "Escape", defaultPrevented: true });
+  assert.equal(r.actions.length, 0);
+});
+
 test("ordinary key values still work when physical codes are unavailable", () => {
   const r = reader();
   r.press({ key: "2", code: "", isComposing: false });

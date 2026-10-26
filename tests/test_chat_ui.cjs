@@ -9,7 +9,7 @@ const source = name => fs.readFileSync(path.join(__dirname, "../easyread/web/js/
 const settled = () => new Promise(resolve => setImmediate(resolve));
 
 async function reader(threads = [], options = {}) {
-  const listeners = new Map(), events = new Map(), nodes = new Map(), requests = [], copied = [], confirmations = [];
+  const listeners = new Map(), events = new Map(), nodes = new Map(), requests = [], copied = [], confirmations = [], focused = [];
   let finish;
   const pendingReads = [];
   const panelEvents = new Map();
@@ -21,10 +21,16 @@ async function reader(threads = [], options = {}) {
       const ta = { value: (html.match(/<textarea[^>]*>(.*?)<\/textarea>/s) || [])[1] || "", focus() {} };
       nodes.set("#chatInput", ta);
       nodes.set("#chatList", { scrollHeight: 100, scrollTop: 0, clientHeight: 100 });
-      // “简明回答”开关：亮着就是 ste100
+      const select = (html.match(/<select id="chatAnswerStyle"[\s\S]*?<\/select>/) || [""])[0];
       nodes.set("#chatAnswerStyle", {
-        value: /class="ch-pill on"/.test(html) ? "ste100" : "standard",
-        disabled: /data-c="style" disabled/.test(html),
+        id: "chatAnswerStyle", value: (select.match(/value="([^"]+)" selected/) || [])[1],
+        disabled: / disabled/.test(select), focus() { focused.push("style"); },
+      });
+      nodes.set("#chatStyleHelp", { hidden: /aria-labelledby="chatStyleHelpTitle" hidden/.test(html), focus() { focused.push("help"); } });
+      nodes.set("#chatStyleHelpButton", {
+        expanded: /aria-expanded="true" aria-controls="chatStyleHelp"/.test(html),
+        setAttribute(name, value) { if (name === "aria-expanded") this.expanded = value === "true"; },
+        focus() { focused.push("help-button"); },
       });
     },
   });
@@ -66,9 +72,11 @@ async function reader(threads = [], options = {}) {
       }));
     },
   });
-  const dispatch = async (name, target) => { for (const fn of listeners.get(name) || []) await fn({ target }); };
+  const dispatch = async (name, target, extra = {}) => { for (const fn of listeners.get(name) || []) await fn({ target, ...extra }); };
   const action = (name, card, row) => ({ dataset: { c: name, m: name === "model" ? "m2" : undefined }, closest: selector => {
     if (selector === "#chatpanel") return panel;
+    if (selector === "#chatStyleHelpButton" && name === "style-help") return nodes.get("#chatStyleHelpButton");
+    if (selector === "#chatStyleHelp" && name === "style-help-close") return nodes.get("#chatStyleHelp");
     if (selector === "[data-c]") return actionTarget;
     if (selector === ".cm.ai") return card;
     if (selector === ".ch-thread[data-t]") return row;
@@ -82,8 +90,11 @@ async function reader(threads = [], options = {}) {
   };
   PR.toggleChat(true);
   await settled();
-  const setStyle = async value => { if (nodes.get("#chatAnswerStyle").value !== value) await click("style"); };
-  return { PR, panel, nodes, requests, copied, confirmations, dispatch, click, selectThread, setStyle,
+  const setStyle = async value => {
+    const select = nodes.get("#chatAnswerStyle");
+    if (!select.disabled) { select.value = value; await dispatch("change", select); }
+  };
+  return { PR, panel, nodes, requests, copied, confirmations, focused, dispatch, click, selectThread, setStyle,
     finishImages: () => pendingReads.splice(0).forEach(done => done()),
     paste: files => { let prevented = false; return Promise.resolve(panelEvents.get("paste")({ target: { id: "chatInput" }, clipboardData: { items: files.map(file => ({ kind: "file", type: file.type, getAsFile: () => file })) }, preventDefault: () => { prevented = true; } })).then(() => prevented); },
     emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish() };
@@ -126,6 +137,55 @@ test("each saved conversation restores its mode; legacy and new conversations st
   await r.selectThread("ste");
   await r.click("new");
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "standard");
+});
+
+test("all three modes reach the request and XRAY restores its saved badge", async () => {
+  const r = await reader([
+    { id: "xray", title: "Deep reading", answer_style: "xray", messages: [{ id: "x", role: "assistant", content: answer, answer_style: "xray" }] },
+    { id: "unknown", title: "Unknown", answer_style: "broken", messages: [] },
+  ]);
+  await r.selectThread("xray");
+  assert.equal(r.nodes.get("#chatAnswerStyle").value, "xray");
+  assert.ok(r.panel.innerHTML.includes('class="cm-style">精讀</span>'));
+  await r.selectThread("unknown");
+  assert.equal(r.nodes.get("#chatAnswerStyle").value, "standard");
+  for (const style of ["standard", "ste100", "xray"]) {
+    await r.setStyle(style);
+    r.nodes.get("#chatInput").value = "Explain the evidence";
+    const sending = r.click("send"); await settled();
+    assert.equal(r.requests.at(-1).answer_style, style);
+    assert.equal(r.nodes.get("#chatAnswerStyle").disabled, true);
+    r.finish(); await sending;
+    assert.equal(r.nodes.get("#chatAnswerStyle").value, style);
+  }
+});
+
+test("answer-style help explains context and cost, preserves drafts, and restores focus", async () => {
+  const r = await reader();
+  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
+  assert.ok(r.panel.innerHTML.includes('aria-label="回答方式"'));
+  assert.ok(r.panel.innerHTML.includes('aria-controls="chatStyleHelp"'));
+  for (const text of ["標準回答", "简明回答", "精讀", "長文會節錄", "通常增加用量", "同一個模型", "不會自動完成整篇精讀報告"]) assert.ok(r.panel.innerHTML.includes(text));
+  r.nodes.get("#chatInput").value = "My unsent question";
+  await r.setStyle("xray");
+  await r.click("style-help");
+  assert.equal(r.nodes.get("#chatStyleHelp").hidden, false);
+  assert.equal(r.nodes.get("#chatStyleHelpButton").expanded, true);
+  assert.equal(r.focused.at(-1), "help");
+  let prevented = false, stopped = false;
+  await r.dispatch("keydown", {}, { key: "Escape", preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
+  assert.ok(prevented && stopped);
+  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
+  assert.equal(r.focused.at(-1), "help-button");
+  await r.click("style-help"); await r.click("style-help-close");
+  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
+  assert.equal(r.focused.at(-1), "help-button");
+  await r.click("style-help");
+  await r.dispatch("click", { closest: () => null });
+  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
+  assert.equal(r.nodes.get("#chatInput").value, "My unsent question");
+  assert.equal(r.nodes.get("#chatAnswerStyle").value, "xray");
+  assert.equal(r.requests.length, 0);
 });
 
 test("saved formulas render in answers, questions and thread titles without rewriting copy content", async () => {

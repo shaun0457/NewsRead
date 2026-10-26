@@ -75,7 +75,7 @@ class RetryMissingPageTest(unittest.TestCase):
     def run_pages(self, replies):
         calls = []
 
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             calls.append(prompt)
             return json.dumps({"blocks": replies[len(calls) - 1]})
         with mock.patch.object(engines, "run", side_effect=run):

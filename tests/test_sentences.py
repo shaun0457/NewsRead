@@ -143,7 +143,7 @@ class PipelineTest(unittest.TestCase):
         shutil.rmtree(self.ws.root, ignore_errors=True)
 
     def test_translate_batch_and_check_quote(self):
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             self.assertTrue(any(mark in prompt for mark in ("句子對齊", "句子对齐")))
             page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             return json.dumps({"blocks": [{"id": f"p{page}-1", "type": "para", "page": page, "en": "One. ‖ Two.", "zh": "一。‖二。"}],
@@ -155,13 +155,13 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(self.ws.load("discussion")["entries"][0]["quote"], "一。二")
 
     def test_fill_after_read_aligns_with_program_split(self):
-        def structure(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def structure(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             return json.dumps({"blocks": [{"id": f"p{page}-1", "type": "para", "page": page, "en": "First. Second one."},
                                           {"id": f"s{page}", "type": "heading", "page": page, "en": "Intro. Part"}]})
         seen = []
 
-        def fill(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def fill(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             marker = next(m for m in ("要翻譯的內容（鍵 → 英文）：\n", "要翻译的内容（键 → 英文）：\n") if m in prompt)
             items = json.loads(prompt.split(marker, 1)[1])
             seen.append(items)

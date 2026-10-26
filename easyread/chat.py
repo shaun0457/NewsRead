@@ -28,7 +28,7 @@ from .store import Workspace
 HISTORY = 12  # 带上最近几轮对话
 COLOR_NAMES = {"yellow": "黃", "green": "綠", "blue": "藍", "pink": "紅"}  # i18n-ok
 MARKS_BUDGET = 9000  # 标记部分最多带多少字
-PAPER_BUDGET = 30000  # STE 问答带上正文，长论文各段取节选，保留后面的结果和结论
+PAPER_BUDGET = 30000  # 简明／精读问答带上正文，长论文各段取节选，保留后面的结果和结论
 
 
 # ---------- 提示词 ----------
@@ -182,7 +182,9 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     meta = ws.load("paper").get("meta") or {}
     style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
              else langs.reply_language_rule(meta) + "，直接、具體，能舉例就舉例。\n")  # i18n-ok
-    whole = _paper_context(ws) if answer_style == answer_styles.STE100 else ""
+    if answer_style == answer_styles.XRAY:
+        style += answer_styles.XRAY_INSTRUCTIONS
+    whole = _paper_context(ws) if answer_style in answer_styles.WHOLE_PAPER else ""
     return ("你正在陪讀者閱讀一篇學術論文，回答他邊讀邊產生的問題。\n" + style  # i18n-ok
             + "區分「論文裡寫了什麼」和「你的補充解釋」，論文裡沒有的內容不要說成是論文說的。"  # i18n-ok
             "行內公式只使用 $TeX$，行間公式只使用 $$TeX$$。"  # i18n-ok

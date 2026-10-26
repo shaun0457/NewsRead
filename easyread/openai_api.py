@@ -58,7 +58,8 @@ def _headers(o: dict, stream: bool = False) -> dict:
     return h
 
 
-def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: float | None) -> dict:
+def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: float | None,
+          json_mode: bool = False) -> dict:
     urls = ["data:" + (mimetypes.guess_type(str(p))[0] or "image/png") + ";base64," + base64.b64encode(p.read_bytes()).decode() for p in images] if o.get("vision") else []
     if kind(o) == "responses":
         content = [{"type": "input_text", "text": prompt}] + [{"type": "input_image", "image_url": u} for u in urls]
@@ -66,6 +67,8 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
     else:
         content = [{"type": "text", "text": prompt}] + [{"type": "image_url", "image_url": {"url": u}} for u in urls] if urls else prompt
         body = {"model": o["model"], "messages": [{"role": "user", "content": content}]}
+    if json_mode and o.get("preset") == "ollama" and kind(o) == "chat":
+        body["response_format"] = {"type": "json_object"}
     # Ollama thinking models default to thinking on (including Qwen3.5). PaperRead
     # intentionally hides <think> blocks, which otherwise leaves the reader waiting
     # with no visible output. Ollama maps reasoning_effort="none" to think=false.
@@ -109,8 +112,8 @@ def _http_error(e: urllib.error.HTTPError) -> EngineError:
 
 
 # ---------- 一次拿到整段（翻译用） ----------
-def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
-    body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2)
+def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None, json_mode: bool = False) -> str:
+    body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2, json_mode)
     res = None
     for attempt in range(4):  # 限流、服务端错误、网络抖动：等一会儿再试
         if cancel is not None and cancel.is_set():

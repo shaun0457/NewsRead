@@ -45,6 +45,17 @@ class I18nTest(unittest.TestCase):
             with mock.patch.object(i18n, "lang", lambda: "zh"):
                 self.assertEqual(i18n.tr("已导入 {n} 篇", n=3), "已导入 3 篇")
 
+    def test_parse_json_reports_model_output_without_json(self):
+        from easyread.engines import EngineError, parse_json
+
+        with mock.patch.object(i18n, "lang", lambda: "en"), mock.patch.object(
+            i18n, "en_dict", lambda: {"模型输出里没有 JSON：{text}": "No JSON in model output: {text}"}
+        ):
+            with self.assertRaisesRegex(EngineError, "No JSON in model output: plain text"):
+                parse_json("plain text")
+
+        self.assertEqual(parse_json('{"translated": "ok"}'), {"translated": "ok"})
+
     def test_traditional_conversion_uses_taiwan_terms(self):
         with mock.patch.object(i18n, "lang", lambda: "zh-TW"):
             self.assertEqual(i18n.tr("设置、软件和文件夹"), "設定、軟體和資料夾")

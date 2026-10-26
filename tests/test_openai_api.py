@@ -100,6 +100,12 @@ class OpenAIApiTest(unittest.TestCase):
         other = openai_api._body({"preset": "openai", "model": "gpt"}, "q", [], True, 0.4)
         self.assertNotIn("reasoning_effort", other)
 
+    def test_json_mode_is_enabled_only_for_ollama_chat_completions(self):
+        ollama = openai_api._body({"preset": "ollama", "model": "local"}, "q", [], False, 0.2, True)
+        self.assertEqual(ollama["response_format"], {"type": "json_object"})
+        other = openai_api._body({"preset": "openai", "model": "gpt"}, "q", [], False, 0.2, True)
+        self.assertNotIn("response_format", other)
+
 
 if __name__ == "__main__":
     unittest.main()

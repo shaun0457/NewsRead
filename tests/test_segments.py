@@ -114,7 +114,7 @@ class SkipHeadTest(unittest.TestCase):
         seen = {}
         lock = threading.Lock()
 
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             with lock:
                 seen[page] = prompt
@@ -160,7 +160,7 @@ class SkipHeadTest(unittest.TestCase):
     def test_only_one_references_block(self):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}
 
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
             blocks = [{"id": "refs", "type": "references", "page": page, "en": "References", "zh": "参考文献"}] if page >= 3 else \
                 [{"id": f"p{page}-1", "type": "para", "page": page, "en": "x", "zh": "译文"}]

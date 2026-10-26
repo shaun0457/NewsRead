@@ -41,7 +41,7 @@ class PageCapTest(unittest.TestCase):
                                           "translation": {"done_pages": []}, "blocks": []})
         return ws
 
-    def fake_engine(self, cfg, prompt, cwd, images=None, cancel=None, meter=None):
+    def fake_engine(self, cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
         match = re.search(r"(?:這次只(?:處理|翻譯)第|这次只(?:处理|翻译)第) ([\d, ]+) (?:頁|页)", prompt)
         pages = [int(n) for n in match[1].split(",")]
         self.calls.append({"pages": pages, "cfg": cfg, "root": str(cwd)})

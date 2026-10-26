@@ -41,7 +41,7 @@
 
   /* ---------- 快捷键 ---------- */
   document.addEventListener("keydown", (e) => {
-    if (e.target.closest("textarea, input, [contenteditable]") || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.defaultPrevented || e.target.closest("textarea, input, select, [contenteditable], #chatStyleHelp") || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (PR.hasPendingSelection() && PR.keysOn) {
       // An active IME can report "Process" outside editors. Resolve physical

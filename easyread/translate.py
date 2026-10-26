@@ -142,7 +142,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         fill_zh(ws, {}, batch, set())
         return
     marked, ends = sentences.mark_items(blocks, items)  # 英文先按句插好 ‖，译文照着插，记句子对齐
-    text = engines.run(cfg, prompts_en.fill(ws, batch, marked), ws.root, None, cancel, meter)
+    text = engines.run(cfg, prompts_en.fill(ws, batch, marked), ws.root, None, cancel, meter, json_mode=True)
     data = engines.parse_json(text)
     if not isinstance(data, dict) or not isinstance(data.get("zh"), dict):
         raise engines.EngineError(tr("模型输出的格式不对（缺 zh）"))
@@ -150,7 +150,7 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
     if problems:
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter))
+            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter, json_mode=True))
             if (isinstance(fixed, dict) and isinstance(fixed.get("zh"), dict)
                     and data["zh"].keys() <= fixed["zh"].keys()
                     and retains_content(data, fixed)
@@ -179,7 +179,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
     else:
         prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_context.build(ws.root, batch[0]) if front else "")
-    text = engines.run(cfg, prompt, ws.root, images, cancel, meter)
+    text = engines.run(cfg, prompt, ws.root, images, cancel, meter, json_mode=True)
     try:
         data = engines.parse_json(text)
     except engines.EngineError:
@@ -190,7 +190,7 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     if problems:  # 给一次修的机会
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter))
+            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter, json_mode=True))
             fixed = _normalize(fixed, batch, _taken(ws, batch))
             if fixed["blocks"] and retains_content(data, fixed) and len(_problems(fixed)) < len(problems):
                 data = fixed

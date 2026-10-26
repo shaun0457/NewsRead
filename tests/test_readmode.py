@@ -12,7 +12,7 @@ from tests.test_translate import make_ws
 
 def structure_engine(calls: list):
     """只读原文：每页一个段落、一个表，只有英文。"""
-    def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+    def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
         assert any(mark in prompt for mark in ("不要翻譯", "不要翻译"))
         page = int(re.search(r"(?:這次只處理第|这次只处理第) ([\d, ]+) (?:頁|页)", prompt)[1].split(",")[0])
         calls.append(page)
@@ -25,7 +25,7 @@ def structure_engine(calls: list):
 
 def fill_engine(calls: list, skip: set = frozenset()):
     """补译文：把要译的键都译成“中文 键”，skip 里的键故意漏掉。"""
-    def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+    def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
         assert any(mark in prompt for mark in ("這次只翻譯第", "这次只翻译第"))
         marker = next(m for m in ("要翻譯的內容（鍵 → 英文）：\n", "要翻译的内容（键 → 英文）：\n") if m in prompt)
         items = json.loads(prompt.split(marker, 1)[1])

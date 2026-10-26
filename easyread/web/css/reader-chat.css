@@ -77,13 +77,30 @@ body.ch-open #chatpanel { transform: none; }
 .chip-ctx button { width: 18px; height: 18px; border-radius: 50%; color: var(--ink-3); flex: none; line-height: 1; }
 .chip-ctx button:hover { background: var(--surface-2); color: var(--ink); }
 #chatInput { width: 100%; border: 0; outline: 0; resize: none; background: transparent; padding: 6px 0; font: 14.5px/1.6 var(--ui); color: var(--ink); min-height: 30px; max-height: 200px; display: block; }
-.ch-bar { display: flex; align-items: center; gap: 6px; }
+.ch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ch-bar .grow { flex: 1; }
 .ch-model { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--ink-2); }
 .ch-pill { height: 24px; margin-left: 4px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--rule-2); font: 12px var(--ui); color: var(--ink-3); background: transparent; }
 .ch-pill:hover { color: var(--ink); border-color: var(--ink-3); }
 .ch-pill.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .ch-pill:disabled { opacity: .5; }
+.ch-mode-controls { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.ch-mode-controls .ch-pill { height: 28px; margin-left: 0; max-width: 100%; color: var(--ink-2); cursor: pointer; }
+.ch-mode-controls .ch-pill.on { color: var(--accent); }
+.ch-mode-controls option { color: var(--ink); background: var(--surface); }
+.ch-style-help-button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--ink-2); }
+.ch-style-help-button:hover, .ch-style-help-button[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+.ch-mode-controls :focus-visible, .ch-style-help :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ch-style-help { margin-top: 10px; border-top: 1px solid var(--rule); padding: 10px 4px 4px; max-height: min(40vh, 320px); overflow-y: auto; color: var(--ink-2); font: 13px/1.65 var(--ui); overflow-wrap: anywhere; }
+.ch-style-help[hidden] { display: none; }
+.ch-style-help:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ch-style-help-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink); }
+.ch-style-help-head button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 6px; color: var(--ink-2); font-size: 18px; }
+.ch-style-help-head button:hover { background: var(--accent-soft); }
+.ch-style-help dl { margin: 8px 0; }
+.ch-style-help dt { font-weight: 600; color: var(--ink); }
+.ch-style-help dd { margin: 2px 0 10px; }
+.ch-style-help p { margin: 8px 0 0; }
 .ch-model:hover { background: var(--accent-soft); color: var(--ink); }
 .ch-model { min-width: 0; max-width: 56%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ch-model:disabled { opacity: .5; cursor: wait; }

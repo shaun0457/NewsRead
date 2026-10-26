@@ -90,7 +90,7 @@ def lang() -> str:
     return system_lang() if value == "auto" else value
 
 
-def tr(text: str, **kw) -> str:
+def tr(text: str, /, **kw) -> str:
     """Translate one interface string, keeping Chinese content and variables intact."""
     if lang() == "zh-TW":
         converter = _tw_converter()

@@ -57,7 +57,7 @@ class FrontContextTest(unittest.TestCase):
         cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}}
         seen = {}
 
-        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):  # 最后的一致性检查
                 return '{"fixes": []}'
             page = page_of(prompt)
@@ -142,7 +142,7 @@ class ConsistencyTest(unittest.TestCase):
     def run_check(self, ws, reply, pages):
         calls, lines = [], []
 
-        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             calls.append(prompt)
             return json.dumps(reply)
 
@@ -181,7 +181,7 @@ class ConsistencyTest(unittest.TestCase):
     def test_user_edit_during_check_is_not_overwritten(self):
         ws = self.make([{"id": "a", "type": "para", "page": 2, "en": "The standard error.", "zh": "标准误。"}])
 
-        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def engine(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             ws.update("reader", lambda r: r.setdefault("edits", {}).__setitem__("a", {"zh": "用户的译文"}))
             return json.dumps({"use": {"standard error": "标准误差"}, "fixes": [{"key": "a", "term": "standard error", "from": "标准误"}]})
 
@@ -200,7 +200,7 @@ class ConsistencyTest(unittest.TestCase):
         cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 2, "openai": {"vision": False}}
         cancel = threading.Event()
 
-        def engine(cfg, prompt, cwd, images=None, cancel_=None, meter=None):
+        def engine(cfg, prompt, cwd, images=None, cancel_=None, meter=None, json_mode=False):
             if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):
                 cancel.set()
                 raise engines.Cancelled()
@@ -225,7 +225,7 @@ class TermsUnifyTest(unittest.TestCase):
 
 class SeamTest(unittest.TestCase):
     def engine(self, seen):
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             if not any(mark in prompt for mark in ("這次只處理第", "这次只处理第")):
                 return '{"fixes": []}'
             page = page_of(prompt)
