@@ -51,8 +51,7 @@ body { font-size: 15px; }
 #inkLayer.erase { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='9' fill='%23fff' fill-opacity='.72' stroke='%23665b4a' stroke-width='1.5'/%3E%3C/svg%3E") 14 14, crosshair; }
 #inkLayer path[data-stroke] { pointer-events: stroke; cursor: pointer; }
 #inkLayer.erase path[data-stroke] { cursor: inherit; }
-#inkTools { position: fixed; z-index: 70; top: calc(var(--bar-h) + 8px); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 3px; width: max-content; max-width: calc(100vw - 16px); overflow-x: auto; padding: 5px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); box-shadow: 0 4px 18px #0002; scrollbar-width: none; }
-#inkTools::-webkit-scrollbar { display: none; }
+#inkTools { position: fixed; z-index: 70; top: calc(var(--bar-h) + 8px); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 3px; width: max-content; max-width: calc(100vw - 16px); overflow: visible; padding: 5px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); box-shadow: 0 4px 18px #0002; }
 #inkTools[hidden] { display: none; }
 #inkTools button, #inkTools summary { min-width: 32px; min-height: 32px; padding: 4px 8px; border-radius: 7px; white-space: nowrap; }
 #inkTools .ink-tool-group { display: flex; align-items: center; gap: 4px; }

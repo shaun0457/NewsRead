@@ -73,6 +73,31 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-assets
+      - name: Prepare release notes from changelog
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## v${version}" '
+            index($0, heading) == 1 { found=1; next }
+            found && /^## v/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+          cat >> release-notes.md <<EOF
+
+          ---
+
+          Windows x64 installer, macOS arm64 DMG, and Linux x64 AppImage are attached to this release.
+
+          Docker browser edition:
+
+          \`\`\`bash
+          docker pull ghcr.io/yuriylin/paperread:${GITHUB_REF_NAME}
+          docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:${GITHUB_REF_NAME}
+          \`\`\`
+
+          Open http://localhost:8765 after the container starts.
+          EOF
       - name: Publish installers
         uses: softprops/action-gh-release@v2
         with:
@@ -84,16 +109,4 @@ jobs:
             release-assets/**/*.dmg
             release-assets/**/*.dmg.blockmap
           generate_release_notes: false
-          body: |
-            ## PaperRead ${{ github.ref_name }}
-
-            Windows x64 installer, macOS arm64 DMG, and Linux x64 AppImage are attached to this release.
-
-            Docker browser edition:
-
-            ```bash
-            docker pull ghcr.io/yuriylin/paperread:${{ github.ref_name }}
-            docker run -d --name paperread --restart unless-stopped -p 8765:8765 -v paperread-data:/data/PaperRead ghcr.io/yuriylin/paperread:${{ github.ref_name }}
-            ```
-
-            Open http://localhost:8765 after the container starts.
+          body_path: release-notes.md
