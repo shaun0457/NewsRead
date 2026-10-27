@@ -2,7 +2,7 @@
 (function (PR) {
   "use strict";
   const PATH_API = "/api/research/v2/reading-path/tasks";
-  const state = { scope: "", path: null, comparison: null, tasks: [], timer: 0, busy: false, dialogTask: null, dialogOpen: false, returnFocus: null };
+  const state = { scope: "", path: null, comparison: null, mindmap: null, tasks: [], timer: 0, busy: false, dialogTask: null, dialogOpen: false, returnFocus: null };
   const terminal = new Set(["completed", "failed", "cancelled", "interrupted"]);
   const active = (task) => task && ["queued", "running", "cancelling"].includes(task.state);
   const esc = (value) => PR.esc(String(value || ""));
@@ -16,17 +16,35 @@
     const ids = acknowledgedIds(); ids.add(id);
     try { localStorage.setItem(key(), JSON.stringify([...ids].slice(-100))); } catch (_) { /* notification still works for this page */ }
   }
-  function taskType(task) { return task?.kind === "comparison" ? "comparison" : "path"; }
-  function label(task) { return taskType(task) === "path" ? PR.t("閱讀路徑分析") : PR.t("跨論文比較"); }
-  function resultUrl(task, retry = false) {
-    if (taskType(task) === "path") return "/research?mode=path" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
-    return "/research?mode=comparisons";
+  function taskType(task) {
+    if (task?.kind === "comparison") return "comparison";
+    if (task?.kind === "mindmap") return "mindmap";
+    return "path";
   }
-  function taskList() { return [state.path, state.comparison].filter(Boolean); }
+  function label(task) {
+    const type = taskType(task);
+    if (type === "comparison") return PR.t("跨論文比較");
+    if (type === "mindmap") return PR.t("論文心智圖");
+    return PR.t("閱讀路徑分析");
+  }
+  function resultUrl(task, retry = false) {
+    const type = taskType(task);
+    if (type === "path") return "/research?mode=path" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
+    if (type === "comparison") return "/research?mode=comparisons";
+    if (type === "mindmap") {
+      const pid = task.paper_id || task.key || "";
+      return "/read/" + encodeURIComponent(pid) + "?open=mindmap" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
+    }
+    return "/research";
+  }
+  function taskList() { return [state.path, state.comparison, state.mindmap].filter(Boolean); }
   function ack(task) {
     if (!task?.id || task.acknowledged) return;
     task.acknowledged = true; rememberAck(task.id);
-    const url = taskType(task) === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/ack"
+    const type = taskType(task);
+    const pid = task.paper_id || task.key || "";
+    const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/ack"
+      : type === "mindmap" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(task.id) + "/ack" : "/api/research/v2/mindmap/tasks/" + encodeURIComponent(task.id) + "/ack")
       : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/ack";
     PR.api(url, { method: "POST", body: {} }).catch(() => {});
   }
@@ -38,12 +56,17 @@
     state.returnFocus = null;
   }
   function cancel(task) {
-    const url = taskType(task) === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/cancel"
+    const type = taskType(task);
+    const pid = task.paper_id || task.key || "";
+    const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/cancel"
+      : type === "mindmap" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(task.id) + "/cancel" : "/api/research/v2/mindmap/tasks/" + encodeURIComponent(task.id) + "/cancel")
       : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/cancel";
     task.state = "cancelling"; task.message = PR.t("正在取消分析…"); render();
     PR.api(url, { method: "POST", body: {} }).then((result) => {
       const updated = result.task || result;
-      if (taskType(updated) === "path") state.path = updated; else state.comparison = updated;
+      if (taskType(updated) === "path") state.path = updated;
+      else if (taskType(updated) === "mindmap") state.mindmap = updated;
+      else state.comparison = updated;
       render();
     }).catch((error) => PR.toast(esc(PR.t(error.message))));
   }
@@ -54,11 +77,12 @@
     const wasVisible = !modal.hidden;
     const focusedAction = wasVisible ? ["continue", "cancel", "view", "retry"].find((name) =>
       document.activeElement?.hasAttribute("data-task-" + name)) : "";
-    const isPath = taskType(task) === "path", running = active(task);
+    const isPath = taskType(task) === "path", isMindmap = taskType(task) === "mindmap", running = active(task);
     const runningHelp = isPath ? PR.t("你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。")
+      : isMindmap ? PR.t("心智圖整理可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。")
       : PR.t("跨論文比較可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
-    let title = running ? (isPath ? PR.t("正在分析閱讀路徑") : PR.t("正在整理跨論文比較…"))
-      : task.state === "completed" ? (isPath ? PR.t("閱讀路徑已完成") : PR.t("跨論文比較已完成"))
+    let title = running ? (isPath ? PR.t("正在分析閱讀路徑") : isMindmap ? PR.t("正在整理論文心智圖…") : PR.t("正在整理跨論文比較…"))
+      : task.state === "completed" ? (isPath ? PR.t("閱讀路徑已完成") : isMindmap ? PR.t("論文心智圖已完成") : PR.t("跨論文比較已完成"))
       : task.state === "cancelled" ? PR.t("分析已取消")
       : task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
     let detail = task.state === "completed" && task.result?.warning
@@ -83,9 +107,25 @@
     const cancelButton = modal.querySelector("[data-task-cancel]");
     if (cancelButton) cancelButton.onclick = () => cancel(task);
     const viewButton = modal.querySelector("[data-task-view]");
-    if (viewButton) viewButton.onclick = () => { ack(task); closeDialog(); location.href = resultUrl(task); };
+    if (viewButton) viewButton.onclick = () => {
+      ack(task);
+      closeDialog();
+      if (isMindmap && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
+        PR.emit("open-research-mindmap", { task });
+      } else {
+        location.href = resultUrl(task);
+      }
+    };
     const retryButton = modal.querySelector("[data-task-retry]");
-    if (retryButton) retryButton.onclick = () => { ack(task); closeDialog(); location.href = resultUrl(task, true); };
+    if (retryButton) retryButton.onclick = () => {
+      ack(task);
+      closeDialog();
+      if (isMindmap && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
+        PR.emit("retry-research-mindmap", { task });
+      } else {
+        location.href = resultUrl(task, true);
+      }
+    };
     const focusTarget = (focusedAction && modal.querySelector("[data-task-" + focusedAction + "]"))
       || modal.querySelector("[data-task-view], [data-task-retry], [data-task-continue]") || modal;
     if (!wasVisible || focusedAction) focusTarget.focus?.();
@@ -114,14 +154,36 @@
     if (!terminal.has(task.state) || task.state === "cancelled" || task.acknowledged || acknowledgedIds().has(task.id)) return;
     if (state.dialogOpen && state.dialogTask === task.id) { renderDialog(); return; }
     const completed = task.state === "completed";
-    const title = completed ? (taskType(task) === "path" ? PR.t("閱讀路徑已完成") : PR.t("跨論文比較已完成")) :
+    const isPath = taskType(task) === "path";
+    const isMindmap = taskType(task) === "mindmap";
+    const title = completed ? (isPath ? PR.t("閱讀路徑已完成") : isMindmap ? PR.t("論文心智圖已完成") : PR.t("跨論文比較已完成")) :
       task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
     const actionLabel = completed ? PR.t("查看結果") : PR.t("返回重試");
     PR.toast(esc(title) + (task.message ? " · " + esc(task.message) : ""), {
       label: actionLabel,
-      fn: () => { ack(task); location.href = resultUrl(task, !completed); }
+      fn: () => {
+        ack(task);
+        if (isMindmap && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
+          if (completed) {
+            PR.emit("open-research-mindmap", { task });
+          } else {
+            PR.emit("retry-research-mindmap", { task });
+          }
+        } else {
+          location.href = resultUrl(task, !completed);
+        }
+      }
     }, 9000);
     ack(task);
+  }
+  function applyMindmap(tasks) {
+    const task = (tasks || []).filter((item) => item.kind === "mindmap")
+      .sort((a, b) => Number(b.created || 0) - Number(a.created || 0))[0] || null;
+    if (!task) return;
+    const previous = state.mindmap?.state;
+    state.mindmap = task;
+    if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
+    else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
   }
   function applyPath(task) {
     if (!task) return;
@@ -154,8 +216,9 @@
         applyPath(pathTask);
       }
       applyComparison(monitor.tasks);
+      applyMindmap(monitor.tasks);
       render();
-      PR.emit("research-task-update", { path: state.path, comparison: state.comparison });
+      PR.emit("research-task-update", { path: state.path, comparison: state.comparison, mindmap: state.mindmap });
     } catch (_) { /* keep the last known state while the local service reconnects */ }
     finally { state.busy = false; schedule(); }
   }
@@ -198,6 +261,7 @@
       if (!task) return;
       if (task.kind === "reading-path") state.path = task;
       else if (task.kind === "comparison") state.comparison = task;
+      else if (task.kind === "mindmap") state.mindmap = task;
       if (open) show(task);
       render(); schedule();
     },

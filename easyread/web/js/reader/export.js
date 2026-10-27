@@ -103,16 +103,24 @@
       chat = data.threads ? data.threads.flatMap((thread) => thread.messages || []) : data.messages || [];
     }
     let mindmap = "";
+    let mindmapPngBase64 = "";
     if (pick.mindmap) {
       const endpoint = "/api/research/v2/paper/" + encodeURIComponent(PR.pid) + "/mindmap";
       let result = await PR.api(endpoint);
       if (!result.mermaid) result = await PR.api(endpoint, { method: "POST", body: {} });
       if (!result.mermaid) throw new Error(PR.t("沒有取得心智圖內容。"));
       mindmap = result.mermaid;
+      if (PR.mindmap && typeof PR.mindmap.exportPngBase64 === "function") {
+        try {
+          mindmapPngBase64 = await PR.mindmap.exportPngBase64(mindmap, { title: title() });
+        } catch (e) {
+          console.error("[Export] 心智圖 PNG 產生失敗:", e); // i18n-ok
+        }
+      }
     }
     const warning = inkWarning();
     const text = PR.notesMarkdown(pick, chat, { order, chat, mindmap });
-    return { dlg, pick, order, chat, mindmap, text: warning ? warning + "\n\n" + text : text, warning };
+    return { dlg, pick, order, chat, mindmap, mindmapPngBase64, text: warning ? warning + "\n\n" + text : text, warning };
   }
 
   function documents(prepared) {
@@ -125,7 +133,26 @@
     const result = [];
     const stem = filenameStem();
     if (pick.paper) result.push({ id: analysisId, kind: "analysis", paper_id: paperId, title: title() + " - " + PR.t("論文分析"), filename: stem + "-analysis", body: analysis, links: [mindmapId, annotationsId] });
-    if (pick.mindmap && mindmap) result.push({ id: mindmapId, kind: "mindmap", paper_id: paperId, title: title() + " - " + PR.t("心智圖"), filename: stem + "-mind-map", body: "## " + PR.t("論文心智圖") + "\n\n```mermaid\n" + mindmap + "\n```", links: [analysisId] });
+    if (pick.mindmap && mindmap) {
+      const imgName = stem + "-mind-map.png";
+      const doc = {
+        id: mindmapId,
+        kind: "mindmap",
+        paper_id: paperId,
+        title: title() + " - " + PR.t("心智圖"),
+        filename: stem + "-mind-map",
+        body: "## " + PR.t("論文心智圖") + "\n\n![[" + imgName + "]]",
+        links: [analysisId],
+      };
+      if (prepared.mindmapPngBase64) {
+        doc.image_base64 = prepared.mindmapPngBase64;
+        doc.attachment = {
+          filename: imgName,
+          content_base64: prepared.mindmapPngBase64,
+        };
+      }
+      result.push(doc);
+    }
     if (annotations.trim() || prepared.warning) result.push({ id: annotationsId, kind: "annotations", paper_id: paperId, title: title() + " - " + PR.t("閱讀標註"), filename: stem + "-annotations", body: [annotations, prepared.warning].filter(Boolean).join("\n\n"), links: [analysisId, mindmapId] });
     const available = new Set(result.map((item) => item.id));
     result.forEach((item) => { item.links = item.links.filter((target) => available.has(target)); });
@@ -159,7 +186,12 @@
       } else {
         const selected = EXPORT_ORDER.filter((key) => prepared.pick[key]);
         if (!selected.length) throw new Error(PR.t("請至少選擇一項匯出內容。"));
-        if (selected.length === 1) {
+        if (selected.length === 1 && selected[0] === "mindmap") {
+          if (!prepared.mindmapPngBase64) {
+            throw new Error(PR.t("心智圖 PNG 產生失敗，請重試。"));
+          }
+          await saveBase64(filenameStem() + "-mind-map.png", prepared.mindmapPngBase64, [{ name: "PNG", extensions: ["png"], mime: "image/png" }]);
+        } else if (selected.length === 1) {
           await saveBase64(filenameStem() + "-notes.md", null, [{ name: "Markdown", extensions: ["md"], mime: "text/markdown" }], prepared.text); // i18n-ok: filename suffix is exported data, not UI copy.
         } else {
           const result = await PR.api("/api/research/v2/export/zip", { method: "POST", body: { documents: documents(prepared) } });

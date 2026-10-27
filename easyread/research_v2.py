@@ -69,6 +69,61 @@ def _current_reading_path_task(root: Path) -> dict | None:
     retry_request = record.get("request") if stored.get("state") in ("failed", "interrupted") else None
     return {**stored, "acknowledged": bool(record.get("acknowledged")), "request": retry_request}
 
+MINDMAP_TASK_CACHE_PREFIX = "mindmap:task:"
+
+
+def _persist_mindmap_task(root: Path, pid: str, request: dict, task: dict) -> None:
+    cache_key = MINDMAP_TASK_CACHE_PREFIX + pid
+    previous, _ = planning_store.cache_get(root, cache_key)
+    same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
+    clean_task = {key: value for key, value in task.items() if key != "result"}
+    result = task.get("result")
+    if isinstance(result, dict):
+        clean_task["result"] = result
+    clean_task["paper_id"] = pid
+    planning_store.cache_put(root, cache_key, {
+        "task": clean_task,
+        "request": request,
+        "paper_id": pid,
+        "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
+    })
+
+
+def _current_mindmap_task(root: Path, pid: str | None = None) -> dict | None:
+    from .research import tasks
+    scope = tasks.scope_id(root)
+    live_list = tasks.list_tasks(scope=scope)
+    live = next((task for task in live_list
+                 if task.get("kind") == "mindmap" and (not pid or task.get("paper_id") == pid or task.get("key") == pid)), None)
+    target_pid = pid or (live.get("paper_id") if live else "")
+    if not target_pid:
+        return live
+    cache_key = MINDMAP_TASK_CACHE_PREFIX + target_pid
+    saved, _ = planning_store.cache_get(root, cache_key)
+    record = saved if isinstance(saved, dict) else {}
+    stored = record.get("task") if isinstance(record.get("task"), dict) else None
+    if live:
+        same_task = bool(stored and stored.get("id") == live.get("id"))
+        full_live = tasks.get(live["id"], scope=scope) or live
+        result = full_live.get("result") if same_task else None
+        if not isinstance(result, dict) and same_task:
+            result = stored.get("result")
+        return {**live, **({"result": result} if isinstance(result, dict) else {}),
+                "paper_id": target_pid,
+                "acknowledged": bool(record.get("acknowledged")) if same_task else False,
+                "request": record.get("request") if stored and stored.get("id") == live.get("id")
+                and live.get("state") in ("failed", "interrupted") else None}
+    if not stored:
+        return None
+    if stored.get("state") in ("queued", "running", "cancelling"):
+        stored = {**stored, "state": "interrupted", "phase": "interrupted",
+                  "message": tr("心智圖分析已中斷；可保留輸入並手動重新產生。")}
+        record = {**record, "task": stored}
+        planning_store.cache_put(root, cache_key, record)
+    retry_request = record.get("request") if stored.get("state") in ("failed", "interrupted") else None
+    return {**stored, "paper_id": target_pid, "acknowledged": bool(record.get("acknowledged")), "request": retry_request}
+
+
 
 def _root(app) -> Path:
     return app.lib.root
@@ -814,6 +869,20 @@ def get(app, path_query: str):
     if endpoint == "reading-path/latest":
         snapshot = planning_store.latest_reading_path(_root(app))
         return {"path": snapshot, "found": bool(snapshot)}
+    if endpoint == "mindmap/tasks/current":
+        return {"task": _current_mindmap_task(_root(app))}
+    if endpoint.startswith("mindmap/tasks/"):
+        from .research import tasks
+        identity = endpoint.rsplit("/", 1)[-1]
+        scope = tasks.scope_id(_root(app))
+        task = tasks.get(identity, scope=scope)
+        if task and task.get("kind") == "mindmap":
+            target_pid = task.get("paper_id") or task.get("key") or ""
+            saved, _ = planning_store.cache_get(_root(app), MINDMAP_TASK_CACHE_PREFIX + target_pid) if target_pid else (None, None)
+            task["acknowledged"] = bool(saved.get("acknowledged")) if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity else False
+            return {"task": task}
+        current = _current_mindmap_task(_root(app))
+        return {"task": current if current and current.get("id") == identity else None}
     if endpoint == "reading-path/tasks/current":
         return {"task": _current_reading_path_task(_root(app))}
     if endpoint.startswith("reading-path/tasks/"):
@@ -836,6 +905,19 @@ def get(app, path_query: str):
         item = ws.load("item") or {}
         paper = ws.load("paper") or {}
         meta = paper.get("meta") or {}
+        if action in ("mindmap/tasks/current", "mindmap/task"):
+            return {"task": _current_mindmap_task(_root(app), pid)}
+        if action.startswith("mindmap/tasks/"):
+            from .research import tasks
+            identity = action.rsplit("/", 1)[-1]
+            scope = tasks.scope_id(_root(app))
+            task = tasks.get(identity, scope=scope)
+            if task and task.get("kind") == "mindmap":
+                saved, _ = planning_store.cache_get(_root(app), MINDMAP_TASK_CACHE_PREFIX + pid)
+                task["acknowledged"] = bool(saved.get("acknowledged")) if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity else False
+                return {"task": task}
+            current = _current_mindmap_task(_root(app), pid)
+            return {"task": current if current and current.get("id") == identity else None}
         if action == "mindmap":
             evidence = []
             for block in paper.get("blocks") or []:
@@ -848,7 +930,7 @@ def get(app, path_query: str):
             source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
             cache_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
             cached, checked = planning_store.cache_get(_root(app), cache_key)
-            return {**(cached or {}), "cached": bool(cached), "checked_at": checked}
+            return {**(cached or {}), "cached": bool(cached), "checked_at": checked, "task": _current_mindmap_task(_root(app), pid)}
         return {"id": pid, "item": item, "title": meta.get("title_zh") or meta.get("title_en") or "未命名論文",  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
                 "title_en": meta.get("title_en", ""), "doi": meta.get("doi", ""), "arxiv": meta.get("arxiv", ""),
                 "openalex_id": meta.get("openalex_id", ""), "statuses": planning_store.statuses(_root(app))}
@@ -1360,6 +1442,48 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         if not record:
             raise ValueError("找不到這篇論文的摘要。")  # i18n-ok: Research workspace message is fixed Traditional Chinese.
         return obsidian_export.export_to_vault([_summary_export_document(record)])
+    if (endpoint.startswith("/paper/") and endpoint.endswith("/mindmap/tasks")) or (endpoint.startswith("/mindmap/tasks") and not endpoint.endswith("/cancel") and not endpoint.endswith("/ack")):
+        from .research import tasks
+        pid = endpoint.strip("/").split("/")[1] if endpoint.startswith("/paper/") else str(body.get("pid") or body.get("paper_id") or "")
+        ws = app.lib.ws(pid)
+        if not ws:
+            raise ValueError(tr("找不到這篇論文。"))
+        paper = ws.load("paper") or {}
+        meta = paper.get("meta") or {}
+        title = str(meta.get("title_zh") or meta.get("title_en") or tr("未命名論文"))[:300]
+        scope = tasks.scope_id(root)
+        request = {"model": body.get("model")}
+        def persist(task):
+            _persist_mindmap_task(root, pid, request, task)
+        def run(cancel, report):
+            report("starting", 0, 2, tr("正在整理論文文字…"))
+            result = post(app, f"/paper/{pid}/mindmap", body, _cancel=cancel, _report=report)
+            report("completed", 2, 2, tr("心智圖已完成"))
+            return result
+        task = tasks.submit("mindmap", run, retry_failed=True, scope=scope, on_update=persist,
+                            key=pid, paper_id=pid, title=title)
+        return {"task": task}
+    if (endpoint.startswith("/paper/") and "/mindmap/tasks/" in endpoint and endpoint.endswith("/cancel")) or (endpoint.startswith("/mindmap/tasks/") and endpoint.endswith("/cancel")):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        task = tasks.cancel(identity, scope=tasks.scope_id(root))
+        if not task or task.get("kind") != "mindmap":
+            raise ValueError(tr("找不到這個心智圖分析工作。"))
+        return {"task": task}
+    if (endpoint.startswith("/paper/") and "/mindmap/tasks/" in endpoint and endpoint.endswith("/ack")) or (endpoint.startswith("/mindmap/tasks/") and endpoint.endswith("/ack")):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        task = tasks.get(identity, scope=tasks.scope_id(root))
+        pid = (task.get("paper_id") if task else None) or (endpoint.strip("/").split("/")[1] if endpoint.startswith("/paper/") else "")
+        if pid:
+            cache_key = MINDMAP_TASK_CACHE_PREFIX + pid
+            saved, _ = planning_store.cache_get(root, cache_key)
+            if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity:
+                saved["acknowledged"] = True
+                planning_store.cache_put(root, cache_key, saved)
+        tasks.acknowledge(identity, scope=tasks.scope_id(root))
+        current = _current_mindmap_task(root, pid)
+        return {"task": current or task}
     if endpoint.startswith("/paper/") and endpoint.endswith("/mindmap"):
         pid = endpoint.strip("/").split("/")[1]
         ws = app.lib.ws(pid)
@@ -1389,12 +1513,53 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
         source_text = json.dumps(evidence, ensure_ascii=False)[:24000]
-        prompt = "請依據下方實際提供的論文標題與文字，產生 Mermaid mindmap。根節點是論文標題；主要分支請依研究邏輯組織研究問題、背景/理論、方法設計、核心發現、研究貢獻、限制。下層列具體要點、變數、數據；節點精簡，盡可能不超過20個中文字，總數以內容足以支持為準，禁止虛構。用繁體中文，保留必要英文術語。只輸出 mindmap 程式碼，不輸出 HTML、Markdown code fence 或腳本。\n論文標題：" + title + "\n來源文字：" + source_text  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter).strip()
-        answer = re.sub(r"^```(?:mermaid)?\s*|\s*```$", "", answer, flags=re.I).strip()
+        prompt = (
+            "你是一位資深的學術研究導師與知識結構化專家。請依據下方提供的論文標題與內文文字，產生結構嚴謹、脈絡清晰且層級分明的 Mermaid mindmap 程式碼。\n\n"  # i18n-ok: prompt
+            "【結構與分支架構指引】\n"  # i18n-ok: prompt
+            "1. 根節點：論文核心主題或簡化標題，語法如 `  root((論文標題))`。\n"  # i18n-ok: prompt
+            "2. 主要分支（一級分支，依學術邏輯組織 5 至 7 個核心維度）：\n"  # i18n-ok: prompt
+            "   - `研究背景與問題`：研究動機、欲解決的核心問題或現有技術瓶頸。\n"  # i18n-ok: prompt
+            "   - `核心架構與理論`：整體系統或模型架構、理論基礎、核心組件模組。\n"  # i18n-ok: prompt
+            "   - `方法與關鍵機制`：演算法流程、關鍵設計、損失函數或數學表達。\n"  # i18n-ok: prompt
+            "   - `實驗設計與基準`：基準測試 (Benchmarks)、評估資料集、對照基準 (Baselines)、評估指標。\n"  # i18n-ok: prompt
+            "   - `核心發現與成果`：主要實驗結論、SOTA 對比成果、消融實驗 (Ablation) 洞察。\n"  # i18n-ok: prompt
+            "   - `研究貢獻與創新`：核心學術突破、方法創新或實務價值。\n"  # i18n-ok: prompt
+            "   - `局限性與未來方向`：方法邊界、未解決問題或改進方向（若原文未提及可精簡或略過）。\n"  # i18n-ok: prompt
+            "3. 層級深度：建議展開至 3 至 4 層；主要分支下設 2 至 4 個子分支（二級節點），末端節點（三級/四級節點）列出具體變數、數據指標、方法細節。\n\n"  # i18n-ok: prompt
+            "【節點內容與視覺渲染強化】\n"  # i18n-ok: prompt
+            "1. 精煉原則：節點文字必須精簡有力（建議控制在 6 至 20 個字），使用名詞短語或精要摘要，嚴禁整段複製長句。\n"  # i18n-ok: prompt
+            r"2. KaTeX 數學公式：遇到數學變數、維度、複雜度或重要公式時，自然運用行內 KaTeX 格式（如 $O(N^2)$、$d=512$、$\mathcal{L}_{\text{task}}$、$\alpha=0.5$）。" "\n"  # i18n-ok: prompt
+            "3. 基礎 Markdown 語法：\n"  # i18n-ok: prompt
+            "   - 專有名詞、模組名稱、演算法或程式碼變數，適當使用行內代碼（如 `ResNet-50`、`CrossAttention`、`AdamW`）。\n"  # i18n-ok: prompt
+            "   - 關鍵突破、重要量化成果或核心結論，適當使用粗體突顯（如 `提升 **+3.4%**`、`達到 **92.1%**`、`減少 **40%** 延遲`）。\n"  # i18n-ok: prompt
+            "4. 自然融入：以上格式化元素請自然融入學術脈絡中，切勿在每個節點硬性堆砌特殊符號，保持整體視覺清爽乾淨。\n\n"  # i18n-ok: prompt
+            "【語言與真實性規範】\n"  # i18n-ok: prompt
+            "1. 全文一律使用繁體中文（臺灣學術慣用語，如資料集、演算法、最佳化、消融實驗）。\n"  # i18n-ok: prompt
+            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"  # i18n-ok: prompt
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。\n\n"  # i18n-ok: prompt
+            "【Mermaid 語法與輸出格式嚴格要求】\n"  # i18n-ok: prompt
+            "1. 第 1 行必須為 `mindmap`。\n"  # i18n-ok: prompt
+            "2. 根節點緊接其後，縮排 2 個空格。\n"  # i18n-ok: prompt
+            "3. 層級縮排：每一層級嚴格固定縮排 2 個空格（第一層 2 空格、第二層 4 空格、第三層 6 空格、第四層 8 空格），嚴禁使用 Tab。\n"  # i18n-ok: prompt
+            '4. 標點安全：若節點文字中包含圓括號 ()、方括號 [] 或冒號等符號，請以雙引號與方括號包裹（例如 `    ["Cross-Entropy (CE) 損失"]`），防止 Mermaid 語法樹解析中斷。\n'  # i18n-ok: prompt
+            "5. 絕對限制：只輸出 Mermaid 程式碼本身！不要包含 Markdown 程式碼區塊標記（不要輸出 ```mermaid 或 ```），不要包含任何引言、前言、解釋或結尾問候語。\n\n"  # i18n-ok: prompt
+            f"論文標題：{title}\n"  # i18n-ok: prompt
+            f"來源文字：{source_text}"  # i18n-ok: prompt
+        )
+        if _cancel and _cancel.is_set():
+            return {}
+        if _report:
+            _report("generating", 1, 2, tr("正在依據論文內文產生心智圖…"))
+        answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], _cancel, meter).strip()
+        bt = chr(96) * 3
+        match = re.search(r"(?is)\b(mindmap\b.*?)(?:\n\s*" + bt + r"|$)", answer)
+        if match:
+            answer = match.group(1).strip()
+        answer = re.sub(r"^```(?:mermaid)?\s*", "", answer, flags=re.I)
+        answer = re.sub(r"\s*```.*$", "", answer, flags=re.I | re.S).strip()
         if not answer.lower().startswith("mindmap") or len(answer) > 20000 or re.search(r"<\s*/?\s*(?:script|iframe|foreignObject)|javascript:", answer, re.I):
             raise ValueError("模型未回傳安全且可辨識的 Mermaid mindmap，請重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        result = {"mermaid": answer, "title": title, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "generated_at": _now().isoformat(), "cached": False}
+        result = {"mermaid": answer, "title": title, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "generated_at": _now().isoformat(), "cached": False, "paper_id": pid}
         planning_store.cache_put(root, cache_key, result)
         return result
     if endpoint == "/candidate":

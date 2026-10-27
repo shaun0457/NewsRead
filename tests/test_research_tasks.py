@@ -17,7 +17,8 @@ class ResearchTaskTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         planning_store.init(self.root)
-        self.app = SimpleNamespace(lib=SimpleNamespace(root=self.root, all=lambda: []))
+        fake_ws = SimpleNamespace(load=lambda kind: {"meta": {"title_zh": "測試論文"}, "blocks": [{"text": "段落"}]})
+        self.app = SimpleNamespace(lib=SimpleNamespace(root=self.root, all=lambda: [], ws=lambda pid: fake_ws))
 
     def tearDown(self):
         try:
@@ -87,6 +88,39 @@ class ResearchTaskTests(unittest.TestCase):
                        "state": "running", "phase": "planning", "message": "running"}
         research_v2._persist_reading_path_task(self.root, request, interrupted)
         current = research_v2.get(self.app, research_v2.PREFIX + "/reading-path/tasks/current")["task"]
+        self.assertEqual(current["state"], "interrupted")
+        self.assertEqual(current["request"], request)
+
+    def test_mindmap_task_endpoint_persists_and_recovers_completion(self):
+        fake_ws = SimpleNamespace(load=lambda kind: {"meta": {"title_zh": "注意力機制論文"}, "blocks": [{"text": "這是測試段落"}]})
+        self.app.lib.ws = lambda pid: fake_ws
+        original_post = research_v2.post
+
+        def mocked_post(app, endpoint, body, *, _cancel=None, _report=None):
+            if endpoint.startswith("/paper/") and endpoint.endswith("/mindmap"):
+                _report("generating", 1, 2, "正在依據論文內文產生心智圖…")
+                return {"mermaid": "mindmap\n  root((注意力機制論文))", "title": "注意力機制論文", "paper_id": "p-100", "cached": False}
+            return original_post(app, endpoint, body, _cancel=_cancel, _report=_report)
+
+        with mock.patch("easyread.research_v2.post", side_effect=mocked_post):
+            submitted = original_post(self.app, "/paper/p-100/mindmap/tasks", {})["task"]
+            self.assertIn(submitted["state"], ("queued", "running", "completed"))
+            completed = self._wait_for(lambda: (lambda task: task if task and task["id"] == submitted["id"]
+                and task["state"] == "completed" else None)(research_v2.get(
+                    self.app, research_v2.PREFIX + "/paper/p-100/mindmap/tasks/current")["task"]))
+
+        self.assertEqual(completed["paper_id"], "p-100")
+        self.assertIn("mindmap", completed["result"]["mermaid"])
+        acked = original_post(self.app, f"/paper/p-100/mindmap/tasks/{submitted['id']}/ack", {})["task"]
+        self.assertTrue(acked["acknowledged"])
+
+    def test_mindmap_current_marks_lost_active_task_interrupted(self):
+        from easyread.research.tasks import scope_id
+        request = {"model": "test-model"}
+        interrupted = {"id": "lost-map-task", "kind": "mindmap", "scope": scope_id(self.root),
+                       "paper_id": "p-200", "state": "running", "phase": "generating", "message": "running"}
+        research_v2._persist_mindmap_task(self.root, "p-200", request, interrupted)
+        current = research_v2.get(self.app, research_v2.PREFIX + "/paper/p-200/mindmap/tasks/current")["task"]
         self.assertEqual(current["state"], "interrupted")
         self.assertEqual(current["request"], request)
 

@@ -33,16 +33,19 @@ def scope_id(root) -> str:
     return sha256(str(root.resolve()).casefold().encode("utf-8")).hexdigest()[:20]
 
 
-def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on_update=None) -> dict:
+def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on_update=None, key: str = "", **extra) -> dict:
     scope = str(scope or "")
+    key = str(key or "")
     with _LOCK:
         active = next((task for task in _TASKS.values()
                        if task["kind"] == kind and task.get("scope", "") == scope
+                       and (not key or task.get("key", "") == key)
                        and task["state"] in ("queued", "running", "cancelling")), None)
         if active:
             return _public(active)
         recent_failure = next((task for task in _TASKS.values()
                                if task["kind"] == kind and task.get("scope", "") == scope
+                               and (not key or task.get("key", "") == key)
                                and task["state"] in ("failed", "cancelled")
                                and time.time() - task["updated"] < 60), None)
         if recent_failure and not retry_failed:
@@ -52,9 +55,9 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
         for old in expired:
             _TASKS.pop(old["id"], None)
         identity = str(uuid.uuid4())
-        task = {"id": identity, "kind": kind, "state": "queued", "phase": "queued", "done": 0,
+        task = {"id": identity, "kind": kind, "key": key, "state": "queued", "phase": "queued", "done": 0,
                 "total": 0, "message": tr("排入背景工作…"), "created": time.time(), "updated": time.time(),
-                "scope": scope, "_on_update": on_update}
+                "scope": scope, "_on_update": on_update, **extra}
         cancel = threading.Event()
         _TASKS[identity] = task
         _CANCEL[identity] = cancel

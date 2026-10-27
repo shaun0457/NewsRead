@@ -58,32 +58,99 @@
     }
     return root;
   }
+  let activeMindmapCtrl = null;
+  let lastGeneratedMindmap = null;
+
+  function displayMindmap(box, data) {
+    const view = box.querySelector("#rp-mindmap"); if (!view) return;
+    const expandBtn = box.querySelector("#rp-map-expand");
+    const title = paperTitle();
+    if (activeMindmapCtrl) {
+      activeMindmapCtrl.destroy();
+      activeMindmapCtrl = null;
+    }
+    if (PR.mindmap && PR.mindmap.renderPanel) {
+      activeMindmapCtrl = PR.mindmap.renderPanel(view, data, {
+        title,
+        onRegenerate: () => renderMindmap(box, true),
+      });
+    } else {
+      view.replaceChildren(parseMindmap(data.mermaid));
+    }
+    const note = document.createElement("small"); note.className = "rp-map-meta"; note.textContent = PR.t("依目前論文文字產生 · {model}", { model: data.model || PR.t("快取結果") }); view.append(note);
+    if (expandBtn) expandBtn.style.display = "";
+  }
+
   async function renderMindmap(box, force = false) {
     const view = box.querySelector("#rp-mindmap"); if (!view) return;
     const button = box.querySelector("#rp-map-generate");
+    const expandBtn = box.querySelector("#rp-map-expand");
     const defaultLabel = PR.t("產生／更新心智圖");
-    if (force && button) {
-      button.disabled = true;
-      button.setAttribute("aria-busy", "true");
-      button.textContent = PR.t("正在重新產生…");
+    const id = encodeURIComponent(PR.pid);
+
+    if (force) {
+      if (button) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        button.textContent = PR.t("正在重新產生…");
+      }
+      if (activeMindmapCtrl) {
+        activeMindmapCtrl.destroy();
+        activeMindmapCtrl = null;
+      }
+      view.replaceChildren(); view.setAttribute("aria-live", "polite");
+      view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.t("正在依據論文內文產生心智圖…") + '</span></div>';
+      if (expandBtn) expandBtn.style.display = "none";
+      try {
+        const res = await PR.api(API + "/paper/" + id + "/mindmap/tasks", { method: "POST", body: { force: true } });
+        PR.researchTaskMonitor?.track(res.task, true);
+        if (res.task && res.task.state === "completed" && res.task.result) {
+          lastGeneratedMindmap = res.task.result;
+          displayMindmap(box, res.task.result);
+          if (button) { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = defaultLabel; }
+        }
+      } catch (error) {
+        if (button) { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = defaultLabel; }
+        view.innerHTML = '<div class="rp-map-error"><span>' + PR.esc(error.message) + '</span><button class="btn sm line" data-rp-map-retry>' + PR.t("重試") + '</button></div>';
+      }
+      return;
+    }
+
+    if (activeMindmapCtrl) {
+      activeMindmapCtrl.destroy();
+      activeMindmapCtrl = null;
     }
     view.replaceChildren(); view.setAttribute("aria-live", "polite");
     view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.t("正在根據論文內文整理研究心智圖…") + '</span></div>';
-    const id = encodeURIComponent(PR.pid);
+    if (expandBtn) expandBtn.style.display = "none";
     try {
-      const result = !force ? await PR.api(API + "/paper/" + id + "/mindmap") : null;
-      if (!force && !result?.mermaid) { view.innerHTML = mindmapEmpty(); return; }
-      const generated = force ? await PR.api(API + "/paper/" + id + "/mindmap", { method: "POST", body: { force: true } }) : result;
-      view.replaceChildren(parseMindmap(generated.mermaid));
-      const note = document.createElement("small"); note.className = "rp-map-meta"; note.textContent = PR.t("依目前論文文字產生 · {model}", { model: generated.model || PR.t("快取結果") }); view.append(note);
-    } catch (error) {
-      view.innerHTML = '<div class="rp-map-error"><span>' + PR.esc(error.message) + '</span><button class="btn sm line" data-rp-map-retry>重試</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
-    } finally {
-      if (force && button) {
+      const result = await PR.api(API + "/paper/" + id + "/mindmap");
+      const liveTask = result?.task;
+      if (liveTask && ["queued", "running", "cancelling"].includes(liveTask.state)) {
+        if (button) {
+          button.disabled = true;
+          button.setAttribute("aria-busy", "true");
+          button.textContent = PR.t("正在重新產生…");
+        }
+        view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.esc(liveTask.message || PR.t("正在依據論文內文產生心智圖…")) + '</span></div>';
+        PR.researchTaskMonitor?.track(liveTask, false);
+        return;
+      }
+      if (button) {
         button.disabled = false;
         button.removeAttribute("aria-busy");
         button.textContent = defaultLabel;
       }
+      if (!result?.mermaid) { view.innerHTML = mindmapEmpty(); return; }
+      lastGeneratedMindmap = result;
+      displayMindmap(box, result);
+    } catch (error) {
+      if (button) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.textContent = defaultLabel;
+      }
+      view.innerHTML = '<div class="rp-map-error"><span>' + PR.esc(error.message) + '</span><button class="btn sm line" data-rp-map-retry>' + PR.t("重試") + '</button></div>';
     }
   }
   async function render() {
@@ -117,7 +184,7 @@
       start_openalex: openalexId,
     };
     const interested = Boolean(item.starred ?? item.interested);
-    box.innerHTML = '<div class="research-v2-head"><b>' + PR.t("研究脈絡") + '</b><button data-rp-close aria-label="關閉">×</button></div><div class="research-v2-body"><div class="rp-current">' + titleHtml(title) + '</div><section class="rp-section"><h3>' + PR.t("論文心智圖") + '</h3><p class="hint">' + PR.t("根據目前論文整理研究問題、方法、發現、貢獻與限制。") + '</p><div id="rp-mindmap" class="rp-mindmap"></div><button class="btn accent" id="rp-map-generate">' + PR.t("產生／更新心智圖") + '</button></section><section class="rp-section"><h3>' + PR.t("延伸探索") + '</h3><a class="btn line" href="' + PR.esc(researchLink) + '">' + PR.t("以此論文探索相關研究") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", params)) + '">' + PR.t("探索研究方向與閱讀路徑") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", { mode: "candidates", q: cleanTopic, start_title: title })) + '">' + PR.t("前往候選清單") + '</a></section><section class="rp-section"><h3>' + PR.t("閱讀狀態") + '</h3><div class="rp-status-controls"><div id="rp-status-options" class="seg rp-status-segment" role="group" aria-label="閱讀狀態"></div><button type="button" class="btn icon line rp-interest-star' + (interested ? ' is-interested' : '') + '" id="rp-interested" aria-label="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" title="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" aria-pressed="' + interested + '">' + PR.icon("star", "sm") + '</button></div><p class="hint">' + PR.t("閱讀進度依閱讀器紀錄，和是否理解或整理論文分開。") + '</p><div id="rp-status-feedback" class="hint" role="status" aria-live="polite"></div></section></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    box.innerHTML = '<div class="research-v2-head"><b>' + PR.t("研究脈絡") + '</b><button data-rp-close aria-label="關閉">×</button></div><div class="research-v2-body"><div class="rp-current">' + titleHtml(title) + '</div><section class="rp-section"><div class="rp-section-titleline"><h3>' + PR.t("論文心智圖") + '</h3><button type="button" class="btn sm line rp-btn-expand" id="rp-map-expand" style="display:none">' + PR.t("詳細檢視") + '</button></div><p class="hint">' + PR.t("根據目前論文整理研究問題、方法、發現、貢獻與限制。") + '</p><div id="rp-mindmap" class="rp-mindmap"></div><button class="btn accent" id="rp-map-generate">' + PR.t("產生／更新心智圖") + '</button></section><section class="rp-section"><h3>' + PR.t("延伸探索") + '</h3><a class="btn line" href="' + PR.esc(researchLink) + '">' + PR.t("以此論文探索相關研究") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", params)) + '">' + PR.t("探索研究方向與閱讀路徑") + '</a><a class="btn line" href="' + PR.esc(openUrl("/research", { mode: "candidates", q: cleanTopic, start_title: title })) + '">' + PR.t("前往候選清單") + '</a></section><section class="rp-section"><h3>' + PR.t("閱讀狀態") + '</h3><div class="rp-status-controls"><div id="rp-status-options" class="seg rp-status-segment" role="group" aria-label="閱讀狀態"></div><button type="button" class="btn icon line rp-interest-star' + (interested ? ' is-interested' : '') + '" id="rp-interested" aria-label="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" title="' + PR.esc(PR.t(interested ? '取消感興趣' : '標記感興趣')) + '" aria-pressed="' + interested + '">' + PR.icon("star", "sm") + '</button></div><p class="hint">' + PR.t("閱讀進度依閱讀器紀錄，和是否理解或整理論文分開。") + '</p><div id="rp-status-feedback" class="hint" role="status" aria-live="polite"></div></section></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     renderMindmap(box);
     try {
       const data = await PR.api(API);
@@ -126,6 +193,17 @@
       for (const status of statuses) { const button = document.createElement("button"); button.type = "button"; button.dataset.rpStatus = status.id; button.textContent = status.label; button.classList.toggle("on", (item.status || "unread") === status.id); button.setAttribute("aria-pressed", String((item.status || "unread") === status.id)); options.append(button); }
     } catch (error) { box.querySelector("#rp-status-options").textContent = "無法載入狀態"; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
     box.querySelector("#rp-map-generate").onclick = () => renderMindmap(box, true);
+    const expandBtn = box.querySelector("#rp-map-expand");
+    if (expandBtn) {
+      expandBtn.onclick = () => {
+        if (!lastGeneratedMindmap || !PR.mindmap) return;
+        const mindData = PR.mindmap.parseToData(lastGeneratedMindmap.mermaid, paperTitle());
+        PR.mindmap.openModal(mindData, {
+          title: paperTitle(),
+          onRegenerate: () => renderMindmap(box, true),
+        });
+      };
+    }
     box.onclick = async (event) => {
       if (event.target.closest("[data-rp-map-retry]")) renderMindmap(box, true);
       const statusButton = event.target.closest("[data-rp-status]");
@@ -163,4 +241,57 @@
     };
   }
   document.addEventListener("click", (event) => { if (event.target.closest("[data-rp-close]")) PR.toggleResearch(false); });
+
+  if (typeof PR.on === "function") {
+    PR.on("research-task-update", (status) => {
+      const task = status?.mindmap;
+      if (!task) return;
+      if (task.paper_id && task.paper_id !== PR.pid) return;
+      const box = PR.$("#researchpanel");
+      if (!box || !PR.researchOpen()) return;
+      const view = box.querySelector("#rp-mindmap");
+      const button = box.querySelector("#rp-map-generate");
+      const expandBtn = box.querySelector("#rp-map-expand");
+      const defaultLabel = PR.t("產生／更新心智圖");
+      if (task.state === "completed") {
+        renderMindmap(box, false);
+      } else if (task.state === "failed" || task.state === "interrupted") {
+        if (button) { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = defaultLabel; }
+        if (view) view.innerHTML = '<div class="rp-map-error"><span>' + PR.esc(task.message || PR.t("分析未完成")) + '</span><button class="btn sm line" data-rp-map-retry>' + PR.t("重試") + '</button></div>';
+      } else if (task.state === "cancelled") {
+        if (button) { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = defaultLabel; }
+        renderMindmap(box, false);
+      } else if (["queued", "running", "cancelling"].includes(task.state)) {
+        if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); button.textContent = PR.t("正在重新產生…"); }
+        if (expandBtn) expandBtn.style.display = "none";
+        if (view && !view.querySelector(".rp-map-loading")) {
+          view.replaceChildren();
+          view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.esc(task.message || PR.t("正在依據論文內文產生心智圖…")) + '</span></div>';
+        }
+      }
+    });
+
+    PR.on("open-research-mindmap", () => {
+      PR.toggleResearch(true);
+      const box = PR.$("#researchpanel");
+      if (box) {
+        const view = box.querySelector("#rp-mindmap");
+        if (view) view.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+
+    PR.on("retry-research-mindmap", () => {
+      PR.toggleResearch(true);
+      const box = PR.$("#researchpanel");
+      if (box) renderMindmap(box, true);
+    });
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("open") === "mindmap") {
+      setTimeout(() => PR.toggleResearch(true), 300);
+    }
+  } catch (_) {}
+
 })(window.PR);

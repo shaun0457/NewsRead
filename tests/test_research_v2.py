@@ -268,6 +268,38 @@ class ResearchV2Test(unittest.TestCase):
         self.assertIn("generated_at", second)
         self.assertEqual(run.call_count, 2)
 
+    def test_mindmap_generation_cleans_code_fences_and_prelude(self):
+        from easyread import chat_models, engines
+        ws = FakeWorkspace("paper-clean")
+        ws.values["paper"] = {"meta": {"title_en": "Deep Learning Paper"}, "blocks": [
+            {"id": "b1", "type": "paragraph", "page": 1, "en": "A new neural network method."}]}
+        self.lib.workspaces[ws.id] = ws
+        cfg = {"engine": "openai", "openai": {}, "chat": {"models": []}}
+        model = {"name": "test-model", "id": "test-model"}
+        raw_output = (
+            "這是為您整理的心智圖：\n\n"
+            "```mermaid\n"
+            "mindmap\n"
+            "  root((Deep Learning Paper))\n"
+            "    研究問題與背景\n"
+            "      計算複雜度高 $O(N^2)$\n"
+            "    方法與關鍵機制\n"
+            "      `ResNet` 骨幹網絡\n"
+            "      提升 **+4.5%** 準確率\n"
+            "```\n\n"
+            "祝您研讀順利！"
+        )
+        with mock.patch.object(research_v2.config, "load", return_value=cfg), \
+             mock.patch.object(chat_models, "engine_cfg", return_value=(cfg, model)), \
+             mock.patch.object(engines, "for_translation", side_effect=lambda value: value), \
+             mock.patch.object(engines, "run", return_value=raw_output):
+            result = research_v2.post(self.app, "/paper/paper-clean/mindmap", {})
+        self.assertTrue(result["mermaid"].startswith("mindmap"))
+        self.assertNotIn("```", result["mermaid"])
+        self.assertNotIn("祝您研讀順利", result["mermaid"])
+        self.assertIn("root((Deep Learning Paper))", result["mermaid"])
+        self.assertIn("$O(N^2)$", result["mermaid"])
+
     def test_publication_venue_is_not_replaced_by_the_public_pdf_repository(self):
         work = research_v2._work({"id": "https://openalex.org/W1", "title": "Paper",
             "primary_location": {"source": {"display_name": "CVPR"}},

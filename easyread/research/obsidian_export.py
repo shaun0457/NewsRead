@@ -263,6 +263,24 @@ def export_to_vault(documents: list[dict]) -> dict:
         destination.parent.mkdir(parents=True, exist_ok=True)
         atomic_replace(destination, item["content"].encode("utf-8"))
         (updated if item["current"] else written).append(item["path"])
+        doc = item["doc"]
+        img_data = None
+        img_name = None
+        if isinstance(doc.get("attachment"), dict) and doc["attachment"].get("content_base64"):
+            img_name = _safe_title(Path(str(doc["attachment"].get("filename", ""))).stem, "mindmap") + ".png"
+            try:
+                img_data = base64.b64decode(doc["attachment"]["content_base64"])
+            except Exception:
+                img_data = None
+        elif doc.get("image_base64"):
+            img_name = destination.with_suffix(".png").name
+            try:
+                img_data = base64.b64decode(doc["image_base64"])
+            except Exception:
+                img_data = None
+        if img_data and img_name:
+            img_dest = destination.parent / img_name
+            atomic_replace(img_dest, img_data)
     index_data = _index_payload(index, rendered)
     index_path = _index_path(root)
     index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -285,5 +303,23 @@ def export_zip(documents: list[dict]) -> dict:
             if item["content"] is None:
                 continue
             archive.writestr(item["path"], item["content"])
+            doc = item["doc"]
+            img_data = None
+            img_name = None
+            if isinstance(doc.get("attachment"), dict) and doc["attachment"].get("content_base64"):
+                img_name = _safe_title(Path(str(doc["attachment"].get("filename", ""))).stem, "mindmap") + ".png"
+                try:
+                    img_data = base64.b64decode(doc["attachment"]["content_base64"])
+                except Exception:
+                    img_data = None
+            elif doc.get("image_base64"):
+                img_name = Path(item["path"]).with_suffix(".png").name
+                try:
+                    img_data = base64.b64decode(doc["image_base64"])
+                except Exception:
+                    img_data = None
+            if img_data and img_name:
+                zip_img_path = str(Path(item["path"]).parent / img_name).replace("\\", "/")
+                archive.writestr(zip_img_path, img_data)
         archive.writestr("Research/" + INDEX_NAME, json.dumps(index_data, ensure_ascii=False, indent=2) + "\n")
     return {"filename": "PaperRead-Research.zip", "content_base64": base64.b64encode(stream.getvalue()).decode("ascii"), "conflicts": [item["id"] for item in rendered if item["content"] is None]}

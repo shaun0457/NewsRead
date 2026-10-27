@@ -47,3 +47,160 @@ body.rp-open #researchpanel { transform: none; }
 .rp-section .btn { max-width:100%; white-space:normal; text-align:left; }
 .rp-section #rp-map-generate { justify-self:start; }
 @media (max-width: 760px) { #researchpanel { width:100vw; } .research-v2-body { padding:12px 13px 30px; } }
+
+
+/* Mindmap UI Enhancements */
+.rp-section-titleline { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.rp-section-titleline h3 { margin:0; }
+.rp-btn-expand { flex:none; padding:2px 8px; font-size:11px; height:24px; line-height:22px; }
+
+.rp-mindmap { position:relative; min-height:240px; height:42vh; max-height:460px; overflow:hidden; padding:0; border:1px solid var(--rule); border-radius:10px; background:var(--bg); }
+.mm-stage-wrap { position:relative; width:100%; height:100%; overflow:hidden; }
+.mm-canvas-host { width:100%; height:100%; overflow:hidden; }
+
+/* Toolbar & high contrast buttons */
+.mm-toolbar { position:absolute; bottom:10px; right:10px; display:inline-flex; align-items:center; gap:4px; padding:3px 6px; border-radius:8px; background:var(--surface); border:1px solid var(--rule-2); box-shadow:0 2px 10px rgba(0,0,0,0.12); z-index:10; }
+.mm-toolbar .btn { padding:2px 6px; height:24px; font-size:11px; color:var(--ink); border:1px solid transparent; border-radius:6px; }
+.mm-toolbar .btn:hover { background:var(--accent-soft); color:var(--ink); border-color:var(--rule-2); }
+.mm-toolbar .btn.icon { width:24px; min-width:24px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+.mm-toolbar .btn.icon svg { stroke-width:1.8; color:var(--ink); flex:none; }
+.mm-tb-sep { width:1px; height:14px; background:var(--rule); margin:0 2px; }
+.mm-zoom-label { font-size:10.5px; font-variant-numeric:tabular-nums; color:var(--ink-2); padding:0 3px; user-select:none; }
+
+/* 右下角工具列詳細檢視按鈕：保持強調背景，文字使用一般內文字重（無粗體） */
+.mm-toolbar .btn.accent,
+.mm-toolbar .mm-btn-modal {
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400 !important;
+  letter-spacing: normal;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.mm-toolbar .btn.accent:hover,
+.mm-toolbar .mm-btn-modal:hover {
+  background: var(--accent) !important;
+  opacity: 0.92;
+  color: #ffffff !important;
+  transform: translateY(-0.5px);
+}
+
+:root[data-theme="dark"] .mm-toolbar .btn.accent,
+:root[data-theme="dark"] .mm-toolbar .mm-btn-modal,
+html[data-theme="dark"] .mm-toolbar .btn.accent,
+html[data-theme="dark"] .mm-toolbar .mm-btn-modal {
+  background: var(--accent) !important;
+  color: #10201f !important;
+  font-weight: 400 !important;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .mm-toolbar .btn.accent:hover,
+:root[data-theme="dark"] .mm-toolbar .mm-btn-modal:hover,
+html[data-theme="dark"] .mm-toolbar .btn.accent:hover,
+html[data-theme="dark"] .mm-toolbar .mm-btn-modal:hover {
+  background: var(--accent) !important;
+  opacity: 0.92;
+  color: #10201f !important;
+}
+
+/* Modal Fullscreen / Large Mindmap Dialog */
+#mindmapDlg .dialog.mm-dialog { width:92vw; max-width:1400px; height:88vh; max-height:920px; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; background:var(--bg); border:1px solid var(--rule); box-shadow:0 12px 48px rgba(0,0,0,0.22); }
+.mm-modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; height:48px; padding:0 16px; border-bottom:1px solid var(--rule); background:var(--surface); flex:none; }
+.mm-modal-title { display:flex; align-items:baseline; gap:10px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mm-modal-title b { font-size:13.5px; font-weight:600; color:var(--ink); flex:none; }
+.mm-modal-sub { font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mm-modal-actions { display:flex; align-items:center; gap:8px; flex:none; }
+.mm-modal-actions button[data-mm-modal="close"] { font-size:18px; width:28px; height:28px; }
+.mm-modal-body { flex:1; min-height:0; position:relative; width:100%; height:100%; overflow:hidden; background:var(--bg); }
+
+/* Dark mode specific enhancements for large mindmap dialog and toolbar */
+html[data-theme="dark"] #mindmapDlg.dialog-backdrop,
+:root[data-theme="dark"] #mindmapDlg.dialog-backdrop {
+  background: rgba(0, 0, 0, 0.72);
+}
+html[data-theme="dark"] #mindmapDlg .dialog.mm-dialog,
+:root[data-theme="dark"] #mindmapDlg .dialog.mm-dialog {
+  background: var(--bg);
+  border-color: var(--rule-2);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.75);
+}
+html[data-theme="dark"] .mm-modal-head,
+:root[data-theme="dark"] .mm-modal-head {
+  background: var(--surface);
+  border-bottom-color: var(--rule);
+}
+html[data-theme="dark"] .mm-modal-title b,
+:root[data-theme="dark"] .mm-modal-title b {
+  color: var(--ink);
+}
+html[data-theme="dark"] .mm-modal-sub,
+:root[data-theme="dark"] .mm-modal-sub {
+  color: var(--ink-3);
+}
+
+html[data-theme="dark"] .mm-toolbar,
+:root[data-theme="dark"] .mm-toolbar {
+  background: var(--surface);
+  border-color: var(--rule-2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] .mm-toolbar .btn:not(.accent),
+:root[data-theme="dark"] .mm-toolbar .btn:not(.accent) {
+  color: var(--ink);
+}
+html[data-theme="dark"] .mm-toolbar .btn:not(.accent):hover,
+:root[data-theme="dark"] .mm-toolbar .btn:not(.accent):hover {
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-color: var(--rule-2);
+}
+html[data-theme="dark"] .mm-toolbar .btn.icon svg,
+:root[data-theme="dark"] .mm-toolbar .btn.icon svg {
+  color: var(--ink);
+}
+html[data-theme="dark"] .mm-zoom-label,
+:root[data-theme="dark"] .mm-zoom-label {
+  color: var(--ink-2);
+}
+
+/* Invert me-epd icons in dark mode so the background is dark and strokes/numbers are light */
+html[data-theme="dark"] .map-container me-parent me-epd,
+:root[data-theme="dark"] .map-container me-parent me-epd {
+  filter: invert(0.88) hue-rotate(180deg);
+  border-color: #555;
+}
+
+/* KaTeX and Markdown in MindElixir node adjustments */
+.map-container me-tpc { font-family:var(--ui); font-size:12.5px; line-height:1.45; overflow-wrap:anywhere; cursor:pointer; }
+.map-container me-tpc .katex { font-size:1.05em; }
+.map-container me-tpc .katex-display { margin:0.2em 0; }
+.map-container me-tpc code { padding:1px 4px; font-size:0.9em; border-radius:4px; background:color-mix(in srgb, currentColor 10%, transparent); }
+
+/* Make me-epd clean circular icon with no translucent square bounding box */
+.map-container me-parent me-epd {
+  box-shadow: none !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 50% !important;
+  cursor: pointer;
+}
+.map-container me-parent me-epd.minus {
+  opacity: 0.75 !important;
+  background-color: var(--surface) !important;
+  border-radius: 50% !important;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+.map-container me-parent:hover me-epd.minus,
+.map-container me-parent me-epd.minus:hover {
+  opacity: 1 !important;
+  transform: scale(1.15);
+}

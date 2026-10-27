@@ -74,6 +74,42 @@ class ObsidianExportTest(unittest.TestCase):
             self.assertEqual(result["written"], ["Research/01-論文分析/A Very Long English Paper Title About Reliable Vision Models and Their.md"])
             self.assertLessEqual(len(Path(result["written"][0]).stem), 80)
 
+    def test_export_mindmap_with_png_attachment(self):
+        import base64
+        import io
+        import zipfile
+        fake_png_bytes = b"\x89PNG\r\n\x1a\nfake_png_header_and_data"
+        fake_b64 = base64.b64encode(fake_png_bytes).decode("ascii")
+        documents = [{
+            "id": "paper:p1:mindmap",
+            "kind": "mindmap",
+            "paper_id": "p1",
+            "title": "測試論文 - 心智圖",
+            "filename": "test-paper-mind-map",
+            "body": "## 論文心智圖\n\n![[test-paper-mind-map.png]]",
+            "image_base64": fake_b64,
+            "attachment": {
+                "filename": "test-paper-mind-map.png",
+                "content_base64": fake_b64,
+            },
+        }]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch.object(obsidian_export, "vault_path", lambda: root):
+                result = obsidian_export.export_to_vault(documents)
+                zip_res = obsidian_export.export_zip(documents)
+            md_file = root / "Research" / "02-心智圖" / "test-paper-mind-map.md"
+            png_file = root / "Research" / "02-心智圖" / "test-paper-mind-map.png"
+            self.assertTrue(md_file.is_file())
+            self.assertTrue(png_file.is_file())
+            self.assertEqual(png_file.read_bytes(), fake_png_bytes)
+            self.assertIn("![[test-paper-mind-map.png]]", md_file.read_text(encoding="utf-8"))
+
+            archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(zip_res["content_base64"])))
+            self.assertIn("Research/02-心智圖/test-paper-mind-map.md", archive.namelist())
+            self.assertIn("Research/02-心智圖/test-paper-mind-map.png", archive.namelist())
+            self.assertEqual(archive.read("Research/02-心智圖/test-paper-mind-map.png"), fake_png_bytes)
+
 
 if __name__ == "__main__":
     unittest.main()
