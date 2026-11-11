@@ -1,6 +1,7 @@
 """本地服务：只监听 127.0.0.1。文献库页、阅读页、数据接口、导入、后台任务。"""
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
 import os
@@ -15,7 +16,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from . import planning_store
-from . import entities, ledger, reader_api
+from . import ai_engines, entities, ledger, reader_api
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -268,6 +269,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(500, {"error": tr("本機資料庫暫時不能用，請稍後再試。")})
         return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
 
+    def _ai(self, call):
+        """AI 引擎設定 API 的錯誤對應。回應和 log 都不帶 key 或上游原文。"""
+        try:
+            result = call()
+        except ai_engines.InputError as e:
+            return self._json(400, {"error": str(e), "field": e.field})
+        except ai_engines.AIError as e:
+            return self._json(400, {"error": ai_engines.message(e.code), "code": e.code})
+        except ai_engines.NotFound:
+            return self._json(404, {"error": tr("找不到這個設定。")})
+        except Exception as e:  # noqa: BLE001 只記類型：例外訊息可能帶設定內容
+            log.warning("AI 設定 API 出錯 %s", type(e).__name__)
+            return self._json(500, {"error": tr("設定暫時存不了，請稍後再試。")})
+        return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+
     def _get(self):
         url = urlparse(self.path)
         path = unquote(url.path)
@@ -285,6 +301,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._entities(lambda: entities.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()}))
         if path == "/entities":
             return self._page(WEB / "entities.html")
+        if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎、自帶 key、每種工作用哪個
+            return self._ai(lambda: ai_engines.api_get(app, path))
+        if path == "/settings":
+            return self._page(WEB / "settings.html")
         if path in ("/", "/index.html"):
             return self._page(WEB / "library.html")
         if path == "/web/tabs.html":
@@ -403,7 +423,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             self.close_connection = True
             return
-        if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
+        if not hmac.compare_digest((self.headers.get("X-Token") or "").encode(), str(self.app.token).encode()):  # 挡住别的网页跨站写
             self.close_connection = True
             try:
                 self._body(0)  # 沒通過 token 的請求不收 body：小的讀掉丟棄，大的直接斷線
@@ -455,6 +475,17 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, RecursionError):  # RecursionError：很深的巢狀 [[[…]]]
                 return self._json(400, {"error": tr("資料格式不對。")})
             return self._entities(lambda: entities.api_post(app, path, data))
+
+        if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎設定
+            try:
+                body = self._body(ai_engines.MAX_BODY)
+            except ValueError:
+                return self._json(413, {"error": tr("資料太大。")})
+            try:
+                data = json.loads(body or b"{}")
+            except (ValueError, RecursionError):
+                return self._json(400, {"error": tr("資料格式不對。")})
+            return self._ai(lambda: ai_engines.api_post(app, path, data))
 
         if path in library_api.POST:
             return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))

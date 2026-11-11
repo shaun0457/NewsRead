@@ -140,6 +140,35 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - `benchmark`：沒填（`null`）就用主要代號市場的預設：台股「發行量加權股價報酬指數」、美股「S&P 500 Total Return」，回傳時 `benchmark_default` 為 `true`。`industry_index` 沒有預設。兩個欄位只有公司有；其他類型送了也會存成 `null`。
 - 回傳另有 `recent_mentions`：近 7 天連上、沒被移除的資料數。「連上」看第一次連上的時間；把 AI 的連結改成手動不算新連上，手動移除後再連回來才算。
 
+## 4.7 AI 引擎與自帶 key (`/api/ai/*`)
+
+設定頁（`/settings`）的「AI 模型」區用這組 API（ticket 67）。其他模組呼叫 AI 一律走 `easyread/ai_engines.py` 的 `Engines.run(task, prompt, prompt_version=…)`，不直接呼叫引擎。寫入要帶 `X-Token`，body 上限 16 KB（超過回 413）。輸入不對回 400 `{error, field}`；找不到回 404；其他錯誤回 500，訊息是固定的一句。回應裡的 key 只有末四碼（`last4`，key 短於 12 字時是空字串），完整的 key 只存在資料目錄的 `ai.json`，不寫進 log。
+
+- `GET /api/ai`：設定頁要的全部東西。
+  - `detected`：本機 CLI（`claude`、`codex`、`antigravity`）有沒有找到、版本、最近一次呼叫的登入結果（`auth`：`ok` / `invalid` / `null` 還沒用過）和計費方式（`billing`：`subscription` / `api`）；`ollama` 有沒有在執行、有哪些模型。偵測沿用啟動時的背景偵測和 5 分鐘快取，`detected_at` 是上次偵測完的 Unix 秒。CLI 本身不回報登入狀態，所以「已登入」是看最近一次呼叫有沒有成功。
+  - `claude_quota`：Claude Code 最近一次回報的額度（`five_hour` / `seven_day` 的 `used` 0–1 和 `resets_at`）。
+  - `anthropic`：`{last4, status, tested_at, code}` 或 `null`；`status` 是 `ok`、`invalid`、`unverified`（連不上或服務不支援列模型清單，key 照樣存著）、`untested`。`anthropic_sdk` 表示這台電腦有沒有裝 `anthropic` 套件。
+  - `openai`：OpenAI 相容服務的清單，每個 `{id, name, base_url, api, model, last4, has_key, status, tested_at, code}`。
+  - `tasks`：五種工作（`triage` 分類、`translate` 翻譯、`draft` 題材頁 / 概念卡起草、`thesis_change` 論點變化偵測、`ask` 問 AI），每個 `{primary, fallback, resolved, using, state, reason, today, month_cost}`。`primary` / `fallback` 是選項 id（`null` = 自動 / 不用備用）；`resolved` 是實際的主要引擎（自動時是自動挑到的），`using` 是現在會用的。`state`：`ready`、`fallback`（主要的不能用，改用備用）、`paused`（key 失效或登入過期，也沒有可以用的備用）、`no_ai`（沒有任何可以用的引擎）。`reason` 是主要的不能用的原因（`missing` / `auth_invalid`）。`today` 是今天（台北時間）的呼叫次數，`month_cost` 是這個月的 API 花費（美元，沒有就是 `null`）。
+  - `choices`：下拉選單的選項，每個 `{id, engine, model, entry, model_label, name, kind, usable}`。選項 id 是 `引擎|服務 id|模型`，例如 `claude||claude-haiku-5-5`、`codex||`、`openai|o1a2b3c4d5e6|gpt-x`。
+  - `any_ai`：有沒有任何工作找得到引擎。
+- `POST /api/ai/detect`：重新偵測。之前標成登入過期的 CLI 會先清掉標記，下次呼叫再看結果。
+- `POST /api/ai/tasks`：`{task, primary, fallback}`，設定一種工作的主要和備用引擎；空字串 = 自動 / 不用備用，備用跟主要一樣等於不用備用。
+- `POST /api/ai/keys/anthropic`：`{key}`，儲存並測試（列模型清單，不花 token）。回傳同 `GET /api/ai`，另有 `test: {ok, status, code, message}`。`POST /api/ai/keys/anthropic/remove` 移除。
+- `POST /api/ai/keys/openai`：`{name?, base_url, api?, model, key?}` 新增一個 OpenAI 相容服務並測試（`GET {base_url}/models`）；`POST /api/ai/keys/openai/{id}` 編輯（沒帶 `key` = 不換；換了 `base_url` 又沒帶新 key 時，舊 key 會清掉，不送到新地址）；`POST /api/ai/keys/openai/{id}/remove` 移除，選了它的工作改回自動。最多 10 個。
+- 限制：key 8–300 個 ASCII 可見字元、不能有空白；`base_url` 最多 300 字，只能是 `http` / `https`，不能帶帳密、query 或 fragment，不是這台電腦（`localhost`、`127.0.0.1`、`::1`）的服務一定要 `https`；`name` 最多 40 字，`model` 最多 100 字。呼叫 OpenAI 相容服務時不跟 redirect（3xx 當成錯誤），免得 key 被轉送到別的主機或 http。
+
+呼叫 AI 時（`Engines.run`）：
+
+- 依工作的設定選引擎；「自動」依序找 Claude Code、Codex CLI、Antigravity CLI、Anthropic key、OpenAI 相容服務、Ollama，Claude 的模型預設分類用 Haiku、起草用 Opus、其他用 Sonnet。
+- key 失效或登入過期（`AUTH_INVALID`）時不重試同一把：標成失效，有備用就改用，回傳的 `notice` 是 `AUTH_INVALID`；沒有就丟 `PAUSED`。換新 key（或重新偵測）之後才會再用。
+- 限流（`RATE_LIMITED`）時指數退避：等 2、4、8 秒（上游給的 `Retry-After` 比較長就用它，每次最多 30 秒），同一個引擎最多試 4 次，之後丟 `RATE_LIMITED`，不改用備用（額度保護是 ticket 68）。
+- 每次成功都記一筆用量到 `ai_usage`：引擎、模型、token。API 依官方價格算費用，不認得的模型或價格不確定時記成不明；本機 CLI 用訂閱時不折算金額，Claude Code 有回報時記額度和重置時間；Ollama 記 0。
+- 實際用的引擎和模型記進 prompt 版本：呼叫端給 `prompt_version="ask-v2"`，帳本記 `ask-v2@claude/claude-sonnet-5-5`；換引擎或模型就是另一個版本。
+- 錯誤只帶錯誤代碼和固定訊息：`NO_AI`、`PAUSED`、`AUTH_INVALID`、`RATE_LIMITED`、`UPSTREAM_ERROR`、`NETWORK`、`TIMEOUT`、`BAD_REQUEST`、`ENGINE_MISSING`、`OUTPUT_TRUNCATED`、`ENGINE_ERROR`、`CANCELLED`。上游的原文過 scrubber 才留在例外上，不寫進 log、不回給畫面。
+
+PaperRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。
+
 ## 5. 已移除的介面
 
 研究工作區（`/api/research/v1/*`、`/api/research/v2/*`、`/research` 頁面）、Zotero 遷移（`/api/zotero/*`、`/api/migrate/*`）和成批導入在 ticket 04 移除，現在都回 404。心智圖和 Obsidian 匯出改用 4.5 節的 `/api/reader/*`。

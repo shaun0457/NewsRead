@@ -246,3 +246,14 @@ Vault Root/
 - **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。
 - **`entity_aliases`**：`entity_id`、`position`、`alias`、`folded`（比對用的小寫）。
 - **`mentions`**：資料和追蹤對象的連結，`(item_id, entity_id)` 唯一；`source` 是 `ai` 或 `manual`。`removed=1` 是手動移除留下的紀錄，AI 不能再連回去，也不能蓋掉手動的連結。`created_at` 是連上的時間（移除後再連回來才重設），`updated_at` 是最後一次改動。一個追蹤對象最多 5000 筆。
+
+## 10. AI 引擎設定 (`ai.json`)
+
+放在資料目錄根目錄（跟 `config.json` 分開，因為 `/api/config` 會把整份設定回給頁面），只存在這台電腦；非 Windows 系統上權限設成只有自己能讀（0600）。內容（ticket 67，格式見 `easyread/ai_engines.py`）：
+
+- **`tasks`**：每種工作的 `primary` / `fallback`，各是 `{engine, model, entry}` 或 `null`（自動 / 不用備用）。
+- **`anthropic`**：`{key, status, tested_at, code}` 或 `null`。
+- **`openai`**：OpenAI 相容服務的清單，每個 `{id, name, base_url, api, model, key, status, tested_at, code}`，最多 10 個。
+- **`engines`**：本機 CLI 最近一次呼叫的結果 `{auth, at, billing}`。
+
+手改壞掉的欄位讀進來時會被丟掉，改回預設。

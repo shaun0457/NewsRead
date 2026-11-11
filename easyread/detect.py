@@ -33,6 +33,12 @@ def detect(cfg: dict, fresh: bool = False) -> dict:
     return _refresh(cfg)
 
 
+def detected_at() -> float | None:
+    """上次偵測完的時間（Unix 秒）；還沒偵測過是 None。"""
+    with _lock:
+        return _cache.get("at")
+
+
 def warm(cfg: dict) -> None:
     """服务启动时先在后台查一遍，第一次打开设置就不用等。"""
     threading.Thread(target=_refresh, args=(cfg,), daemon=True).start()

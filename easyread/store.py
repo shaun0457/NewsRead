@@ -52,21 +52,27 @@ def read_json(path: Path, default=None):
             time.sleep(0.02 * (attempt + 1))
 
 
-def write_json_atomic(path: Path, data) -> None:
+def write_json_atomic(path: Path, data, mode: int | None = None) -> None:
+    """mode：建暫存檔時就用這個權限（例如 0o600 給存 key 的檔），不會有一段時間是別人讀得到的。"""
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    for attempt in range(20):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:  # Windows：别的进程正在读，稍等重试
-            time.sleep(0.05 * (attempt + 1))
-    os.replace(tmp, path)
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666 if mode is None else mode)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:  # Windows：别的进程正在读，稍等重试
+                time.sleep(0.05 * (attempt + 1))
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)  # 寫到一半失敗不留暫存檔
+        raise
 
 
 @contextmanager

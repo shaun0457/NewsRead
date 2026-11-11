@@ -15,6 +15,7 @@ dependencies = [
   "certifi>=2024.8.30",
   "opencc-python-reimplemented>=0.1.7,<0.2",
   "fastembed>=0.7.1,<0.8",
+  "anthropic>=0.40,<3",  # 自帶 Anthropic key 時用官方 SDK（ai_engines.py）
 ]
 
 [project.scripts]

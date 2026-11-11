@@ -21,8 +21,19 @@ def _context(cafile: str | None, capath: str | None):
     return context
 
 
-def urlopen(url, *args, **kwargs):
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Treat any 3xx as an error. urllib copies Authorization to the new
+    location, which may be another host or plain http."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def urlopen(url, *args, follow_redirects: bool = True, **kwargs):
     # urllib can redirect an HTTP request to HTTPS, so use this context for
     # both schemes. It keeps hostname and certificate verification enabled.
-    kwargs.setdefault("context", _context(os.environ.get("SSL_CERT_FILE"), os.environ.get("SSL_CERT_DIR")))
-    return urllib.request.urlopen(url, *args, **kwargs)
+    context = kwargs.pop("context", None) or _context(os.environ.get("SSL_CERT_FILE"), os.environ.get("SSL_CERT_DIR"))
+    if follow_redirects:
+        return urllib.request.urlopen(url, *args, context=context, **kwargs)
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _NoRedirect)
+    return opener.open(url, *args, **kwargs)

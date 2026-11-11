@@ -99,7 +99,8 @@ def _open(o: dict, body: dict, stream: bool):
     for _ in range(3):
         req = urllib.request.Request(_base(o) + path, data=json.dumps(body).encode(), headers=_headers(o, stream))
         try:
-            return api_diagnostics.capture(http.urlopen(req, timeout=int(o.get("timeout") or 600)), o)
+            # 不跟 redirect：urllib 會把帶 key 的 Authorization 一起送到新地址（可能是別的主機或 http）
+            return api_diagnostics.capture(http.urlopen(req, timeout=int(o.get("timeout") or 600), follow_redirects=False), o)
         except urllib.error.HTTPError as e:
             detail = e.read(300).decode("utf-8", "replace")
             e.close()
@@ -113,7 +114,17 @@ def _open(o: dict, body: dict, stream: bool):
 
 
 def _http_error(e: urllib.error.HTTPError) -> EngineError:
-    return EngineError(tr("接口返回 {code}{hint}：{detail}", code=e.code, hint=_hint(e.code), detail=getattr(e, "detail", "")))
+    from .fetch import scrub  # 有的服務商會在錯誤內容裡回顯 key
+    err = EngineError(tr("接口返回 {code}{hint}：{detail}", code=e.code, hint=_hint(e.code), detail=scrub(getattr(e, "detail", ""))))
+    err.status = e.code  # 給 NewsRead 的 ai_engines 判斷錯誤代碼，不用解析訊息文字
+    err.retry_after = e.headers.get("Retry-After") if e.headers is not None else None
+    return err
+
+
+def _network_error(e: BaseException) -> EngineError:
+    err = EngineError(tr("连不上接口：{err}", err=e))
+    err.network = True
+    return err
 
 
 # ---------- 一次拿到整段（翻译用） ----------
@@ -136,7 +147,7 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None, 
             if attempt < min(2, attempts - 1):
                 _sleep(5, cancel)
                 continue
-            raise EngineError(tr("连不上接口：{err}", err=e))
+            raise _network_error(e)
     if meter is not None and isinstance(res, dict):
         meter.add(**usage.from_openai(res), actual_model=res.get("model"))
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
@@ -241,7 +252,7 @@ def stream(o: dict, text: str, cancel, meter=None, images: list[Path] | None = N
     except urllib.error.HTTPError as e:
         raise _http_error(e)
     except Exception as e:  # noqa: BLE001
-        raise EngineError(tr("连不上接口：{err}", err=e))
+        raise _network_error(e)
     with r:
         if cancel.is_set():
             raise Cancelled()
@@ -378,14 +389,14 @@ def models(o: dict) -> list[str]:
         raise EngineError(tr("先填接口地址"))
     req = urllib.request.Request(base + "/models", headers=_headers(o))
     try:
-        with http.urlopen(req, timeout=20) as r:
+        with http.urlopen(req, timeout=20, follow_redirects=False) as r:
             res = json.loads(r.read())
     except urllib.error.HTTPError as e:
         e.detail = e.read(300).decode("utf-8", "replace")
         e.close()
         raise _http_error(e)
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
-        raise EngineError(tr("连不上接口：{err}", err=e))
+        raise _network_error(e)
     except json.JSONDecodeError:
         raise EngineError(tr("这个地址不提供模型列表，手填模型名"))
     items = res.get("data") if isinstance(res, dict) else res

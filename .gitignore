@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 /library/
 /config.json
+/ai.json
+/.ai.json*
 .server.json
 easyread.log*
 tests/shots/
