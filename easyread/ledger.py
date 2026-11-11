@@ -489,12 +489,13 @@ _SHARED: dict[Path, Index] = {}
 _SHARED_LOCK = threading.Lock()
 
 
-def shared(path: Path | str | None = None) -> Index | None:
-    """伺服器共用的 Index；資料庫檔還不存在就回 None（唯讀的 GET 不建檔）。"""
+def shared(path: Path | str | None = None, create: bool = False) -> Index | None:
+    """伺服器共用的 Index；資料庫檔還不存在就回 None（唯讀的 GET 不建檔）。
+    create=True：不存在就建。建檔和初始化 schema 都在鎖裡做，同時建的幾個執行緒不會互相撞成 database is locked。"""
     path = Path(path) if path else default_path()
     with _SHARED_LOCK:
         if path not in _SHARED:
-            if not path.exists():
+            if not (create or path.exists()):
                 return None
             _SHARED[path] = Index(path)
         return _SHARED[path]

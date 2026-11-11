@@ -177,7 +177,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 實際用的引擎和模型記進 prompt 版本：呼叫端給 `prompt_version="ask-v2"`，帳本記 `ask-v2@claude/claude-sonnet-5-5`；換引擎或模型就是另一個版本。
 - 錯誤只帶錯誤代碼和固定訊息：`NO_AI`、`PAUSED`、`AUTH_INVALID`、`RATE_LIMITED`、`UPSTREAM_ERROR`、`NETWORK`、`TIMEOUT`、`BAD_REQUEST`、`ENGINE_MISSING`、`OUTPUT_TRUNCATED`、`ENGINE_ERROR`、`CANCELLED`。上游的原文過 scrubber 才留在例外上，不寫進 log、不回給畫面。
 
-NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。
+NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。翻譯的每次呼叫已經會記一筆 `ai_usage`（`task` 是 `translate`，引擎和模型照舊設定；帳本記不進去只寫 log，不讓翻譯失敗）；頁邊問 AI 還沒記。
 
 ## 5. 已移除的介面
 

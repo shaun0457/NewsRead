@@ -881,7 +881,7 @@ def for_app(app, create_index: bool = True) -> Engines:
         key = (spath, lpath)
         eng = _ENGINES.get(key)
         if eng is None or (eng.index is None and (create_index or lpath.exists())):
-            index = ledger.shared(lpath) or (ledger.Index(lpath) if create_index else None)
+            index = ledger.shared(lpath, create=create_index)
             eng = Engines(Settings(spath), index, **(getattr(app, "ai_options", None) or {}))
             _ENGINES[key] = eng
         return eng
