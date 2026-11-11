@@ -2391,7 +2391,7 @@
   "透明度": "Opacity",
   "選擇貼紙以預覽": "Select a sticker to preview",
   "鎖定": "Lock",
-  "貼紙已在其他地方修改，無法復原": "This sticker was changed elsewhere and cannot be undone",
+  "文字方塊已在其他地方修改，無法復原": "This text box was changed elsewhere and cannot be undone",
   "選取內容已在其他地方修改，無法復原": "The selected annotations were changed elsewhere and cannot be undone",
   "水平位置": "Horizontal position",
   "垂直位置": "Vertical position",
@@ -2618,5 +2618,6 @@
   "{name}等 {n} 項任務進行中": "{name} & {n} tasks in progress",
   "背景任務切換": "Switch Background Tasks",
   "進行中": "Running",
-  "失敗": "Failed"
+  "失敗": "Failed",
+  "選取工具": "Selection tools"
 }

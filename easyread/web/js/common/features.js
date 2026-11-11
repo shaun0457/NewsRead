@@ -20,7 +20,6 @@
   PR.KEY_ACTIONS = [
     ["research", PR.t("研究"), "r", PR.t("面板")],
     ["inkToggle", PR.t("切換手寫"), "w", PR.t("手寫工具")], ["inkEraser", PR.t("切換橡皮擦"), "x", PR.t("手寫工具")],
-    ["stickerToggle", PR.t("貼紙素材庫"), "s", PR.t("手寫工具")],
     ["next", PR.t("下一段"), "j", PR.t("阅读")], ["prev", PR.t("上一段"), "k", PR.t("阅读")],
     ["mode", PR.t("单语 / 双语"), "b", PR.t("阅读")], ["toc", PR.t("目录"), "t", PR.t("阅读")],
     ["fontUp", PR.t("字号变大"), "=", PR.t("阅读")], ["fontDown", PR.t("字号变小"), "-", PR.t("阅读")], ["fontReset", PR.t("恢复默认字号"), "0", PR.t("阅读")],
@@ -34,7 +33,7 @@
   const DEF_KEYS = Object.fromEntries(PR.KEY_ACTIONS.map(([id, , k]) => [id, k]));
   const DEF_FEATURES = Object.fromEntries(PR.FEATURES.map(([id, , on]) => [id, on]));
   const avoidInkKeyConflicts = keys => {
-    for (const id of ["inkToggle", "inkEraser", "stickerToggle"]) {
+    for (const id of ["inkToggle", "inkEraser"]) {
       if (keys[id] && Object.entries(keys).some(([other, key]) => other !== id && key === keys[id])) keys[id] = "";
     }
     return keys;
@@ -43,7 +42,9 @@
   const ui = PR.ls.get("easyread-ui", {});
   PR.features = Object.assign({}, DEF_FEATURES, ui.features || {});
   PR.keysOn = ui.keys_on !== false;
-  PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, PR.ls.get("easyread-keys", {})));
+  // 只留目前還有的操作：舊版存下來的鍵位（例如已移除的貼紙快捷鍵）讀取時忽略
+  const knownKeys = (keys) => Object.fromEntries(Object.entries(keys || {}).filter(([id]) => Object.prototype.hasOwnProperty.call(DEF_KEYS, id)));
+  PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, knownKeys(PR.ls.get("easyread-keys", {}))));
 
   PR.feature = (id) => (PR.features[id] != null ? Boolean(PR.features[id]) : Boolean(DEF_FEATURES[id]));
   const show = (k) => (!k ? "" : k === " " ? PR.t("空格") : k.length === 1 ? k.toUpperCase() : k);
@@ -61,7 +62,7 @@
   PR.applyUi = function (next, persist) {
     if (next.features) PR.features = Object.assign({}, DEF_FEATURES, next.features);
     if (next.keys_on != null) PR.keysOn = !!next.keys_on;
-    if (next.keys) PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, next.keys));
+    if (next.keys) PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, knownKeys(next.keys)));
     const diff = Object.fromEntries(Object.entries(PR.keymap).filter(([id, k]) => DEF_KEYS[id] !== k));
     PR.ls.set("easyread-ui", { features: PR.features, keys_on: PR.keysOn });
     PR.ls.set("easyread-keys", diff);

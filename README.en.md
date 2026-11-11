@@ -44,7 +44,7 @@ Read translations alongside the original and capture your thoughts.
 | --- | --- |
 | Tabs and split view | Switch between or compare papers side by side |
 | Bilingual reading and page lightbox | Check text, formulas, figures, and original pages |
-| Ink, stickers, and text boxes | Annotate, select with a lasso, and group objects |
+| Ink and text boxes | Annotate, select with a lasso, and group objects |
 | Reading notes | Write in rich text or Markdown |
 
 ### 03 · Analyze & Connect
@@ -109,4 +109,4 @@ Contributions, bug reports, and feedback on research workflows are welcome.
 
 ## License & credits
 
-The code is licensed under the [MIT License](LICENSE) and builds on [EasyRead](https://github.com/Edwardxlai/easyread). Sticker assets have separate licenses: Lucide uses ISC, some Feather icons use MIT, and Mega Doodles Pack uses CC BY-SA 4.0. See the [sticker overview](data/stickers/README.md) and [license manifest](data/stickers/license-manifest.json).
+The code is licensed under the [MIT License](LICENSE) and builds on [EasyRead](https://github.com/Edwardxlai/easyread).

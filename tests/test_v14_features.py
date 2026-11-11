@@ -155,17 +155,15 @@ class TestV14Features(unittest.TestCase):
         # Should contain the notes
         self.assertIn("My note", html)
 
-    def test_standalone_export_contains_used_sticker_assets(self):
+    def test_standalone_export_ignores_old_image_stickers(self):
+        """貼紙素材庫移除後（ticket 05），舊資料裡的圖片貼紙照樣能匯出，不嵌入素材也不報錯。"""
         ws, _ = self.lib.create_from_pdf(b"%PDF-1.4 export\n%%EOF", "export.pdf")
         write_json_atomic(ws.root / "paper.json", {"id": ws.id, "meta": {"title_en": "Sticker"}, "blocks": []})
         write_json_atomic(ws.root / "reader.json", {"stickers": {"s1": {"id": "s1", "assetId": "doodle-smiling-book"}}})
         out = export_build.build(ws, out=self.tmp / "sticker.html")
         html = out.read_text(encoding="utf-8")
-        self.assertIn('"stickerAssets":', html)
-        self.assertIn('"assetId": "doodle-smiling-book"', html)
-        self.assertIn('/public/stickers/decorative/doodle-smiling-book.svg', html)
-        self.assertIn('data:image/svg+xml;base64,', html)
-
+        self.assertNotIn('"stickerAssets":', html)
+        self.assertNotIn('/public/stickers/', html)
 
 if __name__ == "__main__":
     unittest.main()

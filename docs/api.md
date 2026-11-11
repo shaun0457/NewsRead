@@ -47,7 +47,7 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 
 ## 4. 閱讀器原子操作介面 (`POST /api/p/{id}/ops`)
 
-前端劃線、筆記、手寫與貼紙透過原子批次操作寫入：
+前端劃線、筆記、手寫與文字方塊透過原子批次操作寫入：
 
 ```json
 {
@@ -96,7 +96,7 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - `note` / `note_del`：劃線與側欄筆記的新增、修改與虛擬刪除。
 - `ai_annotation`：智慧標註洞察。
 - `ink` / `ink_del`：向量手寫筆跡繪製與移除。
-- `sticker` / `sticker_del`：圖章貼紙放置、調整與刪除。
+- `sticker` / `sticker_del`：墨跡層物件（目前只有文字方塊，`assetId` 為 `paperread-text-box`）的放置、調整與刪除。貼紙素材庫已移除；舊資料裡的圖片貼紙仍可讀寫，閱讀器不顯示。
 - `paper_note`：整篇論文心得儲存。
 - `progress`：閱讀進度百分比與錨點更新。
 

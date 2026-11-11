@@ -23,7 +23,6 @@
       (PR.keyOf("redo") ? K(PR.keyOf("redo"), PR.t("让模型重译这段")) : "") +
       (PR.keyOf("inkToggle") ? K(PR.keyOf("inkToggle"), PR.t("切換手寫")) : "") +
       (PR.keyOf("inkEraser") ? K(PR.keyOf("inkEraser"), PR.t("切換橡皮擦")) : "") +
-      (PR.keyOf("stickerToggle") ? K(PR.keyOf("stickerToggle"), PR.t("貼紙素材庫")) : "") +
       K(k("mode", "B"), PR.t("单语 / 双语")) +
       K(k("pages", "O"), PR.t("原文页面板")) +
       K(k("notes", "M"), PR.t("笔记面板")) +

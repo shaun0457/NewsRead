@@ -57,8 +57,6 @@
       if (deepDlg && deepDlg.classList.contains("open")) { deepDlg.classList.remove("open"); return; }
       const mmDlg = document.getElementById("mindmapDlg");
       if (mmDlg && mmDlg.classList.contains("open")) { mmDlg.classList.remove("open"); return; }
-      const sp = document.getElementById("stickerPanel");
-      if (sp && !sp.hidden) { PR.closeStickerPanel?.(); return; }
       if (PR.paperNoteEditor?.isExpanded?.()) { PR.paperNoteEditor.collapse(); return; }
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
         PR.toggleDrawer(false); PR.hidePopover(); PR.$("#settings").classList.remove("open");

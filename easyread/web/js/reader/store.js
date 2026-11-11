@@ -182,7 +182,7 @@
     if (embedded) {
       const d = JSON.parse(embedded.textContent);
       mode = "static";
-      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null, stickerAssets: d.stickerAssets || [] });
+      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null });
       serverReader = d.reader || {};
       PR.pid = PR.pid || (S.paper.meta.source_sha256 || "paper").slice(0, 12);
     } else {

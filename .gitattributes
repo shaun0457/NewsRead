@@ -6,6 +6,3 @@
 *.ico binary
 *.woff2 binary
 
-# Preserve sticker hashes across platforms.
-/public/stickers/**/*.svg text eol=lf
-/easyread/web/stickers/**/*.svg text eol=lf

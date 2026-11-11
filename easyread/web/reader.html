@@ -45,7 +45,6 @@
   </div>
   <button class="btn" data-act="pages" title="PDF 原頁，跟隨閱讀位置（O）"></button>
   <button class="btn ink-toggle" id="inkToggle" aria-pressed="false" title="手寫註記（W）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.8 3.2l3 3-8.7 8.7-3.8.8.8-3.8zM3.5 17h13"></path></svg><span>手寫</span></button>
-  <button class="btn" id="stickerToggle" type="button" aria-expanded="false" aria-controls="stickerPanel" title="貼紙素材庫（S）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12v9l-4 4H4zM12 16.5v-4h4"></path></svg><span>貼紙</span></button>
   <button class="btn" data-act="notes" title="筆記面板（M）"></button>
   <button class="btn" data-act="chat" title="邊讀邊問 AI（A）"></button>
   <button class="btn" title="研究（R）" data-act="research"></button>
@@ -91,8 +90,7 @@
   <button type="button" class="ink-action" data-ink-hide aria-pressed="false" title="隱藏筆跡"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-4.5 7.5-4.5S17.5 10 17.5 10 14.8 14.5 10 14.5 2.5 10 2.5 10zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></svg><span data-ink-hide-label>隱藏筆跡</span></button>
 </div>
 
-<section id="stickerPanel" role="dialog" aria-label="貼紙素材庫" hidden></section>
-<div id="stickerTools" role="toolbar" aria-label="貼紙工具" hidden></div>
+<div id="stickerTools" role="toolbar" aria-label="選取工具" hidden></div>
 <section id="pageview" class="side-panel" aria-label="PDF 原页">
   <div class="pv-head">
     <button class="btn icon" data-pv="prev" title="上一頁（[）">‹</button>
@@ -147,7 +145,6 @@
 <script src="/web/js/reader/ink.js"></script>
 <script src="/web/js/reader/sticker-geometry.js"></script>
 <script src="/web/js/reader/sticker-lasso.js"></script>
-<script src="/web/js/reader/sticker-style.js"></script>
 <script src="/web/js/reader/stickers.js"></script>
 <script src="/web/js/reader/render.js"></script>
 <script src="/web/js/reader/sentences.js"></script>

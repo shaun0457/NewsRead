@@ -44,7 +44,7 @@ PaperRead 建立於 EasyRead 之上，將找論文、安排閱讀、對照原文
 | --- | --- |
 | 多分頁與雙開 | 切換或並排閱讀不同論文 |
 | 雙語閱讀與原頁燈箱 | 對照原文、譯文、公式與圖表 |
-| 手寫、貼紙與文字方塊 | 自由標註、套索複選與群組 |
+| 手寫與文字方塊 | 自由標註、套索複選與群組 |
 | 閱讀筆記 | 以富文字或 Markdown 整理內容 |
 
 ### 03 · Analyze & Connect
@@ -109,7 +109,7 @@ docker compose up -d
 
 ## 授權與致謝
 
-程式碼採 [MIT License](LICENSE)，並以 [EasyRead](https://github.com/Edwardxlai/easyread) 為基礎。貼紙素材採各自授權：Lucide 為 ISC、部分 Feather 為 MIT、Mega Doodles Pack 為 CC BY-SA 4.0；詳見 [素材說明](data/stickers/README.md)與[授權清單](data/stickers/license-manifest.json)。
+程式碼採 [MIT License](LICENSE)，並以 [EasyRead](https://github.com/Edwardxlai/easyread) 為基礎。
 
 ## Star History
 

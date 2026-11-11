@@ -83,7 +83,7 @@
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (/^[1-4]$/.test(k)) { PR.toast(PR.t("1–4 留给选中文字后的划线")); return false; }
       const taken = Object.keys(s.ui.keys).find((id) => s.ui.keys[id] === k && id !== s.recording);
-      if (taken) { s.ui.keys[taken] = ""; PR.toast(PR.t("「{name}」原来的键让给了这个操作", { name: PR.KEY_ACTIONS.find((a) => a[0] === taken)[1] })); }
+      if (taken) { s.ui.keys[taken] = ""; PR.toast(PR.t("「{name}」原来的键让给了这个操作", { name: PR.KEY_ACTIONS.find((a) => a[0] === taken)?.[1] || taken })); }
       s.ui.keys[s.recording] = k;
       s.recording = null;
       return true;
