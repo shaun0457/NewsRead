@@ -8,6 +8,7 @@ function render(blocks) {
   const paperEl = { innerHTML: "" };
   const bodyClass = new Set();
   const PR = {
+    feature: () => true, noPdf: () => false,  // 有 PDF 的論文（features.js 不在這個測試裡載入）
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
     icon: () => "",
     titleOf: (m) => m.title_en || "",

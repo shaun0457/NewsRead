@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import batch_repair, blank_pages, codeblocks, consistency, engines, footnotes, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, timing, xrefs
+from . import batch_repair, blank_pages, codeblocks, consistency, engines, footnotes, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, textitem, timing, xrefs
 from .checks import block_problems, tex_problems
 from .repair_guard import retains_content
 from .figures import normalize_figure, prepare_figures
@@ -295,7 +295,8 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     meter 收集 token 用量。read：只读原文，把页整理成块但不翻译。返回没做成的页 {页码: 原因}。"""
     if cancel.is_set():
         raise engines.Cancelled()
-    blank = blank_pages.find(ws, pages, cancel)
+    text_item = textitem.is_text(ws.load("paper").get("meta"))  # 沒有 PDF：一段算一頁，不用找空白頁
+    blank = [] if text_item else blank_pages.find(ws, pages, cancel)
     if cancel.is_set():
         raise engines.Cancelled()
     if blank:
@@ -312,7 +313,12 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     paper = ws.load("paper")
     total_pages = paper.get("meta", {}).get("page_count") or 0
     en_pages = set() if read else set(paper.get("translation", {}).get("en_pages", []))
-    size = max(1, int(cfg.get("batch_pages") or 2))
+    if text_item:  # 沒有原頁可以重排：每段都走「補譯文」，已經有譯文的段不重譯
+        if read:
+            report(len(pages), len(pages), tr("结束，全部成功"))
+            return {}
+        en_pages |= set(pages)
+    size = textitem.PARAS_PER_BATCH if text_item else max(1, int(cfg.get("batch_pages") or 2))
     # 分段并行：切成几段连续的页同时译，段内一批接一批（见 segments.py）
     k = segments.workers(cfg.get("concurrency"), len(_batches(pages, size, en_pages)))
     lanes = [_batches(seg, size, en_pages) for seg in segments.plan(pages, size, k, ws.root)]
@@ -335,6 +341,8 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     journal(ws, (tr("只读原文（不翻译）") if read else "") + tr("开始：{pages} 页，{batches} 批，引擎 {engine}，并发 {workers}", pages=len(pages), batches=len(batches), engine=engines.engine_name(cfg.get("engine")), workers=workers))
 
     def label(batch):
+        if text_item:
+            return tr("第 {a}–{b} 段", a=batch[0], b=batch[-1]) if len(batch) > 1 else tr("第 {n} 段", n=batch[0])
         return tr("第 {a}–{b} 页", a=batch[0], b=batch[-1]) if len(batch) > 1 else tr("第 {page} 页", page=batch[0])
 
     if workers > 1:

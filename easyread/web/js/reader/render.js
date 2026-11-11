@@ -200,6 +200,7 @@
   }
 
   function pendingHtml(lastPage) {
+    if (PR.noPdf()) return "";  // 沒有原頁可以先放；每段一建立就有原文
     const m = S.paper.meta || {};
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = (m.pages || []).filter((p) => !done.has(p.n) && p.n > lastPage);
@@ -224,7 +225,8 @@
     buildIndex();
     let html = headHtml() + (PR.store.mode === "server" ? PR.pageCapHtml(S.job) : ""), appendixSeen = false, lastPage = 0;
     const done = new Set((S.paper.translation || {}).done_pages || []);
-    const allPages = (S.paper.meta || {}).pages || [];
+    const noPdf = PR.noPdf();  // 沒有 PDF：一段算一頁，不畫 p.N 標記和缺頁的原頁
+    const allPages = noPdf ? [] : (S.paper.meta || {}).pages || [];
     for (const raw of S.paper.blocks || []) {
       const b = raw && typeof raw === "object" ? raw : null;
       if (!b || !R[b.type]) continue;
@@ -234,7 +236,7 @@
       }
       let extra = "";
       if (b.appendix && !appendixSeen) { extra = " appendix-start"; appendixSeen = true; }
-      const mark = b.page && b.page > lastPage;
+      const mark = !noPdf && b.page && b.page > lastPage;
       if (b.page) lastPage = Math.max(lastPage, b.page);
       try {
         html += sectionHtml(b, extra, mark);

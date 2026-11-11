@@ -46,7 +46,14 @@
   const knownKeys = (keys) => Object.fromEntries(Object.entries(keys || {}).filter(([id]) => Object.prototype.hasOwnProperty.call(DEF_KEYS, id)));
   PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, knownKeys(PR.ls.get("easyread-keys", {}))));
 
-  PR.feature = (id) => (PR.features[id] != null ? Boolean(PR.features[id]) : Boolean(DEF_FEATURES[id]));
+  /* 沒有 PDF 的資料（網頁、純文字，meta.kind === "text"）：沒有原頁可以對照，原頁相關的功能一律關掉 */
+  PR.noPdf = () => {
+    const meta = (((PR.state || {}).paper || {}).meta) || {};
+    return meta.kind === "text";
+  };
+  const PDF_ONLY = new Set(["pages"]);
+  PR.feature = (id) => !(PDF_ONLY.has(id) && PR.noPdf()) &&
+    (PR.features[id] != null ? Boolean(PR.features[id]) : Boolean(DEF_FEATURES[id]));
   const show = (k) => (!k ? "" : k === " " ? PR.t("空格") : k.length === 1 ? k.toUpperCase() : k);
   PR.keyName = show;
   PR.keyOf = (id) => (PR.keysOn ? show(PR.keymap[id]) : "");

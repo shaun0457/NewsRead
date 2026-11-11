@@ -2832,5 +2832,13 @@
   "額度回報": "Quota",
   "（本機）": " (local)",
   "（現在不能用）": " (unavailable now)",
-  "（訂閱）": " (subscription)"
+  "（訂閱）": " (subscription)",
+  "{n} 段没译成功": "{n} paragraphs failed",
+  "內容太長了（上限 {n} 字）。": "The content is too long (limit {n} characters).",
+  "內容是空的。": "The content is empty.",
+  "段落太多了（上限 {n} 段）。": "Too many paragraphs (limit {n}).",
+  "第 {a}–{b} 段": "Paragraphs {a}–{b}",
+  "第 {n} 段": "Paragraph {n}",
+  "網址不對。": "The URL is not valid.",
+  "翻译完成（{n} 段，用时约 {m} 分钟）": "Translation done ({n} paragraphs, about {m} min)"
 }

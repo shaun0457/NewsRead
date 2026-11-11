@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, langs, timing, translate, usage
+from . import chat_models, config, langs, textitem, timing, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -196,7 +196,8 @@ class Jobs:
         cap = cfg.get("page_cap", 60)
         if type(cap) is not int or cap < 0:
             cap = 60  # 手改配置写错时仍按默认上限保护，不把错误值当作不限。
-        check_cap = job.get("cap_check") or (not planned and (job.get("scope") or "all") in ("all", "body"))
+        text_item = textitem.is_text(paper.get("meta"))  # 沒有 PDF 的資料一段算一頁，段數多也便宜，不問
+        check_cap = not text_item and (job.get("cap_check") or (not planned and (job.get("scope") or "all") in ("all", "body")))
         if cap > 0 and len(pages) > cap and check_cap and job.get("confirmed") is not True:
             with self.lock:
                 if cancel.is_set():
@@ -227,11 +228,13 @@ class Jobs:
         if failed:
             first = next(iter(failed.values()))
             self._write(ws, state="partial", failed={str(k): v for k, v in failed.items()}, error=first,
-                        message=(tr("{ok} 页好了，", ok=len(pages) - len(failed)) if len(failed) < len(pages) else "")
-                        + (tr("{n} 页没整理成功", n=len(failed)) if read else tr("{n} 页没译成功", n=len(failed))))
+                        message=(tr("{n} 段没译成功", n=len(failed)) if text_item else
+                                 (tr("{ok} 页好了，", ok=len(pages) - len(failed)) if len(failed) < len(pages) else "")
+                                 + (tr("{n} 页没整理成功", n=len(failed)) if read else tr("{n} 页没译成功", n=len(failed)))))
         else:
             self._write(ws, state="done", failed={}, error="",
-                        message=tr("原文整理完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes) if read
+                        message=tr("翻译完成（{n} 段，用时约 {m} 分钟）", n=len(pages), m=minutes) if text_item
+                        else tr("原文整理完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes) if read
                         else tr("翻译完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes))
 
     # ---------- 小任务 ----------
