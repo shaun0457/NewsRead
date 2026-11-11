@@ -4,9 +4,9 @@
 
 **Blocked by:** 10（帳本與索引核心）、13（追蹤對象）、14（AI 分類寫進帳本）、57（題材與論點的資料模型）；Obsidian 匯出的部分接在 Obsidian 匯出的 ticket 後面
 
-**Status:** needs-mockup-approval（`docs/mockups/v1-b/data-map.html`，2026-11-11 畫好）
+**Status:** ready-for-agent
 
-- [ ] 使用者核准 `data-map.html`，核准日期和意見記在這裡
+- [x] 使用者核准 `data-map.html`（2026-11-12：「全都可以」，沒有修改意見）
 - [ ] 圖的資料從帳本的關係算出來，不另外存；以中心節點和距離（1–3）取子圖
 - [ ] 節點上限〔預設〕300：超過時依距離、再依日期由新到舊挑，畫面寫明「只畫了 N 個」（碰到上限的測試）
 - [ ] 復盤用跟打分一樣的時間點規則：只放 `published_at` / `recorded_at` 早於那天的節點；發布時間不明的不放（測試：那天之後才發布的新聞不出現）
