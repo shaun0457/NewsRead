@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain, Tray } = require("electron");
 const { execFileSync, spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -10,6 +10,7 @@ const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
 const deepLink = require("./deep-link.cjs");
 const desktopTabs = require("./desktop-tabs.cjs");
+const tray = require("./tray.cjs");
 
 // 新版使用 PaperRead 資料夾；第一次升級時把舊版 EasyRead 的桌面偏好
 // 搬到新位置，避免改名後像是全新安裝。搬移失敗時保留舊資料，不覆蓋任何內容。
@@ -32,6 +33,44 @@ let backendUrl;
 let quitting = false;
 let pendingOpen = deepLink.fromArgv(process.argv);
 const detachedWindows = new Set();
+let trayIcon;  // 要一直留著參考，不然會被回收、從系統匣消失
+let hideAtStart = process.argv.includes(tray.HIDDEN_ARG);  // 開機啟動：先不開視窗，只在系統匣
+const login = tray.loginItem(app, process.platform);
+const PIPE_WAIT = 1000;  // 後端以代碼 3 結束後，最多等這麼久讓輸出讀完
+const PROBE_WAIT = 3000;  // 接手前確認那個服務：最多等這麼久
+const PROBE_MAX = 4096;   // /api/version 的回應最多讀這麼多 bytes
+const NO_ADDRESS = "NewsRead 已經在執行，但讀不到它在這台電腦上的位址。請先結束那個 NewsRead（easyread stop），再打開桌面版。";
+
+/* 接手之前先確認那個埠號上真的是活著的 NewsRead：.server.json 可能是上次當掉留下的舊位址，
+   埠號也可能被別的程式拿走。對了才接手，那個網頁才拿得到桌面版的功能（存檔、選資料夾…）。 */
+function probeNewsRead(url) {
+  return new Promise(resolve => {
+    let done = false, size = 0, body = "";
+    const end = ok => { if (!done) { done = true; resolve(ok); } };
+    let req;
+    try {
+      req = http.request(new URL("/api/version", url), { method: "GET" }, res => {
+        if (res.statusCode !== 200) { end(false); req.destroy(); return; }
+        res.setEncoding("utf8");
+        res.on("data", part => {
+          size += part.length;  // 已經解成字串：用字數算，上限一樣有效
+          if (size > PROBE_MAX) { end(false); req.destroy(); return; }
+          body += part;
+        });
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            end(Boolean(data) && typeof data.api === "number" && typeof data.version === "string");
+          } catch (_) { end(false); }
+        });
+        res.on("error", () => end(false));
+      });
+    } catch (_) { return void end(false); }
+    req.setTimeout(PROBE_WAIT, () => { end(false); req.destroy(); });
+    req.on("error", () => end(false));
+    req.end();
+  });
+}
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -110,11 +149,45 @@ function startBackend() {
       output = (output + chunk.toString()).slice(-65536);
     });
     backend.once("error", (error) => finish(reject, error));
+    const child = backend;
     backend.once("exit", (code, signal) => {
-      if (!settled) finish(reject, new Error((isZh() ? `NewsRead 後端退出（code=${code}, signal=${signal}）。` : `NewsRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
-      backendReady = undefined;
-      backendUrl = undefined;
+      const done = () => {
+        // 已經有一個 NewsRead 服務在跑（start.cmd 或 easyread serve 開的）：接手它，不開第二個。
+        // 那個服務不是這裡開的，結束桌面版時也不去關它。
+        const running = !settled && code === 3 ? tray.runningUrl(output) : "";
+        if (running) {
+          probeNewsRead(running).then(ok => {
+            if (!ok || settled) return void fail();
+            startup.mark(app, "backend-adopted");
+            backendUrl = running;
+            finish(resolve, running);
+          });
+          return;
+        }
+        fail();
+      };
+      const fail = () => {
+        if (!settled) {
+          finish(reject, new Error(code === 3
+            ? NO_ADDRESS
+            : (isZh() ? `NewsRead 後端退出（code=${code}, signal=${signal}）。` : `NewsRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
+        }
+        backendReady = undefined;
+        backendUrl = undefined;
+      };
+      if (settled || code !== 3) return void done();
+      // 「已經在執行」那句可能還在管線裡：等輸出關掉再看，最多 PIPE_WAIT 毫秒
+      let waited = false;
+      const once = () => {
+        if (waited) return;
+        waited = true;
+        clearTimeout(pipeTimer);
+        child.removeListener("close", once);
+        done();
+      };
+      const pipeTimer = setTimeout(once, PIPE_WAIT);
+      child.once("close", once);
     });
   });
   })();
@@ -297,6 +370,14 @@ ipcMain.handle("easyread:detach-window", async (event, token, bounds = {}) => {
   await win.loadURL(desktopTabs.detachedShellUrl(backendUrl, token));
   return true;
 });
+ipcMain.handle("easyread:login-item", async event => {
+  trustedWindow(event);
+  return login.get();
+});
+ipcMain.handle("easyread:set-login-item", async (event, on) => {
+  trustedWindow(event);
+  return login.set(on);
+});
 ipcMain.handle("easyread:close-current-window", async (event) => {
   trustedWindow(event);
   try {
@@ -329,17 +410,25 @@ function stopBackend() {
   }
 }
 
+// 打開主視窗：從系統匣、第二次打開、外部連結都走這裡
+function showMain() {
+  hideAtStart = false;
+  if (!mainWindow) return void createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 // 視窗還在啟動時先記下，後端就緒後 createWindow 直接開啟這篇
 function openLink(target) {
   if (!target) return;
+  hideAtStart = false;
   if (!mainWindow || windowOpening || !backendUrl) {
     pendingOpen = target;
     if (!mainWindow && app.isReady()) createWindow();
     return;
   }
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.focus();
+  showMain();
   desktopTabs.openPaper(mainWindow, target).then(opened => {
     if (!opened && mainWindow) return mainWindow.loadURL(desktopTabs.shellUrl(backendUrl, target));
   }).catch(error => dialog.showErrorBox("NewsRead", error.message));
@@ -348,6 +437,7 @@ function openLink(target) {
 async function createWindow() {
   if (windowOpening || mainWindow) return;
   windowOpening = true;
+  const startedHidden = hideAtStart;
   const state = windowState.options();
   mainWindow = new BrowserWindow({
     ...state.opts,
@@ -382,12 +472,18 @@ async function createWindow() {
   desktopTabs.bindShortcuts(mainWindow);
   const openingWindow = mainWindow;
   mainWindow.once("ready-to-show", () => {
-    if (mainWindow !== openingWindow) return;
+    if (mainWindow !== openingWindow || hideAtStart) return;
     if (state.maximized) openingWindow.maximize();
     openingWindow.show();
   });
   mainWindow.on("close", event => {
-    if (process.platform !== "darwin" && !quitting && backend) {
+    if (quitting) return;
+    if (trayIcon) {  // Windows：縮到系統匣，server 和排程繼續跑；從系統匣按「結束」才真的結束
+      event.preventDefault();
+      openingWindow.hide();
+      return;
+    }
+    if (process.platform !== "darwin" && (backend || backendUrl)) {
       event.preventDefault();
       app.quit();  // before-quit saves while the renderer is still alive.
     }
@@ -396,14 +492,18 @@ async function createWindow() {
   try {
     await openingWindow.loadURL(startup.loadingUrl(isZh()));
     if (mainWindow !== openingWindow || quitting) return;
-    if (state.maximized) openingWindow.maximize();
-    openingWindow.show();
-    startup.mark(app, "startup-window-visible");
+    if (!hideAtStart) {  // maximize() 也會讓視窗出現，所以一起跳過
+      if (state.maximized) openingWindow.maximize();
+      openingWindow.show();
+    }
+    startup.mark(app, hideAtStart ? "startup-hidden" : "startup-window-visible");
     const url = await startBackend();
     if (mainWindow !== openingWindow || quitting) return;
     const first = desktopTabs.shellUrl(url, pendingOpen);
     pendingOpen = undefined;
     await openingWindow.loadURL(first);
+    // 藏在系統匣啟動、後端還沒好時點了連結：openLink 只記下連結，這裡把視窗打開
+    if (startedHidden && !hideAtStart && mainWindow === openingWindow) openingWindow.show();
     startup.mark(app, "library-loaded");
   } catch (error) {
     if (mainWindow !== openingWindow || quitting) return;
@@ -445,12 +545,20 @@ if (!app.requestSingleInstanceLock()) {
         if (mainWindow) await mainWindow.loadURL(desktopTabs.shellUrl(url));
       },
     });
+    if (tray.enabled(process.platform)) {
+      try {
+        trayIcon = tray.create({ Tray, Menu, icon: path.join(__dirname, "assets", "paperread.ico"), onOpen: showMain, onQuit: () => app.quit() });
+      } catch (_) {
+        trayIcon = undefined;  // 系統匣建不起來：照舊，關掉視窗就結束
+      }
+    }
+    if (!trayIcon) hideAtStart = false;  // 沒有系統匣就沒有地方打開，不能藏
     return createWindow();
   });
   app.on("before-quit", event => {
     if (quitting) return;
     quitting = true;
-    if (!backend) return;
+    if (!backend && !backendUrl) return;  // 接手別人的服務時也要先讓頁面存檔，只是不關那個服務
     event.preventDefault();
     savePageState().then(stopBackendGracefully).catch(stopBackend).finally(() => app.quit());
   });
@@ -463,10 +571,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", (_event, argv) => {
     const target = deepLink.fromArgv(argv);
     if (target) return void openLink(target);
-    if (!mainWindow) return void createWindow();
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    if (Array.isArray(argv) && argv.includes(tray.HIDDEN_ARG)) return;  // 開機啟動時已經在跑：留在系統匣
+    showMain();
   });
   process.on("exit", stopBackend);
 }

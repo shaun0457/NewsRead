@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld("easyreadDesktop", {
   pickFolder: () => ipcRenderer.invoke("easyread:pick-folder"),
   saveFile: (options) => ipcRenderer.invoke("easyread:save-file", options),
   relaunch: () => ipcRenderer.invoke("easyread:relaunch"),
+  loginItem: () => ipcRenderer.invoke("easyread:login-item"),
+  setLoginItem: (on) => ipcRenderer.invoke("easyread:set-login-item", on),
   updateState: () => ipcRenderer.invoke("easyread:update-state"),
   downloadUpdate: () => ipcRenderer.invoke("easyread:update-download"),
   installUpdate: () => ipcRenderer.invoke("easyread:update-install"),

@@ -2930,5 +2930,14 @@
   "證據要指向一則資料或一個 Story。": "Evidence must point to one item or one story.",
   "這一欄要填。": "This field is required.",
   "這個狀態變化要指向至少一則方向相符的證據。": "This status change must cite at least one piece of evidence in the matching direction.",
-  "這筆提議已經處理過了。": "This proposal has already been handled."
+  "這筆提議已經處理過了。": "This proposal has already been handled.",
+  "Windows 安裝版": "Windows installer",
+  "Windows 安裝版關掉視窗會縮到系統匣，繼續抓資料、跑排程；要完全結束，從系統匣按「結束」。": "In the Windows installer, closing the window keeps NewsRead in the system tray, still fetching and running schedules. To quit completely, choose Quit from the tray.",
+  "原始碼版": "Source version",
+  "原始碼版請在 NewsRead 資料夾執行 easyread autostart on。": "For the source version, run easyread autostart on in the NewsRead folder.",
+  "桌面版": "Desktop app",
+  "背景執行": "Background",
+  "這個版本不能在這裡設定開機啟動；Windows 安裝版才有這個開關。": "Start at login can't be set here in this version; only the Windows installer has this switch.",
+  "開機後縮在系統匣，繼續抓資料、跑排程；從系統匣點 NewsRead 打開。": "After login NewsRead waits in the system tray, fetching and running schedules. Click NewsRead in the tray to open it.",
+  "開機自動啟動": "Start at login"
 }

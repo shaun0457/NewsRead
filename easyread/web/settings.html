@@ -19,12 +19,17 @@
 <main class="page">
   <div class="page-head"><h1>設定</h1></div>
   <div class="layout">
-    <nav class="toc" aria-label="設定分類"><a href="#models">AI 模型</a></nav>
+    <nav class="toc" aria-label="設定分類"><a href="#models">AI 模型</a><a href="#run">背景執行</a></nav>
     <div>
       <section class="card sec" id="models">
         <h2>AI 模型</h2>
         <p class="muted">打開就自動找這台電腦上已登入的 AI 訂閱；也可以自己填 API key。沒有任何 AI 時，閱讀、筆記、帳本照常能用，只是不會分類、翻譯、起草。</p>
         <div id="view"></div>
+      </section>
+      <section class="card sec" id="run">
+        <h2>背景執行</h2>
+        <p class="muted">Windows 安裝版關掉視窗會縮到系統匣，繼續抓資料、跑排程；要完全結束，從系統匣按「結束」。</p>
+        <div id="run-view"></div>
       </section>
     </div>
   </div>
@@ -36,5 +41,6 @@
 <script src="/web/js/common/util.js"></script>
 <script src="/web/js/common/theme.js"></script>
 <script src="/web/js/settings/app.js"></script>
+<script src="/web/js/settings/run.js"></script>
 </body>
 </html>
