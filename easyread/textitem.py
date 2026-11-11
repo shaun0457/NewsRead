@@ -208,8 +208,14 @@ def _save_version(ws: Workspace, paper: dict) -> None:
     write_json_atomic(folder / f"paper-{n:04d}.json", paper)
 
 
-def create(library, text: str, *, title: str = "", url: str | None = None, meta: dict | None = None) -> tuple[Workspace, str]:
+def create(library, text: str, *, title: str = "", url: str | None = None, meta: dict | None = None,
+           defaults: dict | None = None, prepare=None) -> tuple[Workspace, str]:
     """建立或更新一則沒有 PDF 的資料。回傳 (目錄, 狀態)：created / unchanged / updated。
+
+    下面兩個都在寫入鎖裡面處理，和其他寫入（排翻譯任務、同時匯入同一篇）不會互相插隊：
+    - defaults：只有新建時用的 meta 預設值（meta 有給的蓋過它）。
+    - prepare(ws, old_meta)：已經有這則資料時、寫任何東西之前呼叫。丟例外就不寫（例如正在翻譯）；
+      回傳 dict 就併進 meta，內容沒變（unchanged）也照樣寫進去（例如補上原本不明的發布時間）。
 
     url 有給時用網址當 ID：同一個網址再匯入、內容變了，就存一個新版本（舊版留在 versions/）。
     沒有網址時用內容雜湊當 ID：內容不一樣就是另一則資料。"""
@@ -221,8 +227,9 @@ def create(library, text: str, *, title: str = "", url: str | None = None, meta:
     with dir_lock(ws.root):
         if not ws.paper_path.exists():
             blocks = _blocks(paras)
+            first = {**(defaults or {}), **(meta or {})}
             write_json_atomic(ws.paper_path, {
-                "schema": SCHEMA, "meta": {**_meta(paras, _title(title, paras), clean_url, meta), "version": 1, "fetched_at": now_iso()},
+                "schema": SCHEMA, "meta": {**_meta(paras, _title(title, paras), clean_url, first), "version": 1, "fetched_at": now_iso()},
                 "translation": _translation(blocks), "glossary": [], "references": [], "blocks": blocks,
             })
             write_json_atomic(ws.discussion_path, empty_discussion())
@@ -231,12 +238,17 @@ def create(library, text: str, *, title: str = "", url: str | None = None, meta:
             return ws, "created"
         paper = read_json(ws.paper_path, {}) or {}
         old_meta = paper.get("meta") or {}
+        extra = (prepare(ws, old_meta) if prepare is not None else None) or {}
         if old_meta.get("content_sha256") == content_hash(paras):
+            if any(old_meta.get(k) != v for k, v in extra.items()):
+                paper["meta"] = {**old_meta, **extra}
+                write_json_atomic(ws.paper_path, paper)
             return ws, "unchanged"
         _save_version(ws, paper)
         blocks = _blocks(paras, {b.get("id"): b for b in paper.get("blocks") or [] if isinstance(b, dict)})
-        keep = {k: v for k, v in old_meta.items() if k in ("title_zh", "short_zh", "target", "date", "authors", "published_at", "time_source")}
-        new_meta = _meta(paras, _title(title or old_meta.get("title_en", ""), paras), clean_url, {**keep, **(meta or {})})
+        keep = {k: v for k, v in old_meta.items() if k in ("title_zh", "short_zh", "target", "date", "authors", "published_at", "time_source",
+                                                       "publisher", "published_raw", "canonical_url")}
+        new_meta = _meta(paras, _title(title or old_meta.get("title_en", ""), paras), clean_url, {**keep, **(meta or {}), **extra})
         new_meta.update(version=int(old_meta.get("version") or 1) + 1, fetched_at=now_iso())
         paper.update(meta=new_meta, blocks=blocks, translation=_translation(blocks, paper.get("translation")))
         write_json_atomic(ws.paper_path, paper)

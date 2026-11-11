@@ -57,6 +57,7 @@
   const viewKey = () => JSON.stringify([L.view, L.tag, L.q, L.sort, L.selected]);
   const validData = (d) => d && Array.isArray(d.items) && d.items.every((i) => i && typeof i.id === "string" && Array.isArray(i.tags));
   // Only this read request has a deadline; never retry an import or another write.
+  PR.on && PR.on("ingested", () => L.load());  // 貼連結匯入成功後更新列表（common/ingest.js）
   L.load = async function () {
     const seq = ++loadSeq;
     clearTimeout(pollT);

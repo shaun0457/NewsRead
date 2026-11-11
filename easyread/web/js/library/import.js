@@ -156,6 +156,7 @@
     const files = Array.from(e.clipboardData.files || []);
     if (files.length) { e.preventDefault(); return importFiles(files); }
     const t = (e.clipboardData.getData("text") || "").trim();
+    if (PR.isNewsUrl && PR.isNewsUrl(t)) return;  // 新聞網址交給貼連結匯入（common/ingest.js）
     if (/^(https?:\/\/\S+|(arxiv:)?\d{4}\.\d{4,5}(v\d+)?|(doi:\s*)?10\.\d{4,9}\/\S+)$/i.test(t)) { e.preventDefault(); PR.openImport(t); }
   });
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
-from . import planning_store
+from . import ingest, planning_store
 from . import ai_engines, entities, ledger, reader_api
 from .log import log, tail
 from .jobs import Jobs
@@ -451,6 +451,24 @@ class Handler(BaseHTTPRequestHandler):
                                   ctype="application/pdf" if rel == "source.pdf" else None)
         return self._json(404, {"error": "not found"})
 
+    def _ingest(self, app):
+        """POST /api/ingest。錯誤一律回 {"error": 固定訊息, "kind": 類別}；不回上游原文、不回使用者輸入。"""
+        try:
+            raw = self._body(ingest.MAX_BODY)
+        except ValueError:
+            return self._json(413, {"error": tr("資料太大。"), "kind": "too_large"})
+        try:
+            body = json.loads(raw or b"{}")
+        except (ValueError, RecursionError):  # 壞掉的、或巢狀深到解不開的 JSON
+            return self._json(400, {"error": ingest.message("bad_input"), "kind": "bad_input"})
+        try:
+            return self._json(200, ingest.handle(app, body))
+        except ingest.IngestError as e:
+            return self._json(ingest.http_status(e.kind), e.public() | {"error": e.message})
+        except Exception as e:  # 鎖逾時、磁碟錯誤…：例外原文可能帶本機路徑，只記類型、回固定訊息
+            log.warning("ingest failed: %s", type(e).__name__)
+            return self._json(500, {"error": ingest.message("internal"), "kind": "internal"})
+
     # ---------- POST ----------
     def do_POST(self):
         self._body_read = False  # 同一條連線可以有好幾個請求（HTTP/1.1）
@@ -498,6 +516,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
             result = reader_api.post(app, path, json.loads(self._body() or b"{}"))
             return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+
+        if path == "/api/ingest":  # 貼新聞連結 / 手動貼全文（ticket 11）
+            return self._ingest(app)
 
         if path == entities.PREFIX or path.startswith(entities.PREFIX + "/"):  # 追蹤對象
             try:

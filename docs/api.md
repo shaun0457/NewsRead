@@ -140,6 +140,16 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - `benchmark`：沒填（`null`）就用主要代號市場的預設：台股「發行量加權股價報酬指數」、美股「S&P 500 Total Return」，回傳時 `benchmark_default` 為 `true`。`industry_index` 沒有預設。兩個欄位只有公司有；其他類型送了也會存成 `null`。
 - 回傳另有 `recent_mentions`：近 7 天連上、沒被移除的資料數。「連上」看第一次連上的時間；把 AI 的連結改成手動不算新連上，手動移除後再連回來才算。
 
+## 4.65 貼新聞連結匯入 (`POST /api/ingest`)
+
+每一頁右上角的「＋ 貼網址」、不在輸入框時按 Ctrl+V 貼網址，都呼叫這一個介面（`easyread/ingest.py`）。
+
+- 抓網址：`{url}`。網址先正規化（小寫主機、去掉 `#`、utm / fbclid / gclid 等追蹤參數、AMP 版的 `amp.` 主機、結尾 `/amp` 或 `.amp`、`?amp=1`），用正規化後的網址算 ID；同一篇已經匯入過就不再抓，回 `status: "exists"`。只抓公開網路上的 http / https 網址，指向本機或內網的回 400、`kind: "invalid_url"`。抓取走共用的抓取規則（逾時、大小、重試、每小時上限，見 `easyread/fetch.py`）。
+- 手動貼全文：`{text, title?, publisher?, published_at?, url?}`。`published_at` 要是帶時區的 ISO 8601，沒填就是時間不明。給了 `url` 而且那篇已經在，就存成新版本（原本只有預覽時用這個補全文）；沒填的媒體、發布時間沿用原本抓到的。發布時間記了就不改：那篇已經有時間、又填了不同的時間，回 400 `bad_input`；原本時間不明的，填了就補進資料和 Story。
+- 成功回 200：`{status, id, title, publisher, published_at, time_source, published_raw, fetched_at, url, paragraphs, chars, preview_only, same_language, added, translate}`。`status` 是 `created` / `updated` / `unchanged` / `exists`；`time_source` 是 `metadata`（頁面標的時間）、`user`（手動填的）或 `unknown`（時間不明，`published_at` 是空字串，`published_raw` 是頁面上沒有時區的原文）。
+- 失敗回 `{error, kind}`，`error` 是固定的一句話，不帶上游原文或使用者輸入：輸入不對 400（`bad_input`、`invalid_url`）、這篇正在翻譯 409（`busy`）、抽不到正文 422（`no_text`）、body 超過 2 MB 413（`too_large`）、其他沒預期的錯誤 500（`internal`，例外原文不回、log 只記類型）、抓取失敗 502（`timeout`、`blocked`、`paywall`、`not_found`、`unsupported`、`too_large`、`over_limit`、`network`、`upstream`、`redirect`）。
+- 每則資料自成一個 Story；時間不明的 Story 不記發布時間（不拿抓取時間代替），不納入事件驗證。原文是中文的不送翻譯；其他照「導入後自動翻譯」設定排進翻譯。頁面段落太多或太長時截到一則資料收得下的量（2000 段、40 萬字），`meta.truncated` 記為 true。
+
 ## 4.7 AI 引擎與自帶 key (`/api/ai/*`)
 
 設定頁（`/settings`）的「AI 模型」區用這組 API（ticket 67）。其他模組呼叫 AI 一律走 `easyread/ai_engines.py` 的 `Engines.run(task, prompt, prompt_version=…)`，不直接呼叫引擎。寫入要帶 `X-Token`，body 上限 16 KB（超過回 413）。輸入不對回 400 `{error, field}`；找不到回 404；其他錯誤回 500，訊息是固定的一句。回應裡的 key 只有末四碼（`last4`，key 短於 12 字時是空字串），完整的 key 只存在資料目錄的 `ai.json`，不寫進 log。
