@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料地圖與復盤 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .map { display: grid; grid-template-columns: 200px minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+  .pane { padding: 12px 14px; }
+  .pane h2 { font-size: 14px; margin-bottom: 8px; }
+  .pane label { display: flex; gap: 6px; align-items: center; font-size: 13px; padding: 2px 0; cursor: pointer; }
+  .graph { padding: 6px; position: relative; }
+  .graph svg { display: block; width: 100%; height: auto; }
+  .ed { stroke: var(--rule-2); stroke-width: 1.3; fill: none; }
+  .ed.s { stroke: var(--bull); stroke-width: 1.8; }
+  .ed.w { stroke: var(--bear); stroke-width: 1.8; }
+  .ed.t { stroke-dasharray: 2 4; }
+  .nd text { font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .nd .sub { font-size: 10.5px; fill: var(--ink-3); }
+  .nd { cursor: pointer; }
+  .n-theme circle { fill: var(--ink); } .n-theme text { font-weight: 700; font-size: 14px; }
+  .n-thesis rect { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.5; }
+  .n-co rect { fill: var(--surface-2); stroke: var(--rule-2); }
+  .n-news circle { stroke: var(--surface); stroke-width: 1.5; }
+  .gA { fill: var(--ok); } .gB { fill: var(--accent); } .gC { fill: var(--warn); } .gD { fill: var(--ink-3); }
+  .n-kol rect { fill: var(--warn); }
+  .n-me path { fill: var(--mine); }
+  .n-time rect { fill: transparent; stroke: var(--ink-3); stroke-dasharray: 3 3; }
+  .n-time text { fill: var(--ink-3); }
+  .ghost { opacity: .13; }
+  .dim { opacity: .2; }
+  .sel circle, .sel rect, .sel path { stroke: var(--accent) !important; stroke-width: 3 !important; }
+  .replay { padding: 10px 14px; margin-top: 10px; display: grid; gap: 6px; }
+  .replay input[type=range] { width: 100%; }
+  .ticks { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--ink-3); }
+  .bl { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .bl li { padding: 5px 0; border-top: 1px solid var(--rule); display: flex; gap: 6px; align-items: flex-start; }
+  .bl li:first-child { border-top: 0; }
+  .then { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .then + .then { margin-top: 8px; }
+  .legend2 { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); padding: 4px 8px 6px; }
+  @media (max-width: 1100px) { .map { grid-template-columns: minmax(0, 1fr) 280px; } .map .filters { grid-column: 1 / -1; } .filters .grp2 { display: flex; flex-wrap: wrap; gap: 0 12px; } }
+  @media (max-width: 760px) { .map { grid-template-columns: minmax(0, 1fr); } }
+  body[data-frame="narrow"] .map { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .filters .grp2 { display: flex; flex-wrap: wrap; gap: 0 12px; }
+</style>
+</head>
+<body data-state="now">
+<div class="mock-bar">
+  <b>Mockup B · 資料地圖與復盤（新增，待核准）</b>
+  <span class="grp">狀態：
+    <button data-set-state="now">現在</button>
+    <button data-set-state="focus">選一個節點</button>
+    <button data-set-state="replay">復盤：回到 2026-08-15</button>
+    <button data-set-state="many">節點太多</button>
+    <button data-set-state="empty">資料太少</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="data-map.html" aria-current="page">地圖</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page" style="max-width:1360px">
+  <div class="page-head"><h1>資料地圖</h1><span class="muted">新聞、題材、論點、公司、KOL、你的判斷和時間怎麼連在一起</span><span style="flex:1"></span><button class="btn sm">匯出到 Obsidian</button></div>
+  <p class="mock-note" style="margin-bottom:14px">像 Obsidian 的關係圖：每則新聞、每個題材、每家公司、每個月都是一個節點，連線就是帳本裡已經有的關係（連到追蹤對象、證據的加強 / 削弱、因果鏈、預測掛在論點、發布在哪個月）。下面的時間軸可以「回到某一天」，只看那天已經知道的東西，再對照之後發生了什麼，用來復盤。內容都是「範例」。</p>
+
+  <div class="banner info" data-show="many"><span class="ico">i</span><div><b>節點太多（1,240 個）</b>：只畫跟「800V DC」距離 2 以內、最近的 300 個。縮小時間範圍或關掉一些類型可以看別的。</div></div>
+  <div class="empty card" data-show="empty"><h2>資料還太少</h2><p>至少要有一個題材、幾則連到它的新聞，地圖才有東西可以畫。匯入新聞、建立題材之後再回來。</p><a class="btn sm" href="../v1-a/ingest.html" style="margin-top:8px">貼網址匯入</a></div>
+
+  <div class="map" data-show="now focus replay many">
+    <aside class="card pane filters">
+      <h2>中心</h2>
+      <input class="input" value="800V DC" style="margin-bottom:8px">
+      <div class="row" style="font-size:13px;margin-bottom:10px">距離 <span class="seg"><button>1</button><button aria-pressed="true">2</button><button>3</button></span></div>
+      <h2>顯示</h2>
+      <div class="grp2">
+        <label><input type="checkbox" checked> 題材 / 論點</label>
+        <label><input type="checkbox" checked> 公司</label>
+        <label><input type="checkbox" checked> 新聞（A、B、C、D 級）</label>
+        <label><input type="checkbox" checked> KOL 集數</label>
+        <label><input type="checkbox" checked> 你的判斷 / 預測</label>
+        <label><input type="checkbox" checked> 時間（年 / 季 / 月）</label>
+        <label><input type="checkbox"> AI 判斷</label>
+        <label><input type="checkbox"> 雜訊</label>
+      </div>
+    </aside>
+
+    <section class="card graph">
+      <svg id="g" viewBox="0 0 760 520" role="img" aria-label="範例資料地圖"></svg>
+      <div class="legend2">
+        <span>● 題材</span><span>▭ 論點</span><span>▭ 公司（灰）</span><span>● 新聞（顏色 = 證據等級）</span><span>■ KOL</span><span>▲ 你</span><span>┅ 時間</span><span class="up">— 加強</span><span class="down">— 削弱</span>
+      </div>
+    </section>
+
+    <aside class="card pane">
+      <div data-show="now many">
+        <h2>800V DC <span class="chip">題材</span></h2>
+        <p style="font-size:13px;margin:0 0 8px">3 個論點 · 5 家公司 · 34 則新聞 · 2 集 KOL · 你 9 筆判斷、1 筆預測</p>
+        <h2 style="margin-top:12px">連到這裡的 <span class="muted" style="font-weight:400">（反向連結）</span></h2>
+        <ul class="bl">
+          <li><span class="g A">A</span><span>（範例）GPU 大廠技術文件列出 800V 供應商 <span class="muted">2026-11-08</span></span></li>
+          <li><span class="g B">B</span><span>（範例）研討會：安全規範還沒定案 <span class="muted">11-10</span></span></li>
+          <li><span class="chip warn">KOL</span><span>範例 Podcast A · EP 範例 688 <span class="muted">08-15</span></span></li>
+          <li><span class="chip mine">你</span><span>預測 #41 · 偏多·中 <span class="muted">11-11</span></span></li>
+        </ul>
+      </div>
+      <div data-show="focus">
+        <h2>範例電源 B <span class="chip">公司</span></h2>
+        <dl class="kv"><dt>在因果鏈</dt><dd>受益環節：電源轉換</dd><dt>營收占比</dt><dd>8–12% <span class="cite">法說會 ¶11</span></dd><dt>題材</dt><dd>800V DC、AI 伺服器</dd></dl>
+        <h2 style="margin-top:12px">連到這裡的</h2>
+        <ul class="bl">
+          <li><span class="g A">A</span><span>（範例）10 月法說會提到 800V 方案 <span class="muted">2026-10-16</span></span></li>
+          <li><span class="g B">B</span><span>（範例）800V 產品延到 2029 <span class="rel w">削弱</span> <span class="muted">11-09</span></span></li>
+          <li><span class="chip mine">你</span><span>快速判斷 · 偏多·低 <span class="muted">10-17</span> <span class="chip ok">21 天 對</span></span></li>
+        </ul>
+        <a class="btn sm" href="entity.html" style="margin-top:8px">打開追蹤對象頁</a>
+      </div>
+      <div data-show="replay">
+        <h2>復盤 · 2026-08-15 當時</h2>
+        <div class="then"><b>你那時知道的</b><br>論點「2027 起改用 800V」：<span class="st">待確認</span><br>證據 2 則（A 1、C 1）· KOL 1 集<br>你的判斷：偏多·中（盲判）</div>
+        <div class="then"><b>之後發生的</b>（灰掉的節點）<br>論點變成 <span class="st up">加強中</span>（11/04）· 新證據 12 則 · 多了偏空論點「導入延後」<br>籃子 21 天 <span class="up">+6.1%</span>、63 天 <span class="up">+14.8%</span>（相對大盤）</div>
+        <div class="then"><b>對照</b><br>你 08/15 的判斷：21 天、63 天都 <span class="chip ok">對</span><br>當時沒看到的：安全規範的風險（11/10 才出現）</div>
+        <div class="row" style="margin-top:8px"><button class="btn sm">寫復盤筆記</button><button class="btn sm ghost">換一天</button></div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">「當時知道的」只算那天以前發布、記下的東西，跟打分用的時間點規則一樣。</p>
+      </div>
+    </aside>
+  </div>
+
+  <section class="card replay" data-show="now focus replay many">
+    <div class="row" style="justify-content:space-between"><b style="font-size:14px">時間軸</b><span class="muted" style="font-size:12.5px" data-show="now focus many">拖到過去的某一天就進入復盤</span><span style="font-size:12.5px" data-show="replay">回到 <b>2026-08-15</b> · 之後的節點變淡 <button class="btn sm ghost" data-set-state="now">回到現在</button></span></div>
+    <input type="range" min="0" max="100" value="100" aria-label="時間" data-show="now focus many">
+    <input type="range" min="0" max="100" value="58" aria-label="時間" data-show="replay">
+    <div class="ticks"><span>2025-01</span><span>2025-07</span><span>2026-01</span><span>2026-07</span><span>2026-11</span></div>
+  </section>
+
+  <section class="card sec" data-show="now focus replay many" style="margin-top:16px">
+    <h2>匯出到 Obsidian <span class="sub">同一批連結，Obsidian 的關係圖也看得到</span></h2>
+    <pre style="font:12.5px/1.6 var(--mono);background:var(--surface-2);border-radius:8px;padding:10px 12px;margin:0;overflow-x:auto">NewsRead/新聞/2026-11-08 GPU 大廠技術文件列出 800V 供應商（範例）.md
+  題材：[[800V DC]] · 論點：[[2027 起改用 800V]]（加強，A 級）
+  公司：[[範例電源 A]] [[範例 GPU 廠]] · 時間：[[2026-11]] [[2026-Q4]]
+NewsRead/復盤/2026-08-15 800V DC.md   ← 「寫復盤筆記」存在這裡</pre>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">重複匯出不蓋掉你在 Obsidian 手寫的部分（spec 第 55 條）。時間節點是月 / 季 / 年的筆記，像 Obsidian 的 daily note。</p>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script>
+/* mockup：手動排好位置的範例節點；d = 這個節點出現的日期（復盤時，晚於 2026-08-15 的變淡） */
+(function () {
+  "use strict";
+  const N = [
+    { id: "th", t: "theme", x: 380, y: 260, l: "800V DC", d: "2025-05" },
+    { id: "t1", t: "thesis", x: 245, y: 175, l: "2027 起改用 800V", d: "2025-06" },
+    { id: "t2", t: "thesis", x: 530, y: 165, l: "功率元件最大受惠", d: "2026-08" },
+    { id: "t3", t: "thesis", x: 300, y: 375, l: "導入會延後", d: "2026-11" },
+    { id: "cA", t: "co", x: 560, y: 320, l: "範例電源 A", d: "2025-06" },
+    { id: "cB", t: "co", x: 650, y: 245, l: "範例電源 B", d: "2025-06" },
+    { id: "cC", t: "co", x: 665, y: 120, l: "範例功率元件 C", d: "2026-08" },
+    { id: "cG", t: "co", x: 110, y: 270, l: "範例 GPU 廠", d: "2025-05" },
+    { id: "n1", t: "news", g: "A", x: 80, y: 150, l: "發表 800V 架構", s: "2025-05", d: "2025-05" },
+    { id: "n2", t: "news", g: "A", x: 170, y: 330, l: "技術文件供應商名單", s: "2026-11-08", d: "2026-11" },
+    { id: "n3", t: "news", g: "B", x: 420, y: 445, l: "安全規範未定", s: "2026-11-10", d: "2026-11" },
+    { id: "n4", t: "news", g: "A", x: 710, y: 330, l: "法說會提到 800V", s: "2026-10-16", d: "2026-10" },
+    { id: "n5", t: "news", g: "D", x: 600, y: 60, l: "傳拿到大單", s: "2026-09", d: "2026-09" },
+    { id: "k1", t: "kol", x: 420, y: 70, l: "Podcast A EP 688", s: "2026-08-15", d: "2026-08" },
+    { id: "m1", t: "me", x: 250, y: 470, l: "預測 #41", s: "2026-11-11", d: "2026-11" },
+    { id: "m2", t: "me", x: 300, y: 95, l: "你 偏多·中", s: "2026-08-15", d: "2026-08" },
+    { id: "y1", t: "time", x: 55, y: 50, l: "2025-05", d: "2025-05" },
+    { id: "y2", t: "time", x: 470, y: 505, l: "2026-11", d: "2026-11" },
+    { id: "y3", t: "time", x: 690, y: 35, l: "2026-08", d: "2026-08" },
+  ];
+  const E = [
+    ["t1", "th"], ["t2", "th"], ["t3", "th"], ["cA", "th"], ["cB", "th"], ["cC", "t2"], ["cG", "th"],
+    ["n1", "t1", "s"], ["n2", "t1", "s"], ["n2", "t3", "w"], ["n3", "t1", "w"], ["n3", "t3", "s"], ["n4", "cB"], ["n4", "t1", "s"], ["n5", "t2", "s"],
+    ["n1", "cG"], ["n2", "cA"], ["n2", "cG"], ["k1", "t2", "s"], ["k1", "th"], ["m1", "t1"], ["m2", "n1"], ["m2", "t1"],
+    ["n1", "y1", "t"], ["n2", "y2", "t"], ["n3", "y2", "t"], ["m1", "y2", "t"], ["k1", "y3", "t"], ["m2", "y3", "t"], ["n5", "y3", "t"],
+  ];
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("g");
+  const by = Object.fromEntries(N.map((n) => [n.id, n]));
+  function el(p, tag, a, txt) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; p.appendChild(e); return e; }
+  function draw() {
+    const st = document.body.dataset.state || "now";
+    const cut = st === "replay" ? "2026-08" : "9999";
+    const focus = st === "focus" ? "cB" : null;
+    const near = new Set(focus ? [focus, ...E.filter((e) => e[0] === focus || e[1] === focus).flatMap((e) => [e[0], e[1]])] : []);
+    const fade = (id) => (by[id].d > cut ? " ghost" : focus && !near.has(id) ? " dim" : "");
+    svg.replaceChildren();
+    E.forEach(([a, b, k]) => {
+      const A = by[a], B = by[b];
+      const f = A.d > cut || B.d > cut ? " ghost" : focus && !(near.has(a) && near.has(b) && (a === focus || b === focus)) ? " dim" : "";
+      el(svg, "line", { x1: A.x, y1: A.y, x2: B.x, y2: B.y, class: `ed${k ? " " + k : ""}${f}` });
+    });
+    N.forEach((n) => {
+      const g = el(svg, "g", { class: `nd n-${n.t}${fade(n.id)}${n.id === focus ? " sel" : ""}`, transform: `translate(${n.x},${n.y})` });
+      const w = Math.max(60, n.l.length * 12 + 16);
+      if (n.t === "theme") { el(g, "circle", { r: 22 }); el(g, "text", { y: 40, "text-anchor": "middle" }, n.l); }
+      else if (n.t === "thesis") { el(g, "rect", { x: -w / 2, y: -13, width: w, height: 26, rx: 8 }); el(g, "text", { y: 4, "text-anchor": "middle" }, n.l); }
+      else if (n.t === "co") { el(g, "rect", { x: -w / 2, y: -12, width: w, height: 24, rx: 4 }); el(g, "text", { y: 4, "text-anchor": "middle" }, n.l); }
+      else if (n.t === "news") { el(g, "circle", { r: 7, class: "g" + n.g }); el(g, "text", { y: -12, "text-anchor": "middle" }, n.l); el(g, "text", { y: 21, "text-anchor": "middle", class: "sub" }, n.s); }
+      else if (n.t === "kol") { el(g, "rect", { x: -7, y: -7, width: 14, height: 14 }); el(g, "text", { y: -12, "text-anchor": "middle" }, n.l); el(g, "text", { y: 21, "text-anchor": "middle", class: "sub" }, n.s); }
+      else if (n.t === "me") { el(g, "path", { d: "M0 -9 L8 6 L-8 6 Z" }); el(g, "text", { y: 21, "text-anchor": "middle" }, n.l); }
+      else { el(g, "rect", { x: -w / 2 + 6, y: -11, width: w - 12, height: 22, rx: 11 }); el(g, "text", { y: 4, "text-anchor": "middle" }, n.l); }
+      el(g, "title", {}, n.s ? `${n.l} · ${n.s}（範例）` : `${n.l}（範例）`);
+    });
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-set-state]")) setTimeout(draw, 0); });
+  draw();
+})();
+</script>
+</body>
+</html>
