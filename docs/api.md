@@ -117,6 +117,29 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - `POST /api/reader/paper/{id}/mindmap/tasks/{task}/cancel`、`/ack`：取消，或標記已看過。
 - `GET /api/reader/tasks`：背景工作，只列心智圖和智慧標註，附 `scope_id`。文獻庫頁和閱讀器的工作提示都只讀這裡。
 
+## 4.6 追蹤對象 (`/api/entities/*`)
+
+追蹤對象頁（`/entities`）用這組 API（ticket 13）。寫入要帶 `X-Token`，body 上限 64 KB（超過回 413）。輸入不對回 400 `{error, field}`，`field` 指出哪個欄位（例如 `name`、`listings.1.symbol`、`aliases`）；找不到回 404。
+
+- `GET /api/entities[?type=company&archived=1]`：列表，回傳 `{entities, counts, total, archived}`。`counts` 是各類型沒封存的數量，`archived` 是封存的數量；預設不列封存的。資料庫還沒建時回空列表，不會建檔。
+- `GET /api/entities/{id}`：一個追蹤對象，加上 `mentions`（最近連上的資料，最多 50 則，新的在前）。
+- `POST /api/entities`：建立。body 是 `{type, name, listings?, aliases?, benchmark?, industry_index?}`。追蹤對象總數（含封存的）最多 2000 個，超過回 400；列表也最多回 2000 筆。
+- `POST /api/entities/{id}`：編輯，欄位同建立，可以改 `type`。代號和別名整組換掉：沒帶或帶 `null` 等於清空。
+- `POST /api/entities/{id}/archive`：`{archived: true|false}`。封存不刪資料，也不動帳本。
+- `POST /api/entities/{id}/mentions`：`{item_id}`，手動把一則資料連上來。一個追蹤對象最多連 5000 則（含手動移除留下的紀錄），超過回 400。
+- `POST /api/entities/{id}/mentions/{item_id}/remove`：手動移除連結。那筆連結會標成已移除，AI 之後不會再連回去；本來就沒連的資料不留紀錄。
+- 資料庫被鎖住或讀寫出錯時回 500，訊息是固定的一句，不帶資料庫的原始錯誤。
+
+欄位：
+
+- `type`：`company`（公司）、`industry`（產業 / 供應鏈）、`macro`（總經 / 政策）、`event`（事件）、`theme`（題材）。
+- `listings`：只有公司可以填，最多 5 個，`[{market, symbol}]`。`market` 是 `TW` 或 `US`。台股是 4 到 6 碼數字加可選的一個英文字母，可帶 `.TW` / `.TWO`，存成 `2330.TW`；美股是 1 到 5 個英文字母，可帶 `.B` / `-B`，存成大寫、`-` 換成 `.`。只檢查格式，不查代號存不存在（要等行情資料 #30）。同一個代號只能屬於一個追蹤對象。第一個是主要代號（`primary`），之後打分預定以它為準。
+- `name` 最多 100 字，`benchmark` 和 `industry_index` 最多 80 字；文字欄位前後空白會去掉，中間連續空白合成一個。
+- 代號會先把全形轉成半形（「２３３０」= `2330.TW`），其他文字的數字不接受。
+- `aliases`：最多 20 個，每個最多 60 字；跟名稱或彼此重複的會略過（全形半形、大小寫視為相同）。
+- `benchmark`：沒填（`null`）就用主要代號市場的預設：台股「發行量加權股價報酬指數」、美股「S&P 500 Total Return」，回傳時 `benchmark_default` 為 `true`。`industry_index` 沒有預設。兩個欄位只有公司有；其他類型送了也會存成 `null`。
+- 回傳另有 `recent_mentions`：近 7 天連上、沒被移除的資料數。「連上」看第一次連上的時間；把 AI 的連結改成手動不算新連上，手動移除後再連回來才算。
+
 ## 5. 已移除的介面
 
 研究工作區（`/api/research/v1/*`、`/api/research/v2/*`、`/research` 頁面）、Zotero 遷移（`/api/zotero/*`、`/api/migrate/*`）和成批導入在 ticket 04 移除，現在都回 404。心智圖和 Obsidian 匯出改用 4.5 節的 `/api/reader/*`。

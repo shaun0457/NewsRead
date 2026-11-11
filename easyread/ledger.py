@@ -206,6 +206,14 @@ class Index:
                 raise
             db.execute("COMMIT")
 
+    def read(self):
+        """給同一個資料庫裡其他模組（例如 entities）用的連線，設定跟帳本一樣。"""
+        return self._connect()
+
+    def write(self):
+        """BEGIN IMMEDIATE 的寫入交易，給其他模組用。"""
+        return self._write()
+
     def now(self) -> str:
         return iso(self.clock())
 

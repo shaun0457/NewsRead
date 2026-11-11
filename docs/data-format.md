@@ -235,3 +235,14 @@ Vault Root/
 ## 我的個人心得與延伸思考
 讀者在此區塊手動撰寫的心得、待辦清單或 [[內部雙向連結]]，在後續覆蓋更新時均獲得 100% 完整保留。
 ```
+
+---
+
+## 9. NewsRead 索引資料庫 (`newsread.sqlite3`)
+
+放在資料目錄根目錄，SQLite WAL 模式。帳本相關的表（`stories`、`item_story`、`ledger`、`context_manifests`、`ai_usage`、`prompt_versions`、`prompt_current`）見 `easyread/ledger.py`，其中帳本類的表由 trigger 擋掉更新和刪除。追蹤對象（ticket 13）放在同一個檔案：
+
+- **`entities`**：`id`（`E-` 加 32 位十六進位）、`type`、`name`、`benchmark`（`NULL` = 用預設）、`industry_index`、`archived`、`created_at`、`updated_at`。封存只設 `archived=1`，不刪資料。
+- **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。
+- **`entity_aliases`**：`entity_id`、`position`、`alias`、`folded`（比對用的小寫）。
+- **`mentions`**：資料和追蹤對象的連結，`(item_id, entity_id)` 唯一；`source` 是 `ai` 或 `manual`。`removed=1` 是手動移除留下的紀錄，AI 不能再連回去，也不能蓋掉手動的連結。`created_at` 是連上的時間（移除後再連回來才重設），`updated_at` 是最後一次改動。一個追蹤對象最多 5000 筆。

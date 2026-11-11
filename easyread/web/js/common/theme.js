@@ -29,7 +29,7 @@ window.PR = window.PR || {};
 
   /* 放在顶栏的语言 / 阅读设置按钮前面 */
   document.addEventListener("DOMContentLoaded", () => {
-    const before = document.querySelector("#langBtn, #bar [data-act='settings']");
+    const before = document.querySelector("#langBtn, #bar [data-act='settings'], #themeSlot");  // #themeSlot：NewsRead 新頁面
     if (!before) return;
     const btn = document.createElement("button");
     btn.className = "btn icon theme-btn";

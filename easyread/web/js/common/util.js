@@ -251,15 +251,19 @@ window.PR = window.PR || {};
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       if (r.status === 403 && data.error === "bad token" && !opts._retry) {
-        try {
-          const lib = await (await fetch("/api/library", { cache: "no-store" })).json();
-          if (lib && lib.token) {
-            PR.token = lib.token;
-            return await PR.api(path, Object.assign({}, opts, { _retry: true }));
-          }
-        } catch (_) {}
+        let token = "";
+        try { token = ((await (await fetch("/api/library", { cache: "no-store" })).json()) || {}).token || ""; }
+        catch (_) { /* 拿不到新 token：丟出原本的 403 */ }
+        if (token) {
+          PR.token = token;
+          return PR.api(path, Object.assign({}, opts, { _retry: true }));  // 重試的錯誤（例如帶欄位的 400）照樣往外丟
+        }
       }
-      throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
+      // status 和回應內容一起帶出去：表單要用 data.field 標出是哪個欄位不對
+      const error = new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
+      error.status = r.status;
+      error.data = data;
+      throw error;
     }
     return data;
   };

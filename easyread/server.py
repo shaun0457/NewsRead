@@ -5,6 +5,7 @@ import json
 import mimetypes
 import os
 import re
+import sqlite3
 import sys
 import threading
 
@@ -14,7 +15,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from . import planning_store
-from . import ledger, reader_api
+from . import entities, ledger, reader_api
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -26,6 +27,8 @@ WEB = config.WEB
 mimetypes.add_type("image/webp", ".webp")
 mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("text/javascript", ".js")
+DRAIN_MAX = 1024 * 1024  # 超過上限的請求，最多先讀掉多少再回錯誤
+DRAIN_CHUNK = 64 * 1024
 MAX_UPLOAD = 200 * 1024 * 1024
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -209,9 +212,18 @@ class Handler(BaseHTTPRequestHandler):
                 if path.relative_to(ws.root.resolve()).as_posix() not in retained:
                     path.unlink(missing_ok=True)
 
-    def _body(self) -> bytes:
-        n = int(self.headers.get("Content-Length", "0"))
-        if n > MAX_UPLOAD:
+    def _body(self, limit: int = MAX_UPLOAD) -> bytes:
+        raw = self.headers.get("Content-Length", "0")
+        n = int(raw) if raw.isascii() and raw.isdigit() else -1  # 不是數字（含負數）一律拒絕
+        if n < 0 or n > limit:
+            self.close_connection = True
+            if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
+                left = n
+                while left > 0:  # 分段讀、讀完就丟，不為了丟掉而整塊放進記憶體
+                    chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
             raise ValueError(tr("文件太大"))
         return self.rfile.read(n) if n else b""
 
@@ -243,6 +255,19 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
+    def _entities(self, call):
+        """追蹤對象 API 的錯誤對應：輸入不對 400（附欄位），找不到 404。"""
+        try:
+            result = call()
+        except entities.EntityError as e:
+            return self._json(400, {"error": str(e), "field": e.field})
+        except entities.NotFound:
+            return self._json(404, {"error": tr("找不到這個追蹤對象。")})
+        except sqlite3.Error as e:  # 資料庫被鎖住、磁碟錯誤：只記錯誤類型，不回原文
+            log.warning("追蹤對象資料庫錯誤 %s", type(e).__name__)
+            return self._json(500, {"error": tr("本機資料庫暫時不能用，請稍後再試。")})
+        return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+
     def _get(self):
         url = urlparse(self.path)
         path = unquote(url.path)
@@ -256,6 +281,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
             result = reader_api.get(app, path)
             return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+        if path == entities.PREFIX or path.startswith(entities.PREFIX + "/"):  # 追蹤對象
+            return self._entities(lambda: entities.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()}))
+        if path == "/entities":
+            return self._page(WEB / "entities.html")
         if path in ("/", "/index.html"):
             return self._page(WEB / "library.html")
         if path == "/web/tabs.html":
@@ -377,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
             self.close_connection = True
             try:
-                self._body()
+                self._body(0)  # 沒通過 token 的請求不收 body：小的讀掉丟棄，大的直接斷線
             except Exception:
                 pass
             return self._json(403, {"error": "bad token"})
@@ -415,6 +444,17 @@ class Handler(BaseHTTPRequestHandler):
         if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
             result = reader_api.post(app, path, json.loads(self._body() or b"{}"))
             return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+
+        if path == entities.PREFIX or path.startswith(entities.PREFIX + "/"):  # 追蹤對象
+            try:
+                body = self._body(entities.MAX_BODY)
+            except ValueError:
+                return self._json(413, {"error": tr("資料太大。")})
+            try:
+                data = json.loads(body or b"{}")
+            except (ValueError, RecursionError):  # RecursionError：很深的巢狀 [[[…]]]
+                return self._json(400, {"error": tr("資料格式不對。")})
+            return self._entities(lambda: entities.api_post(app, path, data))
 
         if path in library_api.POST:
             return self._json(200, library_api.post(app, path, json.loads(self._body() or b"{}")))

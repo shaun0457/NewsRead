@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>追蹤對象 · NewsRead</title>
+<link rel="icon" href="/web/paperread-mark.png" type="image/png">
+<link rel="stylesheet" href="/web/css/newsread.css">
+<script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
+</head>
+<body>
+<header class="appbar">
+  <a class="brand" href="/"><span class="mark">N</span>NewsRead</a>
+  <nav class="nav"><a href="/">資料庫</a><a href="/entities" aria-current="page">追蹤對象</a></nav>
+  <span class="spacer"></span>
+  <span id="themeSlot" hidden></span>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>追蹤對象</h1><span class="muted" id="summary"></span><span class="grow"></span><button class="btn primary" id="newBtn" type="button">＋ 新增</button></div>
+  <div id="view"></div>
+</main>
+<div id="toast" role="status"></div>
+
+<script src="/web/js/common/desktop-bridge.js"></script>
+<script src="/web/js/common/i18n.js"></script>
+<script src="/web/js/common/util.js"></script>
+<script src="/web/js/common/theme.js"></script>
+<script src="/web/js/entities/app.js"></script>
+</body>
+</html>
