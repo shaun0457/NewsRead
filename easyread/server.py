@@ -17,7 +17,7 @@ from .bulk import api as bulk_api
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
-from . import ledger
+from . import ledger, reader_api
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -257,6 +257,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, ledger.api_get(getattr(app, "ledger_path", None), q))
             except ledger.QueryError:
                 return self._json(400, {"error": "bad ledger query"})
+        if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
+            result = reader_api.get(app, path)
+            return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
         research = research_api.get(app, path + ("?" + url.query if url.query else ""))
         if research is not None:
             return self._json(200, research)
@@ -422,6 +425,10 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(url.path)
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
+
+        if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
+            result = reader_api.post(app, path, json.loads(self._body() or b"{}"))
+            return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
 
         if path.startswith(research_api.PREFIX + "/"):
             endpoint = path[len(research_api.PREFIX):]

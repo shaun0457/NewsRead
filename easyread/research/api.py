@@ -4,7 +4,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .. import chat_models, config, prefs
 from ..i18n import tr
-from . import comparison, proposals, tasks
+from .. import tasks
+from . import comparison, proposals
 from .store import normalize_folders, set_vault, settings, vault_path
 
 PREFIX = "/api/research/v1"

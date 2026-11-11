@@ -470,7 +470,7 @@ def decide(identity: str, accept: bool) -> dict:
         proposal["written_path"] = _relative(root, destination)
         write_json_atomic(path, proposal)
     from . import index
-    from . import obsidian_export
+    from .. import obsidian_export
     generated_meta, _ = metadata(proposal.get("after") or "")
     obsidian_export.register_document(root, str(generated_meta.get("research_id") or ""),
                                      str(generated_meta.get("type") or proposal.get("kind") or ""),

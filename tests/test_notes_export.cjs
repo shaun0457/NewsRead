@@ -80,7 +80,7 @@ function loadExporter({ configured = false, selectedPath = "C:\\Vault", desktop 
     t: (text, values) => values ? text.replace(/\{(\w+)\}/g, (_match, key) => values[key]) : text,
     api: async (path, options = {}) => {
       requests.push({ path, options });
-      if (path === "/api/research/v1/status") return { configured };
+      if (path === "/api/reader/vault" && options.method !== "POST") return { configured };
       if (path === "/api/library/pick-folder") return { path: selectedPath };
       return {};
     },
@@ -101,8 +101,8 @@ function loadExporter({ configured = false, selectedPath = "C:\\Vault", desktop 
 test("Obsidian note export prompts for a vault, saves it, then exports", async () => {
   const app = loadExporter();
   await app.click();
-  assert.deepEqual(app.requests.map((request) => request.path), [
-    "/api/research/v1/status", "/api/research/v1/setup", "/api/research/v2/export/obsidian",
+  assert.deepEqual(app.requests.map((request) => (request.options.method || "GET") + " " + request.path), [
+    "GET /api/reader/vault", "POST /api/reader/vault", "POST /api/reader/export/obsidian",
   ]);
   assert.equal(app.requests[1].options.body.vault, "C:\\Vault");
   assert.equal(app.dialog.closed, true);
@@ -111,7 +111,7 @@ test("Obsidian note export prompts for a vault, saves it, then exports", async (
 test("canceling vault selection keeps the export dialog usable", async () => {
   const app = loadExporter({ selectedPath: null });
   await app.click();
-  assert.deepEqual(app.requests.map((request) => request.path), ["/api/research/v1/status"]);
+  assert.deepEqual(app.requests.map((request) => (request.options.method || "GET") + " " + request.path), ["GET /api/reader/vault"]);
   assert.equal(app.button.disabled, false);
   assert.equal(app.button.innerHTML, "匯出至 Obsidian Vault");
   assert.equal(app.dialog.closed, false);
@@ -120,16 +120,16 @@ test("canceling vault selection keeps the export dialog usable", async () => {
 test("browser note export uses the server folder picker", async () => {
   const app = loadExporter({ desktop: false });
   await app.click();
-  assert.deepEqual(app.requests.map((request) => request.path), [
-    "/api/research/v1/status", "/api/library/pick-folder", "/api/research/v1/setup", "/api/research/v2/export/obsidian",
+  assert.deepEqual(app.requests.map((request) => (request.options.method || "GET") + " " + request.path), [
+    "GET /api/reader/vault", "POST /api/library/pick-folder", "POST /api/reader/vault", "POST /api/reader/export/obsidian",
   ]);
 });
 
 test("configured vault exports without prompting for another folder", async () => {
   const app = loadExporter({ configured: true });
   await app.click();
-  assert.deepEqual(app.requests.map((request) => request.path), [
-    "/api/research/v1/status", "/api/research/v2/export/obsidian",
+  assert.deepEqual(app.requests.map((request) => (request.options.method || "GET") + " " + request.path), [
+    "GET /api/reader/vault", "POST /api/reader/export/obsidian",
   ]);
 });
 
@@ -138,6 +138,6 @@ test("Obsidian export warns about handwritten strokes but excludes deleted strok
     one: { id: "one" }, two: { id: "two" }, gone: { id: "gone", deleted: true },
   } });
   await app.click();
-  const docs = app.requests.find(request => request.path === "/api/research/v2/export/obsidian").options.body.documents;
+  const docs = app.requests.find(request => request.path === "/api/reader/export/obsidian").options.body.documents;
   assert.ok(docs.every(doc => doc.body.includes("本次匯出未包含 2 筆手寫註記。")));
 });

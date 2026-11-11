@@ -26,7 +26,7 @@
       K(k("mode", "B"), PR.t("单语 / 双语")) +
       K(k("pages", "O"), PR.t("原文页面板")) +
       K(k("notes", "M"), PR.t("笔记面板")) +
-      K(k("research", "R"), PR.t("研究")) +
+      K(k("research", "R"), PR.t("心智圖")) +
       K(k("toc", "T"), PR.t("目录")) +
       K(trio("fontUp", "fontDown", "fontReset", "=", "-", "0"), PR.t("字号大 / 小 / 默认")) +
       K("1 2 3 4", PR.t("选中文字后四色划线"))

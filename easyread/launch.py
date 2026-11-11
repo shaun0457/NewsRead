@@ -11,7 +11,7 @@ from . import __version__, config, detect
 from .i18n import tr
 from .log import log, setup as setup_log
 from .presence import Presence
-from .research import tasks as research_tasks
+from . import tasks as research_tasks
 from .server import App, Handler, allowed_hosts, host_name
 from .store import now_iso, read_json, write_json_atomic
 

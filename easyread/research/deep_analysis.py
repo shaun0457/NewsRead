@@ -8,7 +8,7 @@ from typing import Any
 from .. import chat_models, config, engines, usage
 from ..i18n import tr
 from ..store import write_json_atomic
-from . import tasks, obsidian_export
+from .. import obsidian_export, tasks
 
 MAX_TEXT_CHARS = 48000
 

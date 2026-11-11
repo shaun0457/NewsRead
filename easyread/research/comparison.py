@@ -14,7 +14,8 @@ from pathlib import Path
 from .. import config
 from .. import chat_models, engines, usage
 from ..i18n import tr
-from . import proposals, tasks
+from .. import tasks
+from . import proposals
 from .store import settings, vault_path
 
 DEFAULT_DIMENSIONS = ("研究問題", "核心方法", "資料集", "評估指標", "限制")

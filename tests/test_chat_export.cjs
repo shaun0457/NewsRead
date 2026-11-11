@@ -94,10 +94,10 @@ test('exportChatObsidian checks unconfigured vault, runs setup, and exports to 0
     t: (s, p) => p ? s.replace(/\{(\w+)\}/g, (_, k) => p[k]) : s,
     api: async (url, opts = {}) => {
       apiCalls.push({ url, opts });
-      if (url === '/api/research/v1/status') {
+      if (url === '/api/reader/vault' && opts.method !== 'POST') {
         return { configured };
       }
-      if (url === '/api/research/v1/setup') {
+      if (url === '/api/reader/vault' && opts.method === 'POST') {
         configured = true;
         return { ok: true };
       }
@@ -110,7 +110,7 @@ test('exportChatObsidian checks unconfigured vault, runs setup, and exports to 0
           attachments: [{ filename: 'assets/fig1.png', content_base64: 'FAKE' }]
         };
       }
-      if (url === '/api/research/v2/export/obsidian') {
+      if (url === '/api/reader/export/obsidian') {
         return { written: ['Research/03-閱讀標註/測試論文標題/單則回答/Test-Paper-Answer.md'], updated: [], conflicts: [] };
       }
       return {};
@@ -137,11 +137,13 @@ test('exportChatObsidian checks unconfigured vault, runs setup, and exports to 0
 
   // Check API calls: status check, setup, chat-export, and export/obsidian
   assert.equal(apiCalls.length, 4);
-  assert.equal(apiCalls[0].url, '/api/research/v1/status');
-  assert.equal(apiCalls[1].url, '/api/research/v1/setup');
+  assert.equal(apiCalls[0].url, '/api/reader/vault');
+  assert.notEqual(apiCalls[0].opts.method, 'POST');
+  assert.equal(apiCalls[1].url, '/api/reader/vault');
+  assert.equal(apiCalls[1].opts.method, 'POST');
   assert.equal(apiCalls[1].opts.body.vault, 'C:\\Vault');
   assert.equal(apiCalls[2].url, '/api/p/p123/chat-export');
-  assert.equal(apiCalls[3].url, '/api/research/v2/export/obsidian');
+  assert.equal(apiCalls[3].url, '/api/reader/export/obsidian');
 
   const exportedDoc = apiCalls[3].opts.body.documents[0];
   assert.equal(exportedDoc.id, 'paper:p123:chat:m1');

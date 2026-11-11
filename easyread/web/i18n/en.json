@@ -1142,6 +1142,7 @@
   "手動交接給其他 Agent": "Manually hand off to another agent",
   "目前已有研究工作執行中，請稍後再試。": "A research task is already running. Try again later.",
   "研究（R）": "Research (R)",
+  "心智圖（R）": "Mind map (R)",
   "表格保留於原文": "Table kept in the original paper",
   "表格位於原文第 {n} 頁（點擊查看）": "Table on page {n} of the original (click to view)",
   "繁體中文（臺灣）": "Traditional Chinese (Taiwan)",
@@ -2630,5 +2631,16 @@
   "來源暫時無法回應": "The source is temporarily unavailable",
   "網址不正確或不允許": "The URL is invalid or not allowed",
   "轉址太多次或沒有完成": "Too many redirects, or the redirect did not finish",
-  "選取工具": "Selection tools"
+  "選取工具": "Selection tools",
+  "工作完成": "Task finished",
+  "工作已取消": "Task cancelled",
+  "排入背景工作…": "Queued as a background task…",
+  "背景工作開始": "Background task started",
+  "所選路徑不是資料夾。": "The selected path is not a folder.",
+  "索引資料夾必須位於 Vault 內，且不能包含隱藏資料夾。": "Index folders must be inside the vault and cannot include hidden folders.",
+  "索引資料夾必須是 Vault 內的相對路徑清單。": "Index folders must be a list of paths relative to the vault.",
+  "請選擇 Obsidian Vault 資料夾。": "Choose an Obsidian vault folder.",
+  "請選擇 Obsidian Vault 資料夾，不可選 PaperRead 資料目錄。": "Choose an Obsidian vault folder, not the app's data folder.",
+  "這篇論文目前沒有可供分析的內文。": "This document has no text to analyse yet.",
+  "模型未回傳安全且可辨識的 Mermaid mindmap，請重試。": "The model did not return a safe, valid Mermaid mind map. Please try again."
 }

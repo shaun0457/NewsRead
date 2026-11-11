@@ -44,13 +44,13 @@
       button.innerHTML = '<i class="spin"></i> ' + PR.t("正在匯出…");
     }
     try {
-      const status = await PR.api("/api/research/v1/status");
+      const status = await PR.api("/api/reader/vault");
       if (!status.configured) {
         const path = window.easyreadDesktop && typeof window.easyreadDesktop.pickFolder === "function"
           ? await window.easyreadDesktop.pickFolder()
           : (await PR.api("/api/library/pick-folder", { method: "POST", body: {} })).path || "";
         if (!path) return;
-        await PR.api("/api/research/v1/setup", { method: "POST", body: { vault: path } });
+        await PR.api("/api/reader/vault", { method: "POST", body: { vault: path } });
         PR.toast(PR.t("已連結 Obsidian Vault。"));
       }
 
@@ -73,7 +73,7 @@
         links: [analysisId]
       };
 
-      const exportResult = await PR.api("/api/research/v2/export/obsidian", {
+      const exportResult = await PR.api("/api/reader/export/obsidian", {
         method: "POST",
         body: { documents: [doc] }
       });

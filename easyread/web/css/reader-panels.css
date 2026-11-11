@@ -26,9 +26,8 @@ body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
 .toc .group { font-size: 11px; letter-spacing: .2em; color: var(--ink-3); margin: 14px 0 4px; }
 .terms-t { width: 100%; border-collapse: collapse; }
 .terms-t td { padding: 5px 0; border-bottom: 1px solid var(--rule); vertical-align: middle; }
-.terms-t td:first-child { width: 1%; padding-right: 6px; }
-.terms-t td:nth-child(2) { font: 13px/1.4 var(--serif-en); color: var(--ink-2); padding-right: 8px; width: 42%; }
-.terms-t td:last-child { width: 1%; padding-left: 6px; }
+.terms-t td.term-en { font: 13px/1.4 var(--serif-en); color: var(--ink-2); padding-right: 8px; width: 42%; }
+.terms-t td.term-zh-cell { width: 1%; padding-left: 6px; }
 .terms-t .input { height: 28px; font-size: 13px; }
 .term-free .input { height: 30px; }
 .terms-keywords { display:grid; gap:7px; }

@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from easyread.research import obsidian_export
+from easyread import obsidian_export
 
 
 class ObsidianExportTest(unittest.TestCase):

@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from easyread.research import comparison, index, markdown, proposals, tasks
+from easyread import tasks
+from easyread.research import comparison, index, markdown, proposals
 from easyread.research.store import normalize_folders
 
 

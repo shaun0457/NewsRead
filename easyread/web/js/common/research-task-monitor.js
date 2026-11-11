@@ -2,6 +2,9 @@
 (function (PR) {
   "use strict";
   const PATH_API = "/api/research/v2/reading-path/tasks";
+  // 閱讀器只看自己的工作（心智圖、智慧標註），走 /api/reader，不呼叫研究工作區（ticket 03）
+  const READER = /^\/read\//.test(location.pathname);
+  const readerMindmapUrl = (pid, id, action) => "/api/reader/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(id) + "/" + action;
   const state = { scope: "", path: null, comparison: null, mindmap: null, smartAnnotate: null, deepAnalysis: null, sessionTaskIds: new Set(), tasks: [], timer: 0, busy: false, dialogTask: null, dialogOpen: false, returnFocus: null };
   const terminal = new Set(["completed", "failed", "cancelled", "interrupted"]);
   const active = (task) => task && ["queued", "running", "cancelling"].includes(task.state);
@@ -110,8 +113,9 @@
     const type = taskType(task);
     if (type === "smart-annotate") return;
     const pid = task.paper_id || task.key || "";
+    if (type === "mindmap" && !pid) return;
     const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/ack"
-      : type === "mindmap" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(task.id) + "/ack" : "/api/research/v2/mindmap/tasks/" + encodeURIComponent(task.id) + "/ack")
+      : type === "mindmap" ? readerMindmapUrl(pid, task.id, "ack")
       : type === "deep-analysis" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/ack" : "/api/research/v2/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/ack")
       : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/ack";
     PR.api(url, { method: "POST", body: {} }).catch(() => {});
@@ -128,7 +132,7 @@
     const pid = task.paper_id || task.key || PR.pid || "";
     const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/cancel"
       : type === "smart-annotate" ? "/api/p/" + encodeURIComponent(pid) + "/smart-annotate-cancel"
-      : type === "mindmap" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(task.id) + "/cancel" : "/api/research/v2/mindmap/tasks/" + encodeURIComponent(task.id) + "/cancel")
+      : type === "mindmap" ? readerMindmapUrl(pid, task.id, "cancel")
       : type === "deep-analysis" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/cancel" : "/api/research/v2/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/cancel")
       : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/cancel";
     const body = type === "smart-annotate" ? { job: task.id } : {};
@@ -412,10 +416,9 @@
     if (state.busy || !PR.token) return schedule();
     state.busy = true;
     try {
-      const [monitor, pathState] = await Promise.all([
-        PR.api("/api/research/v1/monitor"),
-        PR.api(PATH_API + "/current")
-      ]);
+      const [monitor, pathState] = READER
+        ? [await PR.api("/api/reader/tasks"), {}]
+        : await Promise.all([PR.api("/api/research/v1/monitor"), PR.api(PATH_API + "/current")]);
       state.scope = monitor.scope_id || state.scope;
       const pathTask = pathState.task;
       if (pathTask) {

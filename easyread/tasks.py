@@ -6,7 +6,7 @@ import time
 import uuid
 from hashlib import sha256
 
-from ..i18n import tr
+from .i18n import tr
 
 
 _LOCK = threading.Lock()

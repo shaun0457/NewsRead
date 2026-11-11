@@ -102,7 +102,24 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 
 ---
 
+## 4.5 閱讀器介面 (`/api/reader/*`)
+
+閱讀器的 Obsidian 匯出和心智圖從 ticket 03 起走這組 API，不再呼叫研究工作區。行為跟舊的研究工作區路徑相同：受管區塊、檔案位置、心智圖快取都沿用。寫入要帶 `X-Token`。
+
+- `GET /api/reader/vault`：回傳 `{vault, configured}`，也就是 Obsidian Vault 設好了沒。
+- `POST /api/reader/vault`：設定 Vault，body 是 `{vault, folders?}`，設定沿用 prefs 的 `research.vault`。
+- `POST /api/reader/export/obsidian`：把 `documents` 寫進 Vault 的 `Research/` 專題目錄。重複匯出時，受管區塊外手寫的內容會保留；沒有受管區塊的同名筆記列為 `conflicts`，不會被覆寫。
+- `POST /api/reader/export/zip`：一樣的內容打包成 ZIP，以 base64 回傳。
+- `GET /api/reader/paper/{id}/mindmap`：讀快取的心智圖（`cached`），不呼叫模型。
+- `POST /api/reader/paper/{id}/mindmap`：當場產生心智圖，一定呼叫模型。
+- `POST /api/reader/paper/{id}/mindmap/tasks`：在背景產生心智圖。
+- `GET /api/reader/paper/{id}/mindmap/tasks/current`、`GET /api/reader/paper/{id}/mindmap/tasks/{task}`：查進度。
+- `POST /api/reader/paper/{id}/mindmap/tasks/{task}/cancel`、`/ack`：取消，或標記已看過。
+- `GET /api/reader/tasks`：閱讀器的背景工作，只列心智圖和智慧標註，附 `scope_id`。
+
 ## 5. 個人研究工作區介面 (`/api/research/v2/*`)
+
+> 閱讀器從 ticket 03 起不再呼叫這一節的 API：心智圖和匯出改走 4.5 節，跨論文關鍵字、閱讀路徑、深度剖析從閱讀器拿掉了。研究工作區本身會在 ticket 04 移除。
 
 ### 5.1 跨論文關鍵字索引
 - `GET /api/research/v2/keywords`：獲取所有關鍵字列表與統計。

@@ -402,7 +402,7 @@ class SmartAnnotationTests(unittest.TestCase):
         self.assertIn("詳細模式", prompt_detailed)
 
     def test_research_task_external_registry(self):
-        from easyread.research import tasks as rtasks
+        from easyread import tasks as rtasks
         task_id = "test-smart-annotate-1"
         registered = rtasks.register_external(task_id, "smart-annotate", scope="test-scope", key="paper-1", paper_id="paper-1", title="Test Paper")
         self.assertEqual(registered["id"], task_id)

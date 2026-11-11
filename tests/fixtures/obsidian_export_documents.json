@@ -1,0 +1,14 @@
+[
+ {"id": "paper:p1:analysis", "kind": "analysis", "paper_id": "p1", "title": "範例晶圓廠擴產", "filename": "範例晶圓廠擴產-analysis",
+  "body": "## 摘要\n範例內容：某晶圓廠宣布擴產。", "links": ["paper:p1:mindmap", "paper:p1:notes", "paper:p1:highlights", "paper:p1:chat:all"]},
+ {"id": "paper:p1:mindmap", "kind": "mindmap", "paper_id": "p1", "title": "範例晶圓廠擴產 - 心智圖", "filename": "範例晶圓廠擴產-mind-map",
+  "body": "```mermaid\nmindmap\n  root((範例))\n    產能\n    客戶\n```\n\n![[範例晶圓廠擴產-mind-map.png]]", "links": ["paper:p1:analysis"],
+  "image_base64": "iVBORw0KGgo=",
+  "attachments": [{"filename": "範例晶圓廠擴產-mind-map.png", "content_base64": "iVBORw0KGgo="}]},
+ {"id": "paper:p1:notes", "kind": "annotations", "paper_id": "p1", "title": "範例晶圓廠擴產 - 我的筆記", "filename": "範例晶圓廠擴產-notes",
+  "subfolder": "範例晶圓廠擴產/我的筆記", "body": "- 筆記：範例", "links": ["paper:p1:analysis"]},
+ {"id": "paper:p1:highlights", "kind": "annotations", "paper_id": "p1", "title": "範例晶圓廠擴產 - 我的劃線", "filename": "範例晶圓廠擴產-highlights",
+  "subfolder": "範例晶圓廠擴產/我的劃線", "body": "> 劃線：範例", "links": ["paper:p1:analysis"]},
+ {"id": "paper:p1:chat:all", "kind": "annotations", "paper_id": "p1", "title": "範例晶圓廠擴產 - 所有 AI 問答", "filename": "範例晶圓廠擴產-all-ai-qa",
+  "subfolder": "範例晶圓廠擴產/所有AI問答", "body": "**問**：範例？\n\n**答**：範例。", "links": ["paper:p1:analysis"]}
+]

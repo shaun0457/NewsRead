@@ -352,7 +352,7 @@ def search(query: str, limit: int = 10, kind: str = "", library=None) -> dict:
     if not query:
         return {"results": [], "index": {"files": 0, "chunks": 0, "errors": []}}
     limit = max(1, min(int(limit), 30))
-    from . import tasks
+    from .. import tasks
     active_index = next((task for task in tasks.list_tasks()
                          if task["kind"] == "index" and task["state"] in ("queued", "running", "cancelling")), None)
     index_status = ({"files": 0, "chunks": 0, "errors": [], "semantic_task": active_index}

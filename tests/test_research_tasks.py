@@ -8,8 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from easyread import planning_store, research_v2
-from easyread.research import api, tasks
+from easyread import mindmap, planning_store, research_v2
+from easyread import tasks
+from easyread.research import api
 
 
 class ResearchTaskTests(unittest.TestCase):
@@ -82,7 +83,7 @@ class ResearchTaskTests(unittest.TestCase):
         self.assertTrue(acked["acknowledged"])
 
     def test_reading_path_current_marks_lost_active_task_interrupted_and_retains_retry_input(self):
-        from easyread.research.tasks import scope_id
+        from easyread.tasks import scope_id
         request = {"topic": "vision", "candidate_papers": []}
         interrupted = {"id": "lost-task", "kind": "reading-path", "scope": scope_id(self.root),
                        "state": "running", "phase": "planning", "message": "running"}
@@ -164,7 +165,7 @@ class ResearchTaskTests(unittest.TestCase):
                 ack_done.set()
 
         with mock.patch.object(planning_store, "cache_get", side_effect=delayed_cache_get), \
-                mock.patch.object(research_v2, "_MINDMAP_TASK_CACHE_LOCK", ObservedLock()):
+                mock.patch.object(mindmap, "_TASK_CACHE_LOCK", ObservedLock()):
             persist_thread = threading.Thread(target=persist_late_update, name="mindmap-late-persist")
             persist_thread.start()
             self.assertTrue(persist_read.wait(1))
@@ -183,7 +184,7 @@ class ResearchTaskTests(unittest.TestCase):
         self.assertTrue(original_cache_get(self.root, cache_key)[0]["acknowledged"])
 
     def test_mindmap_current_marks_lost_active_task_interrupted(self):
-        from easyread.research.tasks import scope_id
+        from easyread.tasks import scope_id
         request = {"model": "test-model"}
         interrupted = {"id": "lost-map-task", "kind": "mindmap", "scope": scope_id(self.root),
                        "paper_id": "p-200", "state": "running", "phase": "generating", "message": "running"}

@@ -102,7 +102,7 @@
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
   PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
-  PR.$('[data-act="research"]').innerHTML = PR.icon("book", "sm") + "<span>" + PR.t("研究") + "</span>";
+  PR.$('[data-act="research"]').innerHTML = PR.icon("book", "sm") + "<span>" + PR.t("心智圖") + "</span>";
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
   PR.updateKeyTitles = function () {
     const isEn = PR.lang === "en";
@@ -118,7 +118,7 @@
     set("[data-ink-erase]", PR.t("橡皮擦"), PR.keyOf("inkEraser"));
     set('[data-act="notes"]', PR.t("筆記面板"), PR.keyOf("notes"));
     set('[data-act="chat"]', PR.t("邊讀邊問 AI"), PR.keyOf("chat"));
-    set('[data-act="research"]', PR.t("研究"), PR.keyOf("research"));
+    set('[data-act="research"]', PR.t("心智圖"), PR.keyOf("research"));
 
     const ku = PR.keyOf("fontUp"), kd = PR.keyOf("fontDown");
     const fontK = [ku, kd].filter(Boolean).join(isEn ? " / " : "、"); // i18n-ok
@@ -181,7 +181,6 @@
 
   /* ---------- 抽屉 ---------- */
   let tab = "toc";
-  let termsView = "glossary", paperKeywords = null, paperNoText = false;
   PR.toggleDrawer = function (force, which) {
     if (which) tab = which;
     const open = force != null ? force : !body.classList.contains("drawer-open");
@@ -233,58 +232,12 @@
     if (miss.length) html += '<div class="group">' + ((S.job || {}).read || (S.paper.translation || {}).en_pages?.length ? PR.t("还没整理的页") : PR.t("未译的页")) + '</div>' + miss.map((p) => '<a href="#orig-' + p.n + '" data-go-orig="' + p.n + '" class="l1"><span class="n"></span>' + PR.t("原文第 {n} 页", { n: p.n }) + "</a>").join("");
     return html + "</nav>";
   }
-  PR.refreshKeywords = function () { paperKeywords = null; if (tab === "terms") PR.renderDrawer(); };
-  function keywordGroups() {
-    const groups = new Map();
-    (paperKeywords || []).forEach((link) => {
-      let g = groups.get(link.keyword_id);
-      if (!g) { g = { id: link.keyword_id, name: link.name, match_text: link.match_text, hits: 0, manual: [], auto: [] }; groups.set(link.keyword_id, g); }
-      if (link.source === "auto") { g.hits += link.occurrences || 0; g.auto.push(link); } else g.manual.push(link);
-    });
-    return [...groups.values()];
-  }
-  function paperKeywordsHtml() {
-    if (paperKeywords == null) return '<p class="hint">' + PR.t("載入關鍵字中…") + "</p>";
-    const groups = keywordGroups();
-    const list = groups.map((g) => {
-      const sources = g.auto.concat(g.manual);
-      const status = g.hits ? PR.t("原文找到 {n} 處", { n: g.hits }) : (paperNoText ? PR.t("尚無可比對原文") : PR.t("原文未找到"));
-      return '<div class="kw-item"><div><b>' + PR.esc(g.name) + "</b><small>" + PR.esc(g.match_text) + " · " + status + (g.manual.length ? " · " + PR.t("手動收錄") : "") + "</small></div>" +
-        '<details><summary>' + PR.t("展開命中片段") + " (" + sources.length + ")</summary><ul>" +
-        sources.map((l) => "<li><blockquote>" + PR.esc(l.quote || PR.t("手動收錄")) + "</blockquote>" + (l.anchor ? '<button class="btn sm line" data-kw-jump="' + PR.esc(l.anchor) + '">' + PR.t("跳轉") + "</button>" : "") + "</li>").join("") + "</ul></details>" +
-        "</div>";
-    }).join("");
-    const ids = groups.map((g) => g.id).join(",");
-    const topBar = '<div class="kw-top-bar">' +
-      '<form class="kw-add-box" id="kwAddForm">' +
-        '<span class="kw-add-icon">' + PR.icon("plus", "sm") + '</span>' +
-        '<input class="input kw-add-input" id="kwQuickAdd" placeholder="' + PR.esc(PR.t("+ 新增關鍵字… (輸入後按 Enter 加入)")) + '" maxlength="120" autocomplete="off">' +
-        '<button class="kw-add-btn" type="submit" title="' + PR.esc(PR.t("新增關鍵字")) + '">' + PR.icon("arrowUp", "sm") + '</button>' +
-      '</form>' +
-    '</div>';
-    const footer = '<div class="kw-footer">' +
-      '<span class="kw-footer-count">' + PR.t("共 {n} 個關鍵字", { n: groups.length }) + '</span>' +
-      '<a class="kw-footer-link" href="/research?mode=keywords' + (ids ? "&ids=" + encodeURIComponent(ids) : "") + '">' +
-        PR.t("前往跨論文搜尋") + " ↗" +
-      '</a>' +
-    '</div>';
-    return topBar +
-      (paperNoText ? '<p class="hint">' + PR.t("本篇尚無可比對原文；這不代表原文沒有這些關鍵字。") + "</p>" : "") +
-      (list ? '<div class="terms-keywords">' + list + "</div>" : '<p class="hint">' + PR.t("尚未為本篇收錄關鍵字。") + "</p>") +
-      footer;
-  }
   function termsHtml() {
     const g = S.paper.glossary || [];
-    if (PR.store.mode === "server" && paperKeywords == null) {
-      PR.api("/api/research/v2/keywords?paper_id=" + encodeURIComponent(PR.pid)).then((data) => { paperKeywords = data.links || []; paperNoText = (data.no_text || []).some((x) => x.id === PR.pid); if (tab === "terms" && termsView === "keywords") PR.renderDrawer(); }).catch(() => { paperKeywords = []; });
-    }
-    const tabs = '<div class="seg" style="margin:0 0 10px"><button data-terms-view="glossary" class="' + (termsView === "glossary" ? "on" : "") + '">' + PR.t("術語表") + '</button><button data-terms-view="keywords" class="' + (termsView === "keywords" ? "on" : "") + '">' + PR.t("我的關鍵字") + '</button></div>';
     const hint = '<p class="hint" style="margin:0 0 10px">' + PR.t("译法不合心意？改右边的译法，按 Enter 即可自动替换正文中的旧译法（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。") + "</p>";
     const freeReplace = '<div class="term-free" style="margin:0 0 12px;padding:10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--rule)"><div class="hint" style="margin:0 0 6px;font-weight:600">' + PR.t("任意替换") + '</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="' + PR.t("原译法") + '"><input class="input" id="tTo" placeholder="' + PR.t("新译法") + '"><button class="btn sm line" data-term="free">' + PR.t("替换") + "</button></div></div>";
-    const addBtn = g.length ? '<div class="row" style="margin:0 0 8px"><button class="btn sm line" data-keywords-add>' + PR.t("加入關鍵字") + '</button></div>' : '';
     const table = g.length ? '<table class="terms-t">' + g.map((t, i) =>
       "<tr>" +
-        '<td><input type="checkbox" data-keyword-term="' + i + '"></td>' +
         '<td class="term-en">' + PR.esc(t.en) + "</td>" +
         '<td class="term-zh-cell">' +
           '<input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '" title="' + PR.esc(PR.t("按 Enter 直接替換正文")) + '">' +
@@ -292,9 +245,8 @@
         "</td>" +
       "</tr>"
     ).join("") + "</table>" : '<p class="hint">' + PR.t("这篇论文还没有术语表。") + "</p>";
-    const glossary = hint + freeReplace + addBtn + table;
-    const keywords = paperKeywordsHtml();
-    return tabs + (termsView === "glossary" ? glossary : keywords);
+    // 跨論文關鍵字隨研究工作區移除（ticket 03），術語面板只剩術語表
+    return hint + freeReplace + table;
   }
   function aboutHtml() {
     const tr = S.paper.translation || {};
@@ -344,66 +296,7 @@
       PR.toast(PR.t("已替換 {n} 處", { n }));
     }
   });
-  PR.$("#drawer").addEventListener("submit", (e) => {
-    if (e.target.id === "kwAddForm") {
-      e.preventDefault();
-      const input = PR.$("#kwQuickAdd");
-      const raw = (input?.value || "").trim();
-      if (!raw) return;
-      let name = raw, match = raw;
-      if (raw.includes("/")) {
-        const parts = raw.split("/");
-        name = parts[0].trim();
-        match = parts.slice(1).join("/").trim() || name;
-      } else {
-        const glossary = S.paper.glossary || [];
-        const lower = raw.toLowerCase();
-        const byZh = glossary.find((g) => g && g.zh && g.zh.trim().toLowerCase() === lower);
-        if (byZh && byZh.en) {
-          name = byZh.zh.trim();
-          match = byZh.en.trim();
-        } else {
-          const byEn = glossary.find((g) => g && g.en && g.en.trim().toLowerCase() === lower);
-          if (byEn && byEn.zh) {
-            name = byEn.zh.trim();
-            match = byEn.en.trim();
-          }
-        }
-      }
-      PR.addKeyword({ name, match_text: match, paper_id: PR.pid })
-        .then((saved) => {
-          PR.toast(PR.t("已加入關鍵字「{name}」", { name }));
-          if (input) input.value = "";
-          return PR.scanKeyword(saved.keyword.id);
-        })
-        .then(() => PR.refreshKeywords())
-        .catch((error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message })));
-    }
-  });
   PR.$("#drawer").addEventListener("click", (e) => {
-    const termsTab = e.target.closest("[data-terms-view]");
-    if (termsTab) { termsView = termsTab.dataset.termsView; return PR.renderDrawer(); }
-    const kwApi = (path, body) => PR.api("/api/research/v2/keywords" + path, { method: "POST", body });
-    const kwFail = (error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message }));
-    const kwJump = e.target.closest("[data-kw-jump]");
-    if (kwJump) { const id = "b-" + kwJump.dataset.kwJump; if (!document.getElementById(id)) return PR.toast(PR.t("找不到這個段落，來源可能已變動")); PR.jumpTo(id); return; }
-    const kwNew = e.target.closest("[data-kw-new]");
-    if (kwNew) {
-      const name = PR.$("#kwNewName")?.value.trim(), match = PR.$("#kwNewMatch")?.value.trim();
-      if (!name || !match) return PR.toast(PR.t("請填寫關鍵字名稱與原文比對詞"));
-      PR.addKeyword({ name, match_text: match, paper_id: PR.pid }).then((saved) => PR.scanKeyword(saved.keyword.id)).catch(kwFail);
-      return;
-    }
-    const keywordAdd = e.target.closest("[data-keywords-add]");
-    if (keywordAdd) {
-      const selected = PR.$$("[data-keyword-term]:checked", PR.$("#drawer")).map((box) => S.paper.glossary[Number(box.dataset.keywordTerm)]).filter(Boolean);
-      if (!selected.length) return PR.toast(PR.t("請先勾選術語"));
-      Promise.all(selected.map((term) => PR.addKeyword({ name: term.zh || term.en, match_text: term.en || term.zh, paper_id: PR.pid })))
-        .then(() => { PR.toast(PR.t("已加入 {n} 個關鍵字，正在比對其他論文原文…", { n: selected.length })); return PR.scanKeyword(); })
-        .then((task) => { if (task && task.state === "completed") PR.toast(PR.t("原文比對完成")); })
-        .catch((error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message })));
-      return;
-    }
     const go = e.target.closest("[data-go]");
     if (go) { e.preventDefault(); PR.toggleDrawer(false); PR.jumpTo("b-" + go.dataset.go); return; }
     const og = e.target.closest("[data-go-orig]");

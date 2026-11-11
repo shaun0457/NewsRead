@@ -5,10 +5,10 @@
   const KINDS = [
     ["paper", PR.t("论文笔记（整篇的感悟）")], ["note", PR.t("我的筆記")], ["highlight", PR.t("我的劃線")], ["question", PR.t("我的問題")],
     ["ai", PR.t("AI 的回答和解释（页边）")], ["chat", PR.t("问 AI 的对话记录")], ["mindmap", PR.t("論文心智圖")],
-    ["deep_analysis", PR.t("論文深度剖析")],
     ["quote", PR.t("每条附上原文引用")],
   ];
-  const EXPORT_ORDER = ["paper", "note", "highlight", "question", "ai", "chat", "mindmap", "deep_analysis"];
+  // 論文深度剖析是研究工作區的功能，ticket 03 起不從閱讀器匯出
+  const EXPORT_ORDER = ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
 
   function counts() {
     const notes = PR.myNotes();
@@ -83,7 +83,7 @@
 
   PR.openExport = function () {
     const c = counts();
-    const saved = PR.ls.get("easyread-export", { paper: true, note: true, highlight: true, question: true, ai: true, chat: false, quote: true, mindmap: false, deep_analysis: false });
+    const saved = PR.ls.get("easyread-export", { paper: true, note: true, highlight: true, question: true, ai: true, chat: false, quote: true, mindmap: false });
     const labels = Object.fromEntries(KINDS.map(([key, label]) => [key, label]));
     const dlg = PR.$("#readerDlg");
     const rows = EXPORT_ORDER.map((key) => '<div class="exp-row" data-exp-row="' + key + '"><label><input type="checkbox" data-exp="' + key + '"' + (saved[key] ? " checked" : "") + ">" + labels[key] +
@@ -108,7 +108,7 @@
     let mindmap = "";
     let mindmapPngBase64 = "";
     if (pick.mindmap) {
-      const endpoint = "/api/research/v2/paper/" + encodeURIComponent(PR.pid) + "/mindmap";
+      const endpoint = "/api/reader/paper/" + encodeURIComponent(PR.pid) + "/mindmap";
       let result = await PR.api(endpoint);
       if (!result.mermaid) result = await PR.api(endpoint, { method: "POST", body: {} });
       if (!result.mermaid) throw new Error(PR.t("沒有取得心智圖內容。"));
@@ -121,16 +121,9 @@
         }
       }
     }
-    let deepAnalysis = "";
-    if (pick.deep_analysis) {
-      const endpoint = "/api/research/v2/paper/" + encodeURIComponent(PR.pid) + "/deep-analysis";
-      const result = await PR.api(endpoint);
-      deepAnalysis = result?.report?.markdown || "";
-      if (!deepAnalysis) throw new Error(PR.t("尚未產生深度剖析報告，請先在「研究脈絡」中產生報告。"));
-    }
     const warning = inkWarning();
-    const text = PR.notesMarkdown(pick, chat, { order, chat, mindmap, deepAnalysis });
-    return { dlg, pick, order, chat, mindmap, mindmapPngBase64, deepAnalysis, text: warning ? warning + "\n\n" + text : text, warning };
+    const text = PR.notesMarkdown(pick, chat, { order, chat, mindmap });
+    return { dlg, pick, order, chat, mindmap, mindmapPngBase64, text: warning ? warning + "\n\n" + text : text, warning };
   }
 
   function documents(prepared) {
@@ -144,7 +137,6 @@
     const stem = filenameStem();
     const paperFolder = shortFilename(m.title_zh || m.title_en || PR.t("論文"), "PaperRead");
 
-    const deepAnalysisId = "paper:" + paperId + ":deep_analysis";
 
     if (pick.paper) {
       result.push({
@@ -154,7 +146,7 @@
         title: title() + " - " + PR.t("論文分析"),
         filename: stem + "-analysis",
         body: analysis,
-        links: [mindmapId, deepAnalysisId, notesId, highlightsId, chatAllId],
+        links: [mindmapId, notesId, highlightsId, chatAllId],
       });
     }
 
@@ -177,18 +169,6 @@
         };
       }
       result.push(doc);
-    }
-
-    if (pick.deep_analysis && prepared.deepAnalysis) {
-      result.push({
-        id: deepAnalysisId,
-        kind: "deep-analysis",
-        paper_id: paperId,
-        title: title() + " - " + PR.t("深度剖析"),
-        filename: stem + "-deep-analysis",
-        body: prepared.deepAnalysis,
-        links: [analysisId, mindmapId],
-      });
     }
 
     // 03-閱讀標註：依論文建立子資料夾，並區分出「我的筆記」、「我的劃線」、「所有AI問答」
@@ -275,23 +255,23 @@
     button.disabled = true; button.innerHTML = '<i class="spin"></i> ' + PR.t("正在準備匯出…"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     try {
       if (mode === "vault") {
-        const status = await PR.api("/api/research/v1/status");
+        const status = await PR.api("/api/reader/vault");
         if (!status.configured) {
           const path = window.easyreadDesktop && typeof window.easyreadDesktop.pickFolder === "function"
             ? await window.easyreadDesktop.pickFolder()
             : (await PR.api("/api/library/pick-folder", { method: "POST", body: {} })).path || "";
           if (!path) { button.disabled = false; button.innerHTML = label; return; }
-          await PR.api("/api/research/v1/setup", { method: "POST", body: { vault: path } });
+          await PR.api("/api/reader/vault", { method: "POST", body: { vault: path } });
           PR.toast(PR.t("已連結 Obsidian Vault。"));
         }
       }
       const prepared = await prepare();
       if (mode === "vault") {
-        const result = await PR.api("/api/research/v2/export/obsidian", { method: "POST", body: { documents: documents(prepared) } });
+        const result = await PR.api("/api/reader/export/obsidian", { method: "POST", body: { documents: documents(prepared) } });
         if (result.conflicts?.length) throw new Error(PR.t("有檔案未能安全更新，請先檢查衝突。"));
         PR.toast(PR.t("已匯出至 Obsidian Vault。"));
       } else if (mode === "zip") {
-        const result = await PR.api("/api/research/v2/export/zip", { method: "POST", body: { documents: documents(prepared) } });
+        const result = await PR.api("/api/reader/export/zip", { method: "POST", body: { documents: documents(prepared) } });
         await saveBase64(filenameStem() + "-research.zip", result.content_base64, [{ name: "ZIP", extensions: ["zip"], mime: "application/zip" }]);
       } else {
         const selected = EXPORT_ORDER.filter((key) => prepared.pick[key]);
@@ -301,12 +281,10 @@
             throw new Error(PR.t("心智圖 PNG 產生失敗，請重試。"));
           }
           await saveBase64(filenameStem() + "-mind-map.png", prepared.mindmapPngBase64, [{ name: "PNG", extensions: ["png"], mime: "image/png" }]);
-        } else if (selected.length === 1 && selected[0] === "deep_analysis") {
-          await saveBase64(filenameStem() + "-deep-analysis.md", null, [{ name: "Markdown", extensions: ["md"], mime: "text/markdown" }], prepared.deepAnalysis);
         } else if (selected.length === 1) {
           await saveBase64(filenameStem() + "-notes.md", null, [{ name: "Markdown", extensions: ["md"], mime: "text/markdown" }], prepared.text); // i18n-ok: filename suffix is exported data, not UI copy.
         } else {
-          const result = await PR.api("/api/research/v2/export/zip", { method: "POST", body: { documents: documents(prepared) } });
+          const result = await PR.api("/api/reader/export/zip", { method: "POST", body: { documents: documents(prepared) } });
           await saveBase64(filenameStem() + "-research.zip", result.content_base64, [{ name: "ZIP", extensions: ["zip"], mime: "application/zip" }]);
         }
       }

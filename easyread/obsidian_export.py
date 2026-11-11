@@ -10,16 +10,16 @@ import time
 import zipfile
 from pathlib import Path
 
-from .store import atomic_replace, sha256_text, vault_path
+from .vault import atomic_replace, vault_path
 
 
 EXPORT_FOLDERS = {
-    "analysis": "01-論文分析",
-    "mindmap": "02-心智圖",
-    "annotations": "03-閱讀標註",
-    "deep-analysis": "04-論文深度剖析",
-    "comparison": "05-跨論文比較",
-    "summary": "06-論文摘要",
+    "analysis": "01-論文分析",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
+    "mindmap": "02-心智圖",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
+    "annotations": "03-閱讀標註",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
+    "deep-analysis": "04-論文深度剖析",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
+    "comparison": "05-跨論文比較",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
+    "summary": "06-論文摘要",  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
 }
 MANAGED_START = "<!-- paperread:managed:start -->"
 MANAGED_END = "<!-- paperread:managed:end -->"
@@ -127,20 +127,20 @@ def _links_for(doc: dict, paths: dict[str, str]) -> list[str]:
 
 def _managed_body(doc: dict, paths: dict[str, str]) -> str:
     body = str(doc.get("body") or "").strip()
-    title = re.sub(r"[\r\n]+", " ", str(doc.get("title") or "未命名研究筆記")).strip() or "未命名研究筆記"
+    title = re.sub(r"[\r\n]+", " ", str(doc.get("title") or "未命名研究筆記")).strip() or "未命名研究筆記"  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
     links = _links_for(doc, paths)
     parts = [f"# {title}"]
     if body:
         parts.extend(["", body])
     if links:
-        parts.extend(["", "## 相關筆記", "", *[f"- {link}" for link in links]])
+        parts.extend(["", "## 相關筆記", "", *[f"- {link}" for link in links]])  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
     return "\n".join(parts).rstrip()
 
 
 def _frontmatter(doc: dict, identity: str) -> str:
     kind = str(doc.get("kind") or "analysis")
     paper_id = str(doc.get("paper_id") or "")
-    title = re.sub(r"[\r\n]+", " ", str(doc.get("title") or "未命名研究筆記")).strip() or "未命名研究筆記"
+    title = re.sub(r"[\r\n]+", " ", str(doc.get("title") or "未命名研究筆記")).strip() or "未命名研究筆記"  # i18n-ok：Vault 筆記內容，改了會讓舊匯出對不上
     def quote(value: str) -> str:
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
     lines = ["---", f"research_id: {quote(identity)}", f"type: {quote(kind)}", 'schema_version: "2"']
