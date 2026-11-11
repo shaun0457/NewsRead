@@ -80,6 +80,17 @@ class App:
         self.presence = None  # presence.Presence，serve() 里设
 
 
+def declared_length(headers) -> int:
+    """請求宣告的 body 長度；看不懂的一律回 -1（呼叫的地方會關連線）：用 Transfer-Encoding 送的（不支援分塊，
+    留在連線上會被當成下一個請求）、Content-Length 出現不只一次、不是 ASCII 數字（含負數、前後有空白）、超過 12 位數。"""
+    get_all = getattr(headers, "get_all", None)
+    values = (get_all("Content-Length") if get_all else None) or [headers.get("Content-Length", "0")]
+    raw = values[0]
+    if headers.get("Transfer-Encoding") is not None or len(values) > 1:
+        return -1
+    return int(raw) if raw.isascii() and raw.isdigit() and len(raw) <= 12 else -1
+
+
 class Handler(BaseHTTPRequestHandler):
     app: App
     protocol_version = "HTTP/1.1"
@@ -91,6 +102,7 @@ class Handler(BaseHTTPRequestHandler):
         if host is not None and host_name(host) in self.allowed_hosts:
             return True
         self.close_connection = True
+        self._body_read = True  # 不認得的 Host 不收 body，回完直接斷線
         self._json(400 if host is None else 403, {"error": "missing host" if host is None else "bad host"})
         return False
 
@@ -99,6 +111,27 @@ class Handler(BaseHTTPRequestHandler):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
     # ---------- 输出 ----------
+    def send_response(self, code, message=None):
+        self._drain_unread()  # 先把請求收完再回應，所有回應（含 404、400）都經過這裡
+        super().send_response(code, message)
+
+    def _drain_unread(self):
+        """POST 的路由沒讀 body 就要回應（找不到路由、參數錯）：讀掉丟棄，連線才不會被中止，
+        留在連線上的 body 也不會被當成下一個請求。最多讀 DRAIN_MAX；更大或長度不對就關連線。"""
+        if self.command != "POST" or getattr(self, "_body_read", True):
+            return
+        self._body_read = True
+        left = declared_length(self.headers)
+        if left < 0 or left > DRAIN_MAX:
+            self.close_connection = True
+            return
+        while left > 0:  # 分段讀、讀完就丟
+            chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+            if not chunk:
+                self.close_connection = True
+                return
+            left -= len(chunk)
+
     def _send(self, code: int, body: bytes, ctype: str, cache: bool = False):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -214,8 +247,8 @@ class Handler(BaseHTTPRequestHandler):
                     path.unlink(missing_ok=True)
 
     def _body(self, limit: int = MAX_UPLOAD) -> bytes:
-        raw = self.headers.get("Content-Length", "0")
-        n = int(raw) if raw.isascii() and raw.isdigit() else -1  # 不是數字（含負數）一律拒絕
+        self._body_read = True
+        n = declared_length(self.headers)
         if n < 0 or n > limit:
             self.close_connection = True
             if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
@@ -420,6 +453,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- POST ----------
     def do_POST(self):
+        self._body_read = False  # 同一條連線可以有好幾個請求（HTTP/1.1）
         if not self._host_ok():
             self.close_connection = True
             return
