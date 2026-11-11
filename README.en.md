@@ -75,6 +75,8 @@ docker compose up -d
 
 Open http://localhost:8765. See the [contributing guide](CONTRIBUTING.md) for development and running from source.
 
+NewsRead keeps running in the background after you close its pages, so scheduled work keeps going; only one copy runs per data directory. If you started it with `start.cmd`, stop it with `.venv\Scripts\easyread stop` (`start.sh` on macOS / Linux: `.venv/bin/easyread stop`); it shows up as `pythonw.exe` in Task Manager. On Windows, `.venv\Scripts\easyread autostart on` starts it when you sign in (`off` to undo).
+
 ## Data & privacy
 
 The library is stored locally by default: `C:\Users\<user>\PaperRead` on Windows and `~/PaperRead` on macOS/Linux. Papers and annotations are stored as JSON and other files you can back up or manage with Git. Cloud models, and importing a paper by DOI or title (which queries Semantic Scholar / arXiv), send relevant content to the selected services; choose them according to your needs.

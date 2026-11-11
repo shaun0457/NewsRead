@@ -14,3 +14,7 @@
 - [ ] 設定頁顯示版本；更新來源指向自己的 repo，或先關掉更新（見 06）
 - [ ] 只驗證 Windows；macOS / Linux 沿用上游的打包設定，不驗證
 - [ ] release workflow 屬於單向門（見 56），這張只在本機打包，不改 CI
+
+**07 留下來的：** 後端已經有單一執行個體鎖（`easyread/instance.py`）。Electron 用 `serve --port 0` 啟動自己的後端，
+已經有 start.cmd 的服務在跑時會被鎖擋下、以代碼 3 結束（stdout 印「NewsRead 已經在執行：URL」）；這張要改成接手那個服務或提示使用者。
+原始碼版的開機自動啟動在 `easyread/autostart.py`（HKCU Run，CLI `easyread autostart`）；安裝版改用 Electron 的開機項目，設定頁開關也在這張。

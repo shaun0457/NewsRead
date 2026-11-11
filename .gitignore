@@ -15,6 +15,7 @@ build/
 dist/
 /outputs/
 /prefs.json
+/schedule.json
 /limits.json
 /newsread.sqlite3*
 /update.json

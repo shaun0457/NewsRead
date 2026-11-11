@@ -15,6 +15,10 @@ easyread
 
 瀏覽器會開啟 `http://127.0.0.1:8765`。也可以直接用 `start.cmd`（Windows）或 `./start.sh`（macOS / Linux）。
 
+服務關掉頁面後仍會常駐（排程器裡的定時工作才會一直跑），同一個資料目錄同時只會有一個在跑。`easyread stop` 停止服務
+（用 start.cmd / start.sh 啟動的，指令在 `.venv\Scripts\` 或 `.venv/bin/` 裡）；
+Windows 上 `easyread autostart on` 設定登入後在背景自動啟動，`off` 取消、`status` 查看。
+
 改桌面版（Electron）還需要 Node.js 22+：`npm install` 後用 `npm start` 開發、`npm run dist` 打包。打包版目前沒有自動更新（`package.json` 的 `publish` 是 null）。
 
 ## 跑測試

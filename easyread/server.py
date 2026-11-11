@@ -83,6 +83,7 @@ class App:
         self.token = os.urandom(12).hex()
         self.location = library_api.LibraryLocation(self)
         self.presence = None  # presence.Presence，serve() 里设
+        self.scheduler = None  # scheduler.Scheduler，serve() 里设
 
 
 def declared_length(headers) -> int:
