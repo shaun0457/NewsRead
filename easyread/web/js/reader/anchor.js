@@ -398,42 +398,6 @@
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
     if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
-    bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：用上次颜色划线") + '">' + PR.icon("marker", "sm") + "</button>" +
-      '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线：用上次颜色划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
-      '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
-      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? PR.t("（{k}）", { k: i + 1 }) : "") + '"></button>').join("") + "</span>" +
-      '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
-      (pendingSel.target === "formula" ? "" : '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
-        (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
-        (pendingSel.side || pendingSel.parts ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
-        '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>");
-    bar.classList.add("open");
-    const r = pendingSel.rect, w = bar.offsetWidth;
-    const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
-    const y = r.top - 48 < 58 ? r.bottom + 8 : r.top - 48;
-    bar.style.left = x + "px"; bar.style.top = y + "px";
-  }
-  function showSelbar() { openSelbar(readSelection()); }
-  document.addEventListener("mouseup", (e) => {
-    if (e.target.closest && e.target.closest("#selbar, #blockbar")) return;
-    const formula = e.target.closest && e.target.closest("#paper .math-body");
-    const selection = getSelection();
-    if (formula && (!selection || selection.isCollapsed)) return; // 一般點擊交給公式 click handler；拖選才走選取工具列。
-    setTimeout(showSelbar, 10);
-  });
-  document.addEventListener("keyup", (e) => { if (e.shiftKey && e.key.startsWith("Arrow")) showSelbar(); });
-  document.addEventListener("selectionchange", PR.debounce(() => { const s = getSelection(); if ((!s || s.isCollapsed) && (!pendingSel || pendingSel.target !== "formula")) selbar().classList.remove("open"); }, 120));
-
-  PR.selectionAction = function (kind, color) {
-    if (!pendingSel) return;
-    const { anchor, key, quote, prefix, suffix, side, parts, target } = pendingSel;
-    selbar().classList.remove("open");
-    getSelection().removeAllRanges();
-    pendingSel = null;
-    if (kind === "en") { PR.toggleEn(anchor, true); return; }
-    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
-    if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
-    const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
     color = color || (PR.prefs.penColors || {})[pen] || "yellow";
     if (target === "formula") {
       const existing = PR.myNotes().find((n) => n.target === "formula" && n.anchor === anchor);

@@ -2840,5 +2840,6 @@
   "第 {a}–{b} 段": "Paragraphs {a}–{b}",
   "第 {n} 段": "Paragraph {n}",
   "網址不對。": "The URL is not valid.",
-  "翻译完成（{n} 段，用时约 {m} 分钟）": "Translation done ({n} paragraphs, about {m} min)"
+  "翻译完成（{n} 段，用时约 {m} 分钟）": "Translation done ({n} paragraphs, about {m} min)",
+  "論文筆記還沒開好，再按一次": "The paper note isn't ready yet. Try again."
 }
