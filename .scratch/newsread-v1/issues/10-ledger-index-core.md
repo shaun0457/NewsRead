@@ -15,3 +15,5 @@
 - [ ] prompt 版本號登記：每個 AI 任務有目前的版本號
 - [ ] 執行中可以安全備份（測試）
 - [ ] 有一個唯讀 API 可以列出帳本紀錄，供之後的 ticket 驗收
+- [ ] ContextManifest：每次 AI 呼叫記下送進去的 Item、論點與題材頁版本、概念卡、MarketContext 日期和 prompt 版本（存 ID 和雜湊，不存全文）；帳本裡的 AI 紀錄都指向一份 manifest（測試）
+- [ ] manifest 裡的 Item 都早於該次判斷時間（測試）

@@ -2,7 +2,7 @@
 
 **What to build:** 使用者可以建立和管理追蹤對象，作為分類、打分和輪動的基礎。
 
-**Blocked by:** 01（Mockup A：第一個切片和判斷相關的畫面）、10（帳本與索引核心）
+**Blocked by:** 01（Mockup A：敘事看板、題材頁和第一個切片的畫面）、10（帳本與索引核心）
 
 **Status:** ready-for-agent
 
