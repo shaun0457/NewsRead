@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>閱讀器 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .rbar { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 16px; border-bottom: 1px solid var(--rule); background: var(--surface); position: sticky; top: 34px; z-index: 20; }
+  .rbar .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 8px; overflow: hidden; font-size: 13px; }
+  .seg button { border: 0; background: transparent; padding: 4px 10px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--surface-2); font-weight: 600; }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 390px; min-height: calc(100vh - 84px); }
+  .article { padding: 28px 40px 80px; max-width: 760px; margin: 0 auto; width: 100%; min-width: 0; }
+  .article h1 { font-family: var(--serif-zh); font-size: 26px; line-height: 1.5; }
+  .article .sub { font-family: var(--serif-en); color: var(--ink-2); font-size: 17px; margin: 6px 0 10px; }
+  .meta { font-size: 13px; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-bottom: 18px; }
+  .para { position: relative; margin: 0 0 18px; overflow-wrap: anywhere; }
+  .para .pid { position: absolute; left: -34px; top: 4px; font: 11px var(--mono); color: var(--ink-3); }
+  .para .en { font-family: var(--serif-en); font-size: 16.5px; line-height: 1.75; color: var(--ink-2); border-left: 2px solid var(--rule-2); padding-left: 12px; margin-bottom: 6px; }
+  .para .zh { font-family: var(--serif-zh); font-size: 18px; line-height: 1.95; }
+  mark.hl { background: var(--hl); color: inherit; padding: 0 1px; }
+  .note { font-size: 13.5px; background: var(--mine-soft); border-left: 3px solid var(--mine); padding: 6px 10px; border-radius: 0 6px 6px 0; margin-top: 6px; font-family: var(--ui); }
+  .side { border-left: 1px solid var(--rule); background: var(--surface); padding: 16px; position: sticky; top: 84px; height: calc(100vh - 84px); overflow-y: auto; min-width: 0; }
+  .side h2 { font-size: 14px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .side .block { margin-bottom: 18px; }
+  .side .label { font-size: 12px; color: var(--ink-3); font-weight: 600; letter-spacing: .04em; margin-bottom: 6px; }
+  .tq { padding: 10px 12px; border: 1px solid var(--rule-2); border-radius: 10px; margin-bottom: 10px; background: var(--bg); }
+  .tq .say { font-family: var(--serif-zh); font-size: 15px; line-height: 1.6; margin: 2px 0 8px; }
+  .kp { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 14px; }
+  .kp li { padding-left: 14px; position: relative; }
+  .kp li::before { content: ""; position: absolute; left: 2px; top: .7em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .cmp { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13.5px; align-items: center; }
+  .who-me { color: var(--mine); font-weight: 700; } .who-ai { color: var(--accent); font-weight: 700; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin: -4px -16px 14px; padding: 0 16px; }
+  .tabs button { border: 0; background: transparent; padding: 8px 10px; cursor: pointer; font-size: 13.5px; color: var(--ink-2); border-bottom: 2px solid transparent; }
+  .tabs button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); font-weight: 600; }
+  .popwrap { margin: -6px 0 18px 12px; }
+  .qa { display: grid; gap: 10px; margin-bottom: 12px; }
+  .qa .q { justify-self: end; max-width: 92%; background: var(--mine-soft); border-radius: 12px 12px 4px 12px; padding: 8px 10px; font-size: 14px; }
+  .qa .quote { display: block; font-size: 12.5px; color: var(--ink-2); border-left: 2px solid var(--mine); padding-left: 8px; margin-bottom: 4px; }
+  .qa .a { border: 1px solid var(--rule-2); border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 14px; background: var(--bg); }
+  .qa .a h4 { font-size: 12.5px; color: var(--ink-3); margin: 8px 0 2px; }
+  .qa .a h4:first-child { margin-top: 0; }
+  .qa .a p { margin: 0 0 4px; line-height: 1.65; }
+  .ann { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+  .ann button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 4px; padding: 0 5px; cursor: pointer; font-size: 11px; }
+  .qchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .qchips button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; cursor: pointer; color: var(--ink-2); }
+  .askbox { display: grid; gap: 6px; }
+  @media (max-width: 980px) { .wrap { grid-template-columns: minmax(0, 1fr); } .side { position: static; height: auto; border-left: 0; border-top: 1px solid var(--rule); } .article { padding: 20px 20px 40px; } .para .pid { position: static; display: inline; margin-right: 6px; } }
+  body[data-frame="narrow"] .wrap { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .side { position: static; height: auto; border-left: 0; border-top: 1px solid var(--rule); }
+  body[data-frame="narrow"] .article { padding: 18px 16px 30px; }
+  body[data-frame="narrow"] .para .pid { position: static; display: inline; margin-right: 6px; }
+  @media (max-width: 600px) { .rbar { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 6px; } .rbar .title { flex-basis: calc(100% - 120px); } }
+  body[data-frame="narrow"] .rbar { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 6px; }
+  body[data-frame="narrow"] .rbar .title { flex-basis: calc(100% - 120px); }
+</style>
+</head>
+<body data-state="blind">
+<div class="mock-bar">
+  <b>Mockup A · 閱讀器</b>
+  <span class="grp">狀態：
+    <button data-set-state="blind">揭露前</button>
+    <button data-set-state="revealed">揭露後</button>
+    <button data-set-state="noise">AI 判雜訊</button>
+    <button data-set-state="nothesis">沒有對應論點</button>
+    <button data-set-state="concept">名詞浮窗</button>
+    <button data-set-state="ask">問 AI</button>
+    <button data-set-state="retro">事後補判</button>
+    <button data-set-state="loading">分類中</button>
+    <button data-set-state="error">分類失敗</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="rbar">
+  <a class="btn ghost sm" href="board.html">← 敘事看板</a>
+  <span class="title">（範例）交換器大廠：下一代機櫃內互連仍以銅纜為主</span>
+  <span class="seg" role="group"><button>譯文</button><button aria-pressed="true">對照</button><button>原文</button></span>
+  <button class="btn sm">筆記</button>
+</header>
+
+<div class="wrap">
+  <article class="article">
+    <div class="banner warn" data-show="retro"><span class="ico">⏱</span><div><b>事後補判</b>：這則發布於 2025-03-18，比現在早很多。你已經知道後來發生什麼，AI 的訓練資料也可能包含結果，所以這則的判斷預設<b>不算分</b>。</div></div>
+
+    <h1>（範例）交換器大廠：下一代機櫃內互連仍以銅纜為主，CPO 2027 年小量導入</h1>
+    <div class="sub">(Sample) Switch maker: copper stays inside next-gen racks; CPO to ship in small volume in 2027</div>
+    <div class="meta"><span>範例通訊社</span><span data-show="blind revealed noise nothesis concept ask loading error">發布 2026-11-11 09:15（來源：頁面 metadata）</span><span data-show="retro">發布 2025-03-18</span><span>抓取 09:21</span><span class="chip ok" data-show="revealed noise">第一手</span><a href="#">原始連結 ↗</a></div>
+
+    <div class="para"><span class="pid">¶1</span>
+      <div class="en">(Sample) The company said scale-up links inside the rack will remain on copper through the next generation, using <a class="term" href="concepts.html">active electrical cables</a> to extend reach.</div>
+      <div class="zh">（範例）該公司表示，下一代機櫃內部的 GPU 互連仍會用銅，並以 <a class="term" href="concepts.html">AEC（主動式銅纜）</a> 延長傳輸距離。</div>
+    </div>
+    <div class="para"><span class="pid">¶2</span>
+      <div class="en">(Sample) <a class="term unknown" href="concepts.html">Co-packaged optics</a> will begin shipping in limited volume in 2027, initially in scale-out switches.</div>
+      <div class="zh">（範例）<mark class="hl"><a class="term unknown" href="concepts.html" data-set-state="concept">CPO（共同封裝光學）</a>預計 2027 年開始小量出貨</mark>，先用在機櫃之間的交換器。</div>
+      <div class="note">我的筆記：先用在「機櫃之間」，不是機櫃內 — 跟光進銅退的時間點有關。</div>
+    </div>
+    <div class="popwrap" data-show="concept">
+      <div class="pop"><h3>CPO（共同封裝光學）<span class="chip mine" style="margin-left:6px">你：還不懂</span></h3>
+        <p style="margin:0 0 6px">把光學收發元件直接封裝在交換器晶片旁邊，省掉可插拔光模組，降低耗電。<span class="ai-say">AI 解釋</span></p>
+        <p style="margin:0 0 6px"><b>為什麼現在重要</b>（2026-11）：每一代速度翻倍，可插拔光模組的耗電變成瓶頸。<span class="cite">範例公告 ¶4</span></p>
+        <p style="margin:0 0 8px"><b>常見誤解</b>：CPO 不等於「銅馬上被取代」；它先取代的是機櫃之間的可插拔光模組。<span class="ai-say">AI 解釋</span></p>
+        <div class="row"><a class="btn sm" href="concepts.html">打開概念卡</a><button class="btn sm">我懂了</button></div>
+      </div>
+    </div>
+    <div class="para"><span class="pid">¶4</span>
+      <div class="en">(Sample) Executives expect 1.6T optical modules to account for most new scale-out ports next year.</div>
+      <div class="zh">（範例）經營層預期明年新增的機櫃之間連接埠，大部分會是 <a class="term" href="concepts.html">1.6T 光模組</a>。</div>
+    </div>
+    <div class="para"><span class="pid">¶6</span>
+      <div class="en">(Sample) A component supplier reported October optical module shipments down 8% month over month.</div>
+      <div class="zh">（範例）一家零組件供應商公布 10 月<a class="term unknown" href="concepts.html">光模組</a>出貨月減 8%。</div>
+    </div>
+  </article>
+
+  <aside class="side">
+    <div class="tabs" data-show="blind revealed noise nothesis concept retro loading error"><button aria-pressed="true">論點</button><button>筆記</button><button data-set-state="ask">問 AI</button></div>
+    <div class="tabs" data-show="ask"><button data-set-state="blind">論點</button><button>筆記</button><button aria-pressed="true">問 AI</button></div>
+
+    <!-- 問 AI：只問這篇文章 -->
+    <div data-show="ask">
+      <div class="banner warn" style="margin:0 0 10px"><span class="ico">🙈</span><div style="font-size:13px">你還沒判斷這則對論點的影響。可以先問；但問過之後，這則的判斷會標<b>「問過 AI」</b>，不算盲判（AI 的回答可能透露它怎麼看）。<br>只想查名詞？點文中的名詞看概念卡，不影響盲判。<br><a href="#" data-set-state="blind">先去判斷 →</a></div></div>
+      <div class="row" style="font-size:12.5px;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <span class="muted">範圍：這篇全文 + 你的概念卡 · 不上網查</span>
+        <span class="seg" role="group" style="font-size:12px"><button aria-pressed="true">白話</button><button>精讀</button></span>
+      </div>
+      <div class="qchips">
+        <button>這篇白話在講什麼？</button><button>文中的數字，基期是多少？</button><button>這篇沒講什麼？</button><button>跟我的論點有什麼關係？<small>（會揭露）</small></button>
+      </div>
+
+      <div class="qa">
+        <div class="q"><span class="quote">¶2 CPO 預計 2027 年開始小量出貨，先用在機櫃之間的交換器</span>為什麼先用在機櫃之間，不是機櫃內？</div>
+        <div class="a">
+          <h4>文章怎麼說</h4>
+          <p>機櫃內的 GPU 互連下一代仍用銅，用 AEC 拉長距離 <span class="cite">¶1</span>；CPO 先用在機櫃之間的交換器 <span class="cite">¶2</span>。<span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+          <h4>為什麼（文中沒寫，是一般解釋）</h4>
+          <p>機櫃內的距離短，銅還撐得住，而且便宜、不用把電轉成光；機櫃之間的距離長，速度每翻一倍，銅能傳的距離就變短，所以那裡本來就用光模組，CPO 要取代的是那些插在面板上的光模組。<span class="ai-say">AI 解釋</span> <span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+          <h4>這篇沒告訴你的</h4>
+          <p>機櫃內什麼時候會換成光，文中沒有說；不能從這篇推出時間點。<span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+          <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px"><button class="btn sm">存成筆記</button><button class="btn sm">做成概念卡草稿</button><a class="term unknown" href="concepts.html">CPO 概念卡</a></div>
+          <p class="muted" style="font-size:11.5px;margin:6px 0 0">白話 · prompt v1 · Claude Code（訂閱，不計費）· 5 小時額度 42% · 引用的 ¶ 都對過原文</p>
+        </div>
+        <div class="q">這檔股票會漲嗎？</div>
+        <div class="a"><p>這篇沒有可以判斷股價的資訊，我不猜。可以看題材頁的「市場怎麼回應」，或把你的想法寫成預測，之後用股價對答案。</p><div class="row" style="margin-top:6px"><a class="btn sm" href="theme.html">題材頁</a><button class="btn sm">寫成預測</button></div></div>
+      </div>
+
+      <div class="askbox">
+        <textarea class="input" rows="2" placeholder="問這篇文章…（在文中選取一段，可以附成引用）"></textarea>
+        <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12px">對話跟著這篇存下來；匯出 Obsidian 時一起帶走。</span><button class="btn sm primary">送出</button></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">逐句標「✓ / ✗ / 編造」會進 golden set，用來調回答的 prompt。</p>
+    </div>
+
+    <!-- 揭露前：對論點盲判 -->
+    <div data-show="blind retro concept">
+      <h2>這則對你的論點是？</h2>
+      <div class="tq">
+        <div class="label"><a href="theme.html">光通訊與銅互連</a> · 你的定稿論點</div>
+        <div class="say">機櫃內 GPU 互連到 2027 年前仍以銅為主。</div>
+        <div class="qj t" data-reveal="revealed" data-picked-target="pick-thesis">
+          <button><span class="str">加強</span>·低</button><button><span class="str">加強</span>·中</button><button><span class="str">加強</span>·高</button>
+          <button><span class="wk">削弱</span>·低</button><button><span class="wk">削弱</span>·中</button><button><span class="wk">削弱</span>·高</button>
+          <button class="same">有關但不改變</button><button>無關</button>
+        </div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">論點是 AI 選的「可能相關」，但 AI 對這則的判斷還沒顯示。<a href="#">換論點 ▾</a>（另外 2 個也可能相關）</p>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px" data-show="blind concept">這則的 AI 看法還沒在任何地方顯示過，你現在判斷會記為 <b style="color:var(--mine)">盲判</b>。</p>
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px" data-show="retro">會記為 <b>事後補判</b>，預設不算分。</p>
+      <div class="masked">AI 的判斷、證據等級、理由已隱藏<br><button class="btn sm" style="margin-top:8px" data-set-state="revealed" data-skip>不判斷，直接看 AI</button><br><small>（直接看會寫揭露紀錄，之後再判斷就不算盲判）</small></div>
+      <p style="font-size:13px;margin:12px 0 0"><a href="#" data-set-state="nothesis">這則跟我的論點都無關 →</a></p>
+    </div>
+
+    <!-- 揭露後 -->
+    <div data-show="revealed noise">
+      <div class="block">
+        <div class="label">你 vs AI · 「機櫃內 GPU 互連到 2027 年前仍以銅為主」</div>
+        <div class="cmp">
+          <span class="who-me">你</span><span><span id="pick-thesis" class="pick"><span class="str">加強</span>·中</span> <small class="muted" data-picked-kind>盲判 · 已寫進帳本 09:40</small></span>
+          <span class="who-ai">AI</span><span><span class="rel s">加強</span>·高 <span class="g B">B</span> <small class="muted">prompt v2 · 本機 Claude</small></span>
+        </div>
+        <p style="font-size:14px;margin:8px 0 0">公司直接說「下一代機櫃內仍用銅」<span class="cite">¶1</span>，而且有 AEC 延長距離的具體做法。是具名媒體轉述公司說法，所以是 B 級，不是 A 級（不是公司公告本身）。</p>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">換算成方向：這個論點成立時對「銅互連籃子」偏多，所以「加強」= 偏多，之後會用股價對答案。· <a href="#">修正（新增一筆）</a></p>
+      </div>
+
+      <div class="block" data-show="revealed">
+        <div class="label">這則也跟這些論點有關（AI 判斷）</div>
+        <div class="tq" style="padding:8px 10px"><div style="font-size:13.5px">CPO 2027 年起在交換器小量導入</div><div class="row" style="margin-top:4px"><span class="rel s">加強·中</span><span class="g B">B</span><span class="cite">¶2</span><a href="#" style="font-size:12.5px">我也判斷</a></div></div>
+        <div class="tq" style="padding:8px 10px"><div style="font-size:13.5px">機櫃之間的光模組 1.6T 升級在 2026–2027 放量</div><div class="row" style="margin-top:4px"><span class="rel s">加強·低</span><span class="g B">B</span><span class="cite">¶4</span><span class="rel n">· ¶6 是短期波動</span><a href="#" data-set-state="noise" style="font-size:12.5px">為什麼？</a></div></div>
+      </div>
+
+      <!-- AI 判雜訊：相對於論點和時間尺度 -->
+      <div class="block" data-show="noise">
+        <div class="label">¶6 對「1.6T 光模組在 2026–2027 放量」</div>
+        <div class="row" style="margin-bottom:6px"><span class="imp n">雜訊</span><span class="chip">短期波動</span><span class="muted" style="font-size:12.5px">相對於這個 1 年期的論點</span></div>
+        <p style="font-size:14px;margin:0">單一供應商單月出貨月減 8% <span class="cite">¶6</span>，對 1 年期的放量論點只是月度波動；同一個數字對 1 個月內的交易可能是訊號。<span class="chip">AI 推論</span></p>
+        <p style="font-size:13px;margin:8px 0 0">引用框架卡：「他說那些數字就是 noise 啊，然後一個方向對了…」— 股癌 EP704，談一位外資前輩不看投片量 <span class="cite">EP704 逐字稿第 156 行</span></p>
+        <div class="banner warn" style="margin:10px 0 0"><span class="ico">📘</span><div><b>先懂這個，再決定它是不是雜訊：</b>你把 <a class="term unknown" href="concepts.html">光模組</a> 標成「還不懂」。月出貨數字怎麼讀、多久才反映到營收，在概念卡裡。</div></div>
+      </div>
+
+      <div class="block">
+        <div class="label">重點（數字和引述都附出處）</div>
+        <ul class="kp">
+          <li>下一代機櫃內的 GPU 互連仍用銅，以 AEC 延長距離 <span class="cite">¶1</span></li>
+          <li>CPO 2027 年小量出貨，先用在機櫃之間的交換器 <span class="cite">¶2</span></li>
+          <li>明年新增的機櫃之間連接埠大部分是 1.6T <span class="cite">¶4</span></li>
+          <li><span class="chip">AI 推論</span> 「光進銅退」在機櫃內的時間點，可能比市場預期的晚一代（文中沒有直接說）</li>
+        </ul>
+      </div>
+      <div class="block">
+        <div class="label">這篇的名詞</div>
+        <div class="row"><a class="term" href="concepts.html">AEC</a><a class="term unknown" href="concepts.html">CPO</a><a class="term unknown" href="concepts.html">光模組</a><a class="term" href="concepts.html">1.6T</a><span class="muted" style="font-size:12px">橘色 = 你標成還不懂</span></div>
+      </div>
+    </div>
+
+    <!-- 沒有對應論點 -->
+    <div data-show="nothesis">
+      <h2>這則沒有對應的論點</h2>
+      <p class="muted" style="font-size:13px;margin:0 0 8px">可以改對追蹤對象判斷，或請 AI 起草一個新論點（草稿，要你確認）。</p>
+      <div class="label">對追蹤對象：<span class="chip entity">範例交換器大廠 <span class="ty">公司</span></span> <a href="#" style="font-size:12px">換對象</a></div>
+      <p class="muted" style="font-size:12px;margin:0 0 6px">按下後記錄判斷，再揭曉 AI 對這個對象的看法（揭曉畫面跟論點的「揭露後」同一個版型，這裡不另外畫）。</p>
+      <div class="qj">
+        <button class="noise">雜訊</button><button class="neu">中性</button>
+        <button><span class="bull">偏多</span>·低</button><button><span class="bull">偏多</span>·中</button><button><span class="bull">偏多</span>·高</button><span></span>
+        <button><span class="bear">偏空</span>·低</button><button><span class="bear">偏空</span>·中</button><button><span class="bear">偏空</span>·高</button>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn sm">請 AI 起草新論點</button><a href="#" data-set-state="blind" style="font-size:12.5px">← 回到論點</a></div>
+    </div>
+
+    <div data-show="loading">
+      <h2>AI 分類中…</h2>
+      <div style="display:grid; gap:10px"><div class="skel" style="width:50%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div>
+      <p class="muted" style="font-size:12.5px">可以先讀；分類完成後才會出現論點題目，你判斷之前 AI 的看法不會顯示。</p>
+    </div>
+    <div data-show="error">
+      <div class="banner bad"><span class="ico">!</span><div><b>分類失敗</b>：模型逾時（錯誤代碼 AI_TIMEOUT，第 2 次）。帳本裡沒有留下不完整的紀錄。<br><button class="btn sm" style="margin-top:6px">重試</button> <a href="settings.html">換模型</a></div></div>
+      <p class="muted" style="font-size:13px">你的判斷不受影響：可以從題材頁自己挑論點來判斷，只是沒有 AI 建議「可能相關」的論點。</p>
+    </div>
+  </aside>
+</div>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

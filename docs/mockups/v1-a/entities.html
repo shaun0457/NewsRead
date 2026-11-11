@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>追蹤對象 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .types { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .types button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 999px; padding: 3px 12px; cursor: pointer; font-size: 13.5px; }
+  .types button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 18px; align-items: start; }
+  .drawer { padding: 18px; position: sticky; top: 100px; }
+  .drawer h2 { font-size: 17px; margin-bottom: 14px; }
+  .listing { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .price { font-size: 12.5px; color: var(--ink-3); grid-column: 2 / 4; margin: -2px 0 6px; }
+  .sugg { padding: 12px 14px; margin-bottom: 16px; border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: 10px; }
+  .sugg .it { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--accent-soft-2); font-size: 14px; }
+  .sugg .it:first-of-type { border-top: 0; }
+  td .sub { display: block; font-size: 12.5px; color: var(--ink-3); }
+  @media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } .drawer { position: static; } .hide-sm { display: none; } }
+  body[data-frame="narrow"] .split { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .drawer { position: static; }
+  body[data-frame="narrow"] .hide-sm { display: none; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup A · 追蹤對象</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">列表 + 編輯</button>
+    <button data-set-state="invalid">代號錯誤</button>
+    <button data-set-state="loading">載入中</button>
+    <button data-set-state="empty">空</button>
+    <button data-set-state="error">失敗</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html">敘事看板</a><a href="today.html">今日新聞</a><a href="concepts.html">概念</a><a href="ingest.html">資料庫</a><a href="entities.html" aria-current="page">追蹤對象</a><a href="settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a><a class="status-dot" href="usage.html" title="訂閱額度與 API 花費">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>追蹤對象</h1><span class="muted">12 個 · 行情資料日期 2026-11-10</span><span style="flex:1"></span><button class="btn primary">＋ 新增</button></div>
+  <p class="mock-note">假資料。「最新收盤」要等 #30 行情做完才有；mockup 先畫出位置。基準指數預設：台股 = 發行量加權股價報酬指數（含息），美股 = 含息基準。</p>
+
+  <div class="sugg" data-show="normal invalid">
+    <b style="font-size:14px">AI 建議追蹤</b> <small class="muted">（#18 · 你確認後才會建立）</small>
+    <div class="it"><span class="chip entity">HBM <span class="ty">題材</span></span><span class="muted">本週出現在 6 則資料，其中 2 則重要度高</span><span style="flex:1"></span><button class="btn sm">加入</button><button class="btn sm ghost">不要再建議</button></div>
+    <div class="it"><span class="chip entity">範例封測廠 <span class="ty">公司</span></span><span class="muted">範例晶圓廠法說會提到先進封裝外包</span><span style="flex:1"></span><button class="btn sm">加入</button><button class="btn sm ghost">不要再建議</button></div>
+  </div>
+
+  <div class="types" data-show="normal invalid">
+    <button aria-pressed="true">全部 12</button><button>公司 6</button><button>產業 / 供應鏈 2</button><button>總經 / 政策 2</button><button>事件 1</button><button>題材 1</button>
+  </div>
+
+  <div class="split" data-show="normal invalid">
+    <div class="card" style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>名稱</th><th>類型</th><th>代號</th><th class="hide-sm">最新收盤</th><th class="hide-sm">基準 / 產業</th><th>本週</th></tr></thead>
+        <tbody>
+          <tr style="background:var(--surface-2)"><td><b>範例晶圓廠</b><span class="sub">別名：SFAB、9901、晶圓一哥</span></td><td>公司</td><td><span class="num">9901.TW</span><br><span class="num">SFB</span></td><td class="hide-sm num">1,085 <span class="up">+1.4%</span><span class="sub">2026-11-10</span></td><td class="hide-sm" style="font-size:13px">報酬指數<span class="sub">半導體類指數</span></td><td>5 則</td></tr>
+          <tr><td><b>範例 GPU 廠</b><span class="sub">別名：GPU 大廠、SGPU</span></td><td>公司</td><td><span class="num">SGPU</span></td><td class="hide-sm num">148.2 <span class="down">−0.8%</span><span class="sub">2026-11-10</span></td><td class="hide-sm" style="font-size:13px">S&amp;P 500 TR<span class="sub">SOX</span></td><td>3 則</td></tr>
+          <tr><td><b>AI 伺服器</b><span class="sub">別名：AI server</span></td><td>題材</td><td class="muted">—</td><td class="hide-sm muted" style="font-size:13px">籃子在 #32</td><td class="hide-sm muted">—</td><td>6 則</td></tr>
+          <tr><td><b>Fed 利率</b></td><td>總經 / 政策</td><td class="muted">—</td><td class="hide-sm muted">—</td><td class="hide-sm muted">—</td><td>2 則</td></tr>
+          <tr><td><b>美國晶片出口管制</b></td><td>總經 / 政策</td><td class="muted">—</td><td class="hide-sm muted">—</td><td class="hide-sm muted">—</td><td>2 則</td></tr>
+          <tr><td><b>CoWoS 供應鏈</b></td><td>產業 / 供應鏈</td><td class="muted">—</td><td class="hide-sm muted">—</td><td class="hide-sm muted">—</td><td>4 則</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <form class="card drawer" onsubmit="return false">
+      <h2>編輯：範例晶圓廠</h2>
+      <div class="field"><label>類型</label>
+        <select class="input"><option selected>公司</option><option>產業 / 供應鏈</option><option>總經 / 政策</option><option>事件</option><option>題材</option></select></div>
+      <div class="field"><label>名稱</label><input class="input" value="範例晶圓廠"></div>
+      <div class="field"><label>代號</label>
+        <div class="listing"><select class="input"><option selected>台股</option><option>美股</option></select><input class="input num" value="9901"><button class="btn sm ghost">移除</button></div>
+        <div class="price">9901.TW · 收盤 1,085（2026-11-10）</div>
+        <div class="listing"><select class="input"><option>台股</option><option selected>美股</option></select><input class="input num" value="SFB" data-show="normal"><input class="input num invalid" value="SFAB" data-show="invalid"><button class="btn sm ghost">移除</button></div>
+        <div class="price" data-show="normal">SFB · ADR · 收盤 214.6（2026-11-10）</div>
+        <div class="err" data-show="invalid" style="grid-column:2/4">找不到美股代號「SFAB」。你是不是要找 <a href="#">SFB</a>？</div>
+        <button class="btn sm">＋ 代號</button>
+        <span class="hint">打分以主要代號為準（第一個）。</span>
+      </div>
+      <div class="field"><label>別名</label>
+        <div class="row"><span class="chip">SFAB ×</span><span class="chip">9901 ×</span><span class="chip">晶圓一哥 ×</span><input class="input" style="width:120px" placeholder="新增別名"></div>
+        <span class="hint">AI 用別名把資料連到這個對象。</span></div>
+      <div class="grid2">
+        <div class="field"><label>基準指數</label><select class="input"><option selected>發行量加權股價報酬指數</option><option>加權指數（不含息，不建議）</option></select><span class="hint">預設含息，避免除息日誤判。</span></div>
+        <div class="field"><label>產業指數</label><select class="input"><option selected>半導體類指數</option></select></div>
+      </div>
+      <div class="field"><label>連到這個對象的資料（最近）</label>
+        <div style="font-size:13.5px; display:grid; gap:4px">
+          <div class="row">（範例）法說會：上修 CoWoS 產能目標 <span class="chip ai">AI 連結</span><a href="#" style="font-size:12.5px">移除</a></div>
+          <div class="row">（範例）10 月營收年增 38% <span class="chip mine">手動</span><a href="#" style="font-size:12.5px">移除</a></div>
+        </div></div>
+      <div class="row"><button class="btn primary">儲存</button><button class="btn ghost">取消</button><span style="flex:1"></span><button class="btn ghost danger">封存</button></div>
+      <p class="hint" style="font-size:12px; margin:10px 0 0">封存不會刪掉帳本裡跟它有關的判斷。</p>
+    </form>
+  </div>
+
+  <div class="card" style="padding:16px; display:grid; gap:12px" data-show="loading"><div class="skel" style="width:30%"></div><div class="skel"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div>
+  <div class="empty" data-show="empty"><h2>還沒有追蹤對象</h2><p>先加幾個你關心的：一家公司、一個題材、一個總經主題。<br>建議從你熟悉的產業開始。</p><button class="btn primary">＋ 新增第一個</button></div>
+  <div class="empty" data-show="error"><h2>讀不到追蹤對象</h2><p>本機資料庫被鎖住。資料沒有遺失。<button class="btn sm">重試</button></p></div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

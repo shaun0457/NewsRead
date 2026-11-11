@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telegram 訊息 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 22px; align-items: start; }
+  .phone { border: 1px solid var(--rule-2); border-radius: 22px; background: var(--surface-2); overflow: hidden; box-shadow: var(--shadow); min-width: 0; }
+  .phone .top { background: var(--surface); padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 13.5px; display: flex; gap: 8px; align-items: center; }
+  .phone .top .av { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .phone .chat { padding: 12px; display: grid; gap: 8px; min-height: 120px; }
+  .phone h3 { font-size: 13px; color: var(--ink-3); font-weight: 600; padding: 10px 14px 0; margin: 0; }
+  .msg { background: var(--surface); border-radius: 12px 12px 12px 4px; padding: 9px 11px; font-size: 14px; line-height: 1.55; max-width: 94%; overflow-wrap: anywhere; }
+  .msg.me { justify-self: end; background: var(--mine-soft); border-radius: 12px 12px 4px 12px; }
+  .msg .t { display: block; text-align: right; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .msg a { color: var(--accent); }
+  .msg hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 0; }
+  .kb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; max-width: 94%; }
+  .kb.c2 { grid-template-columns: repeat(2, 1fr); }
+  .kb span { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 2px; text-align: center; font-size: 12.5px; color: var(--accent); }
+  .kb span.w2 { grid-column: span 2; }
+  .kb span.on { background: var(--accent); color: var(--bg); }
+  .cap { font-size: 12.5px; color: var(--ink-3); padding: 0 14px 12px; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup A · Telegram 訊息格式</b>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<main class="page">
+  <div class="page-head"><h1>Telegram 訊息格式</h1><span class="muted">手機唯一的管道 · 實際外觀依 Telegram 用戶端</span></div>
+  <p class="mock-note" style="margin-bottom:18px">按鈕是 Telegram inline keyboard：按一下就送出。連結打開桌機上的 NewsRead；在外面打不開時，訊息本身也要能看懂。所有內容都是範例。</p>
+
+  <div class="phones">
+    <section class="phone">
+      <h3>① 每日簡報 · 07:30（依題材整理）</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg"><b>11/11（三）簡報</b> · 約 7 分鐘<br><small class="muted">電腦在 01:12–08:40 沒有執行，已補抓這段時間的資料；這份 07:30 的簡報是開機後補發的。</small><hr>
+          <b>⚡ 800V DC</b>（階段：確認）<br>
+          論點「2027 年起改用 800V」：+2 加強、+1 削弱<br>
+          · 加強：（範例）GPU 大廠列出 800V 供應商名單 [A]<br>
+          · 削弱：（範例）安全規範還沒定案 [B]<br>
+          AI 建議階段 確認 → 擴散，<a href="#">待你審</a><hr>
+          <b>🔦 光通訊與銅互連</b>（階段：擴散）<br>
+          論點「機櫃內到 2027 前仍以銅為主」：+1 加強 [B]<br>
+          籃子對好消息的反應變弱（鈍化候選訊號）<hr>
+          <b>❓ 市場在動，原因不明</b><br>「散熱」族群相對轉強 8 天，沒有對應題材 <a href="#">請 AI 找原因</a><hr>
+          沒掛到論點的重要資料 2 則 <a href="#">列表</a><br>
+          到期 1 筆：你 10/14 的預測今天滿 21 個交易日 → ④
+          <span class="t">08:41</span></div>
+      </div>
+      <p class="cap">上限約 1,500 字。這份簡報顯示了 AI 的加強 / 削弱判斷，所以列出的資料都寫揭露紀錄；盲測只從沒列出的資料出題。</p>
+    </section>
+
+    <section class="phone">
+      <h3>② 即時推播：論點狀態變化</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg">⚠ <b>論點被削弱</b><br>「CPO 2027 年起在交換器小量導入」<br>（範例）主要交換器廠將 CPO 時程延到 2028 [A]<br><a href="#">打開證據</a> · <a href="#">題材頁</a><span class="t">16:05</span></div>
+        <div class="msg"><small class="muted">今天第 3 / 10 則推播 · 勿擾 23:00–07:00 · 狀態變化由 AI 提議，要你在題材頁確認才會改。</small></div>
+      </div>
+    </section>
+
+    <section class="phone">
+      <h3>③ 每日盲測 · 12:30（第 2 / 7 題）</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg"><b>Q2.</b>（範例）交換器大廠：下一代機櫃內互連仍以銅纜為主，CPO 2027 年小量導入<br><small class="muted">範例通訊社 · 11/11 09:15</small><hr>
+          對你的論點<br><b>「機櫃內 GPU 互連到 2027 年前仍以銅為主」</b><br>這則是？<span class="t">12:30</span></div>
+        <div class="kb"><span>加強·低</span><span>加強·中</span><span>加強·高</span><span>削弱·低</span><span>削弱·中</span><span>削弱·高</span><span class="w2">有關但不改變</span><span>無關</span></div>
+      </div>
+      <p class="cap">8 顆按鈕，按一下就送出；不想答就不按，隔天自動過期。題目只顯示你確認過的論點，不顯示 AI 對這則的判斷。</p>
+    </section>
+
+    <section class="phone">
+      <h3>③-b 按下後：揭曉</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="kb"><span>加強·低</span><span class="on">加強·中</span><span>加強·高</span><span>削弱·低</span><span>削弱·中</span><span>削弱·高</span><span class="w2">有關但不改變</span><span>無關</span></div>
+        <div class="msg">✓ 已記錄：<b>加強 · 中</b> · 盲判<hr>AI：<b>加強 · 高</b>，證據等級 B<br>理由：公司直接說下一代機櫃內仍用銅，並有 AEC 的具體做法。<br><small class="muted">prompt v2</small><hr>
+          📘 文中的 <b>CPO</b> 你標成還不懂 → <a href="#">概念卡</a><br><a href="#">看全文</a> · <a href="#">下一題 →</a><span class="t">12:31</span></div>
+      </div>
+      <p class="cap">先記錄才揭曉；揭曉後不能改這筆（要改就新增一筆修正）。</p>
+    </section>
+
+    <section class="phone">
+      <h3>④ 預測到期提醒</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg">⏰ <b>到期：</b>「1.6T 光模組在 2026–2027 放量」（你 · 10/14 · 偏多 · 中）<br>機制：CSP 擴建機櫃之間的網路 → 1.6T 出貨量上升<br>判定標準：下次法說會前，主要廠商沒有下修 1.6T 指引<hr>
+          21 交易日：籃子 <span class="up">+5.2%</span>、大盤 +2.1%，<b>超額 +3.1%</b><br>期間證據 6 則：加強 4、削弱 1、短期波動 1 <a href="#">看證據</a><br><br>機制有成立嗎？<span class="t">08:00</span></div>
+        <div class="kb"><span>成立</span><span>不成立</span><span>不確定</span></div>
+      </div>
+      <p class="cap">價格自動算；機制成不成立要你判斷 — 漲了不代表理由對。</p>
+    </section>
+
+    <section class="phone">
+      <h3>⑤ 指令 /today</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg me">/today<span class="t">15:02</span></div>
+        <div class="msg">截至 15:02<br>800V DC：+2 加強、+1 削弱<br>光通訊與銅互連：+1 加強<br>你今天判斷 6 則（盲判 5）· 盲測 7 / 7<br><a href="#">打開敘事看板</a><span class="t">15:02</span></div>
+        <div class="msg me">/help<span class="t">15:03</span></div>
+        <div class="msg">/today 今日狀態 · /quiz 現在做盲測 · /due 到期清單 · /concept 名詞 查概念卡 · 直接轉傳連結 = 匯入<span class="t">15:03</span></div>
+      </div>
+    </section>
+
+    <section class="phone">
+      <h3>⑥ 轉傳連結 = 匯入</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg me">https://example.substack.com/p/sample<span class="t">16:40</span></div>
+        <div class="msg">✓ 已匯入：（範例）800V 機房架構解析<br>AI 找到 1 個可能相關的論點；判斷先遮住 · <a href="#">打開（先判斷）</a><span class="t">16:40</span></div>
+        <div class="msg me">http://192.168.1.10/admin<span class="t">16:45</span></div>
+        <div class="msg">⛔ 這是內部網路網址，不會去抓。<span class="t">16:45</span></div>
+      </div>
+    </section>
+
+    <section class="phone">
+      <h3>⑦ 配對流程</h3>
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <div class="chat">
+        <div class="msg me">/start<span class="t">09:01</span></div>
+        <div class="msg">這個 bot 還沒配對。請在電腦上的 NewsRead「設定 → Telegram」取得配對碼，傳 <b>/pair 配對碼</b>。<span class="t">09:01</span></div>
+        <div class="msg me">/pair 4K7Q2M<span class="t">09:02</span></div>
+        <div class="msg">✓ 配對成功。簡報 07:30、盲測 12:30。<br>其他帳號傳訊息給這個 bot 都不會有回應。<span class="t">09:02</span></div>
+      </div>
+      <p class="cap">未配對的帳號只會收到這一句說明；配對碼錯 5 次就失效。</p>
+    </section>
+  </div>
+</main>
+<script src="mock.js"></script>
+</body>
+</html>

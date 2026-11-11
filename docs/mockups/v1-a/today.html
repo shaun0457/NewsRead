@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>今日新聞 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; }
+  .filters { position: sticky; top: 100px; align-self: start; display: grid; gap: 16px; font-size: 14px; }
+  .filters h3 { font-size: 12.5px; color: var(--ink-3); letter-spacing: .05em; margin-bottom: 6px; }
+  .filters label { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: pointer; }
+  .filters .n { margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
+  .story { padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+  .story + .story { border-top: 1px solid var(--rule); }
+  .story .t { font-family: var(--serif-zh); font-size: 17px; font-weight: 600; line-height: 1.5; }
+  .story .t a { color: var(--ink); }
+  .story .meta { font-size: 12.5px; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+  .story .why { font-size: 14px; color: var(--ink-2); }
+  .story .why b { color: var(--accent); font-weight: 600; }
+  .story .ents { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .story .aside { grid-row: span 4; padding-top: 3px; }
+  .story .judge { grid-column: 2; margin-top: 8px; max-width: 460px; }
+  .noise-list .story { opacity: .8; }
+  .mode-switch { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 999px; overflow: hidden; font-size: 13px; }
+  .mode-switch button { border: 0; background: transparent; padding: 4px 12px; cursor: pointer; }
+  .mode-switch button[aria-pressed="true"] { background: var(--mine); color: #fff; }
+  .blind-head { display: flex; gap: 10px; align-items: center; }
+  @media (max-width: 760px) { .layout { grid-template-columns: minmax(0, 1fr); } .filters { position: static; display: flex; flex-wrap: wrap; } }
+  body[data-frame="narrow"] .layout { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .filters { position: static; display: none; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup A · 今日新聞</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="blind">先判斷模式</button>
+    <button data-set-state="catchup">開機補抓</button>
+    <button data-set-state="loading">載入中</button>
+    <button data-set-state="empty">空</button>
+    <button data-set-state="error">失敗</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html">敘事看板</a><a href="today.html" aria-current="page">今日新聞</a><a href="concepts.html">概念</a><a href="ingest.html">資料庫</a><a href="entities.html">追蹤對象</a><a href="settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a>
+  <a class="status-dot" href="usage.html" data-show="normal blind catchup loading empty">背景執行中 · Claude 5h 42%</a>
+  <span class="status-dot bad" data-show="error">排程停止</span>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>今日新聞</h1>
+    <span class="muted">2026-11-11（三）· 台股收盤 13:30 · 美股盤前</span>
+    <span class="spacer" style="flex:1"></span>
+    <span class="mode-switch" role="group" aria-label="顯示模式">
+      <button data-set-state="normal" aria-pressed="true">看 AI 整理</button>
+      <button data-set-state="blind" aria-pressed="false">先判斷，再看 AI</button>
+    </span>
+  </div>
+
+  <p class="mock-note" style="margin-bottom:8px">v2：首頁改成<a href="board.html">敘事看板</a>，這頁是次要分頁，用來看「還沒掛到論點」的資料。重要度是它對各論點最高的那一級，點開可以看相對於每個論點的判斷。</p>
+  <p class="mock-note" data-show="normal catchup" style="margin-bottom:14px">假資料。這個模式會顯示 AI 的重要度和理由，所以每顯示一則，系統就寫一筆「揭露紀錄」；之後再對這則做判斷，就不算盲判。</p>
+  <p class="mock-note" data-show="blind" style="margin-bottom:14px">「先判斷」模式：不顯示 AI 的重要度、理由，<b>也不依重要度排序</b>（改成依時間），避免排序本身洩漏 AI 的看法。判斷完那一則才揭曉。</p>
+
+  <div class="banner warn" data-show="catchup"><span class="ico">↻</span><div><b>開機補抓：</b>電腦在 01:12–08:40 沒有執行，已補抓 RSS 6 個 feed、42 則，補發 07:30 的每日簡報。補抓的資料標有 <span class="chip warn">補抓</span>。</div></div>
+  <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>排程器已停止</b>（08:02 起）。RSS 和簡報都不會更新。<a href="settings.html">查看原因</a> · <button class="btn sm">重新啟動</button></div></div>
+
+  <div class="layout">
+    <aside class="filters" data-show="normal blind catchup">
+      <div data-show="normal catchup">
+        <h3>重要度</h3>
+        <label><input type="checkbox" checked> 高 <span class="n">3</span></label>
+        <label><input type="checkbox" checked> 中 <span class="n">7</span></label>
+        <label><input type="checkbox"> 低 <span class="n">18</span></label>
+        <label><input type="checkbox"> 雜訊 <span class="n">26</span></label>
+      </div>
+      <div>
+        <h3>追蹤對象</h3>
+        <label><input type="checkbox" checked> 範例晶圓廠 <span class="n">5</span></label>
+        <label><input type="checkbox" checked> 範例 GPU 廠 <span class="n">3</span></label>
+        <label><input type="checkbox" checked> AI 伺服器（題材） <span class="n">6</span></label>
+        <label><input type="checkbox" checked> Fed 利率（總經） <span class="n">2</span></label>
+        <label><input type="checkbox" checked> 美國關稅（政策） <span class="n">2</span></label>
+      </div>
+      <div>
+        <h3>類型</h3>
+        <label><input type="checkbox" checked> 新聞</label>
+        <label><input type="checkbox" checked> X / Substack</label>
+        <label><input type="checkbox" checked> 財報 / 月營收</label>
+        <label><input type="checkbox" checked> 法說會</label>
+      </div>
+    </aside>
+
+    <div>
+      <!-- 一般模式：依重要度分組 -->
+      <div data-show="normal catchup">
+        <div class="section-title"><span class="imp h">高</span> 重要 <span class="count">3 則</span></div>
+        <div class="card">
+          <article class="story">
+            <div class="aside"><span class="imp h">高</span></div>
+            <div class="t"><a href="reader.html">（範例）範例晶圓廠法說會：上修 2027 年 CoWoS 產能目標，資本支出區間維持不變</a></div>
+            <div class="meta"><span>法說會逐字稿</span><span>14:00 發布</span><span class="chip">4 家媒體跟進</span><span class="chip ok">第一手</span></div>
+            <div class="why"><b>AI：</b>產能目標上修是新的數字，前一季說法是「持平」；資本支出不變代表上修來自效率而非擴廠。</div>
+            <div class="ents"><span class="chip entity">範例晶圓廠 <span class="ty">公司</span></span><span class="chip entity">AI 伺服器 <span class="ty">題材</span></span><span class="chip ai">AI：偏多·中</span></div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="imp h">高</span></div>
+            <div class="t"><a href="reader.html">（範例）美國商務部擬調整先進晶片出口規則，徵詢期 30 天</a></div>
+            <div class="meta"><span>範例通訊社</span><span>09:15</span><span class="chip">7 家媒體</span><span class="chip ok">第一手</span></div>
+            <div class="why"><b>AI：</b>政策方向改變，影響追蹤中的 3 個對象；目前只是徵詢，細節未定。</div>
+            <div class="ents"><span class="chip entity">美國關稅 <span class="ty">政策</span></span><span class="chip entity">範例 GPU 廠 <span class="ty">公司</span></span><span class="chip ai">AI：偏空·低</span></div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="imp h">高</span></div>
+            <div class="t"><a href="reader.html">（範例）範例晶圓廠 10 月營收年增 38%，月減 6%</a></div>
+            <div class="meta"><span>月營收（TWSE）</span><span>13:31 公告</span><span class="chip warn" data-show="catchup">補抓</span></div>
+            <div class="why"><b>AI：</b>月減幅度大於過去三年同月平均；年增仍高。需要看是否為出貨時程造成。</div>
+            <div class="ents"><span class="chip entity">範例晶圓廠 <span class="ty">公司</span></span><span class="chip ai">AI：中性·中</span></div>
+          </article>
+        </div>
+
+        <div class="section-title"><span class="imp m">中</span> 值得看 <span class="count">7 則 · 顯示 2</span></div>
+        <div class="card">
+          <article class="story">
+            <div class="aside"><span class="imp m">中</span></div>
+            <div class="t"><a href="reader.html">（範例）Substack｜分析師：HBM4 認證時程可能延後一季</a></div>
+            <div class="meta"><span>Substack · 只有預覽</span><span>昨天 22:40</span><span class="chip warn">只有預覽</span></div>
+            <div class="why"><b>AI：</b>單一來源、付費文章只看得到摘要；說法與上週供應鏈消息一致。</div>
+            <div class="ents"><span class="chip entity">AI 伺服器 <span class="ty">題材</span></span><span class="chip ai">AI：偏空·低</span></div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="imp m">中</span></div>
+            <div class="t"><a href="reader.html">（範例）X｜某半導體分析師：CSP 明年資本支出指引普遍上修</a></div>
+            <div class="meta"><span>X 貼文</span><span>08:02</span></div>
+            <div class="why"><b>AI：</b>KOL 觀點，沒有附數據來源；但與兩家 CSP 上週的法說說法方向一致。</div>
+            <div class="ents"><span class="chip entity">AI 伺服器 <span class="ty">題材</span></span><span class="chip ai">AI：偏多·低</span></div>
+          </article>
+        </div>
+        <p><button class="btn ghost">顯示其餘 5 則中重要度 →</button></p>
+
+        <div class="section-title"><span class="imp n">雜訊</span> AI 判為雜訊 <span class="count">26 則（收合）</span></div>
+        <div class="card noise-list">
+          <article class="story">
+            <div class="aside"><span class="imp n">雜訊</span></div>
+            <div class="t" style="font-size:15px"><a href="reader.html">（範例）「範例晶圓廠股價創高，外資喊價」</a></div>
+            <div class="meta"><span class="chip">已反映在股價</span><span class="chip">沒有新資訊</span><span>12 則類似</span></div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="imp n">雜訊</span></div>
+            <div class="t" style="font-size:15px"><a href="reader.html">（範例）「AI 泡沫？三張圖看懂」</a></div>
+            <div class="meta"><span class="chip">舊聞重炒</span><span>原始報導 3 週前</span></div>
+          </article>
+        </div>
+        <p><button class="btn ghost">展開全部 26 則雜訊</button></p>
+      </div>
+
+      <!-- 先判斷模式 -->
+      <div data-show="blind">
+        <div class="section-title">依時間排列 <span class="count">還沒判斷的 14 則 · AI 看法已隱藏</span></div>
+        <div class="card">
+          <article class="story">
+            <div class="aside"><span class="chip">14:00</span></div>
+            <div class="t"><a href="reader.html">（範例）範例晶圓廠法說會：上修 2027 年 CoWoS 產能目標，資本支出區間維持不變</a></div>
+            <div class="meta"><span>法說會逐字稿</span><span class="chip">4 家媒體跟進</span></div>
+            <div class="ents"><span class="chip entity">範例晶圓廠 <span class="ty">公司</span></span></div>
+            <div class="judge">
+              <div class="qj" data-reveal="">
+                <button class="noise">雜訊</button><button class="neu">中性</button>
+                <button><span class="bull">偏多</span>·低</button><button><span class="bull">偏多</span>·中</button><button><span class="bull">偏多</span>·高</button><span></span>
+                <button><span class="bear">偏空</span>·低</button><button><span class="bear">偏空</span>·中</button><button><span class="bear">偏空</span>·高</button>
+              </div>
+              <small>點一下就記錄；之後才顯示 AI 的看法。這則還沒被揭露過，會記為 <b>盲判</b>。</small>
+            </div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="chip">09:15</span></div>
+            <div class="t"><a href="reader.html">（範例）美國商務部擬調整先進晶片出口規則，徵詢期 30 天</a></div>
+            <div class="meta"><span>範例通訊社</span><span class="chip">7 家媒體</span></div>
+            <div class="ents"><span class="chip entity">美國關稅 <span class="ty">政策</span></span><span class="chip entity">範例 GPU 廠 <span class="ty">公司</span></span></div>
+            <div class="judge"><small>判斷要針對單一追蹤對象：<button class="btn sm">美國關稅</button> <button class="btn sm">範例 GPU 廠</button></small></div>
+          </article>
+          <article class="story">
+            <div class="aside"><span class="chip">08:02</span></div>
+            <div class="t"><a href="reader.html">（範例）「範例晶圓廠股價創高，外資喊價」</a></div>
+            <div class="meta"><span>範例財經報</span><span class="chip mine">已在簡報看過 AI 看法</span></div>
+            <div class="judge"><small>這則的 AI 看法已在 07:30 簡報揭露過，判斷會記為 <b>非盲判</b>。</small></div>
+          </article>
+        </div>
+      </div>
+
+      <div data-show="loading">
+        <div class="card" style="padding:16px; display:grid; gap:12px">
+          <div class="skel" style="width:40%"></div><div class="skel" style="width:90%"></div><div class="skel" style="width:70%"></div>
+          <div class="skel" style="width:85%"></div><div class="skel" style="width:60%"></div>
+        </div>
+      </div>
+
+      <div class="empty" data-show="empty">
+        <h2>今天還沒有資料</h2>
+        <p>還沒設定 RSS，也還沒有追蹤對象。先 <a href="entities.html">新增追蹤對象</a>、<a href="settings.html">加入 RSS</a>，或 <a href="ingest.html">貼一則連結</a>。</p>
+      </div>
+
+      <div class="empty" data-show="error">
+        <h2>無法載入今天的資料</h2>
+        <p>本機索引讀取失敗（資料庫被鎖住）。資料沒有遺失，<button class="btn sm">重試</button></p>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

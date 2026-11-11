@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 14px; }
+  .screens a { display: block; padding: 16px; color: var(--ink); text-decoration: none; }
+  .screens a:hover { border-color: var(--accent); }
+  .screens h2 { font-size: 16px; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+  .screens p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .screens .st2 { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+  .rules { padding: 18px; margin-top: 20px; }
+  .rules ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13.5px; margin-top: 12px; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>NewsRead · Mockup A（ticket #1，v2）</b>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+</div>
+
+<main class="page" style="max-width:1000px">
+  <div class="page-head"><h1>Mockup A：題材 → 論點 → 證據</h1></div>
+  <p class="mock-note" style="margin-bottom:18px">靜態 HTML，範例題材是 800V DC 和光通訊與銅互連；公司、數字、出處都是「範例」，不是真實資訊。每頁上方的灰色列可以切換狀態、桌機 / 窄視窗、淺 / 深色。第一版（新聞 → 多空 → 股價）在 2026-11-11 被否決，這是重畫的版本。</p>
+
+  <div class="section-title">核心（v2 新增）</div>
+  <div class="screens">
+    <a class="card" href="board.html"><h2>敘事看板 <span class="chip">首頁</span></h2><p>追蹤的題材、階段、今天哪些論點被加強或削弱、待審的 AI 草稿、「市場在動，原因不明」。</p><div class="st2">看 AI 整理 · 先判斷 · 還沒有題材（挑題材）· 載入 · 失敗</div></a>
+    <a class="card" href="theme.html"><h2>題材頁</h2><p>故事和類比、怎麼開始的、因果鏈（營收占比、領漲 / 補漲）、第二層效應、階段訊號、論點與證據、推翻 / 下車條件；最後可以拿這個題材的剪報夾問 AI。</p><div class="st2">定稿 · 審 AI 草稿 · 起草中 · 失敗</div></a>
+    <a class="card" href="reader.html"><h2>閱讀器</h2><p>雙語段落，名詞連到概念卡；右側先對論點盲判（加強 / 削弱 / 有關但不改變 / 無關），再揭曉 AI；也可以針對這篇問 AI。</p><div class="st2">揭露前 · 揭露後 · AI 判雜訊 · 沒有對應論點 · 名詞浮窗 · 問 AI · 事後補判 · 載入 · 失敗</div></a>
+    <a class="card" href="concepts.html"><h2>概念卡</h2><p>CPO、投片、CoWoS 這類名詞：是什麼、為什麼現在重要、數字怎麼讀、常見誤解；你標懂了 / 還不懂。</p><div class="st2">概念卡 · AI 起草新卡 · 空 · 起草中</div></a>
+  </div>
+
+  <div class="section-title">其他</div>
+  <div class="screens">
+    <a class="card" href="today.html"><h2>今日新聞</h2><p>次要分頁：依重要度看今天的資料，主要用來找還沒掛到論點的東西。</p><div class="st2">一般 · 先判斷 · 補抓 · 載入 · 空 · 失敗</div></a>
+    <a class="card" href="ingest.html"><h2>貼連結匯入</h2><p>任何頁面右上角「＋ 貼網址」或 Ctrl+V → 抓取 → 抽正文 → 找可能相關的論點；付費牆、被擋、內網網址、重複。</p><div class="st2">成功 · 處理中 · 付費牆 · 被擋 · 內網 · 重複 · 手動貼全文</div></a>
+    <a class="card" href="entities.html"><h2>追蹤對象</h2><p>公司、產業、總經 / 政策、事件、題材；台美股代號、別名、含息基準。</p><div class="st2">列表 · 代號錯誤 · 載入 · 空 · 失敗</div></a>
+    <a class="card" href="settings.html"><h2>設定</h2><p>Telegram 配對、推播與盲測、RSS；AI：自動偵測本機訂閱（Claude Code、Codex CLI…）、自帶 API key、每種工作用哪個、額度保護；安裝版更新、備份。</p><div class="st2">Telegram 未設定 · 配對中 · 已配對 · token 錯誤 · 偵測到訂閱 · 沒有 AI · key 失效</div></a>
+    <a class="card" href="usage.html"><h2>用量</h2><p>Claude Code 5 小時 / 7 天額度、Codex token、API 花費；哪個工作、哪個來源用最多；限流和額度保護事件。</p><div class="st2">一般 · 額度保護中 · 還沒用過 AI · 載入</div></a>
+    <a class="card" href="telegram.html"><h2>Telegram 訊息</h2><p>依題材整理的簡報、論點狀態推播、對論點的盲測與揭曉、到期提醒、指令、配對。</p><div class="st2">7 種訊息</div></a>
+  </div>
+
+  <section class="card rules">
+    <h2 style="font-size:16px">設計規則</h2>
+    <ol>
+      <li><b>先看故事，再看新聞，最後才看股價。</b>首頁是題材和論點；新聞是證據；股價在「市場怎麼回應」，也是「市場在動，原因不明」的觸發。</li>
+      <li><b>先判斷、再看 AI。</b>對論點的盲判在揭曉前看不到 AI 的判斷；直接看會寫揭露紀錄，之後就不算盲判。</li>
+      <li><b>雜訊是相對的。</b>永遠寫明「相對於哪個論點、哪個時間尺度」。AI 判雜訊、而相關概念你還不懂時，先提醒你看概念卡。</li>
+      <li><b>每一句看得出有沒有出處。</b>有出處附 ¶ 或來源；沒有的標「AI 推論」或「AI 解釋」；因果鏈的推論環節用虛線，不能進定稿，除非你確認。</li>
+      <li><b>營收占比只引用來源；階段只依訊號。</b>AI 不估占比，也不憑文字判斷階段。</li>
+      <li><b>草稿不蓋定稿。</b>AI 起草的題材頁、概念卡都要你確認；草稿和定稿都保留版本。</li>
+      <li><b>證據分等級。</b>A 公司公告 / 財報 / 法說會 · B 具名媒體 · C KOL / 分析師 · D 未證實。只有 C、D 的論點標「缺第一手確認」。</li>
+      <li><b>顏色分誰說的。</b>青色 = AI，赭色 = 你；加強 / 偏多用綠，削弱 / 偏空用紅。</li>
+      <li><b>每頁都有空、載入、失敗；桌機和窄視窗都能用。</b>失敗只顯示錯誤代碼和固定說明。</li>
+    </ol>
+    <div class="legend">
+      <span class="chip ai">AI</span><span class="chip mine">你</span>
+      <span class="g A">A</span><span class="g B">B</span><span class="g C">C</span><span class="g D">D</span>
+      <span class="rel s">加強</span><span class="rel w">削弱</span><span class="rel n">有關但不改變</span>
+      <span class="st up">加強中</span><span class="st">待確認</span><span class="st draft">草稿</span>
+      <a class="term" href="concepts.html">名詞</a><a class="term unknown" href="concepts.html">還不懂的名詞</a>
+      <span class="ai-say">AI 解釋</span><span class="chip">AI 推論</span>
+    </div>
+  </section>
+</main>
+<script src="mock.js"></script>
+</body>
+</html>

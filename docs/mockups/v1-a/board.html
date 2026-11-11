@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>敘事看板 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .tcard { padding: 16px; display: grid; gap: 10px; align-content: start; }
+  .tcard h2 { font-size: 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tcard h2 a { color: var(--ink); }
+  .story { font-family: var(--serif-zh); font-size: 15.5px; line-height: 1.7; margin: 0; }
+  .tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+  .tl li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+  .today { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+  .mkt { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--ink-3); }
+  .alert { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; padding: 14px 16px; border: 1px dashed var(--warn); background: var(--warn-soft); border-radius: 12px; margin-bottom: 16px; }
+  .alert .ico { font-size: 20px; }
+  .review { padding: 14px 16px; margin-top: 16px; display: grid; gap: 8px; }
+  .pick { display: grid; gap: 8px; max-width: 560px; margin: 18px auto 0; text-align: left; }
+  .pick label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--rule-2); border-radius: 10px; background: var(--surface); }
+  @media (max-width: 860px) { .themes { grid-template-columns: minmax(0, 1fr); } .alert { grid-template-columns: minmax(0, 1fr); } }
+  body[data-frame="narrow"] .themes { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .alert { grid-template-columns: minmax(0, 1fr); }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup A · 敘事看板（首頁）</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">看 AI 整理</button>
+    <button data-set-state="blind">先判斷</button>
+    <button data-set-state="empty">還沒有題材</button>
+    <button data-set-state="loading">載入中</button>
+    <button data-set-state="error">失敗</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html" aria-current="page">敘事看板</a><a href="today.html">今日新聞</a><a href="concepts.html">概念</a><a href="ingest.html">資料庫</a><a href="entities.html">追蹤對象</a><a href="settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a><a class="status-dot" href="usage.html" title="訂閱額度與 API 花費">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>敘事看板</h1><span class="muted">2026-11-11（三）· 台股收盤 13:30 · 美股盤前</span>
+    <span style="flex:1"></span>
+    <span class="row" data-show="normal blind" role="group" aria-label="顯示模式"><button class="btn sm" data-set-state="normal">看 AI 整理</button><button class="btn sm" data-set-state="blind">先判斷，再看 AI</button></span>
+  </div>
+  <p class="mock-note" style="margin-bottom:14px" data-show="normal">假資料（標「範例」的公司、數字、出處都是虛構的）。這個模式會顯示 AI 判斷「哪則新聞加強 / 削弱哪個論點」，所以每顯示一則就寫一筆揭露紀錄，之後再判斷那則就不算盲判。</p>
+  <p class="mock-note" style="margin-bottom:14px" data-show="blind">「先判斷」模式：只顯示你確認過的論點和有幾則新證據，不顯示 AI 認為它們是加強還是削弱。點進去判斷完才揭曉。</p>
+
+  <!-- 市場在動，原因不明 -->
+  <div class="alert" data-show="normal blind">
+    <span class="ico">❓</span>
+    <div><b>市場在動，原因不明：</b>（範例）「散熱」族群相對大盤連續 8 個交易日轉強，但你沒有對應的題材，也沒有新證據。<br><small class="muted">價格是事實，原因還不知道。可以請 AI 找可能的原因（只用目前已有的資料，附出處；找不到就說找不到）。</small></div>
+    <div class="row"><button class="btn sm">請 AI 找原因</button><button class="btn sm ghost">忽略</button></div>
+  </div>
+
+  <p class="muted" data-show="blind" style="font-size:12.5px;margin:0 0 10px">論點的狀態和證據等級只來自你已經判斷或看過的證據；今天的新證據在你判斷完之前，不會改動這裡。</p>
+  <div class="themes" data-show="normal blind">
+    <!-- 800V DC -->
+    <section class="card tcard">
+      <h2><a href="theme.html">800V DC</a><span class="chip">AI 資料中心供電</span><span class="chip warn" title="只有 C、D 級證據的論點">1 個論點缺第一手確認</span></h2>
+      <p class="story">AI 機櫃越來越耗電，低電壓配電的電流大到撐不住，所以要把配電電壓拉高到 800V 直流。<span class="chip mine">定稿 v3</span></p>
+      <div><div class="stages"><span>萌芽</span><span class="on">確認</span><span>擴散</span><span>射出</span><span>鈍化</span></div>
+        <small class="muted">階段依 5 個訊號判斷（你確認於 11/04）· <a href="theme.html#signals">看訊號</a></small></div>
+      <div class="today" data-show="normal"><b>今天</b><span class="rel s">+2 加強</span><span class="rel w">+1 削弱</span><span class="muted">· 1 則無關（已排除）</span></div>
+      <div class="today" data-show="blind"><b>今天</b><span>3 則新證據待你判斷</span><a href="reader.html">開始 →</a></div>
+      <ul class="tl">
+        <li><span class="st up">加強中</span><span>新一代 AI 機櫃從 2027 年起改用 800V 直流配電</span><span class="g A">A</span></li>
+        <li><span class="st">待確認</span><span>碳化矽 / 氮化鎵功率元件是最大受惠環節</span><span class="g C">C</span></li>
+        <li><span class="st">待確認</span><span>導入會因安全規範延後（偏空論點）</span><span class="g B">B</span></li>
+      </ul>
+      <div class="mkt"><span>題材籃子（範例 8 檔）1 個月相對大盤 <span class="up">+6.1%</span></span><span>領漲 2 · 補漲 3 · 未動 3</span></div>
+    </section>
+
+    <!-- 光通訊與銅互連 -->
+    <section class="card tcard">
+      <h2><a href="theme.html">光通訊與銅互連</a><span class="chip">光進銅退之爭</span></h2>
+      <p class="story">GPU 之間傳資料，短距離用銅、長距離用光；速度每翻倍，銅能傳的距離就縮短，爭的是「銅什麼時候撐不住」。<span class="chip mine">定稿 v2</span></p>
+      <div><div class="stages"><span>萌芽</span><span>確認</span><span class="on">擴散</span><span>射出</span><span>鈍化</span></div>
+        <small class="muted">階段依 5 個訊號判斷 · <a href="theme.html#signals">看訊號</a></small></div>
+      <div class="today" data-show="normal"><b>今天</b><span class="rel s">+1 加強</span><span class="muted">· 2 則有關但不改變</span></div>
+      <div class="today" data-show="blind"><b>今天</b><span>3 則新證據待你判斷</span><a href="reader.html">開始 →</a></div>
+      <ul class="tl">
+        <li><span class="st up">加強中</span><span>機櫃內 GPU 互連到 2027 年前仍以銅為主</span><span class="g A">A</span></li>
+        <li><span class="st up">加強中</span><span>機櫃之間的光模組 1.6T 升級在 2026–2027 放量</span><span class="g B">B</span></li>
+        <li><span class="st">待確認</span><span>CPO 2027 年起在交換器小量導入</span><span class="g B">B</span></li>
+      </ul>
+      <div class="mkt"><span>題材籃子（範例 10 檔）1 個月相對大盤 <span class="down">−2.4%</span></span><span>對好消息的反應變弱 <span class="chip warn">鈍化候選訊號</span></span></div>
+    </section>
+  </div>
+
+  <section class="card review" data-show="normal">
+    <div class="row"><b>待你審的 AI 草稿</b><span class="st draft">草稿</span></div>
+    <div class="row" style="font-size:14px"><span>800V DC · 草稿 v4：新增 2 則證據、建議階段「確認 → 擴散」（依據：Story 數比前 4 週多 2.1 倍、籃子轉強比例 5/8）</span><span style="flex:1"></span><a class="btn sm primary" href="theme.html">審草稿</a></div>
+    <div class="row" style="font-size:14px"><span>新的概念卡草稿：<a class="term" href="concepts.html">固態變壓器（SST）</a>（你在閱讀時選取的）</span><span style="flex:1"></span><a class="btn sm" href="concepts.html">審概念卡</a></div>
+  </section>
+
+  <div class="section-title" data-show="normal">沒有掛到任何論點的重要資料 <span class="count">2 則</span> <a href="today.html" style="font-weight:500">去今日新聞 →</a></div>
+  <div class="section-title" data-show="blind">還沒掛到論點的資料 <span class="count">AI 重要度已隱藏</span> <a href="today.html" style="font-weight:500">去今日新聞 →</a></div>
+
+  <!-- 空狀態：挑題材 -->
+  <div class="empty" data-show="empty">
+    <h2>先挑 2–3 個你想看懂的題材</h2>
+    <p>AI 會用最近的新聞和股癌近幾集的相關段落起草題材頁，你修改確認後才算定稿。</p>
+    <div class="pick">
+      <label><input type="checkbox" checked> <b>800V DC</b> <span class="muted">（範例）股癌 13 集提到</span></label>
+      <label><input type="checkbox" checked> <b>光通訊與銅互連</b> <span class="muted">（範例）股癌 128 集提到「光通」</span></label>
+      <label><input type="checkbox"> <b>CPU（Agentic AI）</b> <span class="muted">股癌近期常談</span></label>
+      <label><input class="input" placeholder="自己輸入題材名稱" style="border:0;padding:0"></label>
+      <div class="row"><button class="btn primary">開始起草（Claude Code 訂閱 · 約 120K token）</button><span class="muted" style="font-size:12.5px">只讀選定的幾集逐字稿，不會整批匯入。</span></div>
+    </div>
+  </div>
+  <div class="themes" data-show="loading"><div class="card tcard"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div><div class="card tcard"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div></div>
+  <div class="empty" data-show="error"><h2>讀不到題材資料</h2><p>本機資料庫被鎖住（錯誤代碼 DB_LOCKED）。資料沒有遺失。<button class="btn sm">重試</button></p></div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

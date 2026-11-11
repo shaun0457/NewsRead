@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用量 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .quota { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 14px; margin-bottom: 16px; }
+  .qc { padding: 16px; }
+  .qc h2 { font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .meter { margin-bottom: 10px; }
+  .meter .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; margin-bottom: 4px; }
+  .meter .bar { height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; position: relative; }
+  .meter .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .meter .bar i.hot { background: var(--danger); }
+  .meter .bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); }
+  .meter small { font-size: 12px; color: var(--ink-3); }
+  .sec { padding: 18px; margin-bottom: 16px; }
+  .sec h2 { font-size: 16px; margin-bottom: 4px; }
+  .sec > p.muted { margin: 0 0 12px; font-size: 13.5px; }
+  .days { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; align-items: end; height: 110px; margin: 8px 0 4px; }
+  .days span { background: var(--accent-soft); border-top: 2px solid var(--accent); border-radius: 3px 3px 0 0; }
+  .dlab { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; font: 10.5px var(--mono); color: var(--ink-3); text-align: center; }
+  .tbl td.r, .tbl th.r { text-align: right; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup A · 用量</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="guard">額度保護中</button>
+    <button data-set-state="empty">還沒用過 AI</button>
+    <button data-set-state="loading">載入中</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html">敘事看板</a><a href="today.html">今日新聞</a><a href="concepts.html">概念</a><a href="ingest.html">資料庫</a><a href="entities.html">追蹤對象</a><a href="settings.html" aria-current="page">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a><a class="status-dot" href="usage.html" data-show="normal empty loading">背景執行中 · Claude 5h 42%</a><a class="status-dot" href="usage.html" data-show="guard" style="color:var(--danger)">背景工作暫停 · Claude 5h 74%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>用量</h1><span class="muted">2026-11-11 14:52 · <a href="settings.html#models">← AI 模型設定</a></span></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料。訂閱額度是 Claude Code 每次回應時附帶回報的數字；花費只算 API key，訂閱不折算成金額。</p>
+
+  <div class="banner warn" data-show="guard" style="margin-bottom:14px"><span class="ico">⏸</span><div><b>額度保護中：</b>Claude Code 5 小時額度到 <b>74%</b>，超過你設的 70%。背景的分類和翻譯暫停，<b>15:40 額度重置後</b>自動接著跑（目前排隊 23 則）。你手動按的「問 AI」照跑。<br><button class="btn sm" style="margin-top:6px">這次改用 API key 跑完</button> <a href="settings.html#models">改設定</a></div></div>
+
+  <div class="empty" data-show="empty"><h2>還沒有任何 AI 呼叫</h2><p>第一次分類、翻譯或問 AI 之後，這裡會開始記錄。<br>每一次呼叫都會記下日期、來源、工作、引擎、模型和 token。</p></div>
+
+  <div data-show="loading" style="display:grid;gap:10px"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div>
+
+  <div data-show="normal guard">
+  <div class="quota">
+    <section class="card qc">
+      <h2>Claude Code <span class="chip ok">訂閱</span></h2>
+      <div class="meter"><div class="top"><span>5 小時額度</span><b data-show="normal">42%</b><b data-show="guard" style="color:var(--danger)">74%</b></div>
+        <div class="bar"><i data-show="normal" style="width:42%"></i><i class="hot" data-show="guard" style="width:74%"></i><b style="left:70%" title="保護線 70%"></b></div>
+        <small>15:40 重置 · 直線 = 你設的保護線 70%</small></div>
+      <div class="meter"><div class="top"><span>7 天額度</span><b>61%</b></div>
+        <div class="bar"><i style="width:61%"></i></div>
+        <small>11/14 09:00 重置</small></div>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 0">這是整個帳號的用量，包含你自己用 Claude Code 寫程式。數字在 14:52 的呼叫時更新，沒有呼叫就不會變。</p>
+      <p style="font-size:13px;margin:8px 0 0">NewsRead 這 5 小時：<b>96 次 · 410K token</b> <span class="muted">（看不到占額度幾 %，只能看 token）</span></p>
+    </section>
+    <section class="card qc">
+      <h2>Codex CLI <span class="chip ok">訂閱</span></h2>
+      <p style="font-size:14px;margin:0 0 6px">今天 64 次 · 1.1M token</p>
+      <p class="muted" style="font-size:12.5px;margin:0">Codex 只回報 token 數，看不到額度用了多少。被限流時會顯示在下面的事件裡。</p>
+    </section>
+    <section class="card qc">
+      <h2>API key 花費 <span class="chip">本月</span></h2>
+      <div class="meter"><div class="top"><span>$3.37 / $15</span><b>22%</b></div>
+        <div class="bar"><i style="width:22%"></i><b style="left:80%" title="80% 通知"></b></div>
+        <small>直線 = 80% 時 Telegram 通知</small></div>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 0">Anthropic $2.40 · 其他 $0.97。依供應商回傳的用量和價目表計算。</p>
+    </section>
+  </div>
+
+  <section class="card sec">
+    <h2>最近 14 天</h2>
+    <p class="muted">每天的 token 數（訂閱和 API 合計）。</p>
+    <div class="days" aria-label="每日 token 長條圖">
+      <span style="height:40%"></span><span style="height:52%"></span><span style="height:35%"></span><span style="height:30%"></span><span style="height:61%"></span><span style="height:58%"></span><span style="height:44%"></span>
+      <span style="height:48%"></span><span style="height:90%"></span><span style="height:55%"></span><span style="height:50%"></span><span style="height:46%"></span><span style="height:70%"></span><span style="height:63%"></span>
+    </div>
+    <div class="dlab"><span>10/29</span><span></span><span></span><span>11/1</span><span></span><span></span><span></span><span>11/5</span><span>11/6</span><span></span><span></span><span></span><span>11/10</span><span>今天</span></div>
+    <p class="muted" style="font-size:12.5px;margin:8px 0 0">11/6 特別多：AI 起草了「800V DC」題材頁（讀了 41 則資料和 3 集逐字稿）。</p>
+  </section>
+
+  <section class="card sec">
+    <h2>哪個工作用最多（本月）</h2>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>工作</th><th>引擎 · 模型</th><th class="r">次數</th><th class="r">token</th><th class="r">花費</th></tr></thead>
+      <tbody>
+        <tr><td>分類</td><td>Claude Code · Haiku</td><td class="r num">3,912</td><td class="r num">8.4M</td><td class="r muted">訂閱</td></tr>
+        <tr><td>翻譯</td><td>Codex CLI</td><td class="r num">1,240</td><td class="r num">12.1M</td><td class="r muted">訂閱</td></tr>
+        <tr><td>題材頁 / 概念卡起草</td><td>Claude Code · Opus</td><td class="r num">18</td><td class="r num">2.6M</td><td class="r muted">訂閱</td></tr>
+        <tr><td>論點變化偵測</td><td>Anthropic API · Sonnet</td><td class="r num">402</td><td class="r num">1.9M</td><td class="r num">$2.40</td></tr>
+        <tr><td>問 AI</td><td>Claude Code · Sonnet</td><td class="r num">57</td><td class="r num">0.8M</td><td class="r muted">訂閱</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="card sec">
+    <h2>哪個來源用最多（本月）</h2>
+    <p class="muted">一個來源抓進來的資料，分類、翻譯、證據判斷加起來。用來決定哪個來源不值得。</p>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>來源</th><th class="r">資料</th><th class="r">token</th><th class="r">掛到論點的</th></tr></thead>
+      <tbody>
+        <tr><td>範例財經新聞 RSS</td><td class="r num">1,820</td><td class="r num">9.7M</td><td class="r num">3%</td></tr>
+        <tr><td>範例 Substack</td><td class="r num">46</td><td class="r num">2.2M</td><td class="r num">28%</td></tr>
+        <tr><td>股癌逐字稿</td><td class="r num">12</td><td class="r num">3.1M</td><td class="r num">—</td></tr>
+        <tr><td>貼連結匯入</td><td class="r num">31</td><td class="r num">0.9M</td><td class="r num">41%</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted" style="font-size:12.5px;margin:8px 0 0">範例財經新聞用掉最多 token，但只有 3% 掛到論點 — 可以考慮只抓特定分類。</p>
+  </section>
+
+  <section class="card sec">
+    <h2>事件</h2>
+    <ul style="margin:0;padding-left:18px;font-size:13.5px;display:grid;gap:4px">
+      <li data-show="guard"><span class="num">14:52</span> Claude Code 5 小時額度到 74%，背景工作暫停到 15:40</li>
+      <li><span class="num">11/10 13:20</span> Claude Code 5 小時額度到 71%，背景分類暫停 48 分鐘，重置後補完</li>
+      <li><span class="num">11/08 22:05</span> Codex CLI 回報限流（RATE_LIMITED），翻譯延後 30 分鐘重試，成功</li>
+      <li><span class="num">10/27 09:12</span> 上個月 API 花費到上限的 80%，已送 Telegram 通知</li>
+    </ul>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">只記錯誤代碼和固定說明，不記上游回傳的原文。</p>
+  </section>
+  </div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>題材頁 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .layout { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .toc { position: sticky; top: 100px; display: grid; gap: 2px; font-size: 13.5px; }
+  .toc a { color: var(--ink-2); padding: 4px 8px; border-radius: 6px; }
+  .sec { padding: 18px; margin-bottom: 16px; }
+  .sec > h2 { font-size: 16px; margin-bottom: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .lead { font-family: var(--serif-zh); font-size: 19px; line-height: 1.75; margin: 0 0 10px; }
+  .analogy { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 14.5px; }
+  .sig { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .sig td, .sig th { padding: 7px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  .sig th { font-size: 12px; color: var(--ink-3); }
+  .chartph { height: 150px; border-radius: 10px; border: 1px dashed var(--rule-2); display: grid; place-items: center; color: var(--ink-3); font-size: 13px; background: linear-gradient(180deg, transparent 60%, var(--accent-soft)); }
+  .exit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 8px; font-size: 13px; }
+  .exit div { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+  .qa { display: grid; gap: 10px; margin-bottom: 12px; }
+  .qa .q { justify-self: end; max-width: 92%; background: var(--mine-soft); border-radius: 12px 12px 4px 12px; padding: 8px 10px; font-size: 14px; overflow-wrap: anywhere; }
+  .qa .a { border: 1px solid var(--rule-2); border-radius: 12px 12px 12px 4px; padding: 10px 12px; font-size: 14px; background: var(--bg); }
+  .qa .a h4 { font-size: 12.5px; color: var(--ink-3); margin: 8px 0 2px; }
+  .qa .a h4:first-child { margin-top: 0; }
+  .qa .a p { margin: 0 0 4px; line-height: 1.65; }
+  .qchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .qchips button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12.5px; cursor: pointer; color: var(--ink-2); }
+  .askbox { display: grid; gap: 6px; }
+  .ann { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+  .ann button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 4px; padding: 0 5px; cursor: pointer; font-size: 11px; }
+  .review-bar { position: sticky; top: 84px; z-index: 10; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; border: 1px solid var(--accent); background: var(--surface); border-radius: 10px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .toc { display: none; } .exit { grid-template-columns: minmax(0, 1fr); } }
+  body[data-frame="narrow"] .layout { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .toc { display: none; }
+  body[data-frame="narrow"] .exit { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .review-bar { top: 34px; }
+</style>
+</head>
+<body data-state="final">
+<div class="mock-bar">
+  <b>Mockup A · 題材頁（800V DC）</b>
+  <span class="grp">狀態：
+    <button data-set-state="final">定稿</button>
+    <button data-set-state="draft">審 AI 草稿</button>
+    <button data-set-state="loading">起草中</button>
+    <button data-set-state="error">起草失敗</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html" aria-current="page">敘事看板</a><a href="today.html">今日新聞</a><a href="concepts.html">概念</a><a href="ingest.html">資料庫</a><a href="entities.html">追蹤對象</a><a href="settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a><a class="status-dot" href="usage.html" title="訂閱額度與 API 花費">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>800V DC</h1><span class="chip">題材</span>
+    <span class="chip mine" data-show="final">定稿 v3 · 你確認於 11/04</span><span class="st draft" data-show="draft">草稿 v4 · AI 起草於 11/11 07:10</span>
+    <span style="flex:1"></span><a href="board.html" class="btn sm ghost">← 敘事看板</a>
+  </div>
+  <p class="mock-note" style="margin-bottom:14px">假資料：公司名稱、營收占比、出處都是「範例」，不是真實資訊。這頁顯示 AI 的證據判斷，打開時寫一筆揭露紀錄。</p>
+
+  <div class="review-bar" data-show="draft">
+    <b>審 AI 草稿 v4</b><span class="muted" style="font-size:13px">跟定稿 v3 比：新增 2 則證據、修改 1 句、建議階段「確認 → 擴散」</span>
+    <span style="flex:1"></span><button class="btn sm">逐段修改</button><button class="btn sm ghost">退回</button><button class="btn sm primary">確認成定稿 v4</button>
+  </div>
+  <div class="card sec" data-show="loading"><h2>AI 起草中…</h2><div style="display:grid;gap:10px"><div class="skel" style="width:60%"></div><div class="skel"></div><div class="skel" style="width:85%"></div></div><p class="muted" style="font-size:12.5px">讀取 14 則新聞、3 集逐字稿段落、2 張概念卡 · Claude Code 訂閱（不計費）· 約 60K token。定稿 v3 不受影響。</p></div>
+  <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>起草失敗</b>：模型逾時（錯誤代碼 AI_TIMEOUT）。定稿 v3 沒有被改動。<button class="btn sm">重試</button></div></div>
+
+  <div class="layout" data-show="final draft">
+    <nav class="toc" aria-label="題材頁目錄">
+      <a href="#story">故事</a><a href="#chain">因果鏈</a><a href="#second">第二層效應</a><a href="#signals">階段與訊號</a><a href="#theses">論點（3）</a><a href="#market">市場怎麼回應</a><a href="#voices">其他人怎麼說</a><a href="#ask">問 AI</a>
+    </nav>
+    <div>
+      <section class="card sec" id="story">
+        <h2>故事</h2>
+        <p class="lead">AI 機櫃越塞越多 GPU，一個機櫃的耗電往幾百 kW 走。現在機櫃裡的配電電壓低，電流就要非常大，銅排又粗又燙；所以要把配電電壓拉高到 800V 直流，同樣的電力只需要很小的電流。<span class="cite">¶ 範例 A1</span></p>
+        <div class="analogy"><b>類比：</b>送同樣多的水，可以用很粗的水管（低電壓、大電流），也可以把水壓拉高、改用細水管（高電壓、小電流）。800V 就是拉高水壓。 <span class="ai-say">AI 解釋</span> <span class="ann">這句對嗎？<button>✓</button><button>✗</button><button>編造</button></span></div>
+        <p style="font-size:13.5px;margin:10px 0 0"><b>怎麼開始的：</b><span class="chip">消息先動</span> （範例）2025 年 GPU 大廠發表 800V 直流的機房架構，目標 2027 年的下一代機櫃 <span class="g A">A</span> <span class="cite">範例公告 ¶2</span>。相關股票在發表後 3 週才開始相對轉強。</p>
+        <p style="font-size:13.5px;margin:6px 0 0">名詞：<a class="term" href="concepts.html">HVDC</a> · <a class="term unknown" href="concepts.html" title="你標成還不懂">固態變壓器（SST）</a> · <a class="term" href="concepts.html">碳化矽（SiC）</a> · <a class="term" href="concepts.html">匯流排（busbar）</a></p>
+      </section>
+
+      <section class="card sec" id="chain">
+        <h2>因果鏈 <span class="muted" style="font-size:12.5px;font-weight:400">實線 = 有出處 · 虛線 = AI 推論（不會進定稿，除非你確認）</span></h2>
+        <ol class="chain">
+          <li><span class="k">需求來源</span>AI 機櫃的功率密度上升 <span class="g A">A</span> <span class="cite">範例法說會 ¶5</span></li>
+          <li><span class="k">瓶頸</span>48–54V 配電電流過大：銅排太重、發熱和損耗太高 <span class="g A">A</span> <span class="cite">範例公告 ¶3</span></li>
+          <li><span class="k">解法</span>機房層級轉成 800V 直流，機櫃內再降壓 <span class="g A">A</span> <span class="cite">範例公告 ¶4</span></li>
+          <li><span class="k">受益環節</span>電源轉換（固態變壓器、DC-DC）<span class="g B">B</span> <span class="cite">範例媒體 ¶7</span>
+            <div class="co"><span>範例電源 A</span><span class="muted">營收占比：<b>不知道</b></span><span class="chip">領漲</span></div>
+            <div class="co"><span>範例電源 B</span><span>營收占比 <b>8–12%</b> <span class="cite">範例法說會 ¶11</span></span><span class="chip">補漲</span></div>
+          </li>
+          <li><span class="k">受益環節</span>碳化矽 / 氮化鎵功率元件 <span class="g C">C</span> <span class="cite">範例 Substack ¶4</span>
+            <div class="co"><span>範例功率元件 C</span><span class="muted">營收占比：<b>不知道</b></span><span class="chip">未動</span></div>
+          </li>
+          <li class="infer"><span class="k">受益環節（AI 推論）</span>直流斷路器與保護元件需求增加 <span class="chip">AI 推論</span> <button class="btn sm">我確認這一環</button> <span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></li>
+        </ol>
+        <p class="muted" style="font-size:12.5px;margin:10px 0 0">營收占比只引用來源，AI 不會估。「領漲 / 補漲」依題材起點以來的相對報酬建議，你確認過。</p>
+      </section>
+
+      <section class="card sec" id="second">
+        <h2>第二層效應</h2>
+        <ul class="evl">
+          <li><span class="rel w">受害?</span><span>銅排、低壓電源的用量可能下降 <span class="chip">AI 推論</span></span></li>
+          <li><span class="rel s">外溢</span><span>機房電力工程（變電、配電設計）要跟著改 <span class="g B">B</span> <span class="cite">範例媒體 ¶9</span></span></li>
+          <li data-show="draft" class="diff-add"><span class="rel s">外溢</span><span>（草稿新增）被動元件中的高壓電容規格提升 <span class="g C">C</span> <span class="cite">股癌 EP688 · 範例段落</span></span></li>
+        </ul>
+      </section>
+
+      <section class="card sec" id="signals">
+        <h2>階段與訊號</h2>
+        <div class="stages" style="margin-bottom:10px"><span>萌芽</span><span class="on">確認</span><span data-show="draft" class="next">擴散？</span><span data-show="final">擴散</span><span>射出</span><span>鈍化</span></div>
+        <table class="sig">
+          <tr><th>訊號</th><th>數值（資料日期 11/10）</th><th>怎麼讀</th></tr>
+          <tr><td>籃子相對強弱與動能</td><td>轉強象限，第 12 週</td><td>市場在交易這個題材</td></tr>
+          <tr><td>相關 Story 數量</td><td>比前 4 週多 <b>2.1 倍</b></td><td>敘事正在擴散</td></tr>
+          <tr><td>籃子內轉強的成分股</td><td><b>5 / 8</b>（4 週前 2 / 8）</td><td>補漲股變多</td></tr>
+          <tr><td>加強證據出現後 [0, +1] 的反應</td><td>平均 +1.8%，沒有變弱</td><td>還沒有鈍化</td></tr>
+          <tr><td>A 級證據</td><td>有，但都是 roadmap</td><td>還沒有出貨或營收的實證</td></tr>
+        </table>
+        <p style="font-size:13.5px;margin:10px 0 0" data-show="draft"><span class="st draft">AI 建議</span> 從「確認」改成「擴散」：引用 Story 數量和轉強比例兩個訊號。注意 A 級證據仍只有 roadmap。<button class="btn sm">接受</button> <button class="btn sm ghost">不接受</button></p>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0" data-show="final">階段由你確認；AI 只能引用上面的訊號說明，不能憑文字判斷。</p>
+      </section>
+
+      <section class="card sec" id="theses" style="padding:6px 4px">
+        <h2 style="padding:12px 14px 0">論點 <span class="muted" style="font-size:12.5px;font-weight:400">每個論點都要能被推翻</span><span style="flex:1"></span><button class="btn sm">＋ 論點</button></h2>
+
+        <div class="thesis">
+          <div class="meta2"><span class="st up">加強中</span><span>成立時：籃子 <span class="dir bull">偏多</span></span><span>時間點：roadmap（2027）</span><span>賺什麼錢：敘事擴散</span><span>期間：1 年</span></div>
+          <p class="say">新一代 AI 機櫃從 2027 年起改用 800V 直流配電。</p>
+          <ul class="evl">
+            <li><span class="g A">A</span><span class="rel s">加強</span><span>（範例）GPU 大廠技術文件列出 800V 機櫃的供應商名單 <span class="cite">¶3</span> <span class="muted">11/08</span></span></li>
+            <li data-show="draft" class="diff-add"><span class="g B">B</span><span class="rel s">加強</span><span>（草稿新增）（範例）兩家 CSP 表示新機房會預留 800V 配電 <span class="cite">範例媒體 ¶2</span></span></li>
+            <li><span class="g B">B</span><span class="rel w">削弱</span><span>（範例）業界研討會：安全規範還沒定案 <span class="cite">¶6</span> <span class="muted">11/10</span></span></li>
+          </ul>
+          <div class="exit"><div><b>論點被推翻（基本面）：</b>2026 年底前沒有任何 CSP 宣布採用；或 GPU 大廠把時程延到 2028 以後</div><div><b>交易上該下車（價格）：</b>籃子跌破季線且爆量；或新高攻不上 3 次</div></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm">寫成預測</button><a href="#" style="font-size:12.5px">看全部 7 則證據</a></div>
+        </div>
+
+        <div class="thesis">
+          <div class="meta2"><span class="st">待確認</span><span class="chip warn">缺第一手確認</span><span>成立時：範例功率元件 C <span class="dir bull">偏多</span></span><span>時間點：roadmap</span><span>賺什麼錢：分析差</span></div>
+          <p class="say">碳化矽 / 氮化鎵功率元件是 800V 最大的受惠環節。</p>
+          <ul class="evl">
+            <li><span class="g C">C</span><span class="rel s">加強</span><span>股癌 EP688 · （範例）提到功率元件 <span class="cite">逐字稿 ¶ 範例</span></span></li>
+            <li><span class="g D">D</span><span class="rel s">加強</span><span>（範例）未具名消息：某廠「已拿到大單」 <span class="chip">未證實</span></span></li>
+          </ul>
+          <p class="muted" style="font-size:12.5px;margin:6px 0 0">只有 C、D 級證據。股癌有產業朋友的第一手回饋，我們沒有；要等法說會或營收實證。</p>
+        </div>
+
+        <div class="thesis">
+          <div class="meta2"><span class="st">待確認</span><span>成立時：籃子 <span class="dir bear">偏空</span></span><span>時間點：now</span><span>賺什麼錢：分析差</span></div>
+          <p class="say">800V 導入會因為安全規範和標準未定而延後。</p>
+          <ul class="evl"><li><span class="g B">B</span><span class="rel s">加強</span><span>（範例）業界研討會：安全規範還沒定案 <span class="cite">¶6</span></span></li></ul>
+          <p class="muted" style="font-size:12.5px;margin:6px 0 0">同一則證據對上一個論點是「削弱」，對這個偏空論點是「加強」。</p>
+        </div>
+      </section>
+
+      <section class="card sec" id="market">
+        <h2>市場怎麼回應 <span class="muted" style="font-size:12.5px;font-weight:400">這裡才用到股價</span></h2>
+        <div class="chartph">（範例）題材籃子 vs 大盤的相對強弱線，標出每則 A / B 級證據的時間點 — 圖表元件在 Mockup B</div>
+        <div class="row" style="margin-top:10px;font-size:13.5px"><span>1 個月相對大盤 <span class="up">+6.1%</span></span><span>領漲 2 · 補漲 3 · 未動 3</span><span class="muted">籃子成分股 5 檔是 11/01 之前回推的</span></div>
+      </section>
+
+      <section class="card sec" id="voices">
+        <h2>其他人怎麼說</h2>
+        <ul class="evl">
+          <li><span class="g C">C</span><span><b>股癌</b> EP688（2026-08-15）· （範例摘要，非原文）認為供電是 AI 機櫃的下一個瓶頸 <span class="cite">逐字稿 ¶ 範例</span> <span class="muted">· （範例）他在這個題材的判斷紀錄：3 筆，到期 1 筆</span></span></li>
+          <li><span class="g C">C</span><span><b>範例 Substack 作者</b> · 偏保守，認為 2028 才會放量 <span class="cite">¶ 範例</span></span></li>
+        </ul>
+      </section>
+
+      <section class="card sec" id="ask" data-show="final draft">
+        <h2>問 AI <span class="muted" style="font-size:12.5px;font-weight:400">只看這個題材的剪報夾</span></h2>
+        <p class="muted" style="font-size:12.5px;margin:0 0 8px">範圍：這個題材的 34 則證據裡放進 20 則（A、B 級優先，再依日期新到舊）＋ 3 個論點 ＋ 4 張概念卡 · 呼叫一次、不上網查、不會自己去找資料。<br>你還沒判斷過的新資料不放進去，免得破壞盲判。</p>
+        <div class="qchips">
+          <button>現在進展到哪？</button><button>還缺什麼證據？</button><button>偏空論點最強的理由是什麼？</button><button>哪個環節最不確定？</button>
+        </div>
+        <div class="qa">
+          <div class="q">800V 現在進展到哪？還缺什麼才算真的放量？</div>
+          <div class="a">
+            <h4>已經確認的</h4>
+            <p>（範例）GPU 大廠在技術文件列出 800V 機櫃的供應商名單 <span class="cite">範例公告 11/08 ¶3</span>，目標是 2027 年的下一代機櫃 <span class="cite">範例公告 ¶2</span>。這兩則都是 A 級，但都是 roadmap，不是出貨。<span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+            <h4>還不確定的</h4>
+            <p>安全規範還沒定案 <span class="cite">範例媒體 11/10 ¶6</span>，這是你的偏空論點的主要依據。<span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+            <h4>剪報夾裡沒有的</h4>
+            <p>沒有任何一家公司公布跟 800V 有關的營收或出貨量。要確認「真的放量」，下一個該看的是範例電源 B 的法說會（它是目前唯一有營收占比出處的公司）。<span class="chip">AI 推論</span> <span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p>
+            <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px"><button class="btn sm">存成筆記</button><button class="btn sm">寫成預測</button><a href="#" style="font-size:12.5px">這次放了哪 20 則（ContextManifest）</a></div>
+            <p class="muted" style="font-size:11.5px;margin:6px 0 0">prompt v1 · Claude Code · Sonnet（訂閱）· 讀了 20 則證據、約 38K token · 引用的出處都對過原文</p>
+          </div>
+          <div class="q">https://example.com/news/800v-rack-sample</div>
+          <div class="a"><p>這是一個網址，不是問題。要先匯入這則，再請 AI 看它可能跟哪些論點有關嗎？</p><div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><a class="btn sm primary" href="ingest.html">匯入並掛到 800V DC</a><button class="btn sm ghost">只當成問題</button></div><p class="muted" style="font-size:12px;margin:6px 0 0">匯入後，加強或削弱一樣先遮住，你在閱讀器判斷完才揭曉。</p></div>
+        </div>
+        <div class="askbox">
+          <textarea class="input" rows="2" placeholder="問這個題材…（貼網址會先問你要不要匯入）"></textarea>
+          <div class="row" style="justify-content:space-between"><span class="muted" style="font-size:12px">對話跟著題材頁存下來；逐句標記會進 golden set。</span><button class="btn sm primary">送出</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>

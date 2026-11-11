@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>概念卡 · NewsRead Mockup A</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .split { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .list { padding: 10px; position: sticky; top: 100px; }
+  .list .f { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0; }
+  .list .f button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 999px; padding: 1px 10px; font-size: 12.5px; cursor: pointer; }
+  .list .f button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .ci { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 8px; border-radius: 8px; font-size: 14px; color: var(--ink); }
+  .ci small { grid-column: 1 / 3; color: var(--ink-3); font-size: 12px; }
+  .ci[aria-current="true"] { background: var(--surface-2); }
+  .cardx { padding: 20px; }
+  .cardx h1 { font-size: 22px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .alias { font-size: 13px; color: var(--ink-3); margin: 4px 0 14px; }
+  .blk { margin-bottom: 16px; }
+  .blk h2 { font-size: 13px; color: var(--ink-2); letter-spacing: .04em; margin-bottom: 6px; }
+  .blk p { margin: 0 0 6px; font-size: 15px; line-height: 1.75; }
+  .ann { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+  .ann button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 4px; padding: 0 5px; cursor: pointer; font-size: 11px; }
+  .know { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--mine-soft); margin-bottom: 16px; }
+  @media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } .list { position: static; } }
+  body[data-frame="narrow"] .split { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .list { position: static; }
+</style>
+</head>
+<body data-state="card">
+<div class="mock-bar">
+  <b>Mockup A · 概念卡</b>
+  <span class="grp">狀態：
+    <button data-set-state="card">概念卡（CPO）</button>
+    <button data-set-state="draft">AI 起草新卡</button>
+    <button data-set-state="empty">還沒有卡</button>
+    <button data-set-state="loading">起草中</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="board.html">敘事看板</a><a href="today.html">今日新聞</a><a href="concepts.html" aria-current="page">概念</a><a href="ingest.html">資料庫</a><a href="entities.html">追蹤對象</a><a href="settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="ingest.html" title="貼網址匯入；不在輸入框時直接 Ctrl+V 也可以">＋ 貼網址</a><a class="status-dot" href="usage.html" title="訂閱額度與 API 花費">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>概念</h1><span class="muted">12 張 · 你標成還不懂的 4 張</span></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料。解釋文字是 mockup 用的示意，實際卡片由 AI 起草、你確認；數字和引述一定附出處，一般解釋標「AI 解釋」，提醒可能有錯。</p>
+
+  <div class="split" data-show="card draft loading">
+    <nav class="card list" aria-label="概念清單">
+      <input class="input" placeholder="搜尋名詞或別名">
+      <div class="f"><button aria-pressed="true">全部</button><button>還不懂 4</button><button>懂了 7</button><button>草稿 1</button></div>
+      <a class="ci" href="#" aria-current="true"><span>CPO（共同封裝光學）</span><span class="chip mine">還不懂</span><small>光通訊與銅互連</small></a>
+      <a class="ci" href="#"><span>光模組</span><span class="chip mine">還不懂</span><small>光通訊與銅互連</small></a>
+      <a class="ci" href="#"><span>AEC（主動式銅纜）</span><span class="chip ok">懂了</span><small>光通訊與銅互連</small></a>
+      <a class="ci" href="#"><span>800V DC / HVDC</span><span class="chip ok">懂了</span><small>800V DC</small></a>
+      <a class="ci" href="#"><span>固態變壓器（SST）</span><span class="st draft">草稿</span><small>800V DC · 你在閱讀時選取</small></a>
+      <a class="ci" href="#"><span>投片</span><span class="chip mine">還不懂</span><small>種子卡 · 半導體通用</small></a>
+      <a class="ci" href="#"><span>CoWoS</span><span class="chip mine">還不懂</span><small>種子卡 · 半導體通用</small></a>
+    </nav>
+
+    <!-- 概念卡 -->
+    <article class="card cardx" data-show="card">
+      <h1>CPO（共同封裝光學）<span class="chip mine">定稿 v1</span></h1>
+      <div class="alias">別名：Co-Packaged Optics、共封裝光學 · 出現在 23 則資料 · 最近 11/11</div>
+      <div class="know"><b>你的狀態：</b><span class="chip mine">還不懂</span><span class="muted" style="font-size:13px">AI 判跟 CPO 有關的資料是雜訊時，會先提醒你看這張卡。</span><span style="flex:1"></span><button class="btn sm primary">我懂了</button></div>
+
+      <div class="blk"><h2>它是什麼</h2>
+        <p>把光學收發元件直接封裝在交換器晶片旁邊，電訊號只走很短的距離就轉成光，省掉現在插在面板上的可插拔光模組。<span class="ai-say">AI 解釋</span> <span class="ann"><button>✓</button><button>✗</button><button>編造</button></span></p></div>
+      <div class="blk"><h2>為什麼現在重要 <span class="muted" style="font-weight:400">（寫於 2026-11-11，會過時）</span></h2>
+        <p>每一代傳輸速度翻倍，可插拔光模組的耗電和發熱越來越大，變成資料中心的瓶頸之一。<span class="cite">範例公告 ¶4</span> （範例）主要交換器廠表示 2027 年小量出貨。<span class="cite">範例通訊社 ¶2</span></p></div>
+      <div class="blk"><h2>在因果鏈的哪裡</h2>
+        <p><a href="theme.html">光通訊與銅互連</a>：需求（機櫃之間的頻寬）→ 瓶頸（可插拔光模組的耗電）→ <b>CPO</b> → 受益環節：交換器晶片、光學元件、測試設備 <span class="chip">AI 推論</span>（沒有出處，不會進定稿，除非你確認）。</p></div>
+      <div class="blk"><h2>相關的數字怎麼讀</h2>
+        <p>早期出貨量很小，不會馬上反映在營收；先看「哪些客戶、哪一代交換器開始用」和時程有沒有延後。<span class="ai-say">AI 解釋</span></p>
+        <p>如果新聞說「CPO 出貨倍增」，要先問基期多大：從很小的數字倍增，對營收可能沒有影響。<span class="ai-say">AI 解釋</span></p></div>
+      <div class="blk"><h2>常見誤解</h2>
+        <p>「CPO 來了，銅就要被取代」— 不對。CPO 先取代的是機櫃之間的可插拔光模組；機櫃內部的 GPU 互連目前仍以銅為主。<span class="cite">範例通訊社 ¶1</span></p></div>
+      <div class="blk"><h2>相關論點</h2>
+        <div class="row" style="font-size:14px"><span class="st">待確認</span><a href="theme.html#theses">CPO 2027 年起在交換器小量導入</a></div></div>
+      <p class="muted" style="font-size:12.5px;margin:0">逐句標「✓ / ✗ / 編造」的結果會進 golden set，用來評估 AI 的解釋品質。· <a href="#">版本紀錄</a></p>
+    </article>
+
+    <!-- AI 起草新卡 -->
+    <article class="card cardx" data-show="draft">
+      <h1>固態變壓器（SST）<span class="st draft">AI 草稿</span></h1>
+      <div class="alias">你在閱讀「（範例）800V 機房架構解析」時選取 · 起草用了 3 則資料、1 張相關概念卡 · Claude Code 訂閱（不計費）· 約 9K token</div>
+      <div class="blk"><h2>它是什麼</h2><p>用電力電子元件取代傳統的大型變壓器，把電網的交流電直接轉成需要的直流電壓，體積較小、轉換步驟較少。<span class="ai-say">AI 解釋</span></p></div>
+      <div class="blk"><h2>為什麼現在重要（2026-11-11）</h2><p>（範例）800V 直流機房架構把轉換移到機房層級，固態變壓器是候選方案之一。<span class="cite">範例公告 ¶5</span></p></div>
+      <div class="blk"><h2>常見誤解</h2><p class="diff-del">固態變壓器已經大量出貨。</p><p class="muted" style="font-size:13px">↑ 這句的引述在來源裡找不到，已自動劃掉，不會進定稿。</p></div>
+      <div class="row"><button class="btn sm">逐句修改</button><button class="btn sm ghost">退回</button><button class="btn sm primary">確認成定稿</button></div>
+    </article>
+    <article class="card cardx" data-show="loading"><div style="display:grid;gap:10px"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:70%"></div></div><p class="muted" style="font-size:12.5px">AI 起草「固態變壓器」中…</p></article>
+  </div>
+
+  <div class="empty" data-show="empty"><h2>還沒有概念卡</h2><p>閱讀時選取看不懂的名詞，按「請 AI 解釋」就會起草一張。<br>題材頁起草時，也會順便建議因果鏈上的名詞。</p></div>
+</main>
+</div>
+<script src="mock.js"></script>
+</body>
+</html>
