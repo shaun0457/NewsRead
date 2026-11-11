@@ -30,6 +30,11 @@ mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("text/javascript", ".js")
 DRAIN_MAX = 1024 * 1024  # 超過上限的請求，最多先讀掉多少再回錯誤
 DRAIN_CHUNK = 64 * 1024
+class ClientTimeout(Exception):
+    """讀請求 body 或寫回應時 socket 逾時（對方停住了）。和等鎖逾時這類 TimeoutError 分開：只有這種直接關連線、不回應。"""
+
+
+REQUEST_TIMEOUT = 30.0  # 一般請求每次讀寫 socket 最多等幾秒；宣告了 body 卻不送的連線逾時就關掉（presence WebSocket 例外）
 MAX_UPLOAD = 200 * 1024 * 1024
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -94,6 +99,7 @@ def declared_length(headers) -> int:
 class Handler(BaseHTTPRequestHandler):
     app: App
     protocol_version = "HTTP/1.1"
+    timeout = REQUEST_TIMEOUT  # socketserver 在 setup() 套到連線上；逾時由 handle_one_request 關連線
     allowed_hosts: frozenset = LOOPBACK_HOSTS  # launch.serve() 依綁定位址與環境變數覆寫
 
     def _host_ok(self) -> bool:
@@ -107,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def log_message(self, fmt, *args):
-        if args and str(args[1]).startswith(("4", "5")):
+        if len(args) > 1 and str(args[1]).startswith(("4", "5")):  # 逾時這類 log_error 只帶一個參數
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
     # ---------- 输出 ----------
@@ -125,12 +131,22 @@ class Handler(BaseHTTPRequestHandler):
         if left < 0 or left > DRAIN_MAX:
             self.close_connection = True
             return
-        while left > 0:  # 分段讀、讀完就丟
-            chunk = self.rfile.read(min(left, DRAIN_CHUNK))
-            if not chunk:
-                self.close_connection = True
-                return
-            left -= len(chunk)
+        try:
+            while left > 0:  # 分段讀、讀完就丟
+                chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+                if not chunk:
+                    self.close_connection = True
+                    return
+                left -= len(chunk)
+        except TimeoutError:  # 宣告了 body 卻不送完：照樣回應，然後關連線
+            self.close_connection = True
+
+    def _write(self, body: bytes) -> None:
+        try:
+            self.wfile.write(body)
+        except TimeoutError as e:  # 對方不讀了：回應送到一半，不能再補一個錯誤回應
+            self.close_connection = True
+            raise ClientTimeout from e
 
     def _send(self, code: int, body: bytes, ctype: str, cache: bool = False):
         self.send_response(code)
@@ -141,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
-            self.wfile.write(body)
+            self._write(body)
 
     def _json(self, code: int, obj):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
@@ -171,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", f"attachment; filename=\"export.html\"; filename*=UTF-8''{quote(filename)}")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(body)
+        self._write(body)
 
     def _chat(self, ws, body: dict):
         """流式回答：一行一个 JSON，{"t": 片段} … 最后 {"done": true, "id": …} 或 {"error": …}。"""
@@ -249,17 +265,21 @@ class Handler(BaseHTTPRequestHandler):
     def _body(self, limit: int = MAX_UPLOAD) -> bytes:
         self._body_read = True
         n = declared_length(self.headers)
-        if n < 0 or n > limit:
-            self.close_connection = True
-            if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
-                left = n
-                while left > 0:  # 分段讀、讀完就丟，不為了丟掉而整塊放進記憶體
-                    chunk = self.rfile.read(min(left, DRAIN_CHUNK))
-                    if not chunk:
-                        break
-                    left -= len(chunk)
-            raise ValueError(tr("文件太大"))
-        return self.rfile.read(n) if n else b""
+        try:
+            if n < 0 or n > limit:
+                self.close_connection = True
+                if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
+                    left = n
+                    while left > 0:  # 分段讀、讀完就丟，不為了丟掉而整塊放進記憶體
+                        chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+                        if not chunk:
+                            break
+                        left -= len(chunk)
+                raise ValueError(tr("文件太大"))
+            return self.rfile.read(n) if n else b""
+        except TimeoutError as e:
+            self.close_connection = True  # 讀到一半的連線不能再拿來接下一個請求
+            raise ClientTimeout from e
 
     def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target=""):
         # A failed first preparation still leaves a library entry. Re-importing
@@ -283,6 +303,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with self.app.location.request(self.command, self.path):
                 self._get()
+        except ClientTimeout:
+            self.close_connection = True  # 回應送到一半對方停住：直接關連線
         except ValueError as e:
             self._json(409, {"error": str(e), "library_status": self.app.location.status})
         except Exception as e:  # noqa: BLE001
@@ -485,6 +507,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with self.app.location.request("POST", self.path):
                 self._post()
+        except ClientTimeout:
+            self.close_connection = True  # 對方的 body 送到一半停住：不回應、直接關連線
         except (ValueError, KeyError) as e:
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
@@ -502,6 +526,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             wsock.accept(self)
             self.close_connection = True
+            self.connection.settimeout(None)  # 頁面開著就一直連著，不套一般請求的逾時
             wsock.hold(self)
         finally:
             if p:
