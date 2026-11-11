@@ -1,14 +1,14 @@
 # 本機介面約定（給外部工具與擴充整合）
 
-Zotero 外掛、Obsidian 外掛、命令列指令碼或自訂代理接入 PaperRead 時，只依賴本頁列出的介面規格。這些介面保持向下相容；不相容改動會將 API 版本加 1，並提前記錄於版本日誌。
+Zotero 外掛、Obsidian 外掛、命令列指令碼或自訂代理接入 NewsRead 時，只依賴本頁列出的介面規格。這些介面保持向下相容；不相容改動會將 API 版本加 1，並提前記錄於版本日誌。
 
-當前 API 約定版本：**1**（PaperRead 1.5.2 延續相容介面）。
+當前 API 約定版本：**1**（NewsRead 沿用 PaperRead 1.5.2 的相容介面；版本號還沒改）。
 
 ---
 
 ## 1. 發現服務位址
 
-PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.json`（預設為 `~/PaperRead/.server.json`；若設定環境變數 `EASYREAD_HOME` 則位於該目錄下）：
+NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.json`（預設為 `~/PaperRead/.server.json`；若設定環境變數 `EASYREAD_HOME` 則位於該目錄下）：
 
 ```json
 {
@@ -177,7 +177,7 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - 實際用的引擎和模型記進 prompt 版本：呼叫端給 `prompt_version="ask-v2"`，帳本記 `ask-v2@claude/claude-sonnet-5-5`；換引擎或模型就是另一個版本。
 - 錯誤只帶錯誤代碼和固定訊息：`NO_AI`、`PAUSED`、`AUTH_INVALID`、`RATE_LIMITED`、`UPSTREAM_ERROR`、`NETWORK`、`TIMEOUT`、`BAD_REQUEST`、`ENGINE_MISSING`、`OUTPUT_TRUNCATED`、`ENGINE_ERROR`、`CANCELLED`。上游的原文過 scrubber 才留在例外上，不寫進 log、不回給畫面。
 
-PaperRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。
+NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。
 
 ## 5. 已移除的介面
 
@@ -195,4 +195,4 @@ paperread://open?sha256=<完整 SHA-256>&block=<段落 id>
 easyread://open?id=<論文 id>&block=<段落 id>
 ```
 
-點選後自動喚起 PaperRead 桌面應用程式視窗並精準定位至該論文的對應段落。在未安裝桌面版時，透過瀏覽器直接造訪 `http://127.0.0.1:8765/open?...` 具備相同效果。
+點選後自動喚起 NewsRead 桌面應用程式視窗並精準定位至該論文的對應段落。在未安裝桌面版時，透過瀏覽器直接造訪 `http://127.0.0.1:8765/open?...` 具備相同效果。

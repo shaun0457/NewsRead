@@ -33,7 +33,7 @@
     ) : '<tr><td colspan="2"><span class="hint">' + PR.t("快捷键已关闭。") + "</span></td></tr>";
 
     dlg.querySelector(".dialog").innerHTML =
-      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>PaperRead</h2><div class=\"hint\">" + PR.t("版本 {v} · 本地运行，论文和笔记只存在你的电脑上", { v: PR.esc(PR.lib.version || "") }) + "</div></div></div>" +
+      '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>NewsRead</h2><div class=\"hint\">" + PR.t("版本 {v} · 本地运行，论文和笔记只存在你的电脑上", { v: PR.esc(PR.lib.version || "") }) + "</div></div></div>" +
       (PR.updatePanel ? PR.updatePanel() : "") +
       '<div class="help-cols"><div><h4>' + PR.t("文献库") + '</h4><table class="keys">' +
       K("/", PR.t("搜索")) + K("J K", PR.t("上下移动")) + K("Enter", PR.t("打开阅读")) + K("S", PR.t("星标")) + K("Ctrl+V", PR.t("粘贴链接直接导入")) + K("?", PR.t("这个帮助")) +

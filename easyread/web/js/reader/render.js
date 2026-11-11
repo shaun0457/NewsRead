@@ -136,7 +136,7 @@
 
   function blockErrorHtml(b, error) {
     const id = PR.esc(b && b.id ? b.id : "unknown");
-    console.error("PaperRead block render failed", b && b.id, error);
+    console.error("NewsRead block render failed", b && b.id, error);
     return '<section class="blk blk-error" id="b-' + id + '" data-id="' + id + '">' +
       '<div class="inline-note"><div class="lbl">' + PR.t("这一块没能显示") + '</div><p>' + PR.t("块 {id} 的数据格式有问题，其他内容仍可阅读。", { id }) + '</p></div></section>';
   }

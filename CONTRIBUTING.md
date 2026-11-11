@@ -7,15 +7,15 @@
 需要 Python 3.10+。
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/PaperRead.git
-cd PaperRead
+git clone https://github.com/YOUR_GITHUB_USERNAME/NewsRead.git
+cd NewsRead
 python -m pip install -e .
 easyread
 ```
 
 瀏覽器會開啟 `http://127.0.0.1:8765`。也可以直接用 `start.cmd`（Windows）或 `./start.sh`（macOS / Linux）。
 
-改桌面版（Electron）還需要 Node.js 22+，見 README 的“桌面版”一節。
+改桌面版（Electron）還需要 Node.js 22+：`npm install` 後用 `npm start` 開發、`npm run dist` 打包。打包版目前沒有自動更新（`package.json` 的 `publish` 是 null）。
 
 ## 跑測試
 

@@ -1,7 +1,7 @@
 {
   "name": "paperread-desktop",
   "version": "1.5.2",
-  "description": "PaperRead personal research workspace",
+  "description": "NewsRead personal market-news reading workspace",
   "author": {
     "name": "YuriyLin"
   },
@@ -37,11 +37,11 @@
     "sass": "^1.106.1"
   },
   "build": {
-    "appId": "com.edwardxlai.easyread",
-    "productName": "PaperRead",
+    "appId": "io.github.shaun0457.newsread",
+    "productName": "NewsRead",
     "protocols": [
       {
-        "name": "PaperRead",
+        "name": "NewsRead",
         "schemes": [
           "easyread",
           "paperread"
@@ -83,7 +83,7 @@
       "createDesktopShortcut": true,
       "installerIcon": "electron/assets/paperread.ico",
       "uninstallerIcon": "electron/assets/paperread.ico",
-      "artifactName": "PaperRead-Setup-${version}.exe",
+      "artifactName": "NewsRead-Setup-${version}.exe",
       "installerLanguages": [
         "zh_TW",
         "en_US"
@@ -116,19 +116,13 @@
       ],
       "category": "Office"
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "YuriyLin",
-        "repo": "PaperRead"
-      }
-    ]
+    "publish": null
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YuriyLin/PaperRead.git"
+    "url": "https://github.com/shaun0457/NewsRead.git"
   }
 }

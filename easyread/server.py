@@ -412,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
                          "engine": config.load().get("engine")}
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
-                    pass  # PaperRead does not generate cropped figure assets.
+                    pass  # NewsRead does not generate cropped figure assets.
                 return self._json(200, state)
             if action == "versions":
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})

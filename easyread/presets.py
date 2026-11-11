@@ -62,7 +62,7 @@ def _build(tr) -> list[dict]:
         # ---- 本机 ----
         {"id": "ollama", "region": "local", "name": "Ollama", "base_url": "http://127.0.0.1:11434/v1", "model": "", "key": False, "free": True,
          "models": [],
-         "key_url": "https://ollama.com/download", "note": tr("请先安装并启动 Ollama，PaperRead 会载入已下载的模型。")},
+         "key_url": "https://ollama.com/download", "note": tr("请先安装并启动 Ollama，NewsRead 会载入已下载的模型。")},
         {"id": "lmstudio", "region": "local", "name": "LM Studio", "base_url": "http://127.0.0.1:1234/v1", "model": "", "key": False, "free": True,
          "models": [],
          "key_url": "https://lmstudio.ai", "note": tr("在 LM Studio 里下载模型，打开 Developer → Start Server，再点“获取模型列表”选一个。")},

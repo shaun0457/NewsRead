@@ -3,7 +3,7 @@ services:
     build: .
     image: paperread:local
     ports:
-      # Bind to loopback only: PaperRead has no login. To reach it from other
+      # Bind to loopback only: NewsRead has no login. To reach it from other
       # devices, put an authenticating reverse proxy in front instead, or change
       # this to "${PAPERREAD_PORT:-8765}:8765" and list the hostnames you use in
       # PAPERREAD_ALLOWED_HOSTS.

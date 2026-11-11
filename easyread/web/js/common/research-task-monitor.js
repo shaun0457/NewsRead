@@ -36,9 +36,9 @@
     return PR.t("分析已完成");
   }
   function taskRunningHelp(type) {
-    if (type === "mindmap") return PR.t("心智圖整理可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
-    if (type === "smart-annotate") return PR.t("智慧標註分析可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
-    return PR.t("分析可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
+    if (type === "mindmap") return PR.t("心智圖整理可能需要較久；你可以關閉此視窗，繼續使用 NewsRead，完成後會通知你。");
+    if (type === "smart-annotate") return PR.t("智慧標註分析可能需要較久；你可以關閉此視窗，繼續使用 NewsRead，完成後會通知你。");
+    return PR.t("分析可能需要較久；你可以關閉此視窗，繼續使用 NewsRead，完成後會通知你。");
   }
   function resultUrl(task, retry = false) {
     const type = taskType(task);

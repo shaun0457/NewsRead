@@ -136,7 +136,7 @@ test('reader header H1 supports editing and saveMetaTitle updates meta, document
   PR.updateTitle = function () {
     const m = PR.state.paper.meta || {};
     const titleVal = m.short_zh || m.title_zh || m.title_en || '论文';
-    sandbox.document.title = titleVal + ' · PaperRead';
+    sandbox.document.title = titleVal + ' · NewsRead';
     mockBarTitle.innerHTML = titleVal;
   };
 
@@ -148,7 +148,7 @@ test('reader header H1 supports editing and saveMetaTitle updates meta, document
   assert.equal(PR.state.paper.meta.short_zh, 'VLMs 諂媚現象研究');
 
   // Verify document.title and bar-title updated immediately
-  assert.equal(sandbox.document.title, 'VLMs 諂媚現象研究 · PaperRead');
+  assert.equal(sandbox.document.title, 'VLMs 諂媚現象研究 · NewsRead');
   assert.equal(mockBarTitle.innerHTML, 'VLMs 諂媚現象研究');
 
   // Verify API call sent

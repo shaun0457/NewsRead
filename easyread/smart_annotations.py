@@ -314,7 +314,7 @@ def _prompt(title: str, mode: str, purpose: str, chunk: list[dict], overview: st
     ul_rules = "；".join(f"{c}（{info[0]}：{info[1]}）" for c, info in UNDERLINE_SEMANTICS.items())  # i18n-ok: model prompt
 
     return (
-        "你是 PaperRead 的論文閱讀標註助手。只能根據提供的文字工作，不可補造論文內容、數據或引用。\n"  # i18n-ok: model prompt
+        "你是 NewsRead 的論文閱讀標註助手。只能根據提供的文字工作，不可補造論文內容、數據或引用。\n"  # i18n-ok: model prompt
         f"論文：{title}\n{overview_block}研究目的：{purpose or '未指定，依論文研究價值判斷'}\n{mode_text}\n"  # i18n-ok: model prompt
         f"{cfg_mode['guide']}\n\n"
         f"{prior_block}"

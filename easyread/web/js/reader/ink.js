@@ -1,4 +1,4 @@
-/* PaperRead ink strokes: SVG paths anchored to a paragraph's saved geometry. */
+/* NewsRead ink strokes: SVG paths anchored to a paragraph's saved geometry. */
 (function (PR) {
   "use strict";
   const layer = document.getElementById("inkLayer"), tools = document.getElementById("inkTools");

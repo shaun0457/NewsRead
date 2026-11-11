@@ -1,22 +1,22 @@
-<p align="center"><img src="easyread/web/paperread-mark.png" width="88" alt="PaperRead"></p>
+<p align="center"><img src="easyread/web/paperread-mark.png" width="88" alt="NewsRead"></p>
 
-# PaperRead
+# NewsRead
 
-從論文閱讀到知識整理的個人工作區。
+台股、美股市場資訊的個人閱讀工作區，由 [PaperRead](https://github.com/YuriyLin/PaperRead) 改造而來。
 
-[下載 PaperRead (v1.5.2)](https://github.com/YuriyLin/PaperRead/releases/latest) · [English](README.en.md) · [回報問題](https://github.com/YuriyLin/PaperRead/issues)
+[English](README.en.md) · [回報問題](https://github.com/shaun0457/NewsRead/issues)
 
-![Release](https://img.shields.io/badge/release-v1.5.2-blue) ![v1.5.3](https://img.shields.io/badge/v1.5.3-尚未發布-orange) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **版本狀態**：目前最新正式發布版本為 **v1.5.2**；**v1.5.3 尚未發布**（最新實作與修復內容請參考 [更新紀錄](CHANGELOG.md)）。
+> **狀態**：開發中，還沒有打包好的安裝程式，也沒有自動更新；請從原始碼或 Docker 執行。
 
-PaperRead 建立於 EasyRead 之上，將對照原文和整理筆記放進同一個本機工作區。文獻搜尋、閱讀看板、閱讀路徑、深度剖析、Zotero 遷移和成批導入已移除（NewsRead ticket 04）。
+NewsRead 沿用 PaperRead（建立於 EasyRead 之上）的閱讀器，將對照原文和整理筆記放進同一個本機工作區。文獻搜尋、閱讀看板、閱讀路徑、深度剖析、Zotero 遷移和成批導入已移除（NewsRead ticket 04）。
 
 ![雙語閱讀與 PDF 原頁](docs/images/readingpage.jpg)
 
-## 為什麼選擇 PaperRead？
+## 為什麼選擇 NewsRead？
 
-搜尋結果、閱讀進度和研究筆記常散落在不同工具。PaperRead 讓你保留原文脈絡，並將閱讀成果帶入自己的知識庫。
+搜尋結果、閱讀進度和研究筆記常散落在不同工具。NewsRead 讓你保留原文脈絡，並將閱讀成果帶入自己的知識庫。
 
 ## 三個模組
 
@@ -61,21 +61,15 @@ PaperRead 建立於 EasyRead 之上，將對照原文和整理筆記放進同一
 | 雲端 API | OpenAI、Claude、Gemini、DeepSeek 等 |
 | 本地模型 | Ollama、LM Studio |
 
-AI 並非使用 PaperRead 的必要條件。未配置模型時，文獻管理、PDF 閱讀、手寫註記與知識整理等基礎功能仍可使用；翻譯、AI 問答與分析需要模型。
+AI 並非使用 NewsRead 的必要條件。未配置模型時，文獻管理、PDF 閱讀、手寫註記與知識整理等基礎功能仍可使用；翻譯、AI 問答與分析需要模型。
 
 ## 安裝
 
-從 [Releases](https://github.com/YuriyLin/PaperRead/releases/latest) 下載：
-
-- **Windows x64**：執行 Setup 安裝程式。
-- **macOS Apple Silicon**：開啟 arm64 DMG 並拖入 Applications。
-- **Linux x64**：下載 AppImage，執行 `chmod +x PaperRead-*.AppImage` 後啟動。
-
-Docker 瀏覽器版：
+目前沒有打包好的安裝程式。從原始碼執行見 [貢獻指南](CONTRIBUTING.md)；Docker 瀏覽器版：
 
 ```bash
-git clone https://github.com/YuriyLin/PaperRead.git
-cd PaperRead
+git clone https://github.com/shaun0457/NewsRead.git
+cd NewsRead
 docker compose up -d
 ```
 
@@ -88,7 +82,7 @@ docker compose up -d
 ## 文件與參與
 
 - [使用手冊](docs/index.html) · [系統設計](docs/design.md) · [資料格式](docs/data-format.md) · [API](docs/api.md) · [更新紀錄](CHANGELOG.md)
-- [參與貢獻](CONTRIBUTING.md) · [回報問題與建議](https://github.com/YuriyLin/PaperRead/issues)
+- [參與貢獻](CONTRIBUTING.md) · [回報問題與建議](https://github.com/shaun0457/NewsRead/issues)
 
 歡迎提出問題、分享使用情境或協助改善閱讀與知識整理流程。
 
