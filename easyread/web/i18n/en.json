@@ -2619,5 +2619,16 @@
   "背景任務切換": "Switch Background Tasks",
   "進行中": "Running",
   "失敗": "Failed",
+  "連線逾時": "Connection timed out",
+  "來源拒絕存取": "The source refused access",
+  "需要付費或登入，只有預覽": "Paywall or login required; preview only",
+  "格式不支援": "Unsupported format",
+  "內容太大": "Content is too large",
+  "超過這個來源的抓取上限，稍後再試": "Fetch limit for this source reached; try again later",
+  "找不到這個網址": "This URL was not found",
+  "網路連線失敗": "Network connection failed",
+  "來源暫時無法回應": "The source is temporarily unavailable",
+  "網址不正確或不允許": "The URL is invalid or not allowed",
+  "轉址太多次或沒有完成": "Too many redirects, or the redirect did not finish",
   "選取工具": "Selection tools"
 }

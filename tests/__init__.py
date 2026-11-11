@@ -2,3 +2,9 @@
 import os
 
 os.environ.setdefault("EASYREAD_LANG", "zh")
+
+# CI 不連真實網路：測試只能連 127.0.0.1（見 tests/doubles.py）。
+if os.environ.get("NEWSREAD_ALLOW_NETWORK") != "1":
+    from .doubles import block_network
+
+    block_network()
