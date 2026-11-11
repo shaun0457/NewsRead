@@ -1,11 +1,8 @@
-/* Cross-page monitor for local research analyses. */
+/* 跨頁面的背景工作提示：心智圖和智慧標註（研究工作區的工作隨 ticket 04 移除）。 */
 (function (PR) {
   "use strict";
-  const PATH_API = "/api/research/v2/reading-path/tasks";
-  // 閱讀器只看自己的工作（心智圖、智慧標註），走 /api/reader，不呼叫研究工作區（ticket 03）
-  const READER = /^\/read\//.test(location.pathname);
   const readerMindmapUrl = (pid, id, action) => "/api/reader/paper/" + encodeURIComponent(pid) + "/mindmap/tasks/" + encodeURIComponent(id) + "/" + action;
-  const state = { scope: "", path: null, comparison: null, mindmap: null, smartAnnotate: null, deepAnalysis: null, sessionTaskIds: new Set(), tasks: [], timer: 0, busy: false, dialogTask: null, dialogOpen: false, returnFocus: null };
+  const state = { scope: "", mindmap: null, smartAnnotate: null, sessionTaskIds: new Set(), tasks: [], timer: 0, busy: false, dialogTask: null, dialogOpen: false, returnFocus: null };
   const terminal = new Set(["completed", "failed", "cancelled", "interrupted"]);
   const active = (task) => task && ["queued", "running", "cancelling"].includes(task.state);
   const esc = (value) => PR.esc(String(value || ""));
@@ -20,50 +17,31 @@
     try { localStorage.setItem(key(), JSON.stringify([...ids].slice(-100))); } catch (_) { /* notification still works for this page */ }
   }
   function taskType(task) {
-    if (task?.kind === "comparison") return "comparison";
-    if (task?.kind === "mindmap") return "mindmap";
-    if (task?.kind === "smart-annotate") return "smart-annotate";
-    if (task?.kind === "deep-analysis") return "deep-analysis";
-    if (task?.kind === "reading-path" || task?.kind === "path") return "path";
-    return task?.kind || "path";
+    return task?.kind || "";
   }
   function label(task) {
     const type = taskType(task);
-    if (type === "comparison") return PR.t("跨論文比較");
     if (type === "mindmap") return PR.t("論文心智圖");
     if (type === "smart-annotate") return PR.t("智慧標註");
-    if (type === "deep-analysis") return PR.t("論文深度剖析");
-    if (type === "path") return PR.t("閱讀路徑分析");
-    return task?.title || PR.t("研究分析");
+    return task?.title || PR.t("背景分析");
   }
   function taskRunningTitle(type) {
-    if (type === "path") return PR.t("正在分析閱讀路徑");
     if (type === "mindmap") return PR.t("正在整理論文心智圖…");
     if (type === "smart-annotate") return PR.t("正在進行智慧標註分析…");
-    if (type === "deep-analysis") return PR.t("正在進行論文深度剖析…");
-    if (type === "comparison") return PR.t("正在整理跨論文比較…");
     return PR.t("正在執行分析…");
   }
   function taskCompletedTitle(type) {
-    if (type === "path") return PR.t("閱讀路徑已完成");
     if (type === "mindmap") return PR.t("論文心智圖已完成");
     if (type === "smart-annotate") return PR.t("智慧標註已完成");
-    if (type === "deep-analysis") return PR.t("論文深度剖析已完成");
-    if (type === "comparison") return PR.t("跨論文比較已完成");
-    return PR.t("研究分析已完成");
+    return PR.t("分析已完成");
   }
   function taskRunningHelp(type) {
-    if (type === "path") return PR.t("你可以關閉此視窗，繼續使用 PaperRead；完成後會通知你。");
     if (type === "mindmap") return PR.t("心智圖整理可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
     if (type === "smart-annotate") return PR.t("智慧標註分析可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
-    if (type === "deep-analysis") return PR.t("深度剖析可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
-    if (type === "comparison") return PR.t("跨論文比較可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
     return PR.t("分析可能需要較久；你可以關閉此視窗，繼續使用 PaperRead，完成後會通知你。");
   }
   function resultUrl(task, retry = false) {
     const type = taskType(task);
-    if (type === "path") return "/research?mode=path" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
-    if (type === "comparison") return "/research?mode=comparisons";
     if (type === "mindmap") {
       const pid = task.paper_id || task.key || "";
       return "/read/" + encodeURIComponent(pid) + "?open=mindmap" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
@@ -72,11 +50,7 @@
       const pid = task.paper_id || task.key || "";
       return "/read/" + encodeURIComponent(pid) + "?open=smart-annotations" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
     }
-    if (type === "deep-analysis") {
-      const pid = task.paper_id || task.key || "";
-      return "/read/" + encodeURIComponent(pid) + "?open=deep-analysis" + (retry ? "&retry_task=" + encodeURIComponent(task.id) : "");
-    }
-    return "/research";
+    return "/";
   }
   function normalizeTask(raw) {
     if (!raw) return null;
@@ -95,7 +69,7 @@
     if (task.id && active(task)) state.sessionTaskIds.add(task.id);
     return task;
   }
-  function taskList() { return [state.path, state.comparison, state.mindmap, state.smartAnnotate, state.deepAnalysis].filter(Boolean); }
+  function taskList() { return [state.mindmap, state.smartAnnotate].filter(Boolean); }
   function getModalTasks() {
     const all = taskList();
     const acks = acknowledgedIds();
@@ -111,14 +85,10 @@
     if (!task?.id || task.acknowledged) return;
     task.acknowledged = true; rememberAck(task.id);
     const type = taskType(task);
-    if (type === "smart-annotate") return;
+    if (type !== "mindmap") return; // 智慧標註的確認只記在瀏覽器
     const pid = task.paper_id || task.key || "";
-    if (type === "mindmap" && !pid) return;
-    const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/ack"
-      : type === "mindmap" ? readerMindmapUrl(pid, task.id, "ack")
-      : type === "deep-analysis" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/ack" : "/api/research/v2/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/ack")
-      : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/ack";
-    PR.api(url, { method: "POST", body: {} }).catch(() => {});
+    if (!pid) return;
+    PR.api(readerMindmapUrl(pid, task.id, "ack"), { method: "POST", body: {} }).catch(() => {});
   }
   function closeDialog() {
     const modal = PR.$("#pr-research-task-modal");
@@ -130,20 +100,15 @@
   function cancel(task) {
     const type = taskType(task);
     const pid = task.paper_id || task.key || PR.pid || "";
-    const url = type === "path" ? PATH_API + "/" + encodeURIComponent(task.id) + "/cancel"
-      : type === "smart-annotate" ? "/api/p/" + encodeURIComponent(pid) + "/smart-annotate-cancel"
-      : type === "mindmap" ? readerMindmapUrl(pid, task.id, "cancel")
-      : type === "deep-analysis" ? (pid ? "/api/research/v2/paper/" + encodeURIComponent(pid) + "/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/cancel" : "/api/research/v2/deep-analysis/tasks/" + encodeURIComponent(task.id) + "/cancel")
-      : "/api/research/v1/tasks/" + encodeURIComponent(task.id) + "/cancel";
+    if ((type !== "mindmap" && type !== "smart-annotate") || !pid) return;
+    const url = type === "smart-annotate" ? "/api/p/" + encodeURIComponent(pid) + "/smart-annotate-cancel"
+      : readerMindmapUrl(pid, task.id, "cancel");
     const body = type === "smart-annotate" ? { job: task.id } : {};
     task.state = "cancelling"; task.message = PR.t("正在取消分析…"); render();
     PR.api(url, { method: "POST", body }).then((result) => {
       const updated = normalizeTask(result.task || (type === "smart-annotate" ? { ...task, state: "cancelled", message: PR.t("已取消") } : result));
-      if (taskType(updated) === "path") state.path = updated;
-      else if (taskType(updated) === "mindmap") state.mindmap = updated;
+      if (taskType(updated) === "mindmap") state.mindmap = updated;
       else if (taskType(updated) === "smart-annotate") state.smartAnnotate = updated;
-      else if (taskType(updated) === "deep-analysis") state.deepAnalysis = updated;
-      else state.comparison = updated;
       render();
     }).catch((error) => PR.toast(esc(PR.t(error.message))));
   }
@@ -155,7 +120,7 @@
     const focusedAction = wasVisible ? ["continue", "cancel", "view", "retry", "settings"].find((name) =>
       document.activeElement?.hasAttribute("data-task-" + name)) : "";
     const type = taskType(task);
-    const isMindmap = type === "mindmap", isSmartAnnotate = type === "smart-annotate", isDeepAnalysis = type === "deep-analysis", running = active(task);
+    const isMindmap = type === "mindmap", isSmartAnnotate = type === "smart-annotate", running = active(task);
     const runningHelp = taskRunningHelp(type);
     let title = running ? taskRunningTitle(type)
       : task.state === "completed" ? taskCompletedTitle(type)
@@ -274,8 +239,6 @@
         PR.emit("open-research-mindmap", { task });
       } else if (isSmartAnnotate && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
         PR.emit("open-smart-annotations", { task });
-      } else if (isDeepAnalysis && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
-        PR.emit("open-research-deep-analysis", { task });
       } else {
         location.href = resultUrl(task);
       }
@@ -288,8 +251,6 @@
         PR.emit("retry-research-mindmap", { task });
       } else if (isSmartAnnotate && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
         PR.emit("retry-smart-annotations", { task });
-      } else if (isDeepAnalysis && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
-        PR.emit("retry-research-deep-analysis", { task });
       } else {
         location.href = resultUrl(task, true);
       }
@@ -317,7 +278,7 @@
         ? PR.t("{name}等 {n} 項任務進行中", { name: label(current), n: working.length })
         : working.length === 1
           ? PR.t("{name}進行中", { name: label(current) })
-          : PR.t("研究分析已完成");
+          : PR.t("分析已完成");
       const countBadge = working.length > 1 ? '<span class="pr-task-entry-count">' + working.length + '</span>' : '';
       widget.innerHTML = '<button type="button" class="pr-task-entry-button" aria-label="' + esc(entryText) + '"><span class="pr-task-entry-dot' + (working.length ? ' is-running' : '') + '"></span><span>' + esc(entryText) + '</span>' + countBadge + '<span class="pr-task-entry-chevron">›</span></button>';
       widget.firstElementChild.onclick = () => show(current);
@@ -331,7 +292,6 @@
     const type = taskType(task);
     const isMindmap = type === "mindmap";
     const isSmartAnnotate = type === "smart-annotate";
-    const isDeepAnalysis = type === "deep-analysis";
     const title = completed ? taskCompletedTitle(type) :
       task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
     const actionLabel = completed ? PR.t("查看結果") : PR.t("返回重試");
@@ -351,12 +311,6 @@
           } else {
             PR.emit("retry-smart-annotations", { task });
           }
-        } else if (isDeepAnalysis && window.location.pathname.startsWith("/read/") && PR.pid === (task.paper_id || task.key)) {
-          if (completed) {
-            PR.emit("open-research-deep-analysis", { task });
-          } else {
-            PR.emit("retry-research-deep-analysis", { task });
-          }
         } else {
           location.href = resultUrl(task, !completed);
         }
@@ -374,16 +328,6 @@
     if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
     else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
   }
-  function applyDeepAnalysis(tasks) {
-    const raw = (tasks || []).filter((item) => item.kind === "deep-analysis")
-      .sort((a, b) => Number(b.created || 0) - Number(a.created || 0))[0] || null;
-    const task = normalizeTask(raw);
-    if (!task) return;
-    const previous = state.deepAnalysis?.state;
-    state.deepAnalysis = task;
-    if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
-    else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
-  }
   function applySmartAnnotate(tasks) {
     const raw = (tasks || []).filter((item) => item.kind === "smart-annotate")
       .sort((a, b) => Number(b.created || 0) - Number(a.created || 0))[0] || null;
@@ -394,43 +338,16 @@
     if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
     else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
   }
-  function applyPath(raw) {
-    const task = normalizeTask(raw);
-    if (!task) return;
-    const previous = state.path?.state;
-    state.path = task;
-    if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
-    else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
-  }
-  function applyComparison(tasks) {
-    const raw = (tasks || []).filter((item) => item.kind === "comparison")
-      .sort((a, b) => Number(b.created || 0) - Number(a.created || 0))[0] || null;
-    const task = normalizeTask(raw);
-    if (!task) return;
-    const previous = state.comparison?.state;
-    state.comparison = task;
-    if (terminal.has(task.state) && previous && !terminal.has(previous)) notifyTerminal(task);
-    else if (terminal.has(task.state) && !task.acknowledged && !acknowledgedIds().has(task.id)) notifyTerminal(task);
-  }
   async function poll() {
     if (state.busy || !PR.token) return schedule();
     state.busy = true;
     try {
-      const [monitor, pathState] = READER
-        ? [await PR.api("/api/reader/tasks"), {}]
-        : await Promise.all([PR.api("/api/research/v1/monitor"), PR.api(PATH_API + "/current")]);
+      const monitor = await PR.api("/api/reader/tasks");
       state.scope = monitor.scope_id || state.scope;
-      const pathTask = pathState.task;
-      if (pathTask) {
-        if (acknowledgedIds().has(pathTask.id)) pathTask.acknowledged = true;
-        applyPath(pathTask);
-      }
-      applyComparison(monitor.tasks);
       applyMindmap(monitor.tasks);
       applySmartAnnotate(monitor.tasks);
-      applyDeepAnalysis(monitor.tasks);
       render();
-      PR.emit("research-task-update", { path: state.path, comparison: state.comparison, mindmap: state.mindmap, smartAnnotate: state.smartAnnotate, deepAnalysis: state.deepAnalysis });
+      PR.emit("research-task-update", { mindmap: state.mindmap, smartAnnotate: state.smartAnnotate });
     } catch (_) { /* keep the last known state while the local service reconnects */ }
     finally { state.busy = false; schedule(); }
   }
@@ -473,11 +390,9 @@
       const task = normalizeTask(rawTask);
       if (!task) return;
       if (task.id) state.sessionTaskIds.add(task.id);
-      if (task.kind === "reading-path" || task.kind === "path") state.path = task;
-      else if (task.kind === "comparison") state.comparison = task;
-      else if (task.kind === "mindmap") state.mindmap = task;
+      if (task.kind === "mindmap") state.mindmap = task;
       else if (task.kind === "smart-annotate") state.smartAnnotate = task;
-      else if (task.kind === "deep-analysis") state.deepAnalysis = task;
+      else return;
       if (open) show(task);
       render(); schedule();
     },

@@ -146,55 +146,9 @@ test("detail panel displays archived banner and actions for archived paper", () 
   PR.renderDetail();
   const detailHtml = node("#detail").innerHTML;
   assert.ok(detailHtml.includes('class="archived-banner"'));
-  assert.ok(detailHtml.includes('此論文目前已封存，不會出現在閱讀看板中。'));
+  assert.ok(detailHtml.includes('此論文目前已封存，不會出現在文獻庫清單中。'));
   assert.ok(detailHtml.includes('data-d="unarchive"'));
   assert.ok(detailHtml.includes('data-d="archive"'));
-});
-
-test("reading board filters out archived papers and orders each column by newest added at top", () => {
-  const host = { innerHTML: "", querySelector() { return { addEventListener() {} }; } };
-  const PR = {
-    t: (s, v = {}) => s.replace(/\{(\w+)\}/g, (m, k) => v[k] ?? m),
-    $: (sel) => sel === "[data-view='board']" ? host : { innerHTML: "", textContent: "", classList: { remove() {} } },
-    $$: () => [],
-    esc: s => String(s || ""),
-    icon: () => "",
-    api: async () => ({}),
-  };
-
-  const context = {
-    window: { PR },
-    document: { addEventListener() {} },
-    location: { search: "" },
-    URLSearchParams,
-  };
-
-  vm.runInNewContext(source("research/workspace.js"), context);
-
-  const items = [
-    { id: "p1", title_zh: "論文1（最早加入）", status: "unread", added: "2026-01-01T10:00:00Z", archived: false },
-    { id: "p2", title_zh: "論文2（最新加入）", status: "unread", added: "2026-01-05T10:00:00Z", archived: false },
-    { id: "p3", title_zh: "論文3（已封存）", status: "unread", added: "2026-01-06T10:00:00Z", archived: true },
-    { id: "p4", title_zh: "論文4（次新）", status: "unread", added: "2026-01-03T10:00:00Z", archived: false },
-    { id: "p5", title_zh: "論文5（已完成舊）", status: "done", added: "2026-01-02T10:00:00Z", archived: false },
-    { id: "p6", title_zh: "論文6（已完成新）", status: "done", added: "2026-01-04T10:00:00Z", archived: false },
-  ];
-
-  // 1. Verify archived papers are excluded
-  const nonArchived = items.filter(x => !x.archived);
-  assert.equal(nonArchived.length, 5);
-  assert.ok(!nonArchived.some(x => x.id === "p3"));
-
-  // 2. Verify sorting by newest added at top
-  const unreadColumn = nonArchived.filter(x => x.status === "unread");
-  unreadColumn.sort((a, b) => String(b.added || "").localeCompare(String(a.added || "")));
-  assert.deepEqual(unreadColumn.map(x => x.id), ["p2", "p4", "p1"]);
-  assert.equal(unreadColumn[0].title_zh, "論文2（最新加入）");
-
-  const doneColumn = nonArchived.filter(x => x.status === "done");
-  doneColumn.sort((a, b) => String(b.added || "").localeCompare(String(a.added || "")));
-  assert.deepEqual(doneColumn.map(x => x.id), ["p6", "p5"]);
-  assert.equal(doneColumn[0].title_zh, "論文6（已完成新）");
 });
 
 test("detail panel and rowMenu toggle archive accurately and display correct toast", () => {
@@ -224,55 +178,8 @@ test("detail panel and rowMenu toggle archive accurately and display correct toa
   assert.equal(willArchive ? "已移至封存區" : "已解除封存，恢復當時狀態", "已解除封存，恢復當時狀態");
 });
 
-test("reading board taskCard renders archive icon button with data-action='archive-task'", () => {
-  const host = { innerHTML: "", querySelector() { return { addEventListener() {} }; } };
-  const PR = {
-    t: (s, v = {}) => s.replace(/\{(\w+)\}/g, (m, k) => v[k] ?? m),
-    $: (sel) => host,
-    $$: () => [],
-    esc: s => String(s || ""),
-    icon: (name) => `<svg name="${name}"></svg>`,
-    api: async () => ({}),
-  };
-
-  const context = {
-    window: { PR },
-    document: { addEventListener() {} },
-    location: { search: "" },
-    URLSearchParams,
-  };
-
-  vm.runInNewContext(source("research/workspace.js"), context);
-
-  // Check taskCard output indirectly by running the workspace script and invoking renderBoard
-  // or verifying the generated HTML contains archive-btn
-  const task = { id: "p1", title: "看板測試論文", title_zh: "看板測試論文", status: "unread", added: "2026-01-01T00:00:00Z", archived: false };
-  // Verify that the taskCard markup includes data-action="archive-task"
-  const wsSource = source("research/workspace.js");
-  assert.ok(wsSource.includes('data-action="archive-task"'));
-  assert.ok(wsSource.includes('class="linkish archive-btn"'));
-});
-
-test("reading board Quick Peek keeps overview, records and paper navigation hooks", () => {
-  const wsSource = source("research/workspace.js");
-  assert.ok(wsSource.includes('class="rw-quick-section"'));
-  assert.ok(wsSource.includes('data-action="quick-peek-category"'));
-  assert.ok(wsSource.includes('data-action="quick-peek-status"'));
-  assert.ok(wsSource.includes('"quick-peek-previous"'));
-  assert.ok(wsSource.includes('"quick-peek-next"'));
-  assert.ok(wsSource.includes('"/api/p/" + encodeURIComponent(task.id) + "/state"'));
-});
-
 test("reader note review prompt uses Traditional Chinese wording", () => {
   const marginSource = source("reader/margin.js");
   assert.ok(marginSource.includes("這是我閱讀這段內容時寫的筆記，請點評"));
   assert.ok(!marginSource.includes("这是我读这里时写的笔记，请点评"));
-});
-
-test("Quick Peek separates questions from notes and labels recent questions", () => {
-  const wsSource = source("research/workspace.js");
-  assert.ok(wsSource.includes('PR.t("最近問題")'));
-  assert.ok(wsSource.includes('n.kind !== "question"'));
-  assert.ok(wsSource.includes('questions: recent.filter((n) => n.kind === "question")'));
-  assert.ok(wsSource.includes('PR.t("我的問題")'));
 });

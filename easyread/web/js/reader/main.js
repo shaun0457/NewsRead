@@ -53,8 +53,6 @@
       if (selectionKey === "n" || selectionKey === "q") { e.preventDefault(); return PR.selectionAction(selectionKey === "n" ? "note" : "question"); }
     }
     if (k === "escape") {
-      const deepDlg = document.getElementById("deepReportDlg");
-      if (deepDlg && deepDlg.classList.contains("open")) { deepDlg.classList.remove("open"); return; }
       const mmDlg = document.getElementById("mindmapDlg");
       if (mmDlg && mmDlg.classList.contains("open")) { mmDlg.classList.remove("open"); return; }
       if (PR.paperNoteEditor?.isExpanded?.()) { PR.paperNoteEditor.collapse(); return; }

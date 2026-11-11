@@ -323,7 +323,7 @@ def cached(app, pid: str) -> dict:
 
 
 def submit(app, pid: str, body: dict | None = None, *, generator=None) -> dict:
-    """把產生心智圖丟到背景工作。generator 預設是 generate，研究工作區可以換成自己的入口。"""
+    """把產生心智圖丟到背景工作。generator 預設是 generate，測試可以換掉。"""
     body = body if isinstance(body, dict) else {}
     _, meta = _paper(app, pid)
     root = app.lib.root
@@ -363,7 +363,7 @@ def task(app, identity: str, pid: str = "") -> dict:
 
 def cancel(app, identity: str) -> dict:
     scope = tasks.scope_id(app.lib.root)
-    # 先確認是心智圖工作再取消；不然別種工作（深度剖析、智慧標註）會先被取消、才回 400
+    # 先確認是心智圖工作再取消；不然別種工作（例如智慧標註）會先被取消、才回 400
     found = tasks.get(identity, scope=scope)
     if not found or found.get("kind") != "mindmap":
         raise ValueError(tr("找不到這個心智圖分析工作。"))

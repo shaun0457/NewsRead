@@ -16,7 +16,6 @@ import unittest
 
 from easyread import build as export_build, codeblocks
 from easyread.library import Library, DataReadError
-from easyread.bulk.folder import read as read_folder
 from easyread.jobs import Jobs
 from easyread.store import write_json_atomic
 
@@ -95,32 +94,6 @@ class TestV14Features(unittest.TestCase):
         # Calling _linked_pdf on file inside library root should fail
         with self.assertRaises(ValueError):
             self.lib._linked_pdf(ws.root / "data.json")
-
-    def test_bulk_folder_scan(self):
-        # Create folder structure
-        papers_dir = self.tmp / "papers"
-        sub1 = papers_dir / "AI" / "LLM"
-        sub2 = papers_dir / "Vision"
-        hidden = papers_dir / ".hidden" / "Sub"
-        sub1.mkdir(parents=True)
-        sub2.mkdir(parents=True)
-        hidden.mkdir(parents=True)
-
-        (sub1 / "doc1.pdf").write_bytes(b"%PDF-1.4 1\n%%EOF")
-        (sub2 / "doc2.pdf").write_bytes(b"%PDF-1.4 2\n%%EOF")
-        (sub2 / "doc3.txt").write_text("not a pdf")
-        (hidden / "ignored.pdf").write_bytes(b"%PDF-1.4 ignored\n%%EOF")
-
-        snap = read_folder(str(papers_dir))
-        self.assertEqual(len(snap.entries), 2)
-        items = snap.entries
-
-        # Check category nesting
-        ai_item = next(i for i in items if i.pdf.name == "doc1.pdf")
-        vis_item = next(i for i in items if i.pdf.name == "doc2.pdf")
-
-        self.assertEqual(ai_item.cats, ["papers/AI/LLM"])
-        self.assertEqual(vis_item.cats, ["papers/Vision"])
 
     def test_stop_model_work(self):
         ws, _ = self.lib.create_from_pdf(b"%PDF-1.4 cancel\n%%EOF", "cancel.pdf")

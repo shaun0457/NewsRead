@@ -1193,14 +1193,6 @@
           }
         }
         select("library");
-      } else if (url.pathname.startsWith("/research")) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const libTab = tabs.get("library");
-        if (libTab?.frame) {
-          libTab.frame.src = url.pathname + url.search + url.hash;
-        }
-        select("library");
       }
     }, true);
     doc.addEventListener("keydown", keyboard, true);

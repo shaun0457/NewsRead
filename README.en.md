@@ -2,7 +2,7 @@
 
 # PaperRead
 
-A personal research workspace for discovering, reading, and connecting papers.
+A personal workspace for reading and connecting papers.
 
 [Download PaperRead (v1.5.2)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
 
@@ -10,31 +10,17 @@ A personal research workspace for discovering, reading, and connecting papers.
 
 > **Release Status**: The latest official release is **v1.5.2**. **v1.5.3 is currently unreleased** (work-in-progress implementations and fixes can be viewed in the [Changelog](CHANGELOG.md)).
 
-Built on EasyRead, PaperRead brings literature discovery, reading, source verification, and notes into one local workspace.
+Built on EasyRead, PaperRead brings reading, source verification, and notes into one local workspace. Literature search, the reading board, reading paths, deep analysis, Zotero migration and bulk import were removed (NewsRead ticket 04).
 
 ![Bilingual reader and original PDF page](docs/images/readingpage.jpg)
 
 ## Why PaperRead?
 
-Search results, reading progress, and research notes often live in separate tools. PaperRead helps you choose what to read, stay connected to the original paper, and carry your work into your own knowledge base.
+Search results, reading progress, and research notes often live in separate tools. PaperRead helps you stay connected to the original paper and carry your work into your own knowledge base.
 
-## Four research modules
+## Three modules
 
-### 01 · Discover & Organize
-
-Find papers, collect candidates, plan reading, and explore connections.
-
-![Reading board](docs/images/researchspace.jpg)
-
-![Reading path](docs/images/route.jpg)
-
-| Feature | Purpose |
-| --- | --- |
-| Research exploration | Search topics, venues, and related papers |
-| Candidates and reading board | Organize papers, status, and progress |
-| Reading paths | Explore reading order and citation relationships |
-
-### 02 · Read & Annotate
+### 01 · Read & Annotate
 
 Read translations alongside the original and capture your thoughts.
 
@@ -47,25 +33,24 @@ Read translations alongside the original and capture your thoughts.
 | Ink and text boxes | Annotate, select with a lasso, and group objects |
 | Reading notes | Write in rich text or Markdown |
 
-### 03 · Analyze & Connect
+### 02 · Analyze & Connect
 
-Move from individual papers to comparisons, with the source close at hand.
+Go deeper into a paper, with the source close at hand.
 
 ![Paper mind map](docs/images/mindmap.jpg)
 
 | Feature | Purpose |
 | --- | --- |
 | Cross-paper search | Search originals and translations and jump to passages |
-| Deep analysis and comparison | Examine methods, evidence, experiments, and limits |
 | Mind maps and AI chat | Explore structure and ask questions about a paper |
 
-### 04 · Build Your Knowledge Base
+### 03 · Build Your Knowledge Base
 
 Keep your work in files you can continue to use.
 
 | Feature | Purpose |
 | --- | --- |
-| Obsidian export | Export notes, annotations, and reports with WikiLinks |
+| Obsidian export | Export notes, annotations, and mind maps with WikiLinks |
 | Markdown and JSON | Organize, back up, and manage research data |
 
 ## AI model support
@@ -98,7 +83,7 @@ Open http://localhost:8765. See the [contributing guide](CONTRIBUTING.md) for de
 
 ## Data & privacy
 
-The library is stored locally by default: `C:\Users\<user>\PaperRead` on Windows and `~/PaperRead` on macOS/Linux. Papers and annotations are stored as JSON and other files you can back up or manage with Git. Cloud models and literature search send relevant content to the selected services; choose them according to your needs.
+The library is stored locally by default: `C:\Users\<user>\PaperRead` on Windows and `~/PaperRead` on macOS/Linux. Papers and annotations are stored as JSON and other files you can back up or manage with Git. Cloud models, and importing a paper by DOI or title (which queries Semantic Scholar / arXiv), send relevant content to the selected services; choose them according to your needs.
 
 ## Documentation & contribution
 

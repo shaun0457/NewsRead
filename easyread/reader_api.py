@@ -1,7 +1,6 @@
 """閱讀器自己的 API（ticket 03）：Obsidian Vault 設定、匯出、心智圖。
 
-原本這些走研究工作區的 /api/research/v1、/api/research/v2；抽出來之後研究工作區可以整個移除（ticket 04），
-閱讀器不受影響。行為和舊路徑相同。
+原本這些走研究工作區的 /api/research/v1、/api/research/v2；ticket 04 移除研究工作區之後只剩這裡。
 """
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from urllib.parse import urlparse
 from . import mindmap, obsidian_export, tasks, vault
 
 PREFIX = "/api/reader"
-# 閱讀器的背景工作提示只顯示這兩種；閱讀路徑、深度剖析這些研究工作區的工作不列
+# 背景工作提示只顯示這兩種
 READER_TASK_KINDS = frozenset({"mindmap", "smart-annotate"})
 # /paper/<pid>/mindmap[/tasks[/<id>[/cancel|/ack]]]
 _MINDMAP = re.compile(r"/paper/([^/]+)/mindmap(/tasks(?:/([^/]+)(?:/(cancel|ack))?)?)?")

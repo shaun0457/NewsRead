@@ -79,7 +79,7 @@
     const cats = allCats.map((c) => '<button class="catchip' + ((i.tags || []).includes(c) ? " on" : "") + '" data-cattoggle="' + PR.esc(c) + '">' + PR.icon((i.tags || []).includes(c) ? "check" : "folder", "sm") + PR.esc(catLabel(c)) + "</button>").join("");
     box.innerHTML = '<div class="detail-head"><span>' + PR.t("论文详情") + '</span><button class="detail-close" data-d="close" title="' + PR.t("收起（Esc）") + '">' + PR.icon("x", "sm") + "</button></div>" +
       '<div class="detail-inner">' +
-      (i.archived ? '<div class="archived-banner">' + PR.icon("archive", "sm") + '<span>' + PR.t("此論文目前已封存，不會出現在閱讀看板中。") + '</span><button class="btn sm accent" data-d="unarchive">' + PR.t("恢復論文") + '</button></div>' : "") +
+      (i.archived ? '<div class="archived-banner">' + PR.icon("archive", "sm") + '<span>' + PR.t("此論文目前已封存，不會出現在文獻庫清單中。") + '</span><button class="btn sm accent" data-d="unarchive">' + PR.t("恢復論文") + '</button></div>' : "") +
       '<div class="cover">' + thumb + '<div class="actions">' +
       '<a class="btn accent" href="/read/' + i.id + '">' + PR.icon("book", "sm") + readLabel + "</a>" +
       '<a class="btn line" href="/p/' + i.id + '/source.pdf" target="_blank" rel="noopener">' + PR.icon("pdf", "sm") + PR.t("打开原 PDF") + "</a>" +

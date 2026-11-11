@@ -138,7 +138,9 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 
 ---
 
-## 4. report.json（論文深度剖析）
+## 4. report.json（論文深度剖析，已停用）
+
+深度剖析在 ticket 04 移除。舊版留下的 `report.json` 不會被刪，也不再讀取。
 
 ```json
 {
@@ -196,16 +198,13 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 
 ---
 
-## 7. 研究工作區資料庫 (`.paperread-planning.sqlite3`)
+## 7. 文獻庫狀態資料庫 (`.paperread-planning.sqlite3`)
 
-存放於資料目錄根目錄下，採用 SQLite WAL 模式，管理文獻庫之上的研究規劃資料：
+存放於資料目錄根目錄下，採用 SQLite WAL 模式。ticket 04 移除研究工作區之後，程式只讀寫 `statuses` 和 `cache` 兩張表；其餘表是舊版留下的研究資料，不刪除、不再建立也不再讀取：
 
-- **`statuses`**：閱讀看板欄位定義（`id`, `label`, `color`, `position`, `builtin`）。
-- **`saved_papers`**：已收錄候選論文之延伸中繼資料、研讀計劃與所屬分類。
-- **`candidates`**：OpenAlex 與外部探索檢索出的候選池清單。
-- **`candidate_summaries`**：AI 預讀摘要快取與回收站管理。
-- **`keywords` & `keyword_links`**：跨論文關鍵字索引表與段落雙向參照圖譜。
-- **`cache`**：閱讀路徑（`reading-path:latest`）、心智圖與非同步背景任務狀態快取。
+- **`statuses`**：文獻庫的閱讀狀態清單（`id`, `label`, `color`, `position`, `builtin`）。
+- 舊版留下、不再讀取的表：`saved_papers`（候選論文與研讀計劃）、`candidates`（文獻搜尋的候選池）、`paper_summaries` 與 `paper_summary_trash`（AI 預讀摘要和它的回收站）、`milestones`、`follows`、`skipped`、`reminder_claims`、`keywords`、`keyword_links`、`keyword_scans`、`keyword_exclusions`（跨論文關鍵字）。
+- **`cache`**：心智圖（`mindmap:*`）與心智圖背景工作狀態（`mindmap:task:*`）的快取；舊版的閱讀路徑快取（`reading-path:latest`）不再讀取。
 
 ---
 

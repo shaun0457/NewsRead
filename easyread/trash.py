@@ -14,7 +14,7 @@ from pathlib import Path
 from .i18n import tr
 from .store import read_json
 
-_NAME = re.compile(r"^([0-9a-f]{12})-(\d{14})$")
+_NAME = re.compile(r"([0-9a-f]{12})-(\d{14})")  # 一律用 fullmatch
 
 
 def _rmtree(p: Path, waits=(0.5, 1, 2)) -> None:
@@ -38,7 +38,7 @@ def _dir(root: Path) -> Path:
 
 
 def _entry(root: Path, name: str) -> Path:
-    if not _NAME.match(name or ""):
+    if not isinstance(name, str) or not _NAME.fullmatch(name):
         raise ValueError(tr("回收站里没有这一项"))
     p = _dir(root) / name
     if not p.is_dir():
@@ -49,7 +49,7 @@ def _entry(root: Path, name: str) -> Path:
 def items(root: Path) -> list[dict]:
     out = []
     for p in _dir(root).glob("*") if _dir(root).is_dir() else []:
-        m = _NAME.match(p.name)
+        m = _NAME.fullmatch(p.name)
         if not m or not p.is_dir():
             continue
         try:
@@ -65,7 +65,7 @@ def items(root: Path) -> list[dict]:
 
 def restore(root: Path, name: str) -> str:
     src = _entry(root, name)
-    pid = _NAME.match(name).group(1)
+    pid = _NAME.fullmatch(name).group(1)
     if (root / pid).exists():
         raise ValueError(tr("文献库里已经有这篇论文了（可能后来又导入过一次）"))
     shutil.move(str(src), root / pid)
@@ -80,7 +80,7 @@ def purge(root: Path, name: str) -> int:
 
 def empty(root: Path) -> int:
     """清空回收站，返回删掉了几篇。"""
-    targets = [p for p in _dir(root).glob("*") if p.is_dir() and _NAME.match(p.name)] if _dir(root).is_dir() else []
+    targets = [p for p in _dir(root).glob("*") if p.is_dir() and _NAME.fullmatch(p.name)] if _dir(root).is_dir() else []
     for p in targets:
         _rmtree(p)
     return len(targets)

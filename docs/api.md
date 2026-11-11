@@ -104,7 +104,7 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 
 ## 4.5 閱讀器介面 (`/api/reader/*`)
 
-閱讀器的 Obsidian 匯出和心智圖從 ticket 03 起走這組 API，不再呼叫研究工作區。行為跟舊的研究工作區路徑相同：受管區塊、檔案位置、心智圖快取都沿用。寫入要帶 `X-Token`。
+閱讀器的 Obsidian 匯出和心智圖走這組 API（ticket 03）。行為跟舊的研究工作區路徑相同：受管區塊、檔案位置、心智圖快取都沿用。寫入要帶 `X-Token`。
 
 - `GET /api/reader/vault`：回傳 `{vault, configured}`，也就是 Obsidian Vault 設好了沒。
 - `POST /api/reader/vault`：設定 Vault，body 是 `{vault, folders?}`，設定沿用 prefs 的 `research.vault`。
@@ -115,43 +115,11 @@ PaperRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.j
 - `POST /api/reader/paper/{id}/mindmap/tasks`：在背景產生心智圖。
 - `GET /api/reader/paper/{id}/mindmap/tasks/current`、`GET /api/reader/paper/{id}/mindmap/tasks/{task}`：查進度。
 - `POST /api/reader/paper/{id}/mindmap/tasks/{task}/cancel`、`/ack`：取消，或標記已看過。
-- `GET /api/reader/tasks`：閱讀器的背景工作，只列心智圖和智慧標註，附 `scope_id`。
+- `GET /api/reader/tasks`：背景工作，只列心智圖和智慧標註，附 `scope_id`。文獻庫頁和閱讀器的工作提示都只讀這裡。
 
-## 5. 個人研究工作區介面 (`/api/research/v2/*`)
+## 5. 已移除的介面
 
-> 閱讀器從 ticket 03 起不再呼叫這一節的 API：心智圖和匯出改走 4.5 節，跨論文關鍵字、閱讀路徑、深度剖析從閱讀器拿掉了。研究工作區本身會在 ticket 04 移除。
-
-### 5.1 跨論文關鍵字索引
-- `GET /api/research/v2/keywords`：獲取所有關鍵字列表與統計。
-- `POST /api/research/v2/keywords`：新增或更新關鍵字對應關係（中文名稱與英文匹配詞雙向關聯）。
-- `GET /api/research/v2/keywords/matches?ids=<id1>,<id2>&mode=all|any`：檢索庫內所有命中該組關鍵字的論文引文段落（含 KaTeX 公式與原頁座標）。
-- `POST /api/research/v2/keywords/update`：行內更新關鍵字。
-- `POST /api/research/v2/keywords/archive`：批次封存或取消封存關鍵字。
-- `POST /api/research/v2/keywords/delete`：批次永久刪除關鍵字。
-- `POST /api/research/v2/keywords/scan/tasks`：發起全庫關鍵字非同步掃描任務。
-
-### 5.2 閱讀路徑與畫布
-- `GET /api/research/v2/reading-path/latest`：取得目前規劃的最新閱讀路徑（含節點關係與閱讀順序）。
-- `POST /api/research/v2/reading-path/tasks`：調用 AI 依候選池自動規劃推薦閱讀順序。
-- `POST /api/research/v2/reading-path/reorder`：手動調整閱讀路徑節點先後順序。
-- `POST /api/research/v2/reading-path/relations`：手動或自動更新文獻間之關聯邊（如前置、推進、對立、消融對照）。
-
-### 5.3 雙向心智圖（Markmap）
-- `POST /api/research/v2/paper/{id}/mindmap/tasks`：為特定論文生成層級結構心智圖大綱。
-- `GET /api/research/v2/mindmap/tasks/current`：查詢心智圖生成任務即時進度。
-- `POST /api/research/v2/paper/{id}/mindmap`：儲存使用者在 Tiptap / Markmap 編輯後的 Markdown 階層。
-
-### 5.4 論文深度技術剖析（Deep Technical Audit）
-- `GET /api/research/v2/deep-analysis?pid={id}`：讀取論文深度剖析報告（`report.json`）。
-- `POST /api/research/v2/paper/{id}/deep-analysis/tasks`：發起 5 維度技術審查非同步任務（Claims、Ablations、Toy Example、Baselines、Failures）。
-- `GET /api/research/v2/deep-analysis/tasks/current`：審查任務輪詢進度。
-- `POST /api/research/v2/paper/{id}/deep-analysis/apply-to-note`：將剖析審查重點一鍵帶入閱讀器側欄心得筆記。
-- `POST /api/research/v2/paper/{id}/deep-analysis/export-obsidian`：單篇匯出至 Obsidian `04-論文深度剖析/`。
-
-### 5.5 知識庫匯出
-- `POST /api/research/v2/export/obsidian`：全量或增量匯出至 Obsidian 6 大專題目錄，具備受管區塊保護。
-- `POST /api/research/v2/export/zip`：將文獻分析與筆記打包為 ZIP 存檔下載。
-- `POST /api/research/v2/export/summary`：單篇或批次快速匯出 Markdown 摘要卡片。
+研究工作區（`/api/research/v1/*`、`/api/research/v2/*`、`/research` 頁面）、Zotero 遷移（`/api/zotero/*`、`/api/migrate/*`）和成批導入在 ticket 04 移除，現在都回 404。心智圖和 Obsidian 匯出改用 4.5 節的 `/api/reader/*`。
 
 ---
 

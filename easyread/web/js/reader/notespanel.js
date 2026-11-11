@@ -739,7 +739,7 @@
         ai: annotations.filter((it) => it.src !== "mine"),
       };
       const labels = { note: PR.t("我的筆記"), highlight: PR.t("我的劃線"), question: PR.t("我的問題"), ai: PR.t("AI 的回答和解釋") };
-      const order = Array.isArray(exportOptions.order) ? exportOptions.order : ["paper", "note", "highlight", "question", "ai", "chat", "mindmap", "deep_analysis"];
+      const order = Array.isArray(exportOptions.order) ? exportOptions.order : ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
       for (const kind of order) {
         if (kind === "paper" && pick.paper && pn) out.push("## " + PR.t("論文筆記"), "", pn, "");
         else if (groups[kind] && pick[kind] && groups[kind].length) {
@@ -758,8 +758,6 @@
           out.push("## " + PR.t("問 AI 的對話"), "");
           for (const c of exportOptions.chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
         } else if (kind === "mindmap" && pick.mindmap && exportOptions.mindmap) { const fence = String.fromCharCode(96).repeat(3); out.push("## " + PR.t("論文心智圖"), "", fence + "mermaid", exportOptions.mindmap, fence, "");
-        } else if (kind === "deep_analysis" && pick.deep_analysis && exportOptions.deepAnalysis) {
-          out.push("## " + PR.t("論文深度剖析"), "", exportOptions.deepAnalysis, "");
         }
       }
       return out.join("\n");
