@@ -10,7 +10,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .i18n import tr
-from . import answer_styles
+from . import answer_styles, article_ask
 from .paperdata import add_discussion
 from .store import Workspace, now_iso
 
@@ -48,14 +48,19 @@ def new_id() -> str:
     return "t" + uuid4().hex
 
 
-def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None) -> dict:
-    """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。"""
+def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, model_name: str, used: dict | None = None,
+           extra: dict | None = None) -> dict:
+    """存一问一答；对话不存在就新建（标题取第一个问题）。回答页边笔记里的问题时，同时写成那条笔记的回复。
+    extra：文章問 AI 拆好的段落（answer）、prompt 版本、ContextManifest（ticket 12）。"""
     stamp = now_iso()
     style = answer_styles.parse(user.get("answer_style"))
     msg = {"id": "m" + uuid4().hex, "role": "assistant", "content": answer, "at": stamp,
            "model": model_name, "anchor": user.get("anchor"), "note": user.get("note"), "answer_style": style}
     if used and used.get("calls"):
         msg["usage"] = used  # 这条回答的 token 用量（usage.Meter 的快照）
+    for key in ("answer", "prompt_version", "manifest"):
+        if extra and extra.get(key):
+            msg[key] = extra[key]
 
     def apply(chat):
         _normalize(chat)
@@ -75,6 +80,35 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
             entry["id"] = old["id"]
         add_discussion(ws, [entry])
     return msg
+
+
+VERDICTS = ("correct", "wrong", "fabricated")  # 逐句標「正確 / 錯誤 / 編造」，進 golden set
+
+
+def rate(ws: Workspace, tid: str, mid: str, key: str, verdict: str | None) -> dict:
+    """標一句回答。key 是「段號.點號」，例如 "0.2"；verdict 是 None 就取消。回傳這則回答目前的標記。"""
+    if verdict is not None and verdict not in VERDICTS:
+        raise ValueError("verdict must be correct, wrong or fabricated")
+    out: dict = {}
+
+    def apply(chat):
+        t = next((x for x in _normalize(chat)["threads"] if x["id"] == tid), None)
+        msg = next((m for m in (t or {}).get("messages", []) if m.get("id") == mid and m.get("role") == "assistant"), None)
+        sections = ((msg or {}).get("answer") or {}).get("sections") or []
+        try:
+            si, ii = (int(x) for x in str(key)[:20].split("."))
+        except ValueError:
+            raise KeyError("rating key") from None
+        if not (0 <= si < len(sections) and 0 <= ii < len(sections[si].get("items") or [])):
+            raise KeyError("rating key")
+        ratings = msg.setdefault("ratings", {})
+        if verdict is None:
+            ratings.pop(f"{si}.{ii}", None)
+        else:
+            ratings[f"{si}.{ii}"] = {"verdict": verdict, "at": now_iso()}
+        out.update(ratings)
+    ws.update("chat", apply)
+    return out
 
 
 def rename(ws: Workspace, tid: str, title: str) -> None:
@@ -105,7 +139,7 @@ def pin(ws: Workspace, tid: str, mid: str) -> None:
         raise KeyError(mid)
     ans, q = msgs[i], (msgs[i - 1] if i and msgs[i - 1].get("role") == "user" else {})
     blocks = {b.get("id") for b in ws.load("paper").get("blocks", [])}
-    entry = {"kind": "qa", "q": q.get("content", ""), "body": ans["content"], "by": ans.get("model", "")}
+    entry = {"kind": "qa", "q": q.get("content", ""), "body": article_ask.shown(ans), "by": ans.get("model", "")}  # 文章：只放對過原文的內容
     anchor = ans.get("anchor") or q.get("anchor")
     if anchor in blocks:
         entry["anchor"] = anchor

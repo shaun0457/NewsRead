@@ -15,10 +15,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
-from . import ingest, planning_store
+from . import article_ask, ingest, planning_store
 from . import ai_engines, entities, ledger, reader_api
 from .log import log, tail
-from .jobs import Jobs
+from .jobs import Jobs, LedgerMeter
 from .library import Library
 from .i18n import tr
 from .store import now_iso
@@ -36,6 +36,7 @@ class ClientTimeout(Exception):
 
 REQUEST_TIMEOUT = 30.0  # 一般請求每次讀寫 socket 最多等幾秒；宣告了 body 卻不送的連線逾時就關掉（presence WebSocket 例外）
 MAX_UPLOAD = 200 * 1024 * 1024
+MAX_ANSWER_CHARS = 200_000  # 一則問 AI 的回答最多收幾個字；超過就停掉引擎、截斷存下
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
@@ -212,7 +213,11 @@ class Handler(BaseHTTPRequestHandler):
         user["documents"] = documents.extract(body.get("documents"))
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"]} for x in past] + [{"role": "user", "content": text}]
-        prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style)
+        article = article_ask.is_article(ws)  # 文章：範圍只有全文，回答分三段、對過引述（ticket 12）
+        if article:
+            prompt_text = article_ask.prompt(ws, convo, user["anchor"], user["quote"], style)
+        else:
+            prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style)
         prompt_text += documents.context((past + [user])[-chat.HISTORY:])
         images = chat.receive_images(ws, body.get("images"), ecfg)
         user["images"] = images
@@ -224,7 +229,18 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         cancel = threading.Event()
         pieces: list[str] = []
-        meter = usage.Meter(ecfg["engine"])
+        version = manifest_id = None
+        if article:
+            version, manifest_id, ledger_path = self._ask_records(ws, ecfg["engine"], m.get("model") or "")
+            meter = LedgerMeter(ecfg["engine"], m.get("model") or "", ledger_path, task=article_ask.TASK, manifest=manifest_id)
+        else:
+            meter = usage.Meter(ecfg["engine"])
+
+        def extra():  # 文章：拆好的段落、prompt 版本、manifest（答完和按停止都存）
+            if not article:
+                return None
+            return {"answer": article_ask.parse("".join(pieces), article_ask.paragraphs(ws)),
+                    "prompt_version": version, "manifest": manifest_id}
 
         def send(obj):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -238,15 +254,30 @@ class Handler(BaseHTTPRequestHandler):
                     send({"model": chat_models.label(m)})
             attachments = chat.image_paths(ws, past + [user])
             image_options = {"images": attachments} if attachments else {}
+            if article and not attachments:
+                image_options["tools"] = False  # 文章是外部內容：Claude 不給任何工具（防文章裡的指示叫它讀檔）
+            received = 0
             for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **image_options):
+                if article and not received:
+                    self._ask_exposure(ledger_path, ws)  # 有回答出來才算揭露
+                piece = piece[:MAX_ANSWER_CHARS - received]
+                received += len(piece)
                 pieces.append(piece)
                 send({"t": piece})
-            msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot())
-            send({"done": True, "id": msg["id"], "usage": msg.get("usage")})
+                if received >= MAX_ANSWER_CHARS:
+                    cancel.set()  # 回答太長：停掉引擎（關掉 generator 時也會 kill 子程序）
+                    tail = "\n\n" + tr("（回答太長，已截斷）")
+                    pieces.append(tail)
+                    send({"t": tail})
+                    break
+            msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot(), extra())
+            send({"done": True, "id": msg["id"], "usage": msg.get("usage"), "answer": msg.get("answer"),
+                  "prompt_version": msg.get("prompt_version")})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
             if pieces:
-                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot())
+                chat_store.append(ws, tid, {**user, "note": None}, "".join(pieces) + "\n\n" + tr("（已停止）"), m["id"], model, meter.snapshot(),
+                                  extra())
         except engines.Cancelled:
             pass
         except Exception as e:  # noqa: BLE001
@@ -262,6 +293,29 @@ class Handler(BaseHTTPRequestHandler):
             for path in chat.image_paths(ws, [{"images": images}]):
                 if path.relative_to(ws.root.resolve()).as_posix() not in retained:
                     path.unlink(missing_ok=True)
+
+    def _ask_records(self, ws, engine: str, model: str) -> tuple[str, str | None, Path]:
+        """文章問 AI 之前：登記 prompt 版本（內容含固定 prompt 的雜湊）、寫 ContextManifest。
+        帳本出錯不擋回答，只寫 log；這時回答的用量照樣記，但不指向 manifest。揭露紀錄等回答出來才寫（_ask_exposure）。"""
+        version = f"{article_ask.PROMPT_VERSION}@{engine or 'unknown'}/{model or 'default'}"
+        path = Path(getattr(self.app, "ledger_path", None) or ledger.default_path())
+        manifest_id = None
+        try:
+            index = ledger.shared(path, create=True)
+            index.register_prompt(article_ask.TASK, version, f"base={article_ask.PROMPT_VERSION}\nrules_sha256={article_ask.RULES_SHA256}\n"
+                                  f"engine={engine}\nmodel={model}", make_current=False)
+            manifest_id = article_ask.manifest(index, ws, version)
+        except (OSError, ValueError, sqlite3.Error) as e:
+            log.warning("問 AI 的帳本紀錄沒寫完：%s", type(e).__name__)
+        return version, manifest_id, path
+
+    @staticmethod
+    def _ask_exposure(path: Path, ws) -> None:
+        """盲判之前問 AI：寫揭露紀錄（地點 = 問 AI），之後的判斷 blind = false。同一篇只記第一次。"""
+        try:
+            ledger.shared(path, create=True).record_exposure(ws.id, "ask_ai")
+        except (OSError, ValueError, sqlite3.Error) as e:
+            log.warning("問 AI 的揭露紀錄沒寫進去：%s", type(e).__name__)
 
     def _body(self, limit: int = MAX_UPLOAD) -> bytes:
         self._body_read = True
@@ -622,6 +676,10 @@ class Handler(BaseHTTPRequestHandler):
                     chat_store.rename(ws, tid, body.get("title", ""))
                 elif sub == "delete":
                     chat_store.delete(ws, tid)
+                elif sub == "rate":  # 逐句標「正確 / 錯誤 / 編造」（ticket 12）
+                    verdict = body.get("verdict")
+                    return self._json(200, {"ratings": chat_store.rate(ws, str(tid)[:64], str(body.get("id", ""))[:64],
+                                                                         str(body.get("key", "")), verdict if verdict else None)})
                 return self._json(200, {"threads": chat_store.threads(ws)})
             if action == "chat":
                 return self._chat(ws, body)

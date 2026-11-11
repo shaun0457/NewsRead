@@ -2891,5 +2891,22 @@
   "先讀預覽": "Read the preview",
   "新聞全文": "Full article text",
   "匯入時出了問題，請稍後再試。": "Something went wrong during import. Please try again later.",
-  "這篇已經記了發布時間，不能改成別的時間。": "This item already has a publish time; it cannot be changed to a different one."
+  "這篇已經記了發布時間，不能改成別的時間。": "This item already has a publish time; it cannot be changed to a different one.",
+  "AI 解釋": "AI explanation",
+  "引用的 ¶ 都對過原文": "every ¶ quote checked against the article",
+  "有 {n} 句的引述對不上原文，已隱藏": "{n} sentence(s) hidden: their quotes are not in the article",
+  "標記這句": "Rate this sentence",
+  "沒有存到：{msg}": "Not saved: {msg}",
+  "照樣問 AI": "Ask AI anyway",
+  "白話": "Plain",
+  "精讀：解釋得完整一點，把因果和前提講清楚；不按就是白話。範圍只有這篇全文，不上網查。": "Close reading: fuller explanations with causes and assumptions; off means plain answers. Uses only this article, no web search.",
+  "這是一個連結。要匯入成一則資料，還是照樣問 AI？": "This is a link. Import it as an item, or ask AI anyway?",
+  "文章怎麼說": "What the article says",
+  "一般解釋（文中沒寫）": "General explanation (not in the article)",
+  "這篇沒告訴你的": "What this article doesn't tell you",
+  "正確": "Correct",
+  "錯誤": "Wrong",
+  "編造": "Made up",
+  "這版 Claude Code 太舊，沒辦法關掉工具；請更新 Claude Code 再問": "This Claude Code version is too old to turn off tools; update Claude Code and ask again",
+  "（回答太長，已截斷）": "(Answer too long; cut off)"
 }

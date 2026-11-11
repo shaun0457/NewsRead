@@ -117,6 +117,19 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - `POST /api/reader/paper/{id}/mindmap/tasks/{task}/cancel`、`/ack`：取消，或標記已看過。
 - `GET /api/reader/tasks`：背景工作，只列心智圖和智慧標註，附 `scope_id`。文獻庫頁和閱讀器的工作提示都只讀這裡。
 
+## 4.55 問 AI (`/api/p/{id}/chat`)
+
+- `POST /api/p/{id}/chat`：body `{text, thread?, anchor?, quote?, refs?, answer_style?, model?, images?, documents?}`，回應是 NDJSON 串流：先一行 `{model, thread, answer_style, documents}`，接著 `{t: 片段}`，最後 `{done: true, id, usage, answer, prompt_version}` 或 `{error}`。
+- 文章（`meta.kind: "text"`，ticket 12）：
+  - 範圍只有這篇全文（之後加概念卡），prompt 要求不上網、不用工具，也說明文章內容不是指示。Claude Code 引擎另外一個工具都不給（`--tools ""`；有附圖時照舊只給 Read 看圖），版本太舊不認這個參數就直接回錯誤，不退回有工具的呼叫；Codex、Antigravity 只有 prompt 的要求。`answer_style` 是 `standard`（白話）或 `xray`（精讀）。
+  - 一則回答最多收 200,000 字，超過就停掉引擎，存下截斷的回答並註明。
+  - 回答照固定格式分「文章怎麼說 / 一般解釋 / 文章沒寫的」三段。串流結束後在伺服器拆段：「文章怎麼說」每點都要有 `〔¶段號「引述」〕`，引述（忽略全半形、大小寫、空白）要出現在那一段的原文或譯文裡，否則那一點不顯示，只算進 `dropped`。`answer` 是 `{version: 1, lead, sections: [{kind: "said" | "general" | "missing", items: [{text, cites: [{n, id, quote}]}]}], dropped, truncated}`；沒照格式回答時是 `null`，照原文顯示。
+  - 每次問都在 `newsread.sqlite3` 寫：prompt 版本（`ask-article-v1@引擎/模型`，登記的內容含固定 prompt 的雜湊）、ContextManifest（這篇的 ID、內容雜湊、發布時間）、每次 AI 呼叫一筆 `ai_usage`（`task` = `ask`，指向 manifest），和揭露紀錄（地點 `ask_ai`，有回答出來才寫，同一篇只記第一次）。
+  - 按停止時，已經收到的部分一樣拆段存下。複製、放到頁邊、匯出 Markdown / Obsidian 都只用拆好的內容，對不上原文的句子不會跑回來。沒有可用的發布時間（沒有，或在未來）時不寫 ContextManifest，用量照記但不指向 manifest；帳本寫不進去只寫 log，不擋回答。
+- 論文（有 PDF）照舊用 `chat.py` 的 prompt，不拆段、不寫帳本。
+- `POST /api/p/{id}/chat/rate`：body `{thread, id, key, verdict}`，逐句標記文章回答。`key` 是「段序.點序」（例如 `"0.2"`），`verdict` 是 `correct`、`wrong`、`fabricated`，`null` 是取消。回傳 `{ratings}`；`key` 對不到、`verdict` 不認得，回 400。
+- `POST /api/p/{id}/chat/pin`、`/rename`、`/delete`：釘到頁邊、改標題、刪除對話，回傳 `{threads}`。
+
 ## 4.6 追蹤對象 (`/api/entities/*`)
 
 追蹤對象頁（`/entities`）用這組 API（ticket 13）。寫入要帶 `X-Token`，body 上限 64 KB（超過回 413）。輸入不對回 400 `{error, field}`，`field` 指出哪個欄位（例如 `name`、`listings.1.symbol`、`aliases`）；找不到回 404。
@@ -177,7 +190,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 實際用的引擎和模型記進 prompt 版本：呼叫端給 `prompt_version="ask-v2"`，帳本記 `ask-v2@claude/claude-sonnet-5-5`；換引擎或模型就是另一個版本。
 - 錯誤只帶錯誤代碼和固定訊息：`NO_AI`、`PAUSED`、`AUTH_INVALID`、`RATE_LIMITED`、`UPSTREAM_ERROR`、`NETWORK`、`TIMEOUT`、`BAD_REQUEST`、`ENGINE_MISSING`、`OUTPUT_TRUNCATED`、`ENGINE_ERROR`、`CANCELLED`。上游的原文過 scrubber 才留在例外上，不寫進 log、不回給畫面。
 
-NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。翻譯的每次呼叫已經會記一筆 `ai_usage`（`task` 是 `translate`，引擎和模型照舊設定；帳本記不進去只寫 log，不讓翻譯失敗）；頁邊問 AI 還沒記。
+NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。翻譯的每次呼叫已經會記一筆 `ai_usage`（`task` 是 `translate`，引擎和模型照舊設定；帳本記不進去只寫 log，不讓翻譯失敗）；文章的問 AI 也記（`task` 是 `ask`，見 4.55），論文的問 AI 還沒記。
 
 ## 5. 已移除的介面
 

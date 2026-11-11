@@ -17,12 +17,12 @@ from .store import DataReadError, Workspace, now_iso
 
 
 class LedgerMeter(usage.Meter):
-    """翻譯的用量：照樣累計在任務裡，每次呼叫 AI 另外記一筆到帳本的 AI 用量（ticket 12）。
-    帳本第一次有呼叫時才打開（沒呼叫 AI 就不建資料庫檔）；記不進去只寫一行 log，不讓翻譯失敗。"""
+    """翻譯、問 AI 的用量：照樣累計在任務或對話裡，每次呼叫 AI 另外記一筆到帳本的 AI 用量（ticket 12）。
+    帳本第一次有呼叫時才打開（沒呼叫 AI 就不建資料庫檔）；記不進去只寫一行 log，不讓翻譯或回答失敗。"""
 
-    def __init__(self, engine: str, model: str, path=None):
+    def __init__(self, engine: str, model: str, path=None, task: str = "translate", manifest: str | None = None):
         super().__init__(engine)
-        self.model, self.path = model, path
+        self.model, self.path, self.task, self.manifest = model, path, task, manifest
 
     def add(self, input: int = 0, cached: int = 0, output: int = 0, cost_usd: float | None = None, limits: dict | None = None,
             context_window: int | None = None, actual_model: str | None = None):
@@ -30,12 +30,13 @@ class LedgerMeter(usage.Meter):
         try:
             path = self.path or ledger.default_path()
             index = ledger.shared(path, create=True)
-            index.record_usage(source="newsread", task="translate", engine=self.data["engine"] or "unknown",
+            index.record_usage(source="newsread", task=self.task, engine=self.data["engine"] or "unknown",
                                model=str(actual_model or self.model)[:200], input_tokens=max(0, int(input or 0)),
                                cached_tokens=max(0, int(cached or 0)), output_tokens=max(0, int(output or 0)),
-                               cost_usd=cost_usd, quota=limits if isinstance(limits, dict) else None)
+                               cost_usd=cost_usd, quota=limits if isinstance(limits, dict) else None,
+                               context_manifest=self.manifest)
         except (OSError, ValueError, TypeError, sqlite3.Error) as e:
-            log.warning("翻譯用量沒記進帳本：%s", type(e).__name__)
+            log.warning("AI 用量沒記進帳本（%s）：%s", self.task, type(e).__name__)
 
 
 def translation_meter(cfg: dict) -> usage.Meter:

@@ -8,6 +8,7 @@ import zipfile
 from pathlib import PurePosixPath
 from urllib.parse import unquote
 
+from .article_ask import shown
 from .chat_store import get, threads
 from .xrefs import unlink
 from .i18n import tr
@@ -67,7 +68,7 @@ def export(ws, body):
     for i, value in enumerate(question.get("images") or []):
         img_label = tr("提问附图 {n}", n=i+1)
         lines.extend(["", f"![{img_label}]({local_image(value)})"])
-    lines.extend(["", "## " + tr("AI 回答"), "", images(answer.get("content", "")), ""])
+    lines.extend(["", "## " + tr("AI 回答"), "", images(shown(answer)), ""])  # 文章：只匯出對過原文的內容
     markdown_str = "\n".join(lines)
     markdown = markdown_str.encode("utf-8")
     attachments_list = []
