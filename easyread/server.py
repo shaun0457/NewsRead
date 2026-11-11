@@ -17,6 +17,7 @@ from .bulk import api as bulk_api
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
+from . import ledger
 from .log import log, tail
 from .jobs import Jobs
 from .library import Library
@@ -250,6 +251,12 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         path = unquote(url.path)
         app, lib = self.app, self.app.lib
+        if path == "/api/ledger":  # 帳本唯讀列表，給驗收和之後的頁面用
+            q = {k: v[0] for k, v in parse_qs(url.query).items()}
+            try:
+                return self._json(200, ledger.api_get(getattr(app, "ledger_path", None), q))
+            except ledger.QueryError:
+                return self._json(400, {"error": "bad ledger query"})
         research = research_api.get(app, path + ("?" + url.query if url.query else ""))
         if research is not None:
             return self._json(200, research)
