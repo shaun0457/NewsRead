@@ -258,6 +258,9 @@ Vault Root/
 - **`entities`**：`id`（`E-` 加 32 位十六進位）、`type`、`name`、`benchmark`（`NULL` = 用預設）、`industry_index`、`archived`、`created_at`、`updated_at`。封存只設 `archived=1`，不刪資料。
 - **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。
 - **`entity_aliases`**：`entity_id`、`position`、`alias`、`folded`（比對用的小寫）。
+- **`theme_versions`、`thesis_versions`**（ticket 57）：題材頁和論點的版本，只能新增。`id`（`TV-` / `PV-` 開頭）、`theme_id` 或 `thesis_id`、`version`（從 1 起）、`status`（`draft` / `final`）、`by`（`me` 或 `ai:<model>@<prompt 版本>`）、`created_at`、`body`（JSON，欄位見 api.md 4.62）、`content_hash`、`context_manifest`（AI 才有）。AI 的版本同時在帳本記一筆 `draft` 紀錄，payload 是 `{target: theme | thesis, of: 題材或論點 id, version_id, version, content_hash}`。
+- **`theses`**：論點屬於哪個題材，只能新增。`id`（`T-` 開頭）、`theme_id`、`created_at`。論點狀態不存在這裡，存在帳本的 `thesis_status` 紀錄：AI 的是提議（`proposal: true`），`who = me` 的才生效（`{thesis_id, from, to, evidence, reason, confirms}`；駁回是 `{thesis_id, rejects, reason}`）。
+- **`evidence`**：證據，只能新增。`id`（`EV-` 開頭）、`thesis_id`、`item_id` 或 `story_id`（二選一）、`relation`、`grade`（A–D）、`reason`、`source`（JSON）、`by`、`created_at`、`context_manifest`。
 - **`mentions`**：資料和追蹤對象的連結，`(item_id, entity_id)` 唯一；`source` 是 `ai` 或 `manual`。`removed=1` 是手動移除留下的紀錄，AI 不能再連回去，也不能蓋掉手動的連結。`created_at` 是連上的時間（移除後再連回來才重設），`updated_at` 是最後一次改動。一個追蹤對象最多 5000 筆。
 
 ## 10. AI 引擎設定 (`ai.json`)

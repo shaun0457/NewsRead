@@ -153,6 +153,27 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - `benchmark`：沒填（`null`）就用主要代號市場的預設：台股「發行量加權股價報酬指數」、美股「S&P 500 Total Return」，回傳時 `benchmark_default` 為 `true`。`industry_index` 沒有預設。兩個欄位只有公司有；其他類型送了也會存成 `null`。
 - 回傳另有 `recent_mentions`：近 7 天連上、沒被移除的資料數。「連上」看第一次連上的時間；把 AI 的連結改成手動不算新連上，手動移除後再連回來才算。
 
+## 4.62 題材頁與論點 (`/api/themes/*`、`/api/theses/*`)
+
+題材是 `theme` 類型的追蹤對象（4.6）。資料模型見 `easyread/narratives.py`（ticket 57）。寫入要帶 `X-Token`，請求最大 256 KB；從 HTTP 寫入的都算「我」（`by` = `me`），AI 的草稿、證據和狀態提議走 Python 介面，而且要帶 ContextManifest。輸入不對回 400 `{error, field}`，找不到回 404。
+
+- `GET /api/themes/{題材 id}[?at=ISO 時間]`：題材頁。`at` 是時間點（要帶時區，URL 編碼），回傳那時候的版本和狀態；預設是現在。回傳 `{theme_id, at, final, draft, theses}`：
+  - `final` 是最新的定稿，`draft` 是比它新的最新草稿（沒有就是 `null`）；草稿不會蓋掉定稿。每個版本是 `{id, version, status, by, created_at, content_hash, context_manifest, body}`。
+  - 題材頁的 `body`：`one_liner`、`analogy`、`origin {kind: market_first | news_first, item_id, rotation_event}`、`second_order`（最多 20 點）、`stage {name, basis}`、`chain`（因果鏈，最多 100 環）。
+  - 因果鏈每一環：`from` / `to`（`{entity_id}` 或 `{label}`）、`relation`、`source`（`{item_id}` 或 `{url}`，沒有就是 `null`）、`inferred`（沒有出處 = AI 推論）、`confirmed`（只有我能確認）。`to` 是公司時多了 `revenue_share`（`{value 或 range, source}`；沒有出處一律 `"unknown"`）和 `role`（`leader` / `laggard` / `unknown`）。沒確認的 AI 推論環節不能進定稿。
+  - `theses` 每個論點：`{id, created_at, final, draft, status, status_record, missing_first_hand, evidence, proposals}`。論點的 `body`：`claim`、`direction_implication {direction: bull | bear, targets: [追蹤對象 id]}`、`timing`（`now` / `roadmap`）、`edge`（賺什麼錢）、`horizon`、`refute_if`、`exit_if`（可選）。定稿要填齊（`exit_if` 除外），草稿只要 `claim`。
+  - `status` 只看我確認過的變化（預設 `open`）。`evidence` 只列看得到的證據：我加的、揭露過的、我判斷過的，或被我確認的狀態變化引用過的；A、B 級排前面，再依時間由新到舊，最多 50 則。`missing_first_hand` = 看得到的證據都是 C、D 級。
+  - `proposals` 是 AI 待確認的狀態提議（最多 50 筆），每筆是帳本紀錄加上 `exposes`：提議引用的證據裡還看不到的資料 id。提議本身就是 AI 對這些資料的看法，畫面顯示提議之前要先替 `exposes` 裡的資料寫揭露紀錄（地點 `theme`），之後對它們的判斷才不會被當成盲判。
+- `POST /api/themes/{題材 id}/versions`：body `{status: draft | final, body}`，新增一版題材頁。
+- `POST /api/themes/{題材 id}/theses`：body `{status, body}`，新增一個論點（一個題材最多 50 個）。
+- `POST /api/theses/{論點 id}/versions`：body `{status, body}`，新增一版論點。每個題材頁、論點最多 500 版。
+- `POST /api/theses/{論點 id}/evidence`：body `{item_id 或 story_id, relation: strengthens | weakens | related_no_change, grade: A–D, reason, source?}`。證據只能新增，一個論點最多 2000 則。
+- `POST /api/theses/{論點 id}/status`：body `{to, evidence: [證據 id], reason?, confirms?}`。加強、削弱、推翻要引用這個論點、方向相符的證據（加強要有 strengthens，削弱和推翻要有 weakens），最多 50 則；退休、重新打開要寫理由。`confirms` 是 AI 提議的帳本紀錄 id，確認時狀態要跟提議一樣，證據和理由沒給就沿用提議的。每次變化都寫一筆帳本的 `thesis_status` 紀錄。
+- `POST /api/theses/{論點 id}/proposals/{提議 id}/reject`：body `{reason?}`，駁回 AI 的提議（也記進帳本，狀態不變）。
+- `GET /api/theses/{論點 id}/history`：這個論點的 `thesis_status` 帳本紀錄（提議、確認、駁回），由舊到新，最多 200 筆。
+
+以上這些寫入的 POST 都回傳更新後的題材頁。版本、論點、證據的數量上限是永久的（只能新增，退休的論點也算進 50 個）。
+
 ## 4.65 貼新聞連結匯入 (`POST /api/ingest`)
 
 每一頁右上角的「＋ 貼網址」、不在輸入框時按 Ctrl+V 貼網址，都呼叫這一個介面（`easyread/ingest.py`）。
