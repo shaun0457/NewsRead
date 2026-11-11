@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>逐句標註 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .an { max-width: 960px; margin: 0 auto; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; margin-bottom: 12px; }
+  .grp-h { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--ink-3); padding: 12px 14px 4px; }
+  .grp-h b { color: var(--ink); font-size: 14px; }
+  .note { grid-column: 1 / -1; display: flex; gap: 6px; }
+  .note .input { padding: 4px 8px; font-size: 13px; }
+  .old { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); }
+  .old s { color: var(--ink-3); }
+  @media (max-width: 640px) { .sentence { grid-template-columns: minmax(0, 1fr); } }
+  body[data-frame="narrow"] .sentence { grid-template-columns: minmax(0, 1fr); }
+</style>
+</head>
+<body data-state="todo">
+<div class="mock-bar">
+  <b>Mockup B · 逐句標註</b>
+  <span class="grp">狀態：
+    <button data-set-state="todo">待標註</button>
+    <button data-set-state="done">已標註（含改過）</button>
+    <button data-set-state="empty">都標完了</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html" aria-current="page">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page an">
+  <div class="page-head"><h1>逐句標註</h1><span class="muted">AI 起草的因果鏈、概念卡、題材頁和證據 · 進 golden set</span></div>
+  <p class="mock-note" style="margin-bottom:14px">題材頁、概念卡上每句旁邊的 ✓ ✗ 編造是同一套標註，這頁把還沒標的集中起來。內容都是「範例」。「編造」= 出處裡沒有這件事，或出處根本不存在；「錯誤」= 有這件事但說錯了。</p>
+
+  <div class="ctl">
+    <span class="seg"><button aria-pressed="true">待標註 23</button><button>已標註</button><button>全部</button></span>
+    <label>種類 <select class="input" style="width:auto;padding:3px 8px"><option>全部</option><option>因果鏈</option><option>概念卡</option><option>題材頁</option><option>證據</option></select></label>
+    <span class="muted">本週標了 34 句 · 編造 2（6%）· 錯誤 5（15%）· <a href="prompts.html">依 prompt 版本看</a></span>
+  </div>
+
+  <div class="empty card" data-show="empty"><h2>都標完了</h2><p>新的 AI 草稿進來後會出現在這裡。</p></div>
+
+  <div data-show="todo done">
+    <section class="card" style="margin-bottom:14px;padding-bottom:6px">
+      <div class="grp-h"><b>因果鏈 · 800V DC</b><span>草稿 v4 · draft@v2 · Opus（訂閱）</span><a href="../v1-a/theme.html#chain">在題材頁看</a></div>
+      <div class="sentence">
+        <div class="tx">受益環節：直流斷路器與保護元件需求增加。 <span class="chip">AI 推論</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok" aria-pressed="true">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+      </div>
+      <div class="sentence">
+        <div class="tx">範例電源 B 的 800V 營收占比 8–12%。 <span class="cite">範例法說會 ¶11</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok">正確</button><button class="no" aria-pressed="true">錯誤</button><button class="fab">編造</button></div>
+        <div class="note" data-show="done"><span class="muted" style="font-size:12.5px">你寫：</span><span style="font-size:13px">¶11 說的是「電源產品」整體，不是 800V</span></div>
+        <div class="old" data-show="done">11/11 10:02 改過：<s>正確</s> → 錯誤 · 舊標註保留</div>
+      </div>
+      <div class="sentence">
+        <div class="tx">範例功率元件 C 已經拿到 800V 機櫃的大單。 <span class="cite">範例 Substack ¶4</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab" aria-pressed="true">編造</button></div>
+        <div class="note" data-show="todo"><input class="input" placeholder="哪裡不對？（可選，選了錯誤或編造時再填）"></div>
+        <div class="note" data-show="done"><span class="muted" style="font-size:12.5px">你寫：</span><span style="font-size:13px">¶4 只說「在評估」，沒有說拿到單</span></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:14px;padding-bottom:6px">
+      <div class="grp-h"><b>概念卡 · 固態變壓器（SST）</b><span>v1 · draft@v2</span><a href="../v1-a/concepts.html">在概念卡看</a></div>
+      <div class="sentence">
+        <div class="tx">用電力電子取代傳統的鐵芯變壓器，體積小、可以直接輸出直流。 <span class="ai-say">AI 解釋</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok" aria-pressed="true">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+      </div>
+      <div class="sentence">
+        <div class="tx">為什麼現在重要（2026-11）：800V 機房架構需要在機房入口把中壓交流直接轉成直流。 <span class="cite">範例公告 ¶4</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok" aria-pressed="true">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+      </div>
+    </section>
+
+    <section class="card" style="padding-bottom:6px">
+      <div class="grp-h"><b>證據 · 「新一代 AI 機櫃從 2027 年起改用 800V」</b><span>thesis_change@v1</span></div>
+      <div class="sentence">
+        <div class="tx"><span class="g B">B</span> <span class="rel s">加強</span> 兩家 CSP 表示新機房會預留 800V 配電。 <span class="cite">範例媒體 ¶2</span></div>
+        <div class="mark3" data-show="todo"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+        <div class="mark3" data-show="done"><button class="ok" aria-pressed="true">正確</button><button class="no">錯誤</button><button class="fab">編造</button></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:4px 14px 8px">證據的標註看三件事：關係（加強 / 削弱）、等級、這句話是不是出處裡真的有。不對的話可以分開標：<a href="#">關係不對</a> · <a href="#">等級不對</a></p>
+    </section>
+
+    <p class="lock" style="display:block;margin-top:10px">標註只能新增；改標註 = 新增一筆，舊的保留。每筆都記 AI 當時看到哪些資料（ContextManifest），之後可以比較 context 結構。</p>
+  </div>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script>
+  /* mockup：點標註鈕只切換同一組的按下狀態 */
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest(".mark3 button");
+    if (!b) return;
+    b.closest(".mark3").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  });
+</script>
+</body>
+</html>

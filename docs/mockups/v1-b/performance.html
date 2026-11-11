@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>績效 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; margin-bottom: 12px; }
+  .ctl select { width: auto; padding: 3px 8px; }
+  .cmp td.num, .cmp th.num { text-align: right; }
+  .cmp td { white-space: nowrap; }
+  .scroll-x { overflow-x: auto; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup B · 績效</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般（部分樣本不足）</button>
+    <button data-set-state="thin">全部樣本不足</button>
+    <button data-set-state="empty">還沒有已判定的</button>
+    <button data-set-state="method">比較打分方法版本</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html" aria-current="page">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>績效</h1><span class="muted">分數隨時重算，不存進帳本</span><span style="flex:1"></span><a class="btn sm" href="prompts.html">AI prompt 表現</a><button class="btn sm">匯出 golden set</button></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料，數字都是「範例」。四個主要數字（Brier、期望值、賺賠比、勝率）並列，不以任何一個為主。樣本少於 30 筆的都標「樣本不足」（30 是經驗值）。</p>
+
+  <div class="ctl">
+    <label>判斷者 <select class="input"><option>我</option><option>AI · sonnet@triage-v3</option><option>範例 Podcast A</option></select></label>
+    <label>期間 <select class="input"><option>21 天</option><option>1 天</option><option>5 天</option><option>63 天</option><option>到下一次財報</option></select></label>
+    <label>種類 <span class="seg"><button aria-pressed="true">快速判斷</button><button>完整預測</button></span></label>
+    <label><input type="checkbox"> 含事後補判</label>
+    <label>打分方法 <select class="input"><option>v1（低 0.55 / 中 0.70 / 高 0.85）</option></select></label>
+  </div>
+
+  <div class="empty card" data-show="empty"><h2>還沒有可以打分的判斷</h2><p>快速判斷要等最短的期間（1 天）過了才有分數；完整預測要等你判定機制。目前有 14 筆在等。</p><a class="btn sm" href="../v1-a/board.html">去判斷今天的資料</a></div>
+
+  <div data-show="normal thin method">
+    <div class="banner warn" data-show="thin"><span class="ico">!</span><div><b>樣本不足，還不能下結論</b>：已判定 12 筆，少於 30 筆。下面每個數字都只是目前的紀錄。</div></div>
+
+    <section class="card sec">
+      <h2>我 · 21 天 <span class="sub" data-show="normal method">已判定 84 筆 · 盲判 61 · 非盲判 23（不跟 AI 比）</span><span class="sub" data-show="thin">已判定 12 筆</span></h2>
+      <div class="stat" data-show="normal method">
+        <div><small>Brier（越低越好）</small><b>0.231</b><small>AI 同一批 0.214</small></div>
+        <div><small>命中率</small><b>58%</b><small>49 / 84</small></div>
+        <div><small>期望值（每筆）</small><b class="up">+0.9%</b><small>往判斷方向的異常報酬</small></div>
+        <div><small>賺賠比</small><b>1.6</b><small>獲利平均 ÷ 虧損平均</small></div>
+        <div><small>勝率</small><b>54%</b><small>中性不算</small></div>
+        <div><small>領先時間（中位數）</small><b>+2 天</b><small>比市場開始反應早</small></div>
+      </div>
+      <div class="stat" data-show="thin">
+        <div class="thin"><small>Brier</small><b>0.262</b><span class="thin-tag">樣本不足</span></div>
+        <div class="thin"><small>命中率</small><b>58%</b><span class="thin-tag">7 / 12</span></div>
+        <div class="thin"><small>期望值</small><b>+1.4%</b><span class="thin-tag">樣本不足</span></div>
+        <div class="thin"><small>賺賠比</small><b>1.2</b><span class="thin-tag">樣本不足</span></div>
+        <div class="thin"><small>勝率</small><b>50%</b><span class="thin-tag">樣本不足</span></div>
+        <div class="thin"><small>領先時間</small><b>—</b><small>要 5 筆以上有反應的</small></div>
+      </div>
+    </section>
+
+    <section class="card sec" data-show="method">
+      <h2>打分方法版本比較 <span class="sub">改了方法或參數，舊版本的分數保留</span></h2>
+      <div class="scroll-x"><table class="tbl cmp">
+        <thead><tr><th>版本</th><th>差別</th><th class="num">Brier</th><th class="num">命中率</th><th class="num">期望值</th></tr></thead>
+        <tbody>
+          <tr><td>v1</td><td>市場調整模型 · 信心 0.55 / 0.70 / 0.85</td><td class="num">0.231</td><td class="num">58%</td><td class="num up">+0.9%</td></tr>
+          <tr><td>v2（試算）</td><td>信心改 0.60 / 0.70 / 0.80</td><td class="num">0.226</td><td class="num">58%</td><td class="num up">+0.9%</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card sec" data-show="normal method">
+      <h2>我 vs AI vs KOL <span class="sub">只比同一批資料：三方都判斷過、我是盲判的</span></h2>
+      <div class="scroll-x"><table class="tbl cmp">
+        <thead><tr><th>判斷者</th><th class="num">筆數</th><th class="num">Brier</th><th class="num">命中率</th><th class="num">期望值</th><th class="num">賺賠比</th><th class="num">勝率</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip mine">我</span></td><td class="num">41</td><td class="num">0.228</td><td class="num">59%</td><td class="num up">+1.0%</td><td class="num">1.7</td><td class="num">56%</td></tr>
+          <tr><td><span class="chip ai">AI</span> sonnet@triage-v3</td><td class="num">41</td><td class="num">0.214</td><td class="num">61%</td><td class="num up">+0.6%</td><td class="num">1.2</td><td class="num">60%</td></tr>
+          <tr><td><span class="chip warn">KOL</span> 範例 Podcast A</td><td class="num">17</td><td class="num">0.204</td><td class="num">65%</td><td class="num up">+1.8%</td><td class="num">2.1</td><td class="num">62%</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin:6px 0 0"><span class="thin-tag">KOL 只有 17 筆 · 樣本不足</span></p>
+    </section>
+
+    <div class="cols" data-show="normal method">
+      <section class="card sec">
+        <h2>依「賺什麼錢」</h2>
+        <div class="scroll-x"><table class="tbl cmp">
+          <thead><tr><th>edge</th><th class="num">筆數</th><th class="num">命中率</th><th class="num">期望值</th><th class="num">賺賠比</th></tr></thead>
+          <tbody>
+            <tr><td>敘事擴散</td><td class="num">38</td><td class="num">63%</td><td class="num up">+1.6%</td><td class="num">2.0</td></tr>
+            <tr><td>分析差</td><td class="num">31</td><td class="num">55%</td><td class="num up">+0.5%</td><td class="num">1.3</td></tr>
+            <tr><td>資訊差</td><td class="num">9 <span class="thin-tag">不足</span></td><td class="num">44%</td><td class="num down">−0.4%</td><td class="num">0.9</td></tr>
+            <tr><td>資金輪動</td><td class="num">6 <span class="thin-tag">不足</span></td><td class="num">50%</td><td class="num up">+0.2%</td><td class="num">1.1</td></tr>
+            <tr><td>景氣循環</td><td class="num muted">0</td><td class="num muted">—</td><td class="num muted">—</td><td class="num muted">—</td></tr>
+          </tbody>
+        </table></div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">也可以依事件類型、追蹤對象、季分開看（上面的選單）。</p>
+      </section>
+
+      <section class="card sec">
+        <h2>完整預測的四格 <span class="sub">22 筆</span></h2>
+        <div class="grid4">
+          <div class="good">真的看對<b>9</b></div><div>理由對但結果錯<b>4</b></div>
+          <div>理由錯但結果對<b>3</b></div><div class="bad">真的看錯<b>4</b></div>
+        </div>
+        <p style="font-size:13px;margin:8px 0 0">另有 <b>2</b> 筆機制不明，不放進四格。<span class="thin-tag">樣本不足</span></p>
+      </section>
+    </div>
+
+    <section class="card sec" data-show="normal method">
+      <h2>Brier 依季 <span class="sub">空心點 = 那一季樣本不足</span></h2>
+      <div class="chart" data-chart="line" data-labels='["2026 Q1","2026 Q2","2026 Q3","2026 Q4（至今）"]' data-min="0.15" data-max="0.30" data-ref="0.25" data-ref-label="0.25 = 每次都猜 50%"
+        data-series='[{"n":"我","c":"mine","v":[0.262,0.241,0.226,0.219],"thin":[0,3]},{"n":"AI","c":"ai","v":[0.230,0.219,0.208,0.211],"thin":[3]},{"n":"範例 Podcast A","c":"kol","v":[null,0.214,0.198,0.205],"thin":[1,2,3]}]'></div>
+    </section>
+  </div>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

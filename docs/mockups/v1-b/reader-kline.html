@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>閱讀器旁的 K 線 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .rd { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 18px; align-items: start; }
+  .art { padding: 22px 24px; }
+  .art h1 { font-family: var(--serif-zh); font-size: 22px; line-height: 1.5; margin-bottom: 6px; }
+  .art .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--ink-3); margin-bottom: 14px; }
+  .art p { font-family: var(--serif-zh); font-size: 16px; line-height: 1.9; margin: 0 0 12px; }
+  .art .pid { font: 10.5px var(--mono); color: var(--ink-3); margin-right: 4px; }
+  .side { position: sticky; top: 100px; display: grid; gap: 12px; }
+  .side .card { padding: 12px 14px; }
+  .side h2 { font-size: 14.5px; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ent-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .ent-tabs button { border: 1px solid var(--rule-2); background: var(--surface); border-radius: 999px; padding: 1px 10px; font-size: 12.5px; cursor: pointer; }
+  .ent-tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  @media (max-width: 900px) { .rd { grid-template-columns: minmax(0, 1fr); } .side { position: static; } }
+  body[data-frame="narrow"] .rd { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .side { position: static; }
+</style>
+</head>
+<body data-state="blind" data-kc="tw">
+<div class="mock-bar">
+  <b>Mockup B · 閱讀器旁的 K 線</b>
+  <span class="grp">狀態：
+    <button data-set-state="blind">盲判前</button>
+    <button data-set-state="revealed">判斷完</button>
+    <button data-set-state="retro">事後補判</button>
+    <button data-set-state="nomarket">沒有行情的對象</button>
+    <button data-set-state="unknown">發布時間不明</button>
+  </span>
+  <span class="grp">市場：<button data-set-kc="tw">台股（紅漲）</button><button data-set-kc="us">美股（綠漲）</button></span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html" aria-current="page">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page" style="max-width:1200px">
+  <p class="mock-note" style="margin-bottom:14px">只畫 K 線這一塊；閱讀器其他部分（雙語段落、盲判 8 鍵、問 AI）照 Mockup A 的 <a href="../v1-a/reader.html">reader.html</a>。新聞和價格都是「範例」。</p>
+  <div class="rd">
+    <article class="card art">
+      <h1>（範例）範例晶圓廠：先進封裝明年報價調漲，客戶已同意</h1>
+      <div class="meta">
+        <span>範例財經媒體</span>
+        <span data-show="blind revealed nomarket">發布 2026-11-07 20:30（收盤後 → 事件日 11/10）</span>
+        <span data-show="retro">發布 2025-03-18 · 你在 2026-11-11 才判斷</span>
+        <span data-show="unknown">發布時間不明（頁面沒有 metadata，RSS 也沒有）</span>
+        <span>抓取 11/07 20:41</span>
+      </div>
+      <p><span class="pid">¶1</span>（範例）據供應鏈消息，範例晶圓廠已通知主要客戶，明年先進封裝報價將調漲約一成，多數客戶已同意。</p>
+      <p><span class="pid">¶2</span>（範例）報價調整主要反映產能持續吃緊與新廠折舊；公司不對報價發表評論。</p>
+      <p><span class="pid">¶3</span>（範例）分析師認為，若漲價落實，明年封裝毛利率可望提升 2 到 3 個百分點。</p>
+      <p class="muted" style="font-family:var(--ui);font-size:13px">…（其他段落省略）</p>
+    </article>
+
+    <aside class="side">
+      <section class="card">
+        <h2>K 線 <span class="muted" style="font-size:12px;font-weight:400">這則連到的追蹤對象</span></h2>
+        <div class="ent-tabs"><button aria-pressed="true">範例晶圓廠 9901.TW</button><button>AI 伺服器（籃子）</button><button>美國出口管制</button></div>
+
+        <div data-show="blind">
+          <div class="chart" data-chart="kline" data-seed="5" data-n="40" data-p="1000" data-marks="38:pub:這則,30:news:之前：10 月營收,22:me:你 偏多·中"></div>
+          <div class="chart-legend"><span><i class="lg-news"></i>相關新聞</span><span><i class="lg-me"></i>你的判斷</span></div>
+          <p style="font-size:13px;margin:8px 0 0">發布之後的價格照常顯示。你現在判斷，只用<b>判斷之後</b>的價格打分，所以看到 11/10 的漲跌不會讓分數變好看。</p>
+        </div>
+
+        <div data-show="revealed">
+          <div class="chart" data-chart="kline" data-seed="5" data-n="40" data-p="1000" data-marks="38:pub:這則,30:news:之前：10 月營收,22:me:你 偏多·中,39:me:你 加強·中（盲判）"></div>
+          <div class="chart-legend"><span><i class="lg-news"></i>相關新聞</span><span><i class="lg-me"></i>你的判斷</span></div>
+          <dl class="kv" style="margin-top:8px">
+            <dt>事件窗 [0, +1]</dt><dd>11/10 異常報酬 <b class="up">+2.6%</b>（1.9σ）· 11/11 收盤後補上 +1 那天</dd>
+            <dt>成交量</dt><dd>前 20 日平均的 1.6 倍</dd>
+            <dt>市場是否視為新資訊</dt><dd><span class="chip warn">還差 1 天才判定</span></dd>
+          </dl>
+        </div>
+
+        <div data-show="retro">
+          <div class="chart" data-chart="kline" data-seed="9" data-n="40" data-p="620" data-end="2025-04-15T00:00:00Z" data-marks="15:pub:這則"></div>
+          <div class="banner warn" style="margin:8px 0 0"><span class="ico">⏱</span><div><b>事後補判</b>：發布到現在超過 2 個交易日，之後的走勢你可能已經知道，所以不遮。這次的判斷預設不算進你和 AI 的分數。</div></div>
+        </div>
+
+        <div data-show="nomarket">
+          <div class="empty" style="padding:24px 10px"><h2>「美國出口管制」沒有行情</h2><p>總經 / 政策類的追蹤對象沒有代號。可以看連到它的題材籃子，或在追蹤對象頁設一個對照指數。</p><a class="btn sm" href="entity.html">設對照指數</a></div>
+        </div>
+
+        <div data-show="unknown">
+          <div class="chart" data-chart="kline" data-seed="5" data-n="40" data-p="1000" data-marks="30:news:之前：10 月營收"></div>
+          <div class="banner warn" style="margin:8px 0 0"><span class="ico">?</span><div><b>發布時間不明</b>：圖上不畫這則的標記，也不算事件窗。你可以手動填發布時間（寫成「使用者輸入」）。<button class="btn sm">填發布時間</button></div></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

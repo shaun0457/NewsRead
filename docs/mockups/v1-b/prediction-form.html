@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寫預測 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .pf { max-width: 860px; margin: 0 auto; }
+  .from { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; margin-bottom: 14px; }
+  .from .say { font-family: var(--serif-zh); font-size: 16px; margin: 2px 0 4px; }
+  .edge { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 6px; }
+  .edge .opt { display: block; }
+  .edge small { display: block; font-size: 12px; color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
+  .ai-draft { border-left: 3px solid var(--accent); padding-left: 10px; }
+  .hz { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hz span { padding: 2px 10px; border-radius: 999px; background: var(--surface-2); font-size: 13px; }
+  .snap { font-size: 13px; }
+  .snap td { padding: 4px 8px; border-bottom: 1px solid var(--rule); }
+  .foot { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--rule); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; border-radius: 0 0 12px 12px; }
+  .locked { padding: 14px 16px; }
+  .locked .kv { grid-template-columns: 110px minmax(0, 1fr); }
+</style>
+</head>
+<body data-state="draft">
+<div class="mock-bar">
+  <b>Mockup B · 寫完整預測</b>
+  <span class="grp">狀態：
+    <button data-set-state="draft">AI 起草好了</button>
+    <button data-set-state="drafting">起草中</button>
+    <button data-set-state="invalid">檢查沒過</button>
+    <button data-set-state="saved">已記下</button>
+    <button data-set-state="amend">新增修正</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html" aria-current="page">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page pf">
+  <div class="page-head"><h1 data-show="draft drafting invalid">寫成預測</h1><h1 data-show="saved">預測 #41</h1><h1 data-show="amend">修正預測 #41</h1><span style="flex:1"></span><a href="../v1-a/theme.html" class="btn sm ghost">← 800V DC</a></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料，都是「範例」。快速判斷（方向 + 信心）點一下就完成，不用來這裡；這頁只給你選了「寫成預測」的。</p>
+
+  <div class="from">
+    <span class="muted">掛在論點</span>
+    <div class="say">新一代 AI 機櫃從 2027 年起改用 800V 直流配電。</div>
+    <span class="st up">加強中</span> <span class="muted">· 7 則證據（A 2、B 3、C 2）· 成立時籃子偏多</span>
+  </div>
+
+  <!-- 已記下：唯讀 -->
+  <section class="card locked" data-show="saved">
+    <div class="row" style="margin-bottom:10px"><span class="lock">🔒 2026-11-11 09:52 記下 · 不能修改或刪除</span><span style="flex:1"></span><button class="btn sm" data-set-state="amend">新增修正</button></div>
+    <dl class="kv">
+      <dt>對象</dt><dd>800V DC 籃子 v2</dd>
+      <dt>方向 · 信心</dt><dd><span class="dir bull">偏多</span> · 中（換算 0.70）</dd>
+      <dt>賺什麼錢</dt><dd>敘事擴散</dd>
+      <dt>機制</dt><dd>2026 Q1 前至少 2 家 CSP 公開 800V 機房計畫，相關報導量持續上升，籃子跟著被重新評價。<span class="chip ai">AI 起草</span> <span class="chip mine">你改過</span></dd>
+      <dt>判定標準</dt><dd>63 個交易日內，800V 相關 Story 數量比記下前 4 週多 50% 以上；判定資料：NewsRead 的 Story 計數</dd>
+      <dt>期間</dt><dd>1 天、5 天、21 天、63 天、到下一次財報</dd>
+      <dt>框架卡</dt><dd><a href="frameworks.html">敘事要有第二家公司接棒</a></dd>
+      <dt>當下快照</dt><dd>籃子 100.0（11/10 收盤）· 台股報酬指數 · 半導體類指數 · 成交量 · 資料日期 11/10</dd>
+    </dl>
+  </section>
+
+  <section class="card sec" data-show="amend">
+    <div class="banner info" style="margin-bottom:12px"><span class="ico">i</span><div>修正是一筆新紀錄，#41 原樣保留。打分時兩筆都在，修正從 <b>現在</b> 起算，用的是現在的價格。</div></div>
+    <div class="field"><label>改什麼</label><select class="input"><option>信心</option><option>方向</option><option>判定標準</option><option>撤回（之後不再追）</option></select></div>
+    <div class="field"><label>新的信心</label><div class="seg"><button>低</button><button>中</button><button aria-pressed="true">高</button></div></div>
+    <div class="field"><label>為什麼改</label><textarea class="input" rows="2" style="min-height:60px">（範例）第二家 CSP 也公開了 800V 計畫</textarea><span class="hint">會寫進修正紀錄</span></div>
+    <div class="row"><button class="btn primary">記下修正 #41-1</button><button class="btn ghost" data-set-state="saved">取消</button></div>
+  </section>
+
+  <div class="card" data-show="drafting" style="padding:18px">
+    <b>AI 起草機制和判定標準中…</b>
+    <div style="display:grid;gap:8px;margin-top:10px"><div class="skel" style="width:70%"></div><div class="skel"></div><div class="skel" style="width:50%"></div></div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">只給它 11/11 09:40 以前發布的資料：這個論點的 7 則證據 + 2 張框架卡 · Claude Code · Opus（訂閱）· 你可以先填方向和信心。</p>
+  </div>
+
+  <section class="card" data-show="draft invalid">
+    <div style="padding:16px 18px">
+      <div class="banner bad" data-show="invalid"><span class="ico">!</span><div>還有 2 個地方要補：<b>判定標準</b>沒寫判定資料從哪裡來；<b>信心</b>還沒選。</div></div>
+
+      <div class="grid2">
+        <div class="field"><label>對象</label><select class="input"><option>800V DC 籃子（論點指定）</option><option>範例電源 A</option><option>範例變壓器 G</option></select><span class="hint">論點成立時偏多的是籃子</span></div>
+        <div class="field"><label>方向</label><div class="seg"><button aria-pressed="true">偏多</button><button>偏空</button><button>中性</button></div></div>
+      </div>
+      <div class="field"><label>信心</label><div class="seg"><button>低 0.55</button><button aria-pressed="true" data-show="draft">中 0.70</button><button data-show="invalid">中 0.70</button><button>高 0.85</button></div><span class="err" data-show="invalid">選一個</span></div>
+
+      <div class="field"><label>賺什麼錢 <span class="chip ai">AI 建議：敘事擴散</span></label>
+        <div class="edge">
+          <span class="opt">資訊差<small>知道別人還不知道的事 · 看公告是否應驗</small></span>
+          <span class="opt">分析差<small>同樣的資訊推得比別人遠 · 看基本面是否應驗</small></span>
+          <span class="opt on">敘事擴散<small>故事會被更多人講 · 看之後的報導量，不要求事實應驗</small></span>
+          <span class="opt">景氣循環<small>v1 沒有領先指標，到期由你判定</small></span>
+          <span class="opt">資金輪動<small>看籃子的相對強弱有沒有照預期變化</small></span>
+        </div>
+      </div>
+
+      <div class="field ai-draft"><label>機制 <span class="chip ai">AI 起草</span></label>
+        <textarea class="input" rows="3" style="min-height:80px">2026 Q1 前至少 2 家 CSP 公開 800V 機房計畫，相關報導量持續上升，籃子跟著被重新評價。</textarea>
+        <span class="hint">依據：論點的證據 <span class="cite">範例公告 11/08 ¶3</span> <span class="cite">範例媒體 ¶2</span></span></div>
+
+      <div class="field ai-draft"><label>判定標準 <span class="chip ai">AI 起草</span></label>
+        <textarea class="input" rows="2" style="min-height:60px">63 個交易日內，800V 相關 Story 數量比記下前 4 週多 50% 以上。</textarea>
+        <div class="row"><span class="hint">判定資料從哪裡來</span><select class="input" style="width:auto" data-show="draft"><option>NewsRead 的 Story 計數</option><option>公司公告</option><option>月營收</option><option>我自己判定</option></select><select class="input invalid" style="width:auto" data-show="invalid"><option>（還沒選）</option><option>NewsRead 的 Story 計數</option><option>公司公告</option><option>月營收</option><option>我自己判定</option></select></div>
+        <span class="err" data-show="invalid">敘事擴散要寫判定資料從哪裡來</span></div>
+
+      <div class="grid2">
+        <div class="field"><label>期間（固定，每個都會算）</label><div class="hz"><span>1 天</span><span>5 天</span><span>21 天</span><span>63 天</span><span>到下一次財報</span></div></div>
+        <div class="field"><label>事件類型</label><select class="input"><option>產業 roadmap</option><option>財報</option><option>月營收</option><option>法說會</option><option>政策</option></select></div>
+      </div>
+
+      <div class="field"><label>用到的框架卡 <span class="muted" style="font-weight:400">（可選，AI 建議 2 張）</span></label>
+        <div class="opts">
+          <label class="opt on"><input type="checkbox" checked> <span>敘事要有第二家公司接棒，才會從「確認」走到「擴散」 <span class="muted">· 範例 Podcast A</span></span></label>
+          <label class="opt"><input type="checkbox"> <span>roadmap 型利多在放量前一季最容易鈍化 <span class="muted">· 你寫的</span></span></label>
+        </div></div>
+
+      <div class="field"><label>記下時會自動存的快照</label>
+        <table class="snap"><tr><td>籃子</td><td>800V DC v2 · 11/10 收盤</td></tr><tr><td>基準 / 產業</td><td>台股報酬指數 · 半導體類指數</td></tr><tr><td>成交量</td><td>11/10</td></tr></table>
+        <span class="hint">價格之後從歷史日線補；帳本記的是「用哪個基準、哪個籃子版本」。</span></div>
+    </div>
+    <div class="foot"><span class="lock">記下後不能改或刪；要改只能新增一筆修正</span><span style="flex:1"></span><button class="btn ghost">放棄</button><button class="btn primary" data-set-state="saved">記下預測</button></div>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台股籌碼 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; margin-bottom: 12px; }
+  .flow td { vertical-align: middle; }
+  .flow td.num { text-align: right; white-space: nowrap; }
+  .flow tr.sel { background: var(--accent-soft); }
+  .scroll-x { overflow-x: auto; }
+</style>
+</head>
+<body data-state="normal" data-kc="tw">
+<div class="mock-bar">
+  <b>Mockup B · 台股籌碼</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="pending">今天的資料還沒出</button>
+    <button data-set-state="us">只有美股的題材</button>
+    <button data-set-state="loading">載入</button>
+    <button data-set-state="error">失敗</button>
+  </span>
+    <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html" aria-current="page">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>台股籌碼</h1><span class="muted">三大法人買賣超 · 融資餘額 · 單位：億元</span><span style="flex:1"></span><a href="rotation.html" class="btn sm ghost">← 輪動</a></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料，數字都是「範例」。只有台股，所以買超用紅、賣超用綠。資料來自 TWSE / TPEx 公開資料，依你的題材籃子和產業彙總。美股沒有免費的對等資料，v1 只做台股。</p>
+
+  <div class="ctl">
+    <span class="seg"><button aria-pressed="true">依題材</button><button>依產業</button></span>
+    <label>日期 <select class="input" style="width:auto;padding:3px 8px"><option>2026-11-10</option><option>2026-11-07</option></select></label>
+    <span class="seg"><button aria-pressed="true">當日</button><button>近 5 日</button><button>近 20 日</button></span>
+  </div>
+
+  <div class="banner info" data-show="pending"><span class="ico">⏱</span><div><b>11/11 的籌碼還沒公布</b>：證交所約 16:30 後才有，NewsRead 17:00 會再抓一次。下面是 11/10。</div></div>
+  <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>抓不到籌碼資料</b>：來源回應格式不對（錯誤代碼 UPSTREAM_FORMAT）。可能是證交所改了欄位，已記下這次失敗。<button class="btn sm">重試</button></div></div>
+
+  <section class="card sec">
+    <div data-show="loading" style="display:grid;gap:8px"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+    <div class="scroll-x" data-show="normal pending error us">
+    <table class="tbl flow">
+      <thead><tr><th>題材</th><th class="num">外資</th><th class="num">投信</th><th class="num hide-sm">自營商</th><th class="num">合計</th><th style="min-width:110px"></th><th class="num">融資增減</th></tr></thead>
+      <tbody>
+        <tr class="sel"><td>800V DC <span class="muted" style="font-size:12px">7 / 8 檔台股</span></td><td class="num up">+18.2</td><td class="num up">+4.1</td><td class="num hide-sm down">−0.6</td><td class="num up"><b>+21.7</b></td><td><div class="pn"><i class="pos" style="width:44%"></i></div></td><td class="num up">+3.2</td></tr>
+        <tr><td>AI 伺服器 <span class="muted" style="font-size:12px">10 / 12</span></td><td class="num up">+9.5</td><td class="num down">−2.2</td><td class="num hide-sm up">+0.4</td><td class="num up"><b>+7.7</b></td><td><div class="pn"><i class="pos" style="width:16%"></i></div></td><td class="num down">−1.1</td></tr>
+        <tr><td>被動元件 <span class="muted" style="font-size:12px">9 / 9</span></td><td class="num down">−3.0</td><td class="num up">+5.8</td><td class="num hide-sm up">+0.9</td><td class="num up"><b>+3.7</b></td><td><div class="pn"><i class="pos" style="width:8%"></i></div></td><td class="num up">+2.6</td></tr>
+        <tr><td>光通訊 <span class="muted" style="font-size:12px">5 / 7</span></td><td class="num down">−12.4</td><td class="num down">−1.0</td><td class="num hide-sm down">−0.3</td><td class="num down"><b>−13.7</b></td><td><div class="pn"><i class="neg" style="width:28%"></i></div></td><td class="num up">+0.8</td></tr>
+        <tr data-show="us"><td>範例雲端軟體 <span class="muted" style="font-size:12px">0 / 5</span></td><td colspan="6" class="muted" style="font-size:13px">成分股都是美股，沒有籌碼資料</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">只算籃子裡的台股成分股（「7 / 8 檔」= 8 檔裡有 7 檔是台股）。這頁只列數字，AI 不解讀籌碼。</p>
+  </section>
+
+  <section class="card sec" data-show="normal pending error">
+    <h2>800V DC · 成分股 <span class="sub">11/10 當日</span></h2>
+    <div class="scroll-x">
+    <table class="tbl flow">
+      <thead><tr><th>公司</th><th class="num">外資</th><th class="num">投信</th><th class="num">合計</th><th class="num">融資增減</th><th class="num hide-sm">融資使用率</th></tr></thead>
+      <tbody>
+        <tr><td>範例電源 A</td><td class="num up">+8.9</td><td class="num up">+2.0</td><td class="num up">+10.6</td><td class="num up">+1.4</td><td class="num hide-sm">18%</td></tr>
+        <tr><td>範例變壓器 G</td><td class="num up">+5.1</td><td class="num up">+1.7</td><td class="num up">+6.9</td><td class="num up">+1.9</td><td class="num hide-sm"><b>41%</b></td></tr>
+        <tr><td>範例功率元件 C</td><td class="num down">−0.4</td><td class="num up">+0.3</td><td class="num down">−0.1</td><td class="num down">−0.2</td><td class="num hide-sm">9%</td></tr>
+        <tr><td colspan="6" class="muted" style="font-size:12.5px">…另外 4 檔</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>追蹤對象頁 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .head-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--ink-2); margin: -4px 0 14px; align-items: center; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; margin-bottom: 8px; }
+  .filters label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+  .attr { display: grid; grid-template-columns: 110px minmax(0, 1fr) 64px; gap: 6px 10px; align-items: center; font-size: 13.5px; }
+  .chg { padding: 10px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+  .chg:first-of-type { border-top: 0; padding-top: 0; }
+  .chg .was { color: var(--ink-3); }
+  .pred { padding: 9px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+  .pred:first-of-type { border-top: 0; padding-top: 0; }
+  .pred .t { font-size: 14px; }
+  .grp-t { font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: .04em; margin: 12px 0 2px; }
+</style>
+</head>
+<body data-state="normal" data-kc="tw">
+<div class="mock-bar">
+  <b>Mockup B · 追蹤對象頁（範例晶圓廠）</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="empty">剛建立（沒有資料）</button>
+    <button data-set-state="loading">載入</button>
+    <button data-set-state="error">行情失敗</button>
+  </span>
+  <span class="grp">市場：<button data-set-kc="tw">台股（紅漲）</button><button data-set-kc="us">美股（綠漲）</button></span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html" aria-current="page">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>範例晶圓廠</h1><span class="chip">公司</span><span class="chip entity num">9901.TW</span><span class="chip entity num">SFB</span>
+    <span style="flex:1"></span><a href="../v1-a/entities.html" class="btn sm ghost">← 追蹤對象</a><button class="btn sm">編輯</button>
+  </div>
+  <div class="head-meta">
+    <span>基準：台股報酬指數 · 產業：半導體類指數 <a href="#">改</a></span>
+    <span>題材籃子：<a href="baskets.html">AI 伺服器</a> · <a href="baskets.html">800V DC</a></span>
+    <span class="num" data-show="normal empty">收盤 1,085 <span class="up">+1.4%</span>（2026-11-10，還原價）</span>
+  </div>
+  <p class="mock-note" style="margin-bottom:14px">假資料：公司、代號、價格、新聞都是「範例」。K 線外觀仿 lightweight-charts（正式版直接用它，並依授權保留 TradingView 標示），滑鼠移到標記上可以看說明。漲跌色依市場：台股紅漲、美股綠漲；加強 / 削弱、偏多 / 偏空的顏色照設計規則不變。</p>
+
+  <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>行情抓不到</b>：資料來源沒有回應（錯誤代碼 MARKET_UNAVAILABLE）。時間軸、說法變化和預測照常顯示；K 線和歸因等下一次抓取成功再補上。<button class="btn sm">重試</button></div></div>
+  <div class="banner info" data-show="empty"><span class="ico">i</span><div><b>剛建立，還沒有資料連到它。</b>K 線用歷史日線，一開始就有；新聞進來後 AI 會自動連過來，也可以在閱讀器手動連。</div></div>
+
+  <section class="card chart-box" style="margin-bottom:16px">
+    <div class="filters">
+      <span class="seg"><button>1 月</button><button aria-pressed="true">3 月</button><button>6 月</button><button>1 年</button></span>
+      <label><input type="checkbox" checked> 新聞（A、B 級）</label>
+      <label><input type="checkbox" checked> 我的判斷</label>
+      <label><input type="checkbox" checked> AI 判斷</label>
+      <label><input type="checkbox" checked> KOL</label>
+      <label><input type="checkbox" checked> 預測</label>
+      <label><input type="checkbox" checked> 基準（虛線）</label>
+    </div>
+    <div data-show="loading"><div class="skel" style="height:240px"></div></div>
+    <div data-show="error" class="empty" style="padding:50px 10px"><h2>K 線暫時沒有資料</h2><p>上一次成功抓取：2026-11-07</p></div>
+    <div data-show="normal"><div class="chart" data-chart="kline" data-seed="11" data-n="64" data-p="980" data-drift="0.0018" data-bench="1"
+      data-marks="12:news:法說會 A 級：上修全年資本支出,20:me:你 偏多·中（盲判）,21:ai:AI 偏多·高,30:kol:範例 Podcast A：看好先進封裝,38:pred:你的預測：1 季內相對產業 +5%,44:news:具名媒體 B 級：先進封裝漲價,52:me:你 中性·低,58:news:月營收 A 級：年增 31%"
+      data-gap="47-48" data-gap-label="停牌 2 天 · 無法打分"></div></div>
+    <div data-show="empty"><div class="chart" data-chart="kline" data-seed="11" data-n="64" data-p="980" data-drift="0.0018" data-bench="1"></div></div>
+    <div class="chart-legend" data-show="normal empty">
+      <span><i class="lg-news"></i>新聞</span><span><i class="lg-me"></i>你的判斷</span><span><i class="lg-ai"></i>AI</span><span><i class="lg-kol"></i>KOL</span><span><i class="lg-pred"></i>預測（虛線到期）</span><span><i class="lg-bench"></i>台股報酬指數</span><span><i class="lg-mask"></i>停牌</span>
+    </div>
+
+    <div data-show="normal" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px"><b style="font-size:14px">近 1 個月 +6.0% 拆成四塊</b><span class="muted" style="font-size:12px">依序扣除；這是相關性，不是原因</span></div>
+      <div class="attr">
+        <span>大盤</span><div class="pn"><i class="pos" style="width:17%"></i></div><span class="num up">+2.1%</span>
+        <span>產業（扣大盤）</span><div class="pn"><i class="pos" style="width:12%"></i></div><span class="num up">+1.4%</span>
+        <span>題材籃子（扣產業）</span><div class="pn"><i class="pos" style="width:5%"></i></div><span class="num up">+0.6%</span>
+        <span>公司本身</span><div class="pn"><i class="pos" style="width:16%"></i></div><span class="num up">+1.9%</span>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">題材籃子用「AI 伺服器」v3（11/01 生效）。籃子 11/01 以前的報酬是用今天的成分股回推的，這裡照算，但不拿來給判斷打分。</p>
+    </div>
+  </section>
+
+  <div class="cols" data-show="normal empty loading error">
+    <section class="card sec">
+      <h2>時間軸 <span class="sub">依發布時間 · 重要度依對各論點最高的那一級</span><span style="flex:1"></span><span class="seg"><button aria-pressed="true">全部</button><button>高、中</button><button>雜訊</button></span></h2>
+      <div data-show="loading" style="display:grid;gap:10px"><div class="skel" style="width:70%"></div><div class="skel"></div><div class="skel" style="width:80%"></div></div>
+      <div class="empty" data-show="empty" style="padding:30px 10px"><h2>還沒有資料</h2><p>貼網址匯入，或等 RSS 下一次抓取（每 15 分鐘）。</p></div>
+      <ol class="tl" data-show="normal error">
+        <li><span class="d">11/10<br>13:45</span><div>
+          <div class="h"><span class="imp h">高</span> （範例）10 月營收年增 31%，先進封裝占比創新高 <span class="g A">A</span></div>
+          <div class="why"><span class="chip ai">AI</span> 對「先進封裝產能 2027 年前持續吃緊」是加強·高：第一次揭露封裝營收占比 <span class="cite">¶2</span></div>
+          <div class="row" style="margin-top:4px;font-size:12.5px"><span class="chip ok">市場視為新資訊</span><span class="muted">[0,+1] 異常報酬 +3.2%（2.4σ）· 量 2.1 倍</span><span class="chip mine">你：加強·中（盲判）</span></div>
+        </div></li>
+        <li><span class="d">11/06<br>08:10</span><div>
+          <div class="h"><span class="imp m">中</span> （範例）具名媒體：先進封裝明年報價調漲 <span class="g B">B</span></div>
+          <div class="why"><span class="chip ai">AI</span> 加強·中 <span class="cite">¶4</span> · 連結來源：<span class="chip">AI 自動</span></div>
+          <div class="row" style="margin-top:4px;font-size:12.5px"><span class="chip">市場沒有反應</span><span class="muted">異常報酬 +0.3%（0.2σ）</span></div>
+        </div></li>
+        <li><span class="d">10/30<br>21:00</span><div>
+          <div class="h"><span class="imp n">雜訊</span> （範例）網路論壇：「下季砍單」 <span class="g D">D</span></div>
+          <div class="why"><span class="chip ai">AI</span> 來源不可靠 · 相對於 1 年期的論點 · 連結來源：<span class="chip mine">你手動</span></div>
+        </div></li>
+        <li><span class="d">10/16<br>14:00</span><div>
+          <div class="h"><span class="imp h">高</span> （範例）法說會：全年資本支出上修到 420 億美元 <span class="g A">A</span></div>
+          <div class="why"><span class="chip ai">AI</span> 加強·高 <span class="cite">逐字稿 ¶18</span></div>
+        </div></li>
+      </ol>
+      <div class="banner info" data-show="normal" style="margin:12px 0 0"><span class="ico">＋</span><div><b>AI 建議追蹤：</b>「範例封測廠」最近 2 週在 4 則跟範例晶圓廠有關的資料裡出現。<div class="row" style="margin-top:6px"><button class="btn sm primary">加入追蹤</button><button class="btn sm ghost">不要</button></div></div></div>
+    </section>
+
+    <div>
+      <section class="card sec">
+        <h2>說法變化 <span class="sub">公司或分析師這次和之前說的不同</span></h2>
+        <div class="empty" data-show="empty" style="padding:20px 10px"><p>至少要有兩次同一方的說法才比得出來。</p></div>
+        <div data-show="loading"><div class="skel"></div></div>
+        <div data-show="normal error">
+          <div class="chg"><span class="chip warn">改口</span> <b>資本支出</b>
+            <div class="was">之前：全年 380–400 億美元 <span class="cite">7 月法說會 ¶11</span></div>
+            <div>這次：上修到 420 億美元 <span class="cite">10 月法說會 ¶18</span></div></div>
+          <div class="chg"><span class="chip bad">矛盾</span> <b>先進封裝產能</b>
+            <div class="was">財務長：明年產能「足夠」<span class="cite">10 月法說會 ¶24</span></div>
+            <div>總裁：明年仍然「非常吃緊」<span class="cite">10 月法說會 ¶31</span></div>
+            <div class="muted" style="font-size:12px">同一場法說會的兩種說法，AI 只列出，不判誰對</div></div>
+          <div class="chg"><span class="chip">新增</span> <b>800V 相關</b>
+            <div>第一次提到電源管理晶片的 800V 方案 <span class="cite">10 月法說會 ¶40</span></div></div>
+        </div>
+      </section>
+
+      <section class="card sec">
+        <h2>掛在這裡的預測 <span style="flex:1"></span><a class="btn sm" href="prediction-form.html">＋ 寫預測</a></h2>
+        <div class="empty" data-show="empty" style="padding:20px 10px"><p>還沒有預測。快速判斷會自動打分，不用寫成預測。</p></div>
+        <div data-show="normal error loading">
+          <div class="grp-t">已到期，待你判定（1）</div>
+          <div class="pred"><div class="t">先進封裝產能吃緊，1 季內相對產業 +5% <span class="dir bull">偏多·中</span></div>
+            <div class="row" style="font-size:12.5px;margin-top:3px"><span class="muted">記於 08/12 · 分析差</span><a class="btn sm primary" href="resolve.html">判定</a></div></div>
+          <div class="grp-t">未到期（2）</div>
+          <div class="pred"><div class="t">10 月營收年增超過 25% <span class="dir bull">偏多·高</span></div><div class="muted" style="font-size:12.5px">記於 10/20 · 資訊差 · 到下一次財報</div></div>
+          <div class="pred"><div class="t">800V 方案 2027 年前帶來營收 <span class="dir bull">偏多·低</span></div><div class="muted" style="font-size:12.5px">記於 11/03 · 敘事擴散 · 掛在論點 <a href="../v1-a/theme.html">800V DC #1</a></div></div>
+          <div class="grp-t">已判定（3）</div>
+          <div class="pred"><div class="t">美國出口管制對營收影響有限 <span class="dir bull">偏多·中</span> <span class="chip ok">真的看對</span></div><div class="muted" style="font-size:12.5px">21 天往預測方向 +4.1% · 機制：發生</div></div>
+          <div class="pred"><div class="t">Q3 毛利率低於財測 <span class="dir bear">偏空·低</span> <span class="chip warn">理由錯但結果對</span></div><div class="muted" style="font-size:12.5px">21 天 +1.2%（偏空方向）· 機制：沒發生</div></div>
+          <div class="pred"><div class="t">先進封裝報價上調 <span class="dir bull">偏多·中</span> <span class="chip">機制不明</span></div><div class="muted" style="font-size:12.5px">不放進四格</div></div>
+          <p style="margin:8px 0 0"><span class="thin-tag">樣本不足 · 3 / 30</span> <a href="performance.html" style="font-size:12.5px">看績效</a></p>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt 管理 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .vs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .vs > div { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--rule-2); }
+  .vs .champ { border-color: var(--ink); }
+  .vs h3 { font-size: 14.5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .diff { font: 12.5px/1.7 var(--mono); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: pre-wrap; }
+  .diff .a { background: var(--ok-soft); display: block; }
+  .diff .d { background: var(--danger-soft); display: block; text-decoration: line-through; color: var(--ink-3); }
+  .mc { font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+  @media (max-width: 760px) { .vs { grid-template-columns: minmax(0, 1fr); } }
+  body[data-frame="narrow"] .vs { grid-template-columns: minmax(0, 1fr); }
+</style>
+</head>
+<body data-state="trial">
+<div class="mock-bar">
+  <b>Mockup B · Prompt 管理</b>
+  <span class="grp">狀態：
+    <button data-set-state="trial">試行中（結果還沒到期）</button>
+    <button data-set-state="ready">可以決定升級</button>
+    <button data-set-state="worse">某一季變差</button>
+    <button data-set-state="none">沒有 challenger</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html" aria-current="page">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>Prompt 管理</h1><span class="muted">champion / challenger · 只用新進資料前向比較</span><span style="flex:1"></span><a class="btn sm ghost" href="performance.html">← 績效</a></div>
+  <p class="mock-note" style="margin-bottom:14px">版本、數字、花費都是「範例」。升級只看新進資料到期後的結果；歷史回測只當參考，因為模型的訓練資料可能已經包含那段時間之後的事。</p>
+
+  <div class="tabs"><button aria-pressed="true">分類 triage</button><button>論點變化 thesis_change</button><button>起草 draft</button><button>翻譯</button><button>問 AI</button></div>
+
+  <div class="banner bad" data-show="worse"><span class="ico">!</span><div><b>2026 Q3 的分類表現明顯變差</b>：Brier 0.208 → 0.262（+0.054），同期你的表現沒有變差。可能是市場環境變了，也可能是 prompt 過時。<div class="row" style="margin-top:6px"><button class="btn sm">看這一季判錯的</button><button class="btn sm">用 challenger 試新版</button><button class="btn sm ghost">知道了</button></div></div></div>
+
+  <section class="card sec">
+    <h2>版本</h2>
+    <div class="vs">
+      <div class="champ">
+        <h3>v3 <span class="chip">champion</span></h3>
+        <dl class="kv"><dt>啟用</dt><dd>2026-08-01</dd><dt>模型</dt><dd>sonnet（Claude Code 訂閱）</dd><dt>判斷過</dt><dd>2,140 則</dd></dl>
+      </div>
+      <div data-show="trial ready worse">
+        <h3>v4 <span class="chip ai">challenger</span><span class="muted" style="font-size:12px;font-weight:400">試行到 12/15</span></h3>
+        <dl class="kv"><dt>啟用</dt><dd>2026-10-15</dd><dt>改了什麼</dt><dd>雜訊類別多一條判準；市場背景改成依日期附加</dd><dt>試行花費</dt><dd>$3.20（每天上限 200 則 · 在 <a href="../v1-a/settings.html">設定</a> 改）</dd></dl>
+      </div>
+      <div data-show="none" class="empty" style="padding:20px 10px"><p>目前沒有 challenger。新增一個版本後，它會跟 v3 一起判斷新進的資料，兩邊都寫進帳本。</p><button class="btn sm">＋ 新版本</button></div>
+    </div>
+  </section>
+
+  <section class="card sec" data-show="trial ready worse">
+    <h2>前向比較 <span class="sub">同一批新進資料、兩個版本都判斷過、結果已到期</span></h2>
+    <div data-show="trial worse">
+      <div class="stat">
+        <div class="thin"><small>可比較的筆數</small><b>18</b><span class="thin-tag">要 30 筆</span></div>
+        <div class="thin"><small>Brier v3 / v4</small><b>0.221 / 0.209</b><span class="thin-tag">樣本不足</span></div>
+        <div><small>還沒到期</small><b>176</b><small>最快 11/18 到期 12 筆</small></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn sm primary" disabled title="可比較的筆數要 30 筆">升級成 champion</button><button class="btn sm">停止試行</button><span class="muted" style="font-size:12px">到 30 筆前不能升級</span></div>
+    </div>
+    <div data-show="ready">
+      <div class="stat">
+        <div><small>可比較的筆數</small><b>64</b></div>
+        <div><small>Brier v3 / v4</small><b>0.219 / 0.201</b><small>v4 好 0.018</small></div>
+        <div><small>和你盲判一致的比例</small><b>61% / 66%</b></div>
+        <div><small>每則成本</small><b>相同</b><small>都用訂閱</small></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn sm primary">升級 v4 成 champion</button><button class="btn sm">再試行 1 個月</button><span class="muted" style="font-size:12px">升級後 v3 標成 retired，紀錄都保留</span></div>
+    </div>
+  </section>
+
+  <section class="card sec">
+    <h2>依季的表現 <span class="sub">champion 的 Brier · 空心點 = 樣本不足</span></h2>
+    <div data-show="trial ready none"><div class="chart" data-chart="line" data-labels='["2025 Q4","2026 Q1","2026 Q2","2026 Q3","2026 Q4（至今）"]' data-min="0.15" data-max="0.30" data-ref="0.25" data-ref-label="0.25 = 每次都猜 50%"
+      data-series='[{"n":"v2","c":"ink","v":[0.231,0.226,0.224,null,null]},{"n":"v3","c":"ai","v":[null,null,0.215,0.208,0.211],"thin":[4]},{"n":"v4（試行）","c":"ok","dash":true,"v":[null,null,null,null,0.209],"thin":[4]}]'></div></div>
+    <div data-show="worse"><div class="chart" data-chart="line" data-labels='["2025 Q4","2026 Q1","2026 Q2","2026 Q3","2026 Q4（至今）"]' data-min="0.15" data-max="0.30" data-ref="0.25" data-ref-label="0.25 = 每次都猜 50%" data-band="3-3"
+      data-series='[{"n":"v3","c":"ai","v":[0.226,0.219,0.208,0.262,0.240],"thin":[4]},{"n":"我","c":"mine","v":[0.262,0.250,0.241,0.236,0.229],"thin":[0,4]}]'></div></div>
+  </section>
+
+  <section class="card sec">
+    <h2>v3 → v4 改了什麼</h2>
+    <div class="diff"><span>判斷這則資料對每個論點的影響：加強 / 削弱 / 有關但不改變 / 無關。</span>
+<span class="d">雜訊類別：已反映、舊聞重炒、沒有新資訊、來源不可靠、無關。</span><span class="a">雜訊類別：已反映、舊聞重炒、沒有新資訊、來源不可靠、無關、短期波動（寫明相對於哪個論點的時間尺度）。</span><span class="a">市場背景見 {{market_context}}，只用 {{as_of}} 以前的資料。</span></div>
+    <div class="mc" style="margin-top:10px"><b>今天附進去的市場背景</b>（2026-11-11 產生，只用 11/10 以前的資料）：800V DC 在領先象限第 2 週；光通訊轉弱；近 5 日重大事件 3 則。<a href="#">看全文</a></div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">prompt 本身不寫「現在市場在炒什麼」；那些內容每天由系統依日期產生。</p>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

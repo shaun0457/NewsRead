@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>階段訊號明細 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .sg { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 14px; }
+  .sg .card { padding: 12px 14px; }
+  .sg h3 { font-size: 14.5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 2px; }
+  .sg .v { font: 700 18px var(--mono); }
+  .sg .rd { font-size: 13px; color: var(--ink-2); margin: 2px 0 6px; }
+  .hist { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  .hist li { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--rule); }
+  .hist li:first-child { border-top: 0; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup B · 階段訊號明細（800V DC）</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="suggest">AI 建議改階段</button>
+    <button data-set-state="short">訊號不足（新題材）</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html" aria-current="page">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>800V DC · 階段訊號</h1><span class="muted">資料日期 2026-11-10 · 每個交易日重算</span><span style="flex:1"></span><a href="../v1-a/theme.html#signals" class="btn sm ghost">← 題材頁</a></div>
+  <p class="mock-note" style="margin-bottom:14px">數字都是「範例」。v1 只算出訊號並列出來；階段由 AI 依這些訊號建議、你確認，不做全自動分類。題材頁的「階段與訊號」表格點進來就是這頁。</p>
+
+  <section class="card sec">
+    <div class="stages"><span>萌芽</span><span class="on">確認</span><span data-show="suggest" class="next">擴散？</span><span data-show="normal short">擴散</span><span>射出</span><span>鈍化</span></div>
+    <p style="font-size:13.5px;margin:10px 0 0" data-show="normal">目前「確認」：你在 10/20 確認，依據 A 級證據出現 + 籃子進入轉強象限。</p>
+    <div data-show="suggest" style="margin-top:10px">
+      <p style="font-size:14px;margin:0 0 6px"><span class="st draft">AI 建議</span> 「確認」→「擴散」。引用的訊號：<b>相關 Story 數量 2.1 倍</b>、<b>轉強成分股 5 / 8</b>。反對的訊號：<b>A 級證據仍只有 roadmap</b>。</p>
+      <div class="row"><button class="btn sm primary">接受，改成擴散</button><button class="btn sm">不接受</button><span class="muted" style="font-size:12px">AI 只能引用下面的訊號，不能憑新聞文字判斷</span></div>
+    </div>
+    <div class="banner info" data-show="short" style="margin:10px 0 0"><span class="ico">i</span><div><b>這個題材 10/28 才建立</b>：「Story 數量相對前 4 週」要滿 4 週才算得出來；籃子相對強弱用的是回推的成分股。訊號不夠，AI 先不建議階段。</div></div>
+  </section>
+
+  <div class="sg">
+    <section class="card">
+      <h3>籃子相對強弱與動能</h3>
+      <div class="v">領先象限 · 第 2 週</div>
+      <p class="rd">轉強 8 週後進入領先；動能開始回落</p>
+      <div data-show="normal suggest"><div class="chart" data-chart="line" data-labels='["9/22","","10/6","","10/20","","11/3","11/10"]' data-min="98" data-max="104" data-ref="100" data-ref-label="100 = 跟大盤一樣"
+        data-series='[{"n":"相對強度","c":"ai","v":[98.2,98.6,99.1,99.8,100.6,101.4,102.0,102.5]},{"n":"相對動能","c":"mine","v":[99.0,100.4,101.6,102.5,102.8,102.3,101.6,101.0]}]'></div></div>
+      <div data-show="short" class="muted" style="font-size:13px">只有回推的資料 <span class="bf-tag">回推</span></div>
+      <a href="rotation.html" style="font-size:12.5px">輪動圖</a>
+    </section>
+
+    <section class="card">
+      <h3>相關 Story 數量 <span class="muted" style="font-size:12px;font-weight:400">相對前 4 週</span></h3>
+      <div class="v" data-show="normal suggest">2.1 倍</div><div class="v muted" data-show="short">—</div>
+      <p class="rd" data-show="normal suggest">本週 23 個 Story，前 4 週平均 11 個</p><p class="rd" data-show="short">還要 2 週的資料</p>
+      <div data-show="normal suggest"><div class="chart" data-chart="line" data-labels='["9/22","","10/6","","10/20","","11/3","11/10"]' data-min="0" data-max="25"
+        data-series='[{"n":"每週 Story 數","c":"ai","v":[6,8,9,11,12,10,17,23]}]'></div></div>
+    </section>
+
+    <section class="card">
+      <h3>籃子內轉強的成分股</h3>
+      <div class="v">5 / 8</div>
+      <p class="rd">4 週前 2 / 8 · 新轉強：範例電源 B、範例變壓器 G、範例被動元件 F</p>
+      <div class="bar1"><i style="width:62%"></i></div>
+    </section>
+
+    <section class="card">
+      <h3>加強證據出現後 [0, +1] 的反應</h3>
+      <div class="v up">+1.8%</div>
+      <p class="rd">最近 6 則加強證據的平均異常報酬；前 6 則 +2.1%。沒有明顯變弱，還不是鈍化。</p>
+      <div data-show="normal suggest"><div class="chart" data-chart="line" data-labels='["#1","#2","#3","#4","#5","#6","#7","#8","#9","#10","#11","#12"]' data-min="-1" data-max="5" data-ref="0"
+        data-series='[{"n":"每則加強證據的反應（%）","c":"ok","v":[2.6,1.4,3.1,1.9,2.2,1.4,2.4,0.9,2.0,1.6,2.5,1.4]}]'></div></div>
+    </section>
+
+    <section class="card">
+      <h3>有沒有 A 級證據</h3>
+      <div class="v">有 2 則 · 都是 roadmap</div>
+      <p class="rd">還沒有出貨、訂單或營收的實證。這個訊號擋住「射出」。</p>
+      <ul class="evl"><li><span class="g A">A</span><span>（範例）GPU 大廠技術文件 <span class="muted">11/08</span></span></li><li><span class="g A">A</span><span>（範例）GPU 大廠發表會 <span class="muted">2025</span></span></li></ul>
+    </section>
+  </div>
+
+  <section class="card sec" style="margin-top:16px">
+    <h2>階段紀錄 <span class="sub">每次變化都是帳本紀錄，附當時的訊號</span></h2>
+    <ul class="hist">
+      <li><b>確認</b><span class="muted">10/20 你確認</span><span>AI 建議 · 依據：A 級證據 + 轉強象限</span></li>
+      <li><b>萌芽</b><span class="muted">09/15 你確認</span><span>你手動 · 依據：Story 數量 1.6 倍</span></li>
+    </ul>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

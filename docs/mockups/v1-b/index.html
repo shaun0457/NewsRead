@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 14px; }
+  .screens a { display: block; padding: 16px; color: var(--ink); text-decoration: none; }
+  .screens a:hover { border-color: var(--accent); }
+  .screens h2 { font-size: 16px; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+  .screens p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .screens .st2 { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+  .qs { padding: 18px; margin-top: 20px; }
+  .qs ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>NewsRead · Mockup B（ticket #2）</b>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="../v1-a/index.html">Mockup A →</a>
+</div>
+
+<main class="page" style="max-width:1000px">
+  <div class="page-head"><h1>Mockup B：其餘畫面</h1></div>
+  <p class="mock-note" style="margin-bottom:18px">靜態 HTML，沿用 Mockup A 的樣式和控制列（狀態、桌機 / 窄視窗、淺 / 深色）。公司、代號、價格、KOL、出處都是「範例」。K 線外觀仿 lightweight-charts、輪動圖和折線仿 ECharts；圖是用固定種子產生的假資料，正式版直接用那兩個元件。用量頁已在 <a href="../v1-a/usage.html">Mockup A</a>。</p>
+
+  <div class="section-title">股價與輪動</div>
+  <div class="screens">
+    <a class="card" href="entity.html"><h2>追蹤對象頁</h2><p>K 線疊新聞 / 你的判斷 / AI / KOL / 預測標記、四塊歸因、時間軸（AI 理由、市場是否視為新資訊）、說法變化、掛載的預測。</p><div class="st2">一般 · 剛建立 · 載入 · 行情失敗</div></a>
+    <a class="card" href="reader-kline.html"><h2>閱讀器旁的 K 線</h2><p>盲判前遮住發布之後的價格，判斷完才顯示事件窗反應。</p><div class="st2">盲判前 · 判斷完 · 事後補判 · 沒有行情 · 時間不明</div></a>
+    <a class="card" href="rotation.html"><h2>相對強弱排名與相對輪動圖</h2><p>題材 / 產業相對大盤的排名（1 週、1 個月），四象限軌跡，點進去看同期新聞。</p><div class="st2">一般 · 回推的籃子 · 資料不足 · 載入 · 失敗</div></a>
+    <a class="card" href="baskets.html"><h2>題材籃子管理</h2><p>成分股、生效日、版本；AI 建議加入 / 移除，你確認；移除不回溯。</p><div class="st2">一般 · AI 建議 · 移除 · 空</div></a>
+    <a class="card" href="flows.html"><h2>台股籌碼</h2><p>三大法人買賣超、融資增減，依題材 / 產業彙總，再展開成分股。</p><div class="st2">一般 · 今天還沒出 · 只有美股 · 載入 · 失敗</div></a>
+    <a class="card" href="stage-signals.html"><h2>階段訊號明細</h2><p>五個訊號各自的數字和走勢；AI 只能引用訊號建議階段，你確認。</p><div class="st2">一般 · AI 建議改階段 · 訊號不足</div></a>
+    <a class="card" href="unexplained.html"><h2>市場在動，原因不明</h2><p>提示和 AI 找原因的結果：依出處排序的候選原因，一鍵掛到論點。</p><div class="st2">提示 · 找原因中 · 找到 · 找不到 · 失敗</div></a>
+    <a class="card" href="briefing-rotation.html"><h2>簡報裡的輪動段落</h2><p>Telegram 簡報裡的輪動變化，每個變化附同期新聞。</p><div class="st2">有變化 · 沒有變化 · 補抓</div></a>
+  </div>
+
+  <div class="section-title">預測與驗證</div>
+  <div class="screens">
+    <a class="card" href="prediction-form.html"><h2>寫完整預測</h2><p>從論點起草：賺什麼錢、機制、判定標準（AI 起草）、固定期間、框架卡、自動快照；記下後只能新增修正。</p><div class="st2">AI 起草好了 · 起草中 · 檢查沒過 · 已記下 · 修正</div></a>
+    <a class="card" href="resolve.html"><h2>到期判定</h2><p>各期間的異常報酬自動算；機制有沒有發生由你判定，AI 先附證據；四格結果。</p><div class="st2">待判定 · AI 找不到 · 已判定 · 機制不明 · 等財報</div></a>
+    <a class="card" href="performance.html"><h2>績效</h2><p>Brier、命中率、期望值、賺賠比、勝率、領先時間；我 vs AI vs KOL；依 edge；四格；依季。</p><div class="st2">一般 · 全部樣本不足 · 空 · 打分方法版本</div></a>
+    <a class="card" href="kol.html"><h2>KOL 頁</h2><p>逐字稿分成可驗證的判斷 / 方法論 / 純觀點；AI 詮釋判定標準；在哪類題目上有用。</p><div class="st2">一般 · 匯入中 · 沒有發布時間 · 分類失敗 · 空</div></a>
+    <a class="card" href="frameworks.html"><h2>判斷框架卡</h2><p>判斷原則和附時間尺度的雜訊框架卡；用了這張卡的預測表現。</p><div class="st2">列表 · 雜訊框架卡 · AI 起草 · 空</div></a>
+  </div>
+
+  <div class="section-title">評估 AI</div>
+  <div class="screens">
+    <a class="card" href="prompts.html"><h2>Prompt 管理</h2><p>champion / challenger 前向比較、試行花費、依季表現、prompt diff、當天的市場背景。</p><div class="st2">試行中 · 可升級 · 某季變差 · 沒有 challenger</div></a>
+    <a class="card" href="annotate.html"><h2>逐句標註</h2><p>因果鏈、概念卡、題材頁、證據逐句標正確 / 錯誤 / 編造；只能新增。</p><div class="st2">待標註 · 已標註 · 都標完了</div></a>
+  </div>
+
+  <section class="card qs">
+    <h2 style="font-size:16px">要你決定的事</h2>
+    <ol>
+      <li><span class="chip ok">已決定 11/11</span> <b>漲跌色依市場</b>：台股紅漲綠跌、美股綠漲紅跌（K 線、漲跌幅、籌碼）。加強 / 削弱、偏多 / 偏空的顏色照設計規則不變。</li>
+      <li><span class="chip warn">建議拿掉，待確認</span> <b>盲判前遮住發布後的價格</b>：打分本來就只用判斷之後的價格，遮住只是避免你被股價影響。mockup 已改成不遮。</li>
+      <li><span class="chip ok">已決定 11/11</span> <b>找原因可以看還沒掛到論點的資料</b>；找到的資料連到該題材，出現在題材頁和今日新聞。（「資料地圖」指的是什麼，待確認）</li>
+      <li><span class="chip warn">待確認</span> <b>框架卡怎麼算「資料支持」</b>：拿「勾了這張卡的預測」和「沒勾的預測」比命中率，各自滿 30 筆才標。</li>
+    </ol>
+  </section>
+</main>
+<script src="../v1-a/mock.js"></script>
+</body>
+</html>

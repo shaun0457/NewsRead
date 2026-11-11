@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KOL · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .kl { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .voices { padding: 6px; display: grid; gap: 2px; }
+  .voices a { display: block; padding: 8px 10px; border-radius: 8px; color: var(--ink); font-size: 14px; }
+  .voices a small { display: block; color: var(--ink-3); font-size: 12px; }
+  .voices a[aria-current="true"] { background: var(--surface-2); font-weight: 600; }
+  .cls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .cls h3 { font-size: 13.5px; margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+  .it { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 13.5px; margin-bottom: 6px; }
+  .it .q { color: var(--ink-2); }
+  .crit { margin-top: 6px; padding: 6px 8px; border: 1px dashed var(--accent); border-radius: 6px; font-size: 12.5px; background: var(--surface); }
+  .ep { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  .ep li { display: flex; gap: 8px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--rule); align-items: center; }
+  .ep li:first-child { border-top: 0; }
+  @media (max-width: 980px) { .cls { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 860px) { .kl { grid-template-columns: minmax(0, 1fr); } .voices { grid-auto-flow: column; overflow-x: auto; } }
+  body[data-frame="narrow"] .kl, body[data-frame="narrow"] .cls { grid-template-columns: minmax(0, 1fr); }
+  body[data-frame="narrow"] .voices { grid-auto-flow: column; overflow-x: auto; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup B · KOL 頁</b>
+  <span class="grp">狀態：
+    <button data-set-state="normal">一般</button>
+    <button data-set-state="importing">匯入中</button>
+    <button data-set-state="notime">逐字稿沒有發布時間</button>
+    <button data-set-state="error">分類失敗</button>
+    <button data-set-state="empty">還沒有 KOL</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html" aria-current="page">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page">
+  <div class="page-head"><h1>KOL</h1><span class="muted">Podcast、Substack、X 帳號 · 跟你和 AI 用同一套方法打分</span><span style="flex:1"></span><button class="btn sm">＋ 新增 KOL</button></div>
+  <p class="mock-note" style="margin-bottom:14px">KOL 名稱、集數、內容都是「範例」（實際會是股癌這類節目），摘要不是原文。逐字稿的出處指到行號。</p>
+
+  <div class="empty card" data-show="empty"><h2>還沒有 KOL</h2><p>新增一個 Podcast，設定逐字稿資料夾（每集一個檔案），或貼單集連結。匯入後過去的判斷馬上用歷史股價打分。</p><button class="btn primary" style="margin-top:8px">新增 KOL</button></div>
+
+  <div class="kl" data-show="normal importing notime error">
+    <nav class="card voices" aria-label="KOL">
+      <a href="#" aria-current="true">範例 Podcast A<small>186 集 · 判斷 412 筆</small></a>
+      <a href="#">範例 Substack 作者<small>48 篇 · 判斷 63 筆</small></a>
+      <a href="#">範例 X 帳號<small>貼文 · 判斷 21 筆</small></a>
+    </nav>
+
+    <div>
+      <div class="banner info" data-show="importing"><span class="ico">⟳</span><div><b>匯入中：34 / 186 集</b> · 逐字稿資料夾 <span class="num">…/podcast-a/</span> · 每集用節目發布時間當時間點。已經分類完的集數可以先看。<div class="bar1" style="margin-top:6px"><i style="width:18%"></i></div><span class="muted" style="font-size:12px">Claude Code · Sonnet（訂閱）· 額度保護 70%：超過就先暫停</span></div></div>
+      <div class="banner warn" data-show="notime"><span class="ico">?</span><div><b>3 集沒有發布時間</b>：檔名和內容都找不到日期。這 3 集的判斷不打分，直到你填日期。<button class="btn sm">填日期</button></div></div>
+      <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>EP 範例 512 分類失敗</b>：AI 輸出被截斷（錯誤代碼 OUTPUT_TRUNCATED）。其他集不受影響。<button class="btn sm">重試這集</button></div></div>
+
+      <section class="card sec">
+        <h2>他在哪些題目上有用 <span class="sub">同一類題目，跟你和 AI 並排 · 21 天</span></h2>
+        <div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th>題目</th><th class="num">範例 Podcast A</th><th class="num">我</th><th class="num">AI</th></tr></thead>
+          <tbody>
+            <tr><td>半導體供應鏈</td><td class="num"><b>66%</b> <span class="muted">· 74 筆</span></td><td class="num">58% <span class="muted">· 40</span></td><td class="num">60% <span class="muted">· 52</span></td></tr>
+            <tr><td>總經 / 利率</td><td class="num">48% <span class="muted">· 39</span></td><td class="num">51% <span class="muted">· 12</span> <span class="thin-tag">不足</span></td><td class="num">55% <span class="muted">· 33</span></td></tr>
+            <tr><td>消費電子</td><td class="num">61% <span class="muted">· 18</span> <span class="thin-tag">不足</span></td><td class="num muted">—</td><td class="num">57% <span class="muted">· 20</span> <span class="thin-tag">不足</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">KOL 的判斷時間 = 節目發布時間，不標事後補判；擷取和詮釋時間另外記。<a href="performance.html">完整績效</a></p>
+      </section>
+
+      <section class="card sec">
+        <h2>EP 範例 701 <span class="sub">2026-10-28 發布 · 判斷 4 · 方法論 2 · 純觀點 5</span><span style="flex:1"></span><span class="seg"><button>上一集</button><button>下一集</button></span></h2>
+        <div class="cls">
+          <div>
+            <h3>可驗證的判斷 <span class="chip">4</span></h3>
+            <div class="it"><div class="q">（範例摘要）先進封裝明年還是缺，產能吃緊會延續到下半年</div>
+              <div class="row" style="margin-top:4px"><span class="cite">逐字稿 L212–219</span><span class="dir bull">範例晶圓廠 偏多·中</span></div>
+              <div class="crit"><span class="chip ai">AI 詮釋</span> 判定標準：2027 Q2 前公司沒有說產能「足夠」或「寬鬆」 <button class="btn sm ghost">改</button></div></div>
+            <div class="it"><div class="q">（範例摘要）記憶體這波是庫存回補，不是需求</div>
+              <div class="row" style="margin-top:4px"><span class="cite">L388–392</span><span class="dir bear">記憶體籃子 偏空·低</span></div>
+              <div class="crit"><span class="chip mine">你改過</span> 判定標準：63 天內籃子相對大盤 −5% 以上</div></div>
+          </div>
+          <div>
+            <h3>方法論 <span class="chip">2</span></h3>
+            <div class="it"><div class="q">（範例摘要）長線方向對了，月度數字的上下是雜訊</div>
+              <div class="row" style="margin-top:4px"><span class="cite">L150–158</span><a class="btn sm" href="frameworks.html">已成框架卡</a></div></div>
+            <div class="it"><div class="q">（範例摘要）題材第二家公司出來接棒才算擴散</div>
+              <div class="row" style="margin-top:4px"><span class="cite">L301</span><button class="btn sm">做成框架卡</button></div></div>
+          </div>
+          <div>
+            <h3>純觀點 <span class="chip">5</span></h3>
+            <div class="it"><div class="q">（範例摘要）覺得這次的財報季氣氛偏樂觀</div><div class="row" style="margin-top:4px"><span class="cite">L40</span><span class="muted" style="font-size:12px">不打分</span></div></div>
+            <div class="it"><div class="q">（範例摘要）對某家公司經營層的好感</div><div class="row" style="margin-top:4px"><span class="cite">L77</span><button class="btn sm ghost">其實可以驗證</button></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card sec">
+        <h2>集數</h2>
+        <ul class="ep">
+          <li><b>EP 範例 701</b><span class="muted">10/28</span><span class="chip ok">已分類</span><span>判斷 4</span></li>
+          <li><b>EP 範例 700</b><span class="muted">10/24</span><span class="chip ok">已分類</span><span>判斷 2 · 1 筆已到期 <span class="chip ok">對</span></span></li>
+          <li data-show="notime"><b>EP 範例 455</b><span class="chip warn">時間不明</span><span class="muted">不打分</span></li>
+          <li data-show="error"><b>EP 範例 512</b><span class="chip bad">分類失敗</span></li>
+          <li data-show="importing"><b>EP 範例 520–699</b><span class="chip">排隊中</span></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+</body>
+</html>

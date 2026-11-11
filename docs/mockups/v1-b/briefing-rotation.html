@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簡報的輪動段落 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 22px; align-items: start; }
+  .phone { border: 1px solid var(--rule-2); border-radius: 22px; background: var(--surface-2); overflow: hidden; box-shadow: var(--shadow); min-width: 0; }
+  .phone .top { background: var(--surface); padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 13.5px; display: flex; gap: 8px; align-items: center; }
+  .phone .top .av { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .phone .chat { padding: 12px; display: grid; gap: 8px; }
+  .phone h3 { font-size: 13px; color: var(--ink-3); font-weight: 600; padding: 10px 14px 0; margin: 0; }
+  .msg { background: var(--surface); border-radius: 12px 12px 12px 4px; padding: 9px 11px; font-size: 14px; line-height: 1.55; max-width: 96%; overflow-wrap: anywhere; }
+  .msg .t { display: block; text-align: right; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .msg a { color: var(--accent); }
+  .msg hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 0; }
+  .msg .dim { color: var(--ink-3); font-size: 12.5px; }
+  .cap { font-size: 12.5px; color: var(--ink-3); padding: 0 14px 12px; }
+</style>
+</head>
+<body data-state="normal">
+<div class="mock-bar">
+  <b>Mockup B · 簡報裡的輪動變化段落</b>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<main class="page">
+  <div class="page-head"><h1>簡報裡的輪動變化</h1><span class="muted">接在每日簡報的題材段落後面 · 格式見 Mockup A 的 <a href="../v1-a/telegram.html">Telegram 訊息</a></span></div>
+  <p class="mock-note" style="margin-bottom:18px">只列「明顯的變化」（換象限、新進前 3、市場在動原因不明），每個變化附同期的新聞；沒有變化就一行帶過。題材、數字、新聞都是「範例」。</p>
+
+  <div class="phones">
+    <section class="phone">
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <h3>有變化</h3>
+      <div class="chat">
+        <div class="msg">
+          <b>📈 輪動（11/10 收盤，相對台股報酬指數）</b><hr>
+          <b>800V DC</b>：轉強 → <b>領先</b>（第 2 週）<br>
+          <span class="dim">同期：</span>（範例）GPU 大廠技術文件列出 800V 供應商 [A] <a href="#">原文</a><br>
+          <hr>
+          <b>光通訊</b>：領先 → <b>轉弱</b><br>
+          <span class="dim">同期：</span>（範例）大客戶延後 1.6T 認證 [B] <a href="#">原文</a> · 你的論點「1.6T 2026 放量」目前<b>加強中</b>，要不要看一下？<br>
+          <hr>
+          <b>被動元件</b>：轉強第 3 週 · ⚠ <b>市場在動，原因不明</b>（10 天沒有證據掛在論點上）<a href="#">請 AI 找原因</a><br>
+          <hr>
+          <span class="dim">籃子「範例散熱」11/03 以前是回推的，不列入變化。</span>
+          <a href="rotation.html">看輪動圖</a>
+          <span class="t">07:30</span>
+        </div>
+      </div>
+      <p class="cap">每一點都附原文連結，桌機打開。價格和消息並列，不推論誰造成誰。</p>
+    </section>
+
+    <section class="phone">
+      <div class="top"><span class="av">N</span><b>NewsRead</b></div>
+      <h3>沒有明顯變化</h3>
+      <div class="chat">
+        <div class="msg"><b>📈 輪動</b>：沒有明顯變化。800V DC 仍在領先（第 3 週）。<a href="rotation.html">輪動圖</a><span class="t">07:30</span></div>
+      </div>
+      <h3>有補抓</h3>
+      <div class="chat">
+        <div class="msg"><b>📈 輪動（11/07 收盤）</b>：週末電腦關機，11/10 的日線開機後才補抓到，下一份簡報再更新。<hr>
+          <b>AI 伺服器</b>：領先 → <b>轉弱</b><br><span class="dim">同期沒有相關新聞。</span>
+          <span class="t">09:12 · 補抓</span></div>
+      </div>
+      <p class="cap">「同期沒有相關新聞」也照寫，不硬找。</p>
+    </section>
+  </div>
+</main>
+<script src="../v1-a/mock.js"></script>
+</body>
+</html>

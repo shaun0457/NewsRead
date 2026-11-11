@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>市場在動，原因不明 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .ux { max-width: 920px; margin: 0 auto; }
+  .alert { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .alert h2 { font-size: 17px; margin-bottom: 4px; }
+  .cand { padding: 12px 0; border-top: 1px solid var(--rule); }
+  .cand:first-of-type { border-top: 0; padding-top: 0; }
+  .cand .h { font-size: 15px; font-weight: 600; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .cand p { font-size: 13.5px; margin: 4px 0 6px; }
+</style>
+</head>
+<body data-state="alert" data-kc="tw">
+<div class="mock-bar">
+  <b>Mockup B · 「市場在動，原因不明」</b>
+  <span class="grp">狀態：
+    <button data-set-state="alert">提示</button>
+    <button data-set-state="looking">AI 找原因中</button>
+    <button data-set-state="found">找到可能的原因</button>
+    <button data-set-state="none">找不到</button>
+    <button data-set-state="error">失敗</button>
+  </span>
+  <span class="grp">市場：<button data-set-kc="tw">台股（紅漲）</button><button data-set-kc="us">美股（綠漲）</button></span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html" aria-current="page">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page ux">
+  <p class="mock-note" style="margin-bottom:14px">敘事看板和簡報都會出現這個提示，點進來是這頁。籃子、新聞、出處都是「範例」。觸發條件：籃子或產業的相對動能進入轉強象限，而且過去 10 個交易日沒有任何證據掛在對應的論點上。回推的籃子不觸發。</p>
+
+  <div class="alert">
+    <h2>⚠ 被動元件：市場在動，原因不明</h2>
+    <p style="font-size:14px;margin:0">籃子進入<b>轉強象限第 3 週</b>，1 週相對大盤 +3.4%、成交量 1.8 倍。過去 10 個交易日，這個題材的 2 個論點都沒有新證據。</p>
+    <div class="row" style="margin-top:10px" data-show="alert"><button class="btn primary" data-set-state="looking">請 AI 找原因</button><button class="btn ghost">先不管（7 天內不再提示）</button></div>
+  </div>
+
+  <section class="card chart-box" style="margin-bottom:16px">
+    <div class="chart" data-chart="kline" data-seed="23" data-n="50" data-p="210" data-drift="0.003" data-bench="1" data-marks="12:news:上次掛上證據（B 級）"></div>
+    <div class="chart-legend"><span><i class="lg-news"></i>掛在論點上的證據</span><span><i class="lg-bench"></i>台股報酬指數</span><span class="muted">籃子等權 · 9 檔</span></div>
+  </section>
+
+  <section class="card sec" data-show="looking">
+    <h2>AI 找原因中…</h2>
+    <div style="display:grid;gap:8px"><div class="skel" style="width:70%"></div><div class="skel"></div></div>
+    <p class="muted" style="font-size:12.5px;margin:10px 0 0">只看已經匯入的資料：過去 10 個交易日提到成分股的 38 則（含還沒掛到論點的）+ 籌碼。不上網查。Claude Code · Sonnet（訂閱）· 約 30K token。</p>
+  </section>
+
+  <div class="banner bad" data-show="error"><span class="ico">!</span><div><b>沒找完</b>：訂閱額度到了你設的 70%，背景工作暫停到 14:00 重置（錯誤代碼 PAUSED）。可以改用 API key 跑這一次。<div class="row" style="margin-top:6px"><button class="btn sm">用 API key 跑（約 $0.09）</button><button class="btn sm ghost">等重置</button></div></div></div>
+
+  <section class="card sec" data-show="found">
+    <h2>可能的原因 <span class="sub">AI 依出處排序；沒出處的標 AI 推論</span></h2>
+    <div class="cand">
+      <div class="h"><span class="g B">B</span>（範例）高壓電容規格提升，800V 機櫃用量增加</div>
+      <p>3 則提到範例被動元件 F 和範例被動元件 H 送樣 800V 機櫃 <span class="cite">範例媒體 11/05 ¶3</span> <span class="cite">法說會 11/06 ¶22</span>。這些資料匯入了，但還沒掛到任何論點。</p>
+      <div class="row"><button class="btn sm primary">掛到 800V DC 的論點</button><button class="btn sm">建立新論點</button><button class="btn sm ghost">不是原因</button><span class="ann">這段對嗎？<span class="mark3"><button class="ok">正確</button><button class="no">錯誤</button><button class="fab">編造</button></span></span></div>
+    </div>
+    <div class="cand">
+      <div class="h"><span class="chip">籌碼</span>投信連 6 日買超，合計 +18 億</div>
+      <p>依 TWSE 三大法人資料 <span class="cite">籌碼 11/03–11/10</span>。只說明誰在買，不說明為什麼。</p>
+      <div class="row"><a class="btn sm" href="flows.html">看籌碼</a><button class="btn sm ghost">不是原因</button></div>
+    </div>
+    <div class="cand">
+      <div class="h"><span class="chip">AI 推論</span>被動元件報價觸底的循環回升</div>
+      <p>剪報夾裡沒有直接的證據，是依 2 則月營收年增轉正推的 <span class="cite">月營收 11/10</span>。要確認得看報價資料。</p>
+      <div class="row"><button class="btn sm">記成待確認的論點</button><button class="btn sm ghost">不是原因</button></div>
+    </div>
+    <div class="banner info" style="margin:10px 0 0"><span class="ico">↳</span><div>上面引用的 3 則已經連到「被動元件」題材（連結來源標「AI 找原因」），題材頁的「還沒掛到論點的資料」和今日新聞都看得到，之後在閱讀器照常判斷。</div></div>
+    <p class="muted" style="font-size:11.5px;margin:10px 0 0">prompt find_cause v1 · Claude Code · Sonnet（訂閱）· 讀了 38 則 · 引用的出處都對過原文 · 這次的結果寫揭露紀錄（這 38 則之後的判斷不算盲判）</p>
+  </section>
+
+  <section class="card sec" data-show="none">
+    <h2>找不到可能的原因</h2>
+    <p style="font-size:14px;margin:0 0 8px">過去 10 個交易日匯入的 38 則資料裡，沒有可以解釋的消息；籌碼也沒有明顯變化。可能是還沒被報導、資金面，或你的來源沒涵蓋。</p>
+    <div class="row"><a class="btn sm" href="../v1-a/ingest.html">貼網址補資料</a><button class="btn sm">記成「原因不明」，2 週後再看</button><button class="btn sm ghost">關掉提示</button></div>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>

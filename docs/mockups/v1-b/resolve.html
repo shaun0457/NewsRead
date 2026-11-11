@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>到期判定 · NewsRead Mockup B</title>
+<link rel="stylesheet" href="../v1-a/mockup.css">
+<link rel="stylesheet" href="b.css">
+<style>
+  .rs { max-width: 900px; margin: 0 auto; }
+  .hzt td, .hzt th { white-space: nowrap; }
+  .ans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ans .opt { justify-content: center; font-weight: 600; }
+  .g4 { display: grid; grid-template-columns: 90px repeat(2, minmax(0, 1fr)); gap: 4px; font-size: 13px; text-align: center; }
+  .g4 > div { padding: 8px 6px; border-radius: 8px; background: var(--surface-2); }
+  .g4 .hd { background: transparent; color: var(--ink-3); font-size: 12px; }
+  .g4 .here { outline: 2px solid var(--mine); background: var(--mine-soft); font-weight: 700; }
+</style>
+</head>
+<body data-state="pending">
+<div class="mock-bar">
+  <b>Mockup B · 到期判定</b>
+  <span class="grp">狀態：
+    <button data-set-state="pending">待你判定</button>
+    <button data-set-state="nofind">AI 找不到證據</button>
+    <button data-set-state="done">已判定</button>
+    <button data-set-state="unclear">機制不明</button>
+    <button data-set-state="earnings">等下一次財報</button>
+  </span>
+  <span class="grp">寬度：<button data-set-frame="desktop">桌機</button><button data-set-frame="narrow">窄</button></span>
+  <span class="grp">主題：<button data-set-theme="auto">自動</button><button data-set-theme="light">淺</button><button data-set-theme="dark">深</button></span>
+  <a href="index.html">← 全部畫面</a>
+</div>
+
+<div class="frame">
+<header class="appbar">
+  <span class="brand"><span class="mark">N</span>NewsRead</span>
+  <nav class="nav"><a href="../v1-a/board.html">敘事看板</a><a href="../v1-a/today.html">今日新聞</a><a href="rotation.html">輪動</a><a href="performance.html" aria-current="page">績效</a><a href="../v1-a/concepts.html">概念</a><a href="entity.html">追蹤對象</a><a href="../v1-a/settings.html">設定</a></nav>
+  <span class="spacer"></span><a class="btn sm" href="../v1-a/ingest.html">＋ 貼網址</a><a class="status-dot" href="../v1-a/usage.html">背景執行中 · Claude 5h 42%</a>
+</header>
+
+<main class="page rs">
+  <div class="page-head"><h1>到期判定 · 預測 #27</h1><span class="chip warn" data-show="pending nofind">待判定（Telegram 已提醒）</span><span class="chip ok" data-show="done">已判定 11/11</span><span class="chip" data-show="unclear">機制不明</span><span class="chip" data-show="earnings">部分到期</span></div>
+  <p class="mock-note" style="margin-bottom:14px">假資料，都是「範例」。只有「機制有沒有發生」要你判定；方向的結果由異常報酬自動算。</p>
+
+  <section class="card sec">
+    <p style="font-family:var(--serif-zh);font-size:17px;margin:0 0 6px">先進封裝產能吃緊，範例晶圓廠 1 季內相對產業 +5%。</p>
+    <div class="row" style="font-size:13px"><span class="dir bull">偏多 · 中</span><span class="muted">記於 2026-08-12 · 分析差 · 事件類型：法說會 · 你寫的</span></div>
+    <dl class="kv" style="margin-top:10px">
+      <dt>機制</dt><dd>客戶追加先進封裝訂單，公司在 10 月法說會上修產能或報價。</dd>
+      <dt>判定標準</dt><dd>10 月法說會有上修先進封裝產能或報價的說法；判定資料：法說會逐字稿</dd>
+    </dl>
+  </section>
+
+  <section class="card sec">
+    <h2>方向的結果 <span class="sub">往預測方向的異常報酬 · 減掉產業指數</span></h2>
+    <div style="overflow-x:auto">
+    <table class="tbl hzt">
+      <thead><tr><th>期間</th><th class="num">異常報酬</th><th>結果</th><th class="hide-sm">減大盤 / 減籃子</th></tr></thead>
+      <tbody>
+        <tr><td>1 天</td><td class="num up">+0.4%</td><td>對</td><td class="hide-sm num muted">+0.6% / +0.2%</td></tr>
+        <tr><td>5 天</td><td class="num down">−1.2%</td><td>錯</td><td class="hide-sm num muted">−0.8% / −1.5%</td></tr>
+        <tr><td>21 天</td><td class="num up">+3.1%</td><td>對</td><td class="hide-sm num muted">+4.0% / +2.2%</td></tr>
+        <tr><td>63 天</td><td class="num up">+6.4%</td><td><b>對（判定期間）</b></td><td class="hide-sm num muted">+8.1% / +5.0%</td></tr>
+        <tr><td>到下一次財報</td><td class="num" data-show="pending nofind done unclear">+5.9%</td><td data-show="pending nofind done unclear">對</td><td class="num muted" data-show="earnings">—</td><td data-show="earnings"><span class="chip">等 Q4 財報匯入後結算</span></td><td class="hide-sm num muted" data-show="pending nofind done unclear">+7.2% / +4.4%</td><td class="hide-sm" data-show="earnings"></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">期間內有 2 天停牌，標「無法打分」不算錯。打分方法 v1。</p>
+  </section>
+
+  <section class="card sec" data-show="pending nofind earnings">
+    <h2>機制有沒有發生？ <span class="sub">AI 先找證據，你決定</span></h2>
+    <div data-show="pending earnings">
+      <ul class="evl" style="margin:0 0 10px">
+        <li><span class="g A">A</span><span class="rel s">支持</span><span>10 月法說會：先進封裝產能明年再擴 30% <span class="cite">法說會逐字稿 ¶31</span> <span class="muted">10/16</span></span></li>
+        <li><span class="g A">A</span><span class="rel w">不支持</span><span>同場法說會財務長說明年產能「足夠」 <span class="cite">法說會逐字稿 ¶24</span></span></li>
+        <li><span class="g B">B</span><span class="rel s">支持</span><span>具名媒體：先進封裝明年報價調漲 <span class="cite">範例媒體 ¶4</span> <span class="muted">11/06</span></span></li>
+      </ul>
+      <p style="font-size:13.5px;margin:0 0 10px"><span class="chip ai">AI 看法</span> 偏向「發生」：有上修產能的 A 級說法，但同場也有相反說法。<span class="muted">只用 08/12 以後、今天以前的資料</span></p>
+    </div>
+    <div class="banner warn" data-show="nofind"><span class="ico">?</span><div><b>AI 在已匯入的資料裡找不到</b>跟判定標準有關的證據（找了 10 月法說會前後 14 則）。可能是逐字稿還沒匯入。<div class="row" style="margin-top:6px"><a class="btn sm" href="../v1-a/ingest.html">貼法說會逐字稿</a><button class="btn sm ghost">我自己判定</button></div></div></div>
+    <div class="ans">
+      <button class="opt">發生了</button><button class="opt">沒發生</button><button class="opt">不明</button>
+    </div>
+    <div class="field" style="margin:10px 0 0"><label>依據（可選）</label><textarea class="input" rows="2" style="min-height:56px" placeholder="例如：¶31 的上修是明確數字，¶24 是保守說法"></textarea></div>
+    <div class="row"><button class="btn primary" data-set-state="done">記下判定</button><span class="lock">記下後不能改；要改只能新增一筆修正</span></div>
+  </section>
+
+  <section class="card sec" data-show="done unclear">
+    <h2>結果</h2>
+    <div data-show="done">
+      <div class="g4">
+        <div class="hd"></div><div class="hd">方向對</div><div class="hd">方向錯</div>
+        <div class="hd">機制發生</div><div class="here">真的看對 ✓</div><div>理由對但結果錯</div>
+        <div class="hd">機制沒發生</div><div>理由錯但結果對</div><div>真的看錯</div>
+      </div>
+      <p style="font-size:13.5px;margin:10px 0 0">你判定「發生了」（11/11）· 依據 <span class="cite">法說會 ¶31</span> · AI 看法相同</p>
+    </div>
+    <div data-show="unclear">
+      <p style="font-size:14px;margin:0">你判定「不明」：放在四格旁邊的「機制不明」欄，不硬塞進四格。方向的分數照算。</p>
+    </div>
+    <div class="row" style="margin-top:10px"><a class="btn sm" href="performance.html">看績效</a><button class="btn sm ghost">新增修正</button></div>
+  </section>
+</main>
+</div>
+<script src="../v1-a/mock.js"></script>
+</body>
+</html>
