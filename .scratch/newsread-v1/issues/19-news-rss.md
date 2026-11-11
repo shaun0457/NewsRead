@@ -2,7 +2,7 @@
 
 **What to build:** 系統定時抓取使用者維護的新聞 RSS 清單。
 
-**Blocked by:** 07（常駐與排程器）、14（AI 分類寫進帳本）
+**Blocked by:** 07（常駐與排程器）、14（AI 分類寫進帳本）、68（訂閱額度保護）
 
 **Status:** ready-for-agent
 
