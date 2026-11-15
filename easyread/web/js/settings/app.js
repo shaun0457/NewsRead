@@ -1,5 +1,5 @@
 /* 設定頁的 AI 模型區（ticket 67）：本機訂閱偵測、自帶 key、每種工作用哪個引擎。
-   畫面照核准的 Mockup A（docs/mockups/v1-a/settings.html 的 #models）。額度保護是 ticket 68，還沒做。
+   畫面照核准的 Mockup A（docs/mockups/v1-a/settings.html 的 #models）。最下面是額度保護（ticket 68）。
    key 只在輸入框裡出現；送出後伺服器只回末四碼，這裡也不留著。 */
 window.PR = window.PR || {};
 (function (PR) {
@@ -50,6 +50,17 @@ window.PR = window.PR || {};
     today: (n) => PR.t("今天 {n} 次", { n }), month: (cost) => PR.t("本月 ${cost}", { cost }),
     versionNote: PR.t("換引擎或模型會記進 prompt 版本；golden set 比較準確度時分開算。"),
     loadFailed: PR.t("讀不到 AI 設定。"), retry: PR.t("重試"),
+    guardTitle: PR.t("額度保護"),
+    bgSub: PR.t("背景工作也可以用訂閱（Claude Code、Codex CLI）"),
+    bgSubHint: PR.t("預設關：Anthropic 和 OpenAI 都沒有明文允許其他程式在背景用個人訂閱，所以背景的分類、翻譯、起草預設改用 API key 或本機模型。你手動按的（問 AI、起草）照常可以用訂閱。"),
+    threshold: PR.t("Claude Code 5 小時額度超過"), onWait: PR.t("背景工作等額度重置"), onApi: PR.t("背景工作改用 API key"), onExceed: PR.t("超過門檻時"),
+    thresholdHint: PR.t("訂閱是你自己寫程式也在用的同一份額度，背景工作不能把它吃光。只有打開上面的開關才用得到。"),
+    cap: PR.t("API 每月上限（USD）"),
+    capHint: PR.t("只算有費用的 API 呼叫。到 80% 時通知（Telegram 接上之後）；到上限就停掉背景的翻譯和起草，分類改等訂閱額度。"),
+    spent: (spent, cap) => PR.t("這個月已花 ${spent} / ${cap}", { spent, cap }),
+    pausedQuota: (pct, when) => PR.t("背景工作暫停中：Claude Code 5 小時額度到 {pct}，{when} 重置後自動接著跑。", { pct, when }),
+    pausedCap: PR.t("背景工作暫停中：API 這個月的花費到了上限，背景的翻譯和起草停下。"),
+    pausedNoApi: PR.t("背景工作暫停中：背景不用訂閱，也還沒有 API key 或本機模型。新資料會先排在待分類。"),
   });
   const esc = (s) => PR.esc(s);
   const joinList = (xs) => xs.join(PR.lang === "en" ? ", " : "、");  // i18n-ok：列表分隔符號
@@ -231,6 +242,41 @@ window.PR = window.PR || {};
     }).join("");
   }
 
+  /* 額度保護（ticket 68）。欄位一改就存（POST /api/ai/guard） */
+  function guardHtml(view, tx) {
+    const g = view.guard;
+    if (!g || !g.settings) return "";
+    const s = g.settings, b = g.background || {}, api = g.api || {};
+    let banner = "";
+    if (b.reason === "quota") {
+      const pct = Math.round(((g.quota || {}).used || 0) * 100) + "%";
+      banner = tx.pausedQuota(pct, shortTime(b.until, true) || "—");
+    } else if (b.reason === "api_cap") banner = tx.pausedCap;
+    else if (b.reason === "no_api") banner = tx.pausedNoApi;
+    const opt = (v, label) => `<option value="${v}"${s.on_exceed === v ? " selected" : ""}>${esc(label)}</option>`;
+    return `<div class="label">${esc(tx.guardTitle)}</div>` +
+      (banner ? `<div class="banner warn"><span class="ico">⏸</span><div>${esc(banner)}</div></div>` : "") +
+      `<div class="field"><label class="row"><input type="checkbox" id="f-guard-sub" data-guard="background_subscription"${s.background_subscription ? " checked" : ""}> ${esc(tx.bgSub)}</label>` +
+      `<span class="hint">${esc(tx.bgSubHint)}</span></div>` +
+      `<div class="grid2"><div class="field"><label for="f-guard-threshold">${esc(tx.threshold)}</label>` +
+      `<div class="row"><input class="input num" type="number" id="f-guard-threshold" data-guard="threshold" min="1" max="100" step="1" value="${esc(s.threshold)}" style="width:5em">%` +
+      `<select class="input" id="f-guard-on" data-guard="on_exceed" aria-label="${esc(tx.onExceed)}" data-no-i18n>${opt("wait", tx.onWait)}${opt("api", tx.onApi)}</select></div>` +
+      `<span class="hint">${esc(tx.thresholdHint)}</span></div>` +
+      `<div class="field"><label for="f-guard-cap">${esc(tx.cap)}</label>` +
+      `<input class="input num" type="number" id="f-guard-cap" data-guard="api_monthly_usd" min="0" step="0.01" value="${esc(s.api_monthly_usd)}">` +
+      `<span class="hint">${esc(tx.spent(Number(api.spent_usd || 0).toFixed(2), Number(s.api_monthly_usd).toFixed(2)))} · ${esc(tx.capHint)}</span></div></div>`;
+  }
+
+  /* 額度保護欄位的值 → POST 的 body；數字不對就回 null（不送） */
+  function guardBody(el) {
+    const k = el.dataset.guard;
+    if (k === "background_subscription") return { [k]: !!el.checked };
+    if (k === "on_exceed") return { [k]: el.value };
+    const n = Number(el.value);
+    if (el.value === "" || !Number.isFinite(n)) return null;
+    return { [k]: k === "threshold" ? Math.round(n) : n };
+  }
+
   function viewHtml(S, now) {
     const tx = T();
     if (S.status === "loading") return `<div class="skel" style="width:60%"></div><div class="skel" style="width:40%;margin-top:10px"></div>`;
@@ -249,12 +295,13 @@ window.PR = window.PR || {};
       `<tbody>${anthropicRowHtml(v, ui, tx)}${openaiRowsHtml(v, ui, tx)}</tbody></table></div>` +
       `<p class="hint">${esc(tx.keyHint)}</p>` + bannersHtml(v, tx) +
       `<div class="label">${esc(tx.perTask)}</div><div class="grid2">${tasksHtml(v, tx)}</div>` +
-      `<p class="muted note">${esc(tx.versionNote)}</p></fieldset>`;
+      `<p class="muted note">${esc(tx.versionNote)}</p>` + guardHtml(v, tx) + `</fieldset>`;
   }
 
   function blankOpenai() { return { name: "", base_url: "", api: "chat", model: "" }; }
 
-  PR.settings = { carryKeys, shortTime, choiceLabel, quotaText, engineRowsHtml, anthropicRowHtml, openaiRowsHtml, bannersHtml, tasksHtml, viewHtml, blankOpenai };
+  PR.settings = { carryKeys, shortTime, choiceLabel, quotaText, engineRowsHtml, anthropicRowHtml, openaiRowsHtml, bannersHtml, tasksHtml, viewHtml, blankOpenai,
+    guardHtml, guardBody };
 
   /* ---------- 畫面狀態和事件 ---------- */
   const S = { status: "loading", data: null, busy: false, editing: null, draft: blankOpenai(), errors: {} };
@@ -413,6 +460,22 @@ window.PR = window.PR || {};
   async function onChange(ev) {
     const el = ev.target;
     if (el.dataset.o === "api") { S.draft.api = el.value; return; }
+    if (el.dataset.guard) {
+      // 數字欄是按 Tab 離開時才 change：先讓焦點移到下一欄，存完把焦點放回使用者要去的那一欄，不拉回原欄位
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const moved = document.activeElement;
+      const next = moved && moved !== el && moved !== document.body && moved.id ? "#" + moved.id : "#" + el.id;
+      const body = guardBody(el);
+      if (!body) {  // 數字欄清空或不是數字：不送，直接說範圍（不沿用上一次的錯誤）
+        PR.toast(esc(el.dataset.guard === "threshold" ? PR.t("門檻要是 1 到 100 的整數。") : PR.t("沒有改成功，請再試一次。")));
+        return void render(next);
+      }
+      delete S.errors["page." + el.dataset.guard];
+      const res = await send("/api/ai/guard", body, PR.t("沒有改成功，請再試一次。"));
+      if (!res) PR.toast(esc(S.errors["page." + el.dataset.guard] || S.errors["page.form"] || PR.t("沒有改成功，請再試一次。")));
+      if (res && PR.quotaGuard) PR.quotaGuard.poll();  // 右上角跟著更新
+      return void render(next);
+    }
     const task = el.dataset.task;
     if (!task || !S.data) return;
     const cur = (S.data.tasks || {})[task] || {};

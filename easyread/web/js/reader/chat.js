@@ -268,6 +268,7 @@
     if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
     if (noteId) { PR.asking.add(noteId); PR.renderMargin(); }
     render();
+    if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動問照跑，先提醒（ticket 68）
     try {
       const res = await fetch("/api/p/" + PR.pid + "/chat", {
         method: "POST", signal: ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },

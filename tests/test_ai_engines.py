@@ -89,7 +89,7 @@ class FallbackTest(Base):
         self.adapters["anthropic"] = FakeAdapter(ai.AIError("AUTH_INVALID", "401 invalid x-api-key"))
         self.adapters["claude"] = FakeAdapter(ok("改用訂閱"), ok("第二次"))
         eng = self.engines()
-        res = eng.run("thesis_change", "p", prompt_version="v1")
+        res = eng.run("thesis_change", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(res["text"], "改用訂閱")
         self.assertEqual((res["engine"], res["fallback"], res["notice"]), ("claude", True, "AUTH_INVALID"))
         self.assertEqual(len(self.adapters["anthropic"].calls), 1)  # 同一把 key 不重試
@@ -97,7 +97,7 @@ class FallbackTest(Base):
         self.assertEqual(self.settings.load()["anthropic"]["status"], "invalid")
         self.assertEqual(self.settings.load()["anthropic"]["code"], "AUTH_INVALID")
         # 之後直接用備用，不再碰那把 key
-        res = eng.run("thesis_change", "p", prompt_version="v1")
+        res = eng.run("thesis_change", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(res["text"], "第二次")
         self.assertEqual(len(self.adapters["anthropic"].calls), 1)
         view = eng.view()
@@ -111,12 +111,12 @@ class FallbackTest(Base):
         self.adapters["anthropic"] = FakeAdapter(ai.AIError("AUTH_INVALID"))
         eng = self.engines()
         with self.assertRaises(ai.AIError) as cm:
-            eng.run("thesis_change", "p", prompt_version="v1")
+            eng.run("thesis_change", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "PAUSED")
         self.assertEqual(eng.plan("thesis_change", self.settings.load(), self.found)["state"], "paused")
         self.assertFalse(eng.available("thesis_change"))
         with self.assertRaises(ai.AIError) as cm:  # 第二次不再呼叫
-            eng.run("thesis_change", "p", prompt_version="v1")
+            eng.run("thesis_change", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "PAUSED")
         self.assertEqual(len(self.adapters["anthropic"].calls), 1)
         self.assertTrue(eng.available("triage"))  # 別的工作照常（自動選到 Claude Code）
@@ -136,7 +136,7 @@ class FallbackTest(Base):
         self.adapters["claude"] = FakeAdapter(ai.AIError("AUTH_INVALID"))
         self.adapters["anthropic"] = FakeAdapter(ok(cost=0.01, billing="api"))
         eng = self.engines()
-        res = eng.run("ask", "p", prompt_version="v1")
+        res = eng.run("ask", "p", trigger="manual", prompt_version="v1")
         self.assertEqual((res["engine"], res["notice"]), ("anthropic", "AUTH_INVALID"))
         self.assertEqual(eng.view()["detected"]["claude"]["auth"], "invalid")
         self.assertEqual(eng.redetect()["tasks"]["ask"]["state"], "ready")
@@ -146,7 +146,7 @@ class FallbackTest(Base):
         self.set_task("draft", CLAUDE_SONNET, ANTHROPIC_SONNET)
         self.adapters["claude"] = FakeAdapter(ai.AIError("UPSTREAM_ERROR"))
         with self.assertRaises(ai.AIError) as cm:
-            self.engines().run("draft", "p", prompt_version="v1")
+            self.engines().run("draft", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "UPSTREAM_ERROR")
         self.assertEqual(self.adapters["anthropic"].calls, [])
 
@@ -161,7 +161,7 @@ class NoAiTest(Base):
         for t in ai.TASKS:
             self.assertFalse(eng.available(t))
         with self.assertRaises(ai.AIError) as cm:
-            eng.run("triage", "p", prompt_version="v1")
+            eng.run("triage", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "NO_AI")
         self.assertEqual(self.index.usage(), [])
         self.assertEqual(str(cm.exception), "NO_AI: " + ai.message("NO_AI"))
@@ -170,7 +170,7 @@ class NoAiTest(Base):
         self.found = json.loads(json.dumps(FOUND_NONE))
         self.found["ollama"] = {"running": True, "models": ["qwen3:8b"]}
         self.adapters["ollama"] = FakeAdapter(ok(cost=0.0, billing="local"))
-        res = self.engines().run("translate", "p", prompt_version="v1")
+        res = self.engines().run("translate", "p", trigger="manual", prompt_version="v1")
         self.assertEqual((res["engine"], res["model"]), ("ollama", "qwen3:8b"))
         self.assertEqual(self.index.usage()[0]["cost_usd"], 0.0)
 
@@ -180,7 +180,7 @@ class BackoffTest(Base):
         self.set_task("triage", CLAUDE_SONNET)
         self.adapters["claude"] = FakeAdapter(*[ai.AIError("RATE_LIMITED") for _ in range(ai.MAX_ATTEMPTS)])
         with self.assertRaises(ai.AIError) as cm:
-            self.engines().run("triage", "p", prompt_version="v1")
+            self.engines().run("triage", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "RATE_LIMITED")
         self.assertEqual(len(self.adapters["claude"].calls), ai.MAX_ATTEMPTS)
         self.assertEqual(self.waits, [2.0, 4.0, 8.0])
@@ -190,7 +190,7 @@ class BackoffTest(Base):
         self.set_task("triage", CLAUDE_SONNET)
         self.adapters["claude"] = FakeAdapter(ai.AIError("RATE_LIMITED", retry_after=ai._retry_after("9999")),
                                               ai.AIError("RATE_LIMITED", retry_after=ai._retry_after("1")), ok())
-        res = self.engines().run("triage", "p", prompt_version="v1")
+        res = self.engines().run("triage", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(res["text"], "好")
         self.assertEqual(self.waits, [ai.BACKOFF_MAX, 4.0])  # 上游的 1 秒比退避短，用退避的 4 秒
         self.assertEqual(len(self.index.usage()), 1)
@@ -206,7 +206,7 @@ class BackoffTest(Base):
         self.assertEqual(cm.exception.code, "CANCELLED")
         self.set_task("triage", CLAUDE_SONNET)
         with self.assertRaises(ai.AIError) as cm:
-            self.engines().run("triage", "p", prompt_version="v1", cancel=cancel)
+            self.engines().run("triage", "p", trigger="manual", prompt_version="v1", cancel=cancel)
         self.assertEqual(cm.exception.code, "CANCELLED")
         self.assertEqual(self.adapters["claude"].calls, [])
 
@@ -220,8 +220,8 @@ class UsageTest(Base):
         self.adapters["anthropic"] = FakeAdapter(ok(input=1000, output=500, cost=0.014, billing="api"))
         self.adapters["claude"] = FakeAdapter(ok(input=200, cached=50, output=10, quota=quota))
         eng = self.engines()
-        eng.run("draft", "p", prompt_version="draft-v3", source="theme_page")
-        eng.run("triage", "p", prompt_version="triage-v1")
+        eng.run("draft", "p", trigger="manual", prompt_version="draft-v3", source="theme_page")
+        eng.run("triage", "p", trigger="manual", prompt_version="triage-v1")
         api, sub = self.index.usage()
         self.assertEqual((api["engine"], api["model"], api["task"], api["source"]), ("anthropic", "claude-opus-5-5", "draft", "theme_page"))
         self.assertEqual((api["input_tokens"], api["output_tokens"], api["cost_usd"]), (1000, 500, 0.014))
@@ -238,24 +238,24 @@ class UsageTest(Base):
         self.adapters["claude"] = FakeAdapter(ok(), ok())
         self.adapters["codex"] = FakeAdapter(ok())
         eng = self.engines()
-        self.assertEqual(eng.run("ask", "p", prompt_version="ask-v2")["prompt_version"], "ask-v2@claude/claude-sonnet-5-5")
+        self.assertEqual(eng.run("ask", "p", trigger="manual", prompt_version="ask-v2")["prompt_version"], "ask-v2@claude/claude-sonnet-5-5")
         self.assertEqual(self.index.current_prompt("ask"), "ask-v2@claude/claude-sonnet-5-5")
         self.set_task("ask", {"engine": "claude", "model": "claude-opus-5-5", "entry": ""})
-        self.assertEqual(eng.run("ask", "p", prompt_version="ask-v2")["prompt_version"], "ask-v2@claude/claude-opus-5-5")
+        self.assertEqual(eng.run("ask", "p", trigger="manual", prompt_version="ask-v2")["prompt_version"], "ask-v2@claude/claude-opus-5-5")
         self.set_task("ask", {"engine": "codex", "model": "", "entry": ""})
-        self.assertEqual(eng.run("ask", "p", prompt_version="ask-v2")["prompt_version"], "ask-v2@codex/default")
+        self.assertEqual(eng.run("ask", "p", trigger="manual", prompt_version="ask-v2")["prompt_version"], "ask-v2@codex/default")
         self.assertEqual(self.index.current_prompt("ask"), "ask-v2@codex/default")
         eng.run  # noqa: B018
         self.adapters["claude"] = FakeAdapter(ok())
         self.set_task("ask", CLAUDE_SONNET)
-        eng.run("ask", "p", prompt_version="ask-v2")  # 同一組版本可以重複登記
+        eng.run("ask", "p", trigger="manual", prompt_version="ask-v2")  # 同一組版本可以重複登記
 
     def test_run_needs_a_known_task_and_a_prompt_version(self):
         eng = self.engines()
         with self.assertRaises(ValueError):
-            eng.run("summarise", "p", prompt_version="v1")
+            eng.run("summarise", "p", trigger="manual", prompt_version="v1")
         with self.assertRaises(ValueError):
-            eng.run("ask", "p", prompt_version="")
+            eng.run("ask", "p", trigger="manual", prompt_version="")
 
     def test_prices(self):
         self.assertEqual(ai.price("claude-opus-5-5", 1_000_000, 0, 0, 1_000_000), 24.0)
@@ -273,7 +273,7 @@ class ErrorTextTest(Base):
         self.adapters["claude"] = FakeAdapter(ai.AIError("ENGINE_ERROR", f"upstream said key={SECRET} user@example.com"))
         with self.assertLogs(log, level="DEBUG") as logs:
             with self.assertRaises(ai.AIError) as cm:
-                self.engines().run("ask", "p", prompt_version="v1")
+                self.engines().run("ask", "p", trigger="manual", prompt_version="v1")
         e = cm.exception
         self.assertEqual(str(e), "ENGINE_ERROR: " + ai.message("ENGINE_ERROR"))
         self.assertNotIn("SECRETSECRET", e.detail)  # 留著的上游原文也先過 scrubber
@@ -454,7 +454,7 @@ class ReviewFixesTest(Base):
     def test_auto_moves_on_to_the_next_engine_in_the_same_call(self):
         self.adapters["claude"] = FakeAdapter(ai.AIError("AUTH_INVALID"))
         self.adapters["codex"] = FakeAdapter(ok("codex 接手"))
-        res = self.engines().run("ask", "p", prompt_version="v1")  # 預設是自動
+        res = self.engines().run("ask", "p", trigger="manual", prompt_version="v1")  # 預設是自動
         self.assertEqual((res["engine"], res["text"], res["notice"], res["fallback"]), ("codex", "codex 接手", "AUTH_INVALID", True))
         self.assertEqual(len(self.adapters["claude"].calls), 1)
 
@@ -469,7 +469,7 @@ class ReviewFixesTest(Base):
         self.adapters["claude"] = FakeAdapter(ai.AIError("OUTPUT_TRUNCATED", usage={"input": 900, "cached": 0, "output": 16000,
                                                                                       "cost_usd": None, "quota": None}))
         with self.assertRaises(ai.AIError) as cm:
-            self.engines().run("draft", "p", prompt_version="v1")
+            self.engines().run("draft", "p", trigger="manual", prompt_version="v1")
         self.assertEqual(cm.exception.code, "OUTPUT_TRUNCATED")
         (row,) = self.index.usage()
         self.assertEqual((row["task"], row["input_tokens"], row["output_tokens"]), ("draft", 900, 16000))
@@ -477,7 +477,7 @@ class ReviewFixesTest(Base):
     def test_a_bad_context_manifest_is_rejected_before_calling_ai(self):
         self.set_task("ask", CLAUDE_SONNET)
         with self.assertRaises(ValueError):
-            self.engines().run("ask", "p", prompt_version="v1", context_manifest="M-missing")
+            self.engines().run("ask", "p", trigger="manual", prompt_version="v1", context_manifest="M-missing")
         self.assertEqual(self.adapters["claude"].calls, [])
 
     def test_openai_prompt_versions_name_the_service(self):
@@ -488,9 +488,9 @@ class ReviewFixesTest(Base):
         self.adapters["openai"] = FakeAdapter(ok(billing="api"), ok(billing="api"))
         eng = self.engines()
         self.set_task("ask", {"engine": "openai", "model": "gpt-x", "entry": "oA"})
-        a = eng.run("ask", "p", prompt_version="v1")["prompt_version"]
+        a = eng.run("ask", "p", trigger="manual", prompt_version="v1")["prompt_version"]
         self.set_task("ask", {"engine": "openai", "model": "gpt-x", "entry": "oB"})
-        b = eng.run("ask", "p", prompt_version="v1")["prompt_version"]
+        b = eng.run("ask", "p", trigger="manual", prompt_version="v1")["prompt_version"]
         self.assertEqual((a, b), ("v1@openai:oA/gpt-x", "v1@openai:oB/gpt-x"))
         self.assertEqual(self.adapters["openai"].calls[1]["base_url"], "https://b.example/v1")
 

@@ -1,0 +1,13 @@
+/* 每頁右上角的「背景工作暫停」（ticket 68，js/common/quota-guard.js） */
+.quota-paused {
+  margin-inline: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--danger, #b0472f);
+  text-decoration: none;
+}
+.quota-paused:hover { text-decoration: underline; }
+.quota-paused:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
