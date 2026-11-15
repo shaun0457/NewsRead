@@ -215,6 +215,17 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 沒有 AI、key 失效又沒有備用、服務在關：留在待分類，不算次數，這一輪停下。其他錯誤最多自動試 3 次，間隔 5、10 分鐘，之後標成 `failed`；一則失敗不影響同一輪的下一則，只有限流（`RATE_LIMITED`）算一次失敗之後這一輪就停下。沒預期的內部錯誤記成 `INTERNAL`，同樣算一次。找不到資料、不是文章的直接標 `failed`（`NOT_ARTICLE`）。
 - 發布時間晚於現在不到 24 小時：延後到發布時間再分類，不算次數；晚超過 24 小時記 `BAD_TIME`。沒有發布時間也沒有匯入時間記 `NO_TIME`。
 
+## 4.67 今日新聞 (`POST /api/today`)
+
+今日新聞頁（`/today`，`easyread/today.py`，ticket 15）用這一個介面。它會寫揭露紀錄，所以只有 POST：要帶 `X-Token`（別的網站觸發不了），body 是 JSON，上限 1 KB（超過回 413，不是 JSON 物件回 400）。沒有 GET。
+
+- body 欄位（都可省略）：`importance`（逗號分隔，`high`、`mid`、`none`、`low`、`noise`，預設 `high,mid,none`；`none` = 還沒有重要度：待分類、失敗，或沒有相關對象）、`entity`（追蹤對象 id，也可以是題材；只列連到它的資料，題材是透過論點所屬的題材連到）、`limit`（預設 50，最多 200，超過照 200 回）。不認得的值回 400 `{error, field}`。
+- 「今天」是台北時間的日期，依發布時間算（時間不明就用匯入時間，跟分類一樣）。一次最多讀 1000 則最近兩天有動靜（分類狀態有更新）的資料，新的在前，超過時 `truncated` 是 `true`（畫面請使用者用篩選縮小）。讀不出來的資料（檔案壞掉或被鎖住）跳過那一則，log 只記 ID 和錯誤類型。標題和來源顯示使用者改過的（`meta_override`）。
+- 回傳 `{date, tz, levels, limit, items, total, more, truncated, counts, entities}`：`total` 是符合篩選的總數，`more` 是還有沒回的；`counts` 是各重要度的數量（已套用 `entity`，不套用 `importance`）；`entities` 是追蹤對象 / 題材的篩選清單 `[{id, name, type, count}]`（已套用 `importance`，最多 200 個）。資料庫還沒建時回空列表，不會建檔。
+- `items` 依重要度（高、中、未分類、低、雜訊）再依時間（新的在前）排，每則 `{id, title, publisher, published_at, time_known, at, url, preview_only, state, importance, stale, retrospective, reader_url, top, entities, theses}`。`importance` 是它對各論點最高的一級（有論點就只看論點，沒有論點才看各追蹤對象，見規格「雜訊是相對的」）；`top` 是決定這一級的那個判斷（所以標籤和理由一定對得上） `{kind, id, relation, importance, confidence, reason}`；`entities`、`theses` 是相對於每個追蹤對象 / 論點的判斷（欄位同 4.66，論點另有 `claim`、`theme_name`）。沒有分類結果的資料 `top` 是 `null`、兩個清單是空的；分類結果讀不出來或格式不對的判斷也當成沒有。
+- **揭露紀錄**：讀取全部做完之後，用一個交易替回傳的每一則、而且有分類結果的資料寫揭露紀錄（地點 = `today`，同一則只記第一次），寫完才回傳；寫不進去整個請求失敗（500），不回任何 AI 的看法，也不會留下一部分紀錄。被篩掉或超過 `limit` 沒回的不寫。`counts` 和 `entities` 只有數量，沒有個別資料的看法，不算揭露。
+- 資料庫被鎖住或讀寫出錯時回 500，訊息是固定的一句，不帶原始錯誤。
+
 ## 4.7 AI 引擎與自帶 key (`/api/ai/*`)
 
 設定頁（`/settings`）的「AI 模型」區用這組 API（ticket 67）。其他模組呼叫 AI 一律走 `easyread/ai_engines.py` 的 `Engines.run(task, prompt, prompt_version=…)`，不直接呼叫引擎。寫入要帶 `X-Token`，body 上限 16 KB（超過回 413）。輸入不對回 400 `{error, field}`；找不到回 404；其他錯誤回 500，訊息是固定的一句。回應裡的 key 只有末四碼（`last4`，key 短於 12 字時是空字串），完整的 key 只存在資料目錄的 `ai.json`，不寫進 log。

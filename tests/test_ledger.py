@@ -65,6 +65,17 @@ class StorageTest(LedgerCase):
                 self.ix.record_exposure(item, place)
         self.assertTrue(self.ix.record_exposure("x" * ledger.MAX_ITEM_ID, "ask_ai"))
 
+    def test_batch_exposures_skip_existing_and_span_sql_chunks(self):
+        self.ix.record_exposure("item-0", "today")
+        ids = [f"item-{i}" for i in range(401)]  # 超過一批 400 個參數
+        self.assertEqual(self.ix.record_exposures(ids + ["item-5"], "today"), 400)  # item-0 已有、item-5 重複
+        self.assertEqual(self.ix.record_exposures(ids, "today"), 0)
+        self.assertEqual(self.ix.record_exposures([], "today"), 0)
+        for bad, place in ((["ok", ""], "today"), (["ok"], "web"), ([None], "today")):
+            with self.subTest(place=place), self.assertRaises(ValueError):
+                self.ix.record_exposures(bad, place)
+        self.assertEqual(self.ix.exposures("ok"), [])  # 有一筆不對就整批不寫
+
     def test_index_connections_turn_on_recursive_triggers(self):
         self.ix.register_prompt("triage", "1", "prompt text")
         with self.ix._connect() as db, self.assertRaisesRegex(sqlite3.IntegrityError, "append-only"):

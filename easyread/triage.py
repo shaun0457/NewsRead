@@ -512,7 +512,8 @@ class Store:
 
 
 def _top(rated: list[dict]) -> str | None:
-    """對各論點 / 追蹤對象最高的那一級（今日新聞顯示這個）。"""
+    """對各論點和追蹤對象（兩組一起）最高的那一級，存在結果的 importance。
+    今日新聞不用這個：它照規格「有論點只看論點」自己算（today._pool），標籤和理由才對得上。"""
     levels = [r["importance"] for r in rated]
     return next((lvl for lvl in IMPORTANCE if lvl in levels), None)
 

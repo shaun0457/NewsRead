@@ -427,6 +427,26 @@ class Index:
             db.execute("INSERT INTO exposures (item_id, place, at) VALUES (?,?,?)", (item_id, place, self.now()))
             return True
 
+    def record_exposures(self, item_ids: list[str], place: str) -> int:
+        """一次記下好幾則（同一個寫入交易：全部寫進去或全部沒寫）。已經記過的跳過，回傳新增幾筆。"""
+        if place not in EXPOSURE_PLACES:
+            raise ValueError(f"unknown exposure place: {place}")
+        ids = list(dict.fromkeys(item_ids))
+        if any(not isinstance(i, str) or not 0 < len(i) <= MAX_ITEM_ID for i in ids):
+            raise ValueError("item_id is required")
+        if not ids:
+            return 0
+        with self._write() as db:
+            seen = set()
+            for i in range(0, len(ids), 400):  # SQL 參數上限
+                part = ids[i:i + 400]
+                seen |= {r[0] for r in db.execute(f"SELECT item_id FROM exposures WHERE place=? AND item_id IN ({','.join('?' * len(part))})",
+                                                  (place, *part))}
+            now = self.now()
+            new = [(i, place, now) for i in ids if i not in seen]
+            db.executemany("INSERT INTO exposures (item_id, place, at) VALUES (?,?,?)", new)
+            return len(new)
+
     def exposures(self, item_id: str) -> list[dict]:
         """這則資料被揭露過的地點和時間，依時間排序（每個地點最多一筆，所以筆數有上限）。"""
         with self._connect() as db:
