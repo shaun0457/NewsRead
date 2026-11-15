@@ -207,11 +207,20 @@ test("leaving the page while a request is running does not schedule another poll
   assert.equal(s.PR.quotaGuard._state().busy, false);
 });
 
-test("the reader chat reminds before sending", () => {
-  const src = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/chat.js"), "utf8");
-  const remind = src.indexOf("PR.quotaGuard.remind()");
-  assert.ok(remind > 0);
-  assert.ok(remind < src.indexOf('fetch("/api/p/" + PR.pid + "/chat"'));
+test("every manual AI entry in the reader reminds before sending", () => {
+  // 問 AI（論文和文章共用，筆記卡片的「點評」也走這裡）和筆記幫手（點評、幫我改、起草稿）
+  // 智慧標註、心智圖（側欄產生、匯出時補產生）、讓模型重譯這段也是使用者按了就呼叫模型
+  // 翻譯整篇 / 整頁的按鈕不在這裡：翻譯是背景工作，受額度保護暫停（ticket 68）
+  for (const [file, call] of [["chat.js", 'fetch("/api/p/" + PR.pid + "/chat"'], ["notehelp.js", 'fetch("/api/p/" + PR.pid + "/notehelp"'],
+    ["notespanel.js", '"/smart-annotate"'], ["planner.js", '"/mindmap/tasks"'], ["export.js", 'PR.api(endpoint, { method: "POST"'],
+    ["actions.js", 'PR.ask("retranslate"']]) {
+    const src = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader", file), "utf8");
+    const remind = src.indexOf("PR.quotaGuard.remind()");
+    assert.ok(remind > 0, file);
+    assert.ok(remind < src.indexOf(call), file);
+  }
+  const margin = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/margin.js"), "utf8");
+  assert.match(margin, /PR\.askModel = function[\s\S]*?PR\.chatAsk\(/);  // 筆記卡片的點評經過 chat.js
 });
 
 test("every page with a header loads the indicator", () => {

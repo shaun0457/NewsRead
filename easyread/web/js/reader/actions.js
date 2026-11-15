@@ -147,6 +147,7 @@
       if (b.dataset.rt !== "go") return;
       el.classList.add("busy");
       try {
+        if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
         for (const key of PR.blockKeys(PR.blockById[id])) await PR.ask("retranslate", { key, hint });
         PR.toast(PR.t("正在重译，好了会自动替换（你改过的段落会提示对比）"));
       } catch (err) { el.classList.remove("busy"); PR.toast(PR.t("没能提交：{msg}", { msg: PR.esc(err.message) })); }

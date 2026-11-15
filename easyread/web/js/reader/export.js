@@ -110,7 +110,10 @@
     if (pick.mindmap) {
       const endpoint = "/api/reader/paper/" + encodeURIComponent(PR.pid) + "/mindmap";
       let result = await PR.api(endpoint);
-      if (!result.mermaid) result = await PR.api(endpoint, { method: "POST", body: {} });
+      if (!result.mermaid) {  // 還沒有心智圖：這次要呼叫模型產生
+        if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
+        result = await PR.api(endpoint, { method: "POST", body: {} });
+      }
       if (!result.mermaid) throw new Error(PR.t("沒有取得心智圖內容。"));
       mindmap = result.mermaid;
       if (PR.mindmap && typeof PR.mindmap.exportPngBase64 === "function") {

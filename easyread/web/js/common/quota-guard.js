@@ -2,7 +2,7 @@
    背景工作暫停時改顯示「背景工作暫停 · …」；兩種都點了到用量頁（/usage）。額度還沒有數字、或已經過了重置時間就不顯示。
    GET /api/ai/guard 每 POLL_MS 問一次；頁面看不到時不問，回到頁面馬上問一次；失敗時間隔加倍，最多 MAX_BACKOFF_MS；
    離開頁面（pagehide）就停。同一時間只有一個請求。
-   手動按的 AI（問 AI）送出前呼叫 PR.quotaGuard.remind()：額度超過門檻、或 API 到上限時提醒（同一段只提醒一次），照樣送出。 */
+   每個手動 AI 入口（問 AI、筆記幫手、智慧標註、心智圖、重譯這段）送出前呼叫 PR.quotaGuard.remind()：額度超過門檻、或 API 到上限時提醒（同一段只提醒一次），照樣送出。 */
 (function (PR) {
   "use strict";
 
