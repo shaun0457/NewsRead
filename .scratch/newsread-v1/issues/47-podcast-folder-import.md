@@ -4,7 +4,7 @@
 
 **Blocked by:** 14（AI 分類寫進帳本）
 
-**Status:** ready-for-agent
+**Status:** parked（2026-11-15 使用者在 NewsRead 以外用 NVIDIA Nemotron 免費模型處理股癌逐字稿，這張先暫緩；之後依那邊的產出決定怎麼接）
 
 - [ ] 在設定裡指定逐字稿資料夾，每集一個檔案匯入
 - [ ] 先確認每集發布日期從哪裡取得（檔案內容、檔名或 RSS），結果記在這張 ticket 裡；無法確定的標「時間不明」
