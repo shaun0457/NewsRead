@@ -108,21 +108,27 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     exe = claude_path(c)
     if not exe:
         raise EngineError(tr("找不到 Claude Code 命令：{cmd}（先装好并登录 Claude Code）", cmd=c.get("command") or "claude"))
-    args = [exe, "-p", *_CLAUDE_ARGS]
+    no_tools = bool(c.get("no_tools"))
+    # no_tools：一個工具都不給（prompt 裡有外部內容，例如 AI 分類的文章全文）。--allowedTools Read 也拿掉
+    base = [a for a in _CLAUDE_ARGS if a not in ("--allowedTools", "Read")] if no_tools else _CLAUDE_ARGS
+    args = [exe, "-p", *base]
     if c.get("model"):
         args += ["--model", c["model"]]
-    args += list(c.get("extra_args") or [])
+    if not no_tools:  # 使用者的額外參數可能帶 --mcp-config、--allowedTools，把工具加回來：不能有工具時不用
+        args += list(c.get("extra_args") or [])
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]
     # lean（翻译时）：只给 Read 一个工具。--allowedTools 只是免确认，别的内置工具的定义照样每次都发，
     # 实测空调用固定上下文从约 3.2 万 token 降到约 5 千。用户设置（代理、默认模型、登录）照旧读。
-    lean = CLAUDE_LEAN if c.get("lean") else []
+    lean = CLAUDE_NO_TOOLS if no_tools else (CLAUDE_LEAN if c.get("lean") else [])
     try:
         out = _communicate(_popen(args + lean, cwd), prompt, int(c.get("timeout") or 1200), cancel)
     except EngineError as e:
         if not lean or not option_unknown(e):
             raise
-        log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
+        if no_tools:  # 不認 --tools 就不能保證沒有工具：直接失敗，不退回有工具的呼叫
+            raise EngineError(tr("這版 Claude Code 不能關掉工具，請更新 Claude Code。")) from None
+        log.warning("Claude Code 不认 --tools，照旧调用")  # 不記 CLI 的輸出原文
         out = _communicate(_popen(args, cwd), prompt, int(c.get("timeout") or 1200), cancel)
     events = _json_lines(out)
     res = next((e for e in reversed(events) if e.get("type") == "result"), None)
@@ -168,6 +174,7 @@ def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, 
 _CONFIG_ERR = re.compile(r"config|mcp_servers|notify|unknown (field|key)|invalid", re.I)
 _OPTION_ERR = re.compile(r"unknown option|--tools", re.I)
 CLAUDE_LEAN = ["--tools", "Read"]  # 只给 Read 一个工具（见 run_claude）
+CLAUDE_NO_TOOLS = ["--tools", ""]  # 一個工具都不給（見 run_claude 的 no_tools）
 
 
 def option_unknown(err) -> bool:

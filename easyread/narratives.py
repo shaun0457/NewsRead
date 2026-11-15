@@ -421,6 +421,17 @@ class Store:
 
     # ---------- 寫：證據 ----------
     def add_evidence(self, thesis_id: str, body, by: str = ME, context_manifest: str | None = None) -> dict:
+        fields = self._evidence_fields(body, by, context_manifest)
+        with self.index.write() as db:
+            return self._insert_evidence(db, thesis_id, fields)
+
+    def add_evidence_in(self, db, thesis_id: str, body, by: str, context_manifest: str | None = None) -> dict:
+        """同 add_evidence，寫在呼叫端已經開好的寫入交易裡（AI 分類的證據跟帳本判斷一起寫）。"""
+        if not db.in_transaction:
+            raise RuntimeError("add_evidence_in must run inside Index.write()")
+        return self._insert_evidence(db, thesis_id, self._evidence_fields(body, by, context_manifest))
+
+    def _evidence_fields(self, body, by: str, context_manifest) -> dict:
         if not isinstance(body, dict):
             raise _bad("body")
         by = _check_by(by)
@@ -436,20 +447,40 @@ class Store:
         source = _source(body.get("source"), "source")
         if is_ai(by) != bool(context_manifest):
             raise _bad("context_manifest")
+        return {"item": item, "story": story, "relation": relation, "grade": grade, "reason": reason, "source": source,
+                "by": by, "manifest": context_manifest}
+
+    def _insert_evidence(self, db, thesis_id: str, f: dict) -> dict:
+        self._thesis_theme(db, thesis_id)
+        if f["story"] and not db.execute("SELECT 1 FROM stories WHERE id=?", (f["story"],)).fetchone():
+            raise _bad("story_id", tr("找不到這個 Story。"))
+        if f["manifest"]:
+            self._check_manifest(db, f["by"], f["manifest"])
+        if db.execute("SELECT count(*) FROM evidence WHERE thesis_id=?", (thesis_id,)).fetchone()[0] >= MAX_EVIDENCE:
+            raise _bad("thesis_id", tr("一個論點最多 {n} 則證據。", n=MAX_EVIDENCE))
         evidence_id = "EV-" + uuid.uuid4().hex
-        with self.index.write() as db:
-            self._thesis_theme(db, thesis_id)
-            if story and not db.execute("SELECT 1 FROM stories WHERE id=?", (story,)).fetchone():
-                raise _bad("story_id", tr("找不到這個 Story。"))
-            if context_manifest:
-                self._check_manifest(db, by, context_manifest)
-            if db.execute("SELECT count(*) FROM evidence WHERE thesis_id=?", (thesis_id,)).fetchone()[0] >= MAX_EVIDENCE:
-                raise _bad("thesis_id", tr("一個論點最多 {n} 則證據。", n=MAX_EVIDENCE))
-            db.execute("INSERT INTO evidence (id, thesis_id, item_id, story_id, relation, grade, reason, source, by, created_at, "
-                       "context_manifest) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                       (evidence_id, thesis_id, item, story, relation, grade, reason,
-                        ledger.canonical(source) if source else None, by, self.index.now(), context_manifest))
+        db.execute("INSERT INTO evidence (id, thesis_id, item_id, story_id, relation, grade, reason, source, by, created_at, "
+                   "context_manifest) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                   (evidence_id, thesis_id, f["item"], f["story"], f["relation"], f["grade"], f["reason"],
+                    ledger.canonical(f["source"]) if f["source"] else None, f["by"], self.index.now(), f["manifest"]))
         return {"id": evidence_id}
+
+    def final_theses(self, db, limit: int) -> list[dict]:
+        """每個論點最新的定稿版本（沒有定稿的不列；退休的不列）。給 AI 分類當 context：草稿不送，免得 AI 的草稿自我強化。"""
+        rows = db.execute(
+            "SELECT t.id, t.theme_id, v.version, v.content_hash, v.body, e.name AS theme_name FROM theses t "
+            "JOIN thesis_versions v ON v.thesis_id = t.id JOIN entities e ON e.id = t.theme_id "
+            "WHERE v.status = 'final' AND v.version = (SELECT max(w.version) FROM thesis_versions w "
+            "WHERE w.thesis_id = t.id AND w.status = 'final') ORDER BY t.created_at, t.id")  # 游標逐筆讀，到 limit 就停
+        out = []
+        for r in rows:
+            if len(out) >= limit:
+                break
+            if self._status(db, r["id"])[0] == "retired":
+                continue
+            out.append({"id": r["id"], "theme_id": r["theme_id"], "theme_name": r["theme_name"], "version": r["version"],
+                        "hash": r["content_hash"], "body": json.loads(r["body"])})
+        return out
 
     # ---------- 寫：論點狀態 ----------
     def _status(self, db, thesis_id: str, at: str | None = None) -> tuple[str, dict | None]:

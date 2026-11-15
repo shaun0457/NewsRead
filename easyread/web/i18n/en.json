@@ -2939,5 +2939,15 @@
   "背景執行": "Background",
   "這個版本不能在這裡設定開機啟動；Windows 安裝版才有這個開關。": "Start at login can't be set here in this version; only the Windows installer has this switch.",
   "開機後縮在系統匣，繼續抓資料、跑排程；從系統匣點 NewsRead 打開。": "After login NewsRead waits in the system tray, fetching and running schedules. Click NewsRead in the tray to open it.",
-  "開機自動啟動": "Start at login"
+  "開機自動啟動": "Start at login",
+  "AI 的回答格式不對。": "The AI's answer was not in the expected format.",
+  "分類結果沒寫進帳本，會再試一次。": "The triage result could not be saved to the ledger; it will be retried.",
+  "資料 ID 不對。": "Invalid item ID.",
+  "這則不是文章，不分類。": "This item is not an article, so it is not triaged.",
+  "這則已經分類完了。": "This item has already been triaged.",
+  "這則的發布時間比現在晚超過一天，不能分類。": "This item's publish time is more than a day in the future, so it cannot be triaged.",
+  "這則還沒有排進 AI 分類。": "This item has not been queued for AI triage.",
+  "這則沒有發布時間，也沒有匯入時間，不能分類。": "This item has no publish time and no import time, so it cannot be triaged.",
+  "分類時發生內部錯誤，會再試一次。": "An internal error occurred during triage; it will be retried.",
+  "這版 Claude Code 不能關掉工具，請更新 Claude Code。": "This version of Claude Code can't turn off its tools. Please update Claude Code."
 }

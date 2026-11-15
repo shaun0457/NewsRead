@@ -183,6 +183,21 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 成功回 200：`{status, id, title, publisher, published_at, time_source, published_raw, fetched_at, url, paragraphs, chars, preview_only, same_language, added, translate}`。`status` 是 `created` / `updated` / `unchanged` / `exists`；`time_source` 是 `metadata`（頁面標的時間）、`user`（手動填的）或 `unknown`（時間不明，`published_at` 是空字串，`published_raw` 是頁面上沒有時區的原文）。
 - 失敗回 `{error, kind}`，`error` 是固定的一句話，不帶上游原文或使用者輸入：輸入不對 400（`bad_input`、`invalid_url`）、這篇正在翻譯 409（`busy`）、抽不到正文 422（`no_text`）、body 超過 2 MB 413（`too_large`）、其他沒預期的錯誤 500（`internal`，例外原文不回、log 只記類型）、抓取失敗 502（`timeout`、`blocked`、`paywall`、`not_found`、`unsupported`、`too_large`、`over_limit`、`network`、`upstream`、`redirect`）。
 - 每則資料自成一個 Story；時間不明的 Story 不記發布時間（不拿抓取時間代替），不納入事件驗證。原文是中文的不送翻譯；其他照「導入後自動翻譯」設定排進翻譯。頁面段落太多或太長時截到一則資料收得下的量（2000 段、40 萬字），`meta.truncated` 記為 true。
+- `created`、`updated` 的資料同時排進 AI 分類（4.66）。
+
+## 4.66 AI 分類 (`/api/triage/*`)
+
+新匯入或換了內容的文章自動排進「待分類」（存在資料庫）；背景的排程每分鐘最多分類 5 則（`easyread/triage.py`，ticket 14）。送給 AI 的只有這篇全文、所有追蹤對象（含已封存的）和論點的最新定稿（草稿不送），不送任何市場熱度的內容。結果在同一個交易裡寫進：AI 連結（`mentions`，`source = ai`，手動移除過的不連回去）、證據（`evidence`，`by` = AI）、帳本的快速判斷（每個相關論點一筆，沒有論點時每個追蹤對象一筆）和分類結果；中間出錯就整筆不寫。
+
+- `GET /api/triage/{資料 id}`：`{item_id, state: pending | done | failed, attempts, next_at, error, error_message, result}`。`error` 只是代碼（例如 `UPSTREAM_ERROR`、`BAD_OUTPUT`、`WRITE_FAILED`），不帶上游原文。`result` 是最新的分類結果或 `null`：
+  - `{id, who, created_at, context_manifest, stale, importance, entities, theses, points, dropped, retrospective, time_unknown, linked, evidence, judgments}`。`importance` 是對各論點 / 追蹤對象最高的一級；`stale` = 結果之後內容又換了。
+  - `entities` 每個 `{id, name, relation: bull | bear | neutral | noise, importance: high | mid | low | noise, noise_kind, confidence, reason}`；`theses` 每個 `{id, version, theme_id, relation: strengthens | weakens | related_no_change, grade, importance, noise_kind, confidence, reason}`。重要度和雜訊類別都是相對於那一個；`noise_kind` 只在重要度是 `noise` 時有值（`priced_in`、`rehash`、`no_new_info`、`unreliable`、`unrelated`、`short_term`）。
+  - `points` 每個 `{text, cites: [{n, id, quote}], inferred}`：引述對不上原文的重點不列（算進 `dropped.points`）；`inferred: true` 是沒附出處的，畫面要標「AI 推論」。
+  - 結果就是 AI 對這則資料的看法：畫面顯示之前要先寫揭露紀錄，之後的判斷才不會被當成盲判。
+- `POST /api/triage/{資料 id}/retry`：重試失敗（或還在等）的分類，次數歸零、馬上排；已經完成的回 400。要帶 `X-Token`，body 最多 1 KB（內容不用）。
+- 分類的 prompt 裡是外部內容，所以引擎不能有任何工具：只用 Claude Code（以 `--tools ""` 呼叫，不帶設定裡的額外參數；版本太舊不認這個參數就失敗，不退回有工具的呼叫）、API key（Anthropic、OpenAI 相容服務）或 Ollama。Codex CLI 和 Antigravity CLI 關不掉工具，分類一律跳過它們；只剩它們時算沒有 AI（`/api/ai` 的 `triage` 是 `no_ai`、`reason: no_tools`）。
+- 沒有 AI、key 失效又沒有備用、服務在關：留在待分類，不算次數，這一輪停下。其他錯誤最多自動試 3 次，間隔 5、10 分鐘，之後標成 `failed`；一則失敗不影響同一輪的下一則，只有限流（`RATE_LIMITED`）算一次失敗之後這一輪就停下。沒預期的內部錯誤記成 `INTERNAL`，同樣算一次。找不到資料、不是文章的直接標 `failed`（`NOT_ARTICLE`）。
+- 發布時間晚於現在不到 24 小時：延後到發布時間再分類，不算次數；晚超過 24 小時記 `BAD_TIME`。沒有發布時間也沒有匯入時間記 `NO_TIME`。
 
 ## 4.7 AI 引擎與自帶 key (`/api/ai/*`)
 
@@ -193,7 +208,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
   - `claude_quota`：Claude Code 最近一次回報的額度（`five_hour` / `seven_day` 的 `used` 0–1 和 `resets_at`）。
   - `anthropic`：`{last4, status, tested_at, code}` 或 `null`；`status` 是 `ok`、`invalid`、`unverified`（連不上或服務不支援列模型清單，key 照樣存著）、`untested`。`anthropic_sdk` 表示這台電腦有沒有裝 `anthropic` 套件。
   - `openai`：OpenAI 相容服務的清單，每個 `{id, name, base_url, api, model, last4, has_key, status, tested_at, code}`。
-  - `tasks`：五種工作（`triage` 分類、`translate` 翻譯、`draft` 題材頁 / 概念卡起草、`thesis_change` 論點變化偵測、`ask` 問 AI），每個 `{primary, fallback, resolved, using, state, reason, today, month_cost}`。`primary` / `fallback` 是選項 id（`null` = 自動 / 不用備用）；`resolved` 是實際的主要引擎（自動時是自動挑到的），`using` 是現在會用的。`state`：`ready`、`fallback`（主要的不能用，改用備用）、`paused`（key 失效或登入過期，也沒有可以用的備用）、`no_ai`（沒有任何可以用的引擎）。`reason` 是主要的不能用的原因（`missing` / `auth_invalid`）。`today` 是今天（台北時間）的呼叫次數，`month_cost` 是這個月的 API 花費（美元，沒有就是 `null`）。
+  - `tasks`：五種工作（`triage` 分類、`translate` 翻譯、`draft` 題材頁 / 概念卡起草、`thesis_change` 論點變化偵測、`ask` 問 AI），每個 `{primary, fallback, resolved, using, state, reason, today, month_cost}`。`primary` / `fallback` 是選項 id（`null` = 自動 / 不用備用）；`resolved` 是實際的主要引擎（自動時是自動挑到的），`using` 是現在會用的。`state`：`ready`、`fallback`（主要的不能用，改用備用）、`paused`（key 失效或登入過期，也沒有可以用的備用）、`no_ai`（沒有任何可以用的引擎）。`reason` 是主要的不能用的原因（`missing` / `auth_invalid` / `no_tools`：這個工作不能用關不掉工具的 CLI，目前只有 `triage`，見 4.66）。`today` 是今天（台北時間）的呼叫次數，`month_cost` 是這個月的 API 花費（美元，沒有就是 `null`）。
   - `choices`：下拉選單的選項，每個 `{id, engine, model, entry, model_label, name, kind, usable}`。選項 id 是 `引擎|服務 id|模型`，例如 `claude||claude-haiku-5-5`、`codex||`、`openai|o1a2b3c4d5e6|gpt-x`。
   - `any_ai`：有沒有任何工作找得到引擎。
 - `POST /api/ai/detect`：重新偵測。之前標成登入過期的 CLI 會先清掉標記，下次呼叫再看結果。
@@ -205,6 +220,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 呼叫 AI 時（`Engines.run`）：
 
 - 依工作的設定選引擎；「自動」依序找 Claude Code、Codex CLI、Antigravity CLI、Anthropic key、OpenAI 相容服務、Ollama，Claude 的模型預設分類用 Haiku、起草用 Opus、其他用 Sonnet。
+- prompt 有外部內容、引擎不能有工具的工作（`triage`，或呼叫端帶 `tools=False`）：Claude Code 以 `--tools ""` 呼叫，Codex CLI 和 Antigravity CLI 跳過；所以分類只能用 Claude Code、API key 或 Ollama。
 - key 失效或登入過期（`AUTH_INVALID`）時不重試同一把：標成失效，有備用就改用，回傳的 `notice` 是 `AUTH_INVALID`；沒有就丟 `PAUSED`。換新 key（或重新偵測）之後才會再用。
 - 限流（`RATE_LIMITED`）時指數退避：等 2、4、8 秒（上游給的 `Retry-After` 比較長就用它，每次最多 30 秒），同一個引擎最多試 4 次，之後丟 `RATE_LIMITED`，不改用備用（額度保護是 ticket 68）。
 - 每次成功都記一筆用量到 `ai_usage`：引擎、模型、token。API 依官方價格算費用，不認得的模型或價格不確定時記成不明；本機 CLI 用訂閱時不折算金額，Claude Code 有回報時記額度和重置時間；Ollama 記 0。

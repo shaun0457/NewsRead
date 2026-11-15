@@ -29,6 +29,8 @@ PREFIX = "/api/ai"
 FILE_NAME = "ai.json"
 TASKS = ("triage", "translate", "draft", "thesis_change", "ask")
 CLI = ("claude", "codex", "antigravity")
+NO_TOOLS_UNSUPPORTED = ("codex", "antigravity")  # 關不掉工具的 CLI：prompt 有外部內容的工作不用它們
+NO_TOOLS_TASKS = frozenset({"triage"})  # prompt 一定有外部內容（文章全文）的工作：引擎不能有工具
 ENGINES = CLI + ("ollama", "anthropic", "openai")
 KIND = {"claude": "subscription", "codex": "subscription", "antigravity": "subscription", "ollama": "local",
         "anthropic": "api", "openai": "api"}
@@ -268,6 +270,10 @@ class CliAdapter:
     def call(self, spec: dict, prompt: str, cancel=None, json_mode: bool = False) -> dict:
         cfg = config.load()
         c = {**cfg[self.engine], "lean": True}
+        if spec.get("tools") is False:
+            if self.engine != "claude":  # Engines.run 已經跳過；這裡再擋一次，免得別的呼叫端漏掉
+                raise AIError("ENGINE_MISSING", "tools cannot be disabled")
+            c["no_tools"] = True
         if spec.get("model"):
             c["model"] = spec["model"]
         finder = {"claude": engines.claude_path, "codex": engines.codex_path, "antigravity": engines.antigravity_path}[self.engine]
@@ -452,6 +458,13 @@ class Engines:
             return False, "missing"
         return o.get("status") != "invalid", "auth_invalid"
 
+    def _usable_for(self, task: str, choice: dict, data: dict, found: dict, tools: bool = True) -> tuple[bool, str]:
+        """這個工作能不能用這個選項。不能有工具的工作（NO_TOOLS_TASKS 或呼叫端 tools=False）不用關不掉工具的 CLI，
+        原因是 no_tools。plan 和 run 都走這裡，available() 才會跟實際呼叫一致。"""
+        if (not tools or task in NO_TOOLS_TASKS) and choice["engine"] in NO_TOOLS_UNSUPPORTED:
+            return False, "no_tools"
+        return self.usable(choice, data, found)
+
     def candidates(self, task: str, data: dict, found: dict) -> list[dict]:
         """「自動」時依序考慮的選項。"""
         out = []
@@ -466,21 +479,21 @@ class Engines:
                 out += [{"engine": e, "model": m, "entry": ""} for m in (found["ollama"].get("models") or [])[:1]]
         return out
 
-    def plan(self, task: str, data: dict, found: dict) -> dict:
+    def plan(self, task: str, data: dict, found: dict, tools: bool = True) -> dict:
         """這個工作現在會用哪個引擎。state：ready / fallback（主要的不能用，改用備用）/ paused（key 失效、沒備用）/ no_ai。"""
         t = data["tasks"][task]
         primary, fallback = t["primary"], t["fallback"]
         extra: list[dict] = []
         if primary is None:  # 自動：第一個能用的；都不能用時，key 失效的那個當成主要的，好說明為什麼暫停
             options = self.candidates(task, data, found)
-            primary = next((c for c in options if self.usable(c, data, found)[0]), None) or \
-                next((c for c in options if self.usable(c, data, found)[1] == "auth_invalid"), None)
+            primary = next((c for c in options if self._usable_for(task, c, data, found, tools)[0]), None) or \
+                next((c for c in options if self._usable_for(task, c, data, found, tools)[1] == "auth_invalid"), None)
             # 自動時其他能用的都當備用：呼叫到一半發現 key 失效，這次就改用下一個，不用等下一次
             extra = [c for c in options if c is not primary and choice_id(c) != choice_id(fallback)]
         order = [c for c in (primary, fallback) if c] + extra
         reasons = []
         for i, c in enumerate(order):
-            ok, why = self.usable(c, data, found)
+            ok, why = self._usable_for(task, c, data, found, tools)
             if ok:
                 return {"primary": primary, "fallback": fallback, "using": c, "state": "ready" if i == 0 else "fallback",
                         "reason": reasons[0] if reasons else None, "order": order[i:]}
@@ -544,11 +557,14 @@ class Engines:
         raise AIError("RATE_LIMITED")  # 走不到；MAX_ATTEMPTS >= 1
 
     def run(self, task: str, prompt: str, *, prompt_version: str, source: str = "newsread", cancel=None,
-            json_mode: bool = False, context_manifest: str | None = None) -> dict:
+            json_mode: bool = False, context_manifest: str | None = None, tools: bool = True) -> dict:
         """呼叫這個工作設定的引擎。回傳 {text, engine, model, prompt_version, fallback, notice, usage_seq}。
 
         prompt_version 是呼叫端 prompt 的版本；實際記進帳本的是「版本@引擎/模型」，換引擎或模型就是另一個版本。
         key 失效（AUTH_INVALID）不重試同一把：標成失效，有備用就改用並在 notice 帶 AUTH_INVALID，沒有就丟 PAUSED。
+        tools=False：prompt 裡有外部內容（文章全文），引擎不能有任何工具；NO_TOOLS_TASKS 的工作一律如此。
+        Claude Code 用 --tools ""；Codex（read-only sandbox 照樣能讀檔）和 Antigravity（沒有關工具的選項）關不掉，
+        這次跳過，改用下一個；只剩它們時丟 NO_AI。
         """
         if task not in TASKS:
             raise ValueError(f"unknown task {task!r}")
@@ -560,13 +576,16 @@ class Engines:
             with self.index.read() as db:
                 if not db.execute("SELECT 1 FROM context_manifests WHERE id=?", (context_manifest,)).fetchone():
                     raise ValueError("context manifest not found")
+        no_tools = not tools or task in NO_TOOLS_TASKS
         data, found = self.settings.load(), self.detector()
-        p = self.plan(task, data, found)
+        p = self.plan(task, data, found, tools=not no_tools)
         auth_failed = p["state"] in ("fallback", "paused") and p["reason"] == "auth_invalid"
         for choice in p["order"]:
-            if not self.usable(choice, data, found)[0]:
+            if not self._usable_for(task, choice, data, found, tools=not no_tools)[0]:
                 continue
             spec = self._spec(choice, data)
+            if no_tools:
+                spec["tools"] = False
             try:
                 res = self._call(choice, spec, prompt, cancel, json_mode)
             except AIError as e:

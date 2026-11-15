@@ -492,6 +492,11 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     index.ensure_story(ws.id, stored)
     if stored:
         index.fill_story_time(ws.id, stored)  # 原本不明、這次補上的
+    if status in ("created", "updated"):  # 新的或換了內容：排進 AI 分類（ticket 14）
+        from . import triage
+        content = ((ws.load("paper") or {}).get("meta") or {}).get("content_sha256")
+        if content:
+            triage.enqueue(app, ws.id, content)
     translate = False
     if status in ("created", "updated") and not same and config.load().get("auto_translate", True):
         try:

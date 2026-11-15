@@ -110,6 +110,24 @@ class EngineLeanTest(unittest.TestCase):
         self.assertIn("--tools", calls[0])
         self.assertNotIn("--tools", calls[1])
 
+    def test_claude_no_tools_gives_no_tools_and_never_falls_back(self):
+        # AI 分類：prompt 裡有外部文章，一個工具都不給；不認 --tools 就失敗，不退回有 Read 的呼叫
+        text, calls = self.run_claude({"lean": True, "no_tools": True}, ["ok"])
+        self.assertEqual(text, "译文")
+        self.assertEqual(calls[0][calls[0].index("--tools") + 1], "")
+        self.assertNotIn("--allowedTools", calls[0])
+        self.assertNotIn("Read", calls[0])
+        with self.assertRaises(engines.EngineError):
+            self.run_claude({"lean": True, "no_tools": True}, [engines.EngineError("error: unknown option '--tools'"), "ok"])
+
+    def test_claude_no_tools_ignores_extra_args(self):
+        extra = ["--mcp-config", "x.json", "--allowedTools", "Bash"]
+        _, calls = self.run_claude({"lean": True, "no_tools": True, "extra_args": extra}, ["ok"])
+        self.assertNotIn("--mcp-config", calls[0])
+        self.assertNotIn("Bash", calls[0])
+        _, calls = self.run_claude({"lean": True, "extra_args": extra}, ["ok"])
+        self.assertIn("--mcp-config", calls[0])  # 一般呼叫照樣帶使用者的參數
+
     def test_claude_other_errors_not_retried(self):
         with self.assertRaises(engines.EngineError):
             self.run_claude({"lean": True}, [engines.EngineError("network down")])
