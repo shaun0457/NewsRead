@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from . import article_ask, ingest, planning_store
-from . import ai_engines, entities, ledger, narratives, reader_api, triage
+from . import ai_engines, chain, entities, ledger, narratives, reader_api, triage
 from .log import log, tail
 from .jobs import Jobs, LedgerMeter
 from .library import Library
@@ -412,10 +412,12 @@ class Handler(BaseHTTPRequestHandler):
         if triage.handles(path):  # AI 分類的狀態和結果（ticket 14）
             return self._entities(lambda: triage.api_get(app, path), tr("這則還沒有排進 AI 分類。"))
         if narratives.handles(path):  # 題材頁與論點（ticket 57）
-            return self._entities(lambda: narratives.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()}),
+            return self._entities(lambda: (chain.api_get(app, path, {}) or narratives.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()})),
                                   tr("找不到這個題材或論點。"))
         if path == "/entities":
             return self._page(WEB / "entities.html")
+        if path.startswith("/theme/") and path.count("/") == 2:  # 題材頁（ticket 59：先有因果鏈區塊）
+            return self._page(WEB / "theme.html")
         if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎、自帶 key、每種工作用哪個
             return self._ai(lambda: ai_engines.api_get(app, path))
         if path == "/settings":
@@ -631,7 +633,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(body or b"{}")
             except (ValueError, RecursionError):
                 return self._json(400, {"error": tr("資料格式不對。")})
-            return self._entities(lambda: narratives.api_post(app, path, data), tr("找不到這個題材或論點。"))
+            return self._entities(lambda: (chain.api_post(app, path, data) or narratives.api_post(app, path, data)), tr("找不到這個題材或論點。"))
 
         if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎設定
             try:

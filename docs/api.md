@@ -174,6 +174,22 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 
 以上這些寫入的 POST 都回傳更新後的題材頁。版本、論點、證據的數量上限是永久的（只能新增，退休的論點也算進 50 個）。
 
+### 因果鏈清單（ticket 59，`easyread/chain.py`）
+
+因果鏈存在題材頁版本的 `body.chain`（見 4.62）。清單頁用下面兩個介面改一環，不用整份題材頁送回去：
+
+- `GET /api/themes/{題材 id}/chain`：目前的因果鏈（草稿比定稿新就是草稿，否則是定稿）。回傳 `{theme_id, status, version, final_version, links, unconfirmed, market_data}`。`status` 是 `draft` / `final`，題材頁還沒有任何版本時是 `null`、`version` 是 0。`links` 每一環除了 4.62 的欄位，另有 `index`、`from` / `to` 的 `name` 和 `type`（節點是追蹤對象時）、`inferred`（沒有出處）、`confirmed`（我確認過沒有出處的環節），連到公司的環節多一個 `role_suggestion`（`leader` / `laggard` / `unknown`）。`unconfirmed` 是還沒確認的 AI 推論環節數（確認前不能進定稿）。`market_data` 是行情有沒有接上。
+- `POST /api/themes/{題材 id}/chain`：body `{op, base_version, index?, link?, role?}`，回傳更新後的 `GET` 內容。`base_version` 一定要帶，且要等於目前的 `version`，不然回 400（`field: base_version`），免得蓋掉別處的修改；寫入時在同一個交易裡再比對一次，兩個分頁同時送出時後到的會被擋。
+  - `op: add`：`link` 是新的一環（`from`、`to`、`relation`、`source?`，`to` 是公司時可帶 `revenue_share`、`role`；欄位檢查跟 4.62 的環節一樣）。一條鏈最多 100 環。
+  - `op: update`：換掉第 `index` 環。改過的環節要重新確認：`confirmed` 不會帶過去。
+  - `op: confirm`：我確認第 `index` 環（只有沒有出處、還沒確認的環節可以）。`link` 裡的 `confirmed` 一律忽略，確認只能走這個動作。
+  - `op: remove`：移除第 `index` 環。
+  - `op: role`：只換第 `index` 環的 `role`（`leader` / `laggard` / `unknown`，例如採用建議）；其他內容不變，確認過的不用重新確認。只有連到公司的環節可以。
+  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：一句話故事要填、沒確認的 AI 推論環節會被擋（`field: chain.<index>`）。
+  - `add` / `update` / `confirm` / `remove` / `role` 都是從目前的版本複製一份、改掉一環，寫成新的**草稿**（`by = me`）；定稿不會被動到。
+- 領漲 / 補漲：`role` 是我確認的值，預設 `unknown`。`role_suggestion` 只是建議，不會自動寫進 `role`。行情（ticket 30）還沒做時，`market_data` 是 `false`、建議一律是 `unknown`。行情做好後，在 app 上提供 `market_returns(entity_id, since_iso) -> 報酬或 None`：`since` 是這個題材第一個版本的時間，有報酬的公司至少 2 家時，報酬不低於中位數的建議 `leader`，低於的建議 `laggard`；取不到資料的是 `unknown`。每次最多查 100 家、總共最多 3 秒（超過的當成 `unknown`；行情來源要自己限制單次呼叫的時間），行情來源出錯只記錯誤類型。
+- 頁面：`GET /theme/{題材 id}` 是題材頁（目前只有因果鏈區塊）。
+
 ## 4.65 貼新聞連結匯入 (`POST /api/ingest`)
 
 每一頁右上角的「＋ 貼網址」、不在輸入框時按 Ctrl+V 貼網址，都呼叫這一個介面（`easyread/ingest.py`）。
