@@ -1,4 +1,4 @@
-/* 每頁右上角的「背景工作暫停」（ticket 68，js/common/quota-guard.js） */
+/* 每頁右上角的 Claude 5 小時額度和「背景工作暫停」（ticket 68、29，js/common/quota-guard.js） */
 .quota-paused {
   margin-inline: 8px;
   padding: 2px 8px;
@@ -9,5 +9,6 @@
   color: var(--danger, #b0472f);
   text-decoration: none;
 }
+.quota-paused.calm { color: var(--ink-2, #5a554c); }
 .quota-paused:hover { text-decoration: underline; }
 .quota-paused:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

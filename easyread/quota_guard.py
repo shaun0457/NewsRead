@@ -40,7 +40,7 @@ MAX_LIST = 200
 TAIPEI = timezone(timedelta(hours=8))
 
 EVENT_CODES = ("QUOTA_PAUSED", "QUOTA_SWITCHED_API", "BACKGROUND_NO_API", "API_CAP_WARN", "API_CAP_REACHED",
-               "API_CAP_STOPPED", "CATCHUP_DONE")
+               "API_CAP_STOPPED", "CATCHUP_DONE", "RATE_LIMITED")
 PAUSE_EVENTS = ("QUOTA_PAUSED", "BACKGROUND_NO_API", "API_CAP_STOPPED")  # 這些之後要補做，直到 CATCHUP_DONE
 _MONTH = re.compile(r"\d{4}-\d{2}")
 
@@ -68,6 +68,7 @@ def message(code: str) -> str:
         "API_CAP_REACHED": tr("API 這個月的花費到了上限：背景的翻譯和起草停下，分類改等訂閱額度。"),
         "API_CAP_STOPPED": tr("API 這個月的花費到了上限，這個背景工作先停下。"),
         "CATCHUP_DONE": tr("暫停期間排隊的工作補做完了。"),
+        "RATE_LIMITED": tr("AI 引擎回報限流，重試幾次後仍然失敗。"),
     }.get(code, tr("額度保護事件。"))
 
 
@@ -177,6 +178,10 @@ def _clean_data(data: dict | None) -> dict:
     return out
 
 
+# 每個時段記一筆的事件（once=True）：找「這個工作最近一筆」時跳過，不打斷其他事件的去重
+QUIET_CODES = ("RATE_LIMITED",)
+
+
 class Events:
     def __init__(self, index: ledger.Index):
         self.index = index
@@ -185,7 +190,8 @@ class Events:
 
     def add(self, code: str, task: str = "", data: dict | None = None, key: str = "", once: bool = False) -> dict | None:
         """記一筆。once：同代碼、同工作、同 key 記過就不再記（每月一次的通知）；
-        否則這個工作最近一筆是同代碼、同 key 就不再記（暫停期間每一輪都會碰到，不重複記）。回傳記下的事件或 None。"""
+        否則這個工作最近一筆（不算 QUIET_CODES）是同代碼、同 key 就不再記（暫停期間每一輪都會碰到，不重複記）。
+        回傳記下的事件或 None。"""
         if code not in EVENT_CODES:
             raise ValueError(f"unknown guard event {code!r}")
         clean = _clean_data(data)
@@ -194,8 +200,9 @@ class Events:
                 dup = db.execute("SELECT 1 FROM ai_guard_events WHERE code=? AND task=? AND key=? LIMIT 1",
                                  (code, task, key)).fetchone()
             else:
-                last = db.execute("SELECT code, key FROM ai_guard_events WHERE task=? ORDER BY seq DESC LIMIT 1",
-                                  (task,)).fetchone()
+                last = db.execute(f"SELECT code, key FROM ai_guard_events WHERE task=? AND code NOT IN "
+                                  f"({','.join('?' * len(QUIET_CODES))}) ORDER BY seq DESC LIMIT 1",
+                                  (task, *QUIET_CODES)).fetchone()
                 dup = last is not None and last["code"] == code and last["key"] == key
             if dup:
                 return None

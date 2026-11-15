@@ -54,23 +54,51 @@ function setup(responses, opts = {}) {
 
 const paused = (reason, extra = {}) => Object.assign({
   settings: { background_subscription: true, threshold: 70, on_exceed: "wait", api_monthly_usd: 15 },
-  quota: { used: 0.74, over: reason === "quota", until: 1800000000 },
+  quota: { used: 0.74, over: reason === "quota", until: 1800000000, at: Date.now() / 1000 - 60 },
   api: { spent_usd: 1, cap_usd: 15, reached: reason === "api_cap", month: "2026-11" },
   background: { paused: !!reason, reason: reason || null, until: null },
 }, extra);
 
-test("the header shows 'background paused' only while paused", async () => {
+test("the header shows 'background paused' while paused and the 5-hour quota otherwise; both go to the usage page", async () => {
   const s = setup([paused("quota"), paused(null)]);
   await s.flush();
   assert.equal(s.calls.length, 1);
   const badge = s.bar.children[0];
   assert.equal(badge.textContent, "背景工作暫停 · Claude 5h 74%");
-  assert.equal(badge.href, "/settings#models");
+  assert.equal(badge.href, "/usage");
+  assert.equal(badge.className, "quota-paused");
   assert.equal(badge.hidden, false);
   assert.ok(badge.title.includes("門檻"));
   assert.equal(await s.fire(), 60000);
-  assert.equal(badge.hidden, true);
+  assert.equal(badge.textContent, "Claude 5h 74%");
+  assert.equal(badge.href, "/usage");
+  assert.equal(badge.className, "quota-paused calm");  // 額度正常：不用紅字
+  assert.equal(badge.hidden, false);
+  assert.ok(badge.title.includes("整個帳號"));
   assert.equal(s.bar.children.length, 1);  // 不重複加
+});
+
+test("the quota badge is hidden without a usable number or after the reset time", async () => {
+  const none = setup([paused(null, { quota: { used: null, over: false, until: null } })]);
+  await none.flush();
+  assert.equal(none.bar.children.length, 0);  // 還沒有額度數字：不顯示
+  const past = setup([paused(null, { quota: { used: 0.5, resets_at: Date.now() / 1000 - 10, at: Date.now() / 1000 - 60, over: false, until: null } })]);
+  await past.flush();
+  assert.equal(past.bar.children.length, 0);  // 過了重置時間：當作已經重置
+  // 記下超過 5 小時的數字一定已經重置（跟後端一樣取早的），沒有記下時間的判斷不了多舊：都不顯示
+  const old = setup([paused(null, { quota: { used: 0.5, resets_at: Date.now() / 1000 + 600, at: Date.now() / 1000 - 5 * 3600 - 1, over: false, until: null } })]);
+  await old.flush();
+  assert.equal(old.bar.children.length, 0);
+  const noAt = setup([paused(null, { quota: { used: 0.5, resets_at: Date.now() / 1000 + 600, over: false, until: null } })]);
+  await noAt.flush();
+  assert.equal(noAt.bar.children.length, 0);
+  const live = setup([paused(null, { quota: { used: 0.5, resets_at: Date.now() / 1000 + 600, at: Date.now() / 1000 - 60, over: false, until: null } }), paused(null, { quota: { used: null } })]);
+  await live.flush();
+  assert.equal(live.bar.children[0].textContent, "Claude 5h 50%");
+  assert.equal(live.bar.children[0].hidden, false);
+  await live.fire();
+  assert.equal(live.bar.children[0].hidden, true);  // 後來沒有數字了：藏起來
+  assert.equal(live.calls.length, 2);  // 同一個輪詢，沒有另開
 });
 
 test("each reason has its own label", async () => {
@@ -187,7 +215,7 @@ test("the reader chat reminds before sending", () => {
 });
 
 test("every page with a header loads the indicator", () => {
-  for (const page of ["library.html", "reader.html", "entities.html", "settings.html"]) {
+  for (const page of ["library.html", "reader.html", "entities.html", "settings.html", "today.html", "theme.html", "usage.html"]) {
     const html = fs.readFileSync(path.join(__dirname, "../easyread/web", page), "utf8");
     assert.ok(html.includes("/web/js/common/quota-guard.js"), page);
     assert.ok(html.includes("/web/css/quota-guard.css"), page);

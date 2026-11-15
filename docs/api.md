@@ -255,7 +255,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 每次成功都記一筆用量到 `ai_usage`：引擎、模型、token。API 依官方價格算費用，不認得的模型或價格不確定時記成不明；本機 CLI 用訂閱時不折算金額，Claude Code 有回報時記額度和重置時間；Ollama 記 0。
 - 實際用的引擎和模型記進 prompt 版本：呼叫端給 `prompt_version="ask-v2"`，帳本記 `ask-v2@claude/claude-sonnet-5-5`；換引擎或模型就是另一個版本。
 - 錯誤只帶錯誤代碼和固定訊息：`NO_AI`、`PAUSED`、`AUTH_INVALID`、`RATE_LIMITED`、`UPSTREAM_ERROR`、`NETWORK`、`TIMEOUT`、`BAD_REQUEST`、`ENGINE_MISSING`、`OUTPUT_TRUNCATED`、`ENGINE_ERROR`、`CANCELLED`。上游的原文過 scrubber 才留在例外上，不寫進 log、不回給畫面。
-- 額度保護多了三個代碼：`QUOTA_PAUSED`、`API_CAP`、`BACKGROUND_NO_API`（見下面）。
+- 額度保護多了三個代碼：`QUOTA_PAUSED`、`API_CAP`、`BACKGROUND_NO_API`（見下面）。限流（`RATE_LIMITED`）重試用完時另外記一筆事件，給用量頁看（4.71）。
 
 額度保護（ticket 68，`easyread/quota_guard.py`；條款查證見 `.scratch/newsread-v1/issues/68-subscription-quota-guard.md`）：
 
@@ -265,11 +265,27 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - API 每月上限（預設 15 美元，台北時間的月份；只算有費用的呼叫，訂閱和費用不明的不算）：到 80% 和到上限各記一筆事件、各通知一次（每個月一次；通知介面 `quota_guard.set_notifier`，預設什麼都不送，等 ticket 16 接 Telegram）。到上限後背景的翻譯和起草丟 `API_CAP`（用訂閱也停），分類和論點變化偵測不用 API、改等訂閱額度（背景不能用訂閱時丟 `API_CAP`）。上限設 0 = 背景不用 API（不算「到上限」：不通知、翻譯和起草照樣可以用本機模型、右上角不顯示暫停）。事件 `API_CAP_STOPPED`、`BACKGROUND_NO_API` 每個工作每個月記一段。
 - 手動的照跑；回傳的 `quota_notice` 是 `QUOTA_OVER`（這次用的是 Claude Code 訂閱、額度超過門檻）、`API_CAP`（這次用的是 API、這個月到上限）或 `null`。畫面目前只有閱讀器的頁邊問答在送出前看 `GET /api/ai/guard` 提醒一次（依這次用的引擎，只提醒相關的那一項）；其他手動入口還沒接。
 - 每次觸發保護都記一筆事件（同一段暫停、同一個月只記一次），只有代碼和固定欄位的數字。
-- `GET /api/ai/guard`：`{settings, quota, api, background}`。`settings` 是 `{background_subscription, threshold, on_exceed, api_monthly_usd}`；`quota` 是 `{used, resets_at, at, over, until}`（Unix 秒）；`api` 是 `{spent_usd, cap_usd, month, warn, reached}`；`background` 是 `{paused, reason, until}`，`reason` 是 `quota`（等重置）、`api_cap`（API 到上限）、`no_api`（背景不用訂閱，又沒有 API key 或本機模型）或 `null`。用分類判斷（一直在跑的背景工作）；根本沒有 AI 時不算保護。每一頁右上角的「背景工作暫停」每分鐘讀一次（`js/common/quota-guard.js`）。
+- `GET /api/ai/guard`：`{settings, quota, api, background}`。`settings` 是 `{background_subscription, threshold, on_exceed, api_monthly_usd}`；`quota` 是 `{used, resets_at, at, over, until}`（Unix 秒）；`api` 是 `{spent_usd, cap_usd, month, warn, reached}`；`background` 是 `{paused, reason, until}`，`reason` 是 `quota`（等重置）、`api_cap`（API 到上限）、`no_api`（背景不用訂閱，又沒有 API key 或本機模型）或 `null`。用分類判斷（一直在跑的背景工作）；根本沒有 AI 時不算保護。每一頁右上角的 Claude 5 小時額度和「背景工作暫停」每分鐘讀一次（`js/common/quota-guard.js`），點了到用量頁（4.71）。
 - `POST /api/ai/guard`：只改有帶的欄位，回傳同 `GET /api/ai`。`threshold` 要是 1–100 的整數，`on_exceed` 是 `wait` / `api`，`api_monthly_usd` 是 0–100000 的數字，`background_subscription` 是布林值；格式不對回 400 `{error, field}`。
-- `GET /api/ai/guard/events`：`{events}`，新的在前，最多 200 筆。每筆 `{seq, at, code, task, message, data}`，`message` 是代碼對應的固定說明，`data` 只有 `used`、`threshold`、`until`、`spent_usd`、`cap_usd`、`month`、`count`。用量頁（ticket 29）讀這裡。資料庫還沒建時回空清單。
+- `GET /api/ai/guard/events`：`{events}`，新的在前，最多 200 筆。每筆 `{seq, at, code, task, message, data}`，`message` 是代碼對應的固定說明，`data` 只有 `used`、`threshold`、`until`、`spent_usd`、`cap_usd`、`month`、`count`。用量頁（ticket 29，4.71）讀這裡。資料庫還沒建時回空清單。
 
 NewsRead 留下來的閱讀器功能（翻譯論文、頁邊問 AI）還是用舊的 `/api/config` 引擎設定，之後改走這裡。翻譯的每次呼叫已經會記一筆 `ai_usage`（`task` 是 `translate`，引擎和模型照舊設定；帳本記不進去只寫 log，不讓翻譯失敗）；文章的問 AI 也記（`task` 是 `ask`，見 4.55），論文的問 AI 還沒記。
+
+## 4.71 用量頁 (`GET /api/usage`)
+
+用量頁（`/usage`，ticket 29）讀這支，加上 4.7 的 `GET /api/ai/guard`（保護線、API 月上限、背景暫停的原因）和 `GET /api/ai/guard/events`（事件）。三個都是唯讀：帳本檔還沒建就回空的，不建檔、不寫任何東西。日期和月份都用台北時間；錯誤只有固定的一句話，不帶例外或資料庫的原文。
+
+- `GET /api/usage?period=month|day`（預設 `month`）：統計區間是本月或今天，只影響 `tasks`、`cli`、`sources`；`api` 一律是本月，`daily` 一律是最近 14 天。`period` 不是這兩個值回 400 `{error, field: "period"}`。
+- 回傳 `{period, label, now, empty, claude, cli, api, tasks, tasks_truncated, sources, sources_truncated, daily, daily_days}`：
+  - `empty`：`ai_usage` 一筆都沒有（還沒用過 AI）。這時清單都是空的，`claude` 只有額度。
+  - `claude`：`{limits, at, window}`。`limits` 是 Claude Code 最近一次回報的 `five_hour` / `seven_day`（`{used, resets_at}`，`used` 是 0–1，`resets_at` 是 Unix 秒），沒有就是空物件；`at` 是記下這組數字的時間（Unix 秒）。這是整個帳號的用量，包含使用者自己用 Claude Code 寫程式；數字只在呼叫時更新，所以畫面在 `resets_at` 或 `at` 加上視窗長度（5 小時 / 7 天）兩者較早的那個時間過了之後，標成已重置。額度檔裡不是有限數字的值（NaN、inf）一律當作沒有。`window` 是最近 5 小時 NewsRead 自己用 Claude Code 的 `{calls, tokens}`（看不到佔額度幾 %，只能看 token）。
+  - `cli`：Codex 和 Antigravity 在這段期間的 `{calls, tokens}`。它們只回報 token，看不到額度。
+  - `api`：`{month, spent_usd, by_engine}`。`spent_usd` 跟額度保護算的是同一個數字（本月有費用的呼叫，訂閱不算）；`by_engine` 是各引擎的花費，大到小。月上限在 `GET /api/ai/guard` 的 `api.cap_usd`。
+  - `tasks`：依工作、引擎、模型分組，每列 `{task, engine, model, calls, tokens, cost_usd}`，token 多的在前，最多 50 列（`tasks_truncated` 表示還有）。`cost_usd` 是 `null` 表示沒有費用（訂閱不折算成金額）。`engine` 只會是 `claude`、`codex`、`antigravity`、`anthropic`、`openai`、`ollama`、`other`：OpenAI 相容服務的 id 不外露（幾個服務合成一列 `openai`），不認得的引擎叫 `other`；`api.by_engine` 也一樣。
+  - `sources`：依 `ai_usage.source` 分組，每列 `{source, calls, tokens, items, linked}`，最多 50 列。`source` 是呼叫 AI 的功能入口（分類是 `triage`，翻譯和閱讀器問 AI 是 `newsread`），**不是個別媒體**：`ai_usage` 還沒有記每次呼叫用的是哪一則資料，要依媒體分得等資料來源（ticket 19 等）接上。`items`、`linked` 只有 `triage` 算得出來：這段期間分類過的資料有幾則、其中幾則有證據（`evidence`）掛在論點上（掛到論點的比例 = `linked / items`）；其他來源是 `null`。
+  - `daily`：最近 14 天（含今天，舊的在前）每天的 `{date, tokens}`，沒有呼叫的日子補 0；token = 輸入 + 輸出（命中快取的算在輸入裡，不重複算），訂閱和 API 合計。
+- 事件：4.7 的 `GET /api/ai/guard/events`。除了額度保護和 API 上限的代碼，還有 `RATE_LIMITED`：AI 引擎重試用完（4.7 的指數退避）還是限流，同一個工作、同一個 10 分鐘時段（依記事件的時間）只記一筆；它不打斷其他事件的「跟上一筆一樣就不記」。畫面只畫最近 20 筆；事件讀不到時寫「事件暫時讀不到」，不說成沒有事件。
+- 每頁右上角的 Claude 5 小時額度（`js/common/quota-guard.js`，沿用 `GET /api/ai/guard` 的輪詢，沒有另開）：顯示「Claude 5h 42%」，背景工作暫停時顯示「背景工作暫停 · …」，點了都到 `/usage`。額度還沒有數字、沒有記下時間（`quota.at`）、或已經過了重置時間（`resets_at` 和 `at` + 5 小時取早的，跟後端判斷超過門檻的規則一樣）就不顯示。
 
 ## 5. 已移除的介面
 

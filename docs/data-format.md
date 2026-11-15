@@ -284,4 +284,4 @@ Vault Root/
 
 手改壞掉的欄位讀進來時會被丟掉，改回預設。
 
-額度保護的事件存在 `newsread.sqlite3` 的 **`ai_guard_events`**（可以刪，最多留 1000 筆，多的刪最舊的）：`seq`、`at`、`code`（`QUOTA_PAUSED`、`QUOTA_SWITCHED_API`、`BACKGROUND_NO_API`、`API_CAP_WARN`、`API_CAP_REACHED`、`API_CAP_STOPPED`、`CATCHUP_DONE`）、`task`（工作；每月一次的 API 通知是空字串）、`key`（去重用：同一段暫停的重置時間；API 通知、`API_CAP_STOPPED`、`BACKGROUND_NO_API` 是月份）、`data`（JSON，只有固定欄位：`used`、`threshold`、`until`、`spent_usd`、`cap_usd`、`month`、`count`）。不存上游原文。
+額度保護的事件存在 `newsread.sqlite3` 的 **`ai_guard_events`**（可以刪，最多留 1000 筆，多的刪最舊的）：`seq`、`at`、`code`（`QUOTA_PAUSED`、`QUOTA_SWITCHED_API`、`BACKGROUND_NO_API`、`API_CAP_WARN`、`API_CAP_REACHED`、`API_CAP_STOPPED`、`CATCHUP_DONE`、`RATE_LIMITED`）、`task`（工作；每月一次的 API 通知是空字串）、`key`（去重用：同一段暫停的重置時間；API 通知、`API_CAP_STOPPED`、`BACKGROUND_NO_API` 是月份；`RATE_LIMITED` 是 10 分鐘的時段）、`data`（JSON，只有固定欄位：`used`、`threshold`、`until`、`spent_usd`、`cap_usd`、`month`、`count`）。不存上游原文。

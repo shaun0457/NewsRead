@@ -392,6 +392,16 @@ class EventsTest(GuardBase):
         self.assertIsNotNone(ev.add("API_CAP_WARN", "", {}, key="2026-11", once=True))
         ev.add("CATCHUP_DONE", "")
         self.assertIsNone(ev.add("API_CAP_WARN", "", {}, key="2026-11", once=True))
+
+    def test_rate_limited_does_not_break_the_repeat_check_of_other_events(self):
+        ev = quota_guard.Events(self.index)
+        self.assertIsNotNone(ev.add("RATE_LIMITED", "triage", {}, key="100", once=True))
+        self.assertIsNotNone(ev.add("QUOTA_SWITCHED_API", "triage", {}, key="u1"))
+        self.assertIsNone(ev.add("RATE_LIMITED", "triage", {}, key="100", once=True))   # 同一個時段
+        self.assertIsNone(ev.add("QUOTA_SWITCHED_API", "triage", {}, key="u1"))         # 中間的限流不算「上一筆」
+        self.assertIsNotNone(ev.add("RATE_LIMITED", "triage", {}, key="101", once=True))
+        self.assertIsNone(ev.add("QUOTA_SWITCHED_API", "triage", {}, key="u1"))
+        self.assertEqual([e["code"] for e in ev.list()], ["RATE_LIMITED", "QUOTA_SWITCHED_API", "RATE_LIMITED"])
         self.assertIsNotNone(ev.add("API_CAP_WARN", "", {}, key="2026-12", once=True))
 
 

@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from . import article_ask, ingest, planning_store
-from . import ai_engines, chain, entities, ledger, narratives, reader_api, triage
+from . import ai_engines, chain, entities, ledger, narratives, reader_api, triage, usage_report
 from . import today  # 今日新聞（ticket 15）
 from .log import log, tail
 from .jobs import Jobs, LedgerMeter
@@ -380,8 +380,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(500, {"error": tr("本機資料庫暫時不能用，請稍後再試。")})
         return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
 
-    def _ai(self, call):
-        """AI 引擎設定 API 的錯誤對應。回應和 log 都不帶 key 或上游原文。"""
+    def _ai(self, call, failed: str | None = None):
+        """AI 引擎設定 API 的錯誤對應。回應和 log 都不帶 key 或上游原文。failed：其他錯誤時的固定訊息。"""
         try:
             result = call()
         except ai_engines.InputError as e:
@@ -392,7 +392,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": tr("找不到這個設定。")})
         except Exception as e:  # noqa: BLE001 只記類型：例外訊息可能帶設定內容
             log.warning("AI 設定 API 出錯 %s", type(e).__name__)
-            return self._json(500, {"error": tr("設定暫時存不了，請稍後再試。")})
+            return self._json(500, {"error": failed or tr("設定暫時存不了，請稍後再試。")})
         return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
 
     def _get(self):
@@ -423,6 +423,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._page(WEB / "theme.html")
         if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎、自帶 key、每種工作用哪個
             return self._ai(lambda: ai_engines.api_get(app, path))
+        if usage_report.handles(path):  # 用量頁的報表（ticket 29）：唯讀，帳本還沒建就回空的
+            return self._ai(lambda: usage_report.build(app, parse_qs(url.query).get("period", ["month"])[0]),
+                            tr("用量暫時讀不到，請稍後再試。"))
+        if path == "/usage":
+            return self._page(WEB / "usage.html")
         if path == "/settings":
             return self._page(WEB / "settings.html")
         if path in ("/", "/index.html"):

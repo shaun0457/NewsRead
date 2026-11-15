@@ -1,4 +1,5 @@
-/* 額度保護（ticket 68）：背景工作暫停時，每一頁右上角顯示「背景工作暫停」，點了到設定頁的 AI 模型。
+/* 額度保護（ticket 68）和用量頁入口（ticket 29）：每一頁右上角顯示 Claude 5 小時額度（「Claude 5h 42%」），
+   背景工作暫停時改顯示「背景工作暫停 · …」；兩種都點了到用量頁（/usage）。額度還沒有數字、或已經過了重置時間就不顯示。
    GET /api/ai/guard 每 POLL_MS 問一次；頁面看不到時不問，回到頁面馬上問一次；失敗時間隔加倍，最多 MAX_BACKOFF_MS；
    離開頁面（pagehide）就停。同一時間只有一個請求。
    手動按的 AI（問 AI）送出前呼叫 PR.quotaGuard.remind()：額度超過門檻、或 API 到上限時提醒（同一段只提醒一次），照樣送出。 */
@@ -17,9 +18,20 @@
 
   const pct = (v) => Math.round((Number(v) || 0) * 100) + "%";
 
+  /* 額度數字還能用：有數字、重置時間還沒到（過了就當作已經重置，下一次呼叫才有新數字） */
+  function quotaLive(s) {
+    const q = (s && s.quota) || {};
+    if (typeof q.used !== "number" || !isFinite(q.used)) return false;
+    // 跟後端 quota_guard.quota_state 一樣：沒有記下時間就判斷不了多舊，不顯示；重置時間和記下時間 + 5 小時取早的
+    if (typeof q.at !== "number" || !isFinite(q.at)) return false;
+    const ends = [q.at + 5 * 3600];
+    if (typeof q.resets_at === "number" && isFinite(q.resets_at)) ends.push(q.resets_at);
+    return Math.min(...ends) * 1000 > Date.now();
+  }
+
   function text(s) {
     const b = (s && s.background) || {};
-    if (!b.paused) return "";
+    if (!b.paused) return quotaLive(s) ? PR.t("Claude 5h {pct}", { pct: pct(s.quota.used) }) : "";
     if (b.reason === "quota") return PR.t("背景工作暫停 · Claude 5h {pct}", { pct: pct(s.quota && s.quota.used) });
     if (b.reason === "api_cap") return PR.t("背景工作暫停 · API 到上限");
     if (b.reason === "no_api") return PR.t("背景工作暫停 · 沒有 API key");
@@ -31,7 +43,7 @@
     if (r === "quota") return PR.t("Claude Code 5 小時額度超過你設的門檻，背景的分類、翻譯先等額度重置。你手動按的照跑。");
     if (r === "api_cap") return PR.t("API 這個月的花費到了上限，背景的翻譯和起草先停下。");
     if (r === "no_api") return PR.t("背景工作預設不用訂閱，也還沒有 API key 或本機模型，新資料先排在待分類。");
-    return "";
+    return PR.t("Claude Code 5 小時額度（整個帳號的用量）。點開看用量。");
   }
 
   function render() {
@@ -42,11 +54,12 @@
       if (!bar) return;
       el = document.createElement("a");
       el.className = "quota-paused";
-      el.href = "/settings#models";
+      el.href = "/usage";
       const slot = bar.querySelector("#themeSlot");
       if (slot) bar.insertBefore(el, slot); else bar.appendChild(el);
     }
     el.textContent = label;
+    el.className = "quota-paused" + ((status.background || {}).paused ? "" : " calm");  // calm：額度正常，不用紅字
     el.title = why(status);
     el.hidden = false;
   }

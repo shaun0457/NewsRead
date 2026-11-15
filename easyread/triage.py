@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS triage_results (
   context_manifest TEXT NOT NULL REFERENCES context_manifests(id)
 );
 CREATE INDEX IF NOT EXISTS triage_results_item ON triage_results (item_id, seq);
+CREATE INDEX IF NOT EXISTS triage_results_created ON triage_results (created_at);  -- 用量頁依時間數（ticket 29）
 CREATE TRIGGER IF NOT EXISTS triage_results_no_update BEFORE UPDATE ON triage_results
 BEGIN SELECT RAISE(ABORT, 'triage_results is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS triage_results_no_delete BEFORE DELETE ON triage_results

@@ -58,6 +58,7 @@ PRICE_PROMPT_LIMIT = {"claude-haiku-5-5": 100_000}  # 這個價格只適用到�
 MAX_ATTEMPTS = 4          # 同一個引擎遇到限流最多試幾次（含第一次）
 BACKOFF_BASE = 2.0        # 第 n 次重試前等 BACKOFF_BASE * 2^n 秒
 BACKOFF_MAX = 30.0        # 每次最多等這麼久（上游的 Retry-After 也截在這裡）
+RATE_EVENT_BUCKET = 600   # 限流事件：同一個工作、同一個 600 秒時段只記一筆
 CALL_TIMEOUT = 600        # API 一次呼叫最多等幾秒
 CHECK_TIMEOUT = 20        # 「儲存並測試」最多等幾秒
 ANTHROPIC_MAX_TOKENS = 16000
@@ -639,6 +640,8 @@ class Engines:
                         self._after_spend(e.usage.get("cost_usd"), data)
                     except Exception as rec:  # noqa: BLE001 記不進帳本不能蓋掉原本的錯誤代碼
                         log.warning("AI 用量記錄失敗 task=%s %s", task, type(rec).__name__)
+                if e.code == "RATE_LIMITED":  # 重試用完還是限流：記一筆給用量頁（同一個工作、同一個 10 分鐘時段只記一筆）
+                    self._event("RATE_LIMITED", task, g, key=str(int(float(self.now()) // RATE_EVENT_BUCKET)), once=True)
                 if e.code != "AUTH_INVALID":
                     raise
                 self._mark(choice, False, e.code)

@@ -1,0 +1,32 @@
+/* 用量頁（ticket 29）。色票和元件沿用 newsread.css，照 Mockup A（docs/mockups/v1-a/usage.html）。 */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.page > .note { margin: 0 0 14px; font-size: 13.5px; }
+#controls { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+#controls button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.quota { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 14px; margin-bottom: 16px; }
+.qc { padding: 16px; }
+.qc h2 { font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.qc p { margin: 0; }
+.qc .small { font-size: 12.5px; margin-top: 4px; }
+.meter { margin-bottom: 10px; }
+.meter .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; margin-bottom: 4px; }
+.meter .bar { height: 10px; border-radius: 999px; background: var(--surface-2); position: relative; }
+.meter .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.meter .bar i.hot { background: var(--danger); }
+.meter .bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); }
+.meter small { font-size: 12px; color: var(--ink-3); }
+.meter.stale .bar i { opacity: .45; }
+
+.days { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; align-items: end; height: 110px; margin: 8px 0 4px; }
+.days span { background: var(--accent-soft-2); border-top: 2px solid var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.days span.zero { background: none; border-top-color: var(--rule-2); }
+.dlab { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 4px; font: 10.5px var(--mono); color: var(--ink-3); text-align: center; }
+.dlab span { white-space: nowrap; overflow: visible; }
+.tbl td.r, .tbl th.r { text-align: right; }
+.events { margin: 0; padding-left: 18px; font-size: 13.5px; display: grid; gap: 4px; }
+.events li { overflow-wrap: anywhere; }
+.sec .small { font-size: 12.5px; margin: 8px 0 0; }
+.banner > div { min-width: 0; }
+.banner a { white-space: nowrap; }
+@media (max-width: 760px) { .dlab span:nth-child(n) { font-size: 9.5px; } }
