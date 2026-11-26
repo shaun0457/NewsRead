@@ -192,6 +192,8 @@ class ExtractTest(unittest.TestCase):
         self.assertTrue(ingest.is_chinese(["範例晶圓廠今天表示，產能會擴充。"]))
         self.assertFalse(ingest.is_chinese(["Chip stocks rallied on Tuesday."]))
         self.assertFalse(ingest.is_chinese([""]))
+        # 日文：漢字多，但有假名，不是中文
+        self.assertFalse(ingest.is_chinese(["日本銀行は本日、政策金利を据え置くと発表した。市場では追加利上げの観測が強まっている。"]))
 
 
 class IngestFlowTest(unittest.TestCase):
@@ -234,6 +236,14 @@ class IngestFlowTest(unittest.TestCase):
         paper = app.lib.ws(r["id"]).load("paper")
         self.assertEqual(paper["translation"]["en_pages"], [])
         self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+
+    def test_chinese_article_is_translated_when_target_is_not_chinese(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "ja"}):
+            r = ingest.handle(app, {"url": URL})
+        self.assertFalse(r["same_language"])
+        self.assertTrue(r["translate"])
+        self.assertEqual([i for i, _ in app.jobs.enqueued], [r["id"]])
 
     def test_unknown_time_story_has_no_time(self):
         app = make_app(self.root, fixture("news-div-notime.html"))

@@ -18,7 +18,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
-from . import config, fetch, ledger, textitem
+from . import config, fetch, langs, ledger, textitem
 from .i18n import tr
 from .log import log
 
@@ -52,6 +52,8 @@ _TEXT_TAGS = {"p", "h2", "h3"}
 _CONTAINERS = {"article", "main", "section", "div"}
 _CJK = re.compile(r"[㐀-鿿豈-﫿]")  # i18n-ok 中日文字元範圍
 _LETTER = re.compile(r"\w")
+_KANA = re.compile(r"[぀-ヿ]")  # i18n-ok 平假名、片假名：有這些就是日文，不是中文
+KANA_RATIO = 0.05                     # 中日文字元裡假名超過這個比例，就當成日文
 _TIME_META = ("article:published_time", "og:article:published_time", "datepublished", "pubdate", "publishdate",
               "publish-date", "parsely-pub-date", "sailthru.date", "dc.date.issued", "date")
 
@@ -411,7 +413,14 @@ def decode(got) -> str:
 def is_chinese(paragraphs: list[str]) -> bool:
     sample = "".join(paragraphs)[:20_000]
     letters = len(_LETTER.findall(sample))
-    return letters > 0 and len(_CJK.findall(sample)) / letters >= CJK_RATIO
+    cjk = len(_CJK.findall(sample))
+    kana = len(_KANA.findall(sample))
+    return letters > 0 and cjk / letters >= CJK_RATIO and kana / (cjk + kana) < KANA_RATIO
+
+
+def _same_language(paragraphs: list[str]) -> bool:
+    """原文是中文、而且設定的譯文語言也是中文，才不送翻譯。"""
+    return langs.valid(config.load().get("target")).startswith("zh") and is_chinese(paragraphs)
 
 
 # ---------- 建立資料 ----------
@@ -467,7 +476,7 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     except textitem.TextError as e:
         raise IngestError("bad_input", str(e)) from None
     paras = [b.get("en") or "" for b in (ws.load("paper") or {}).get("blocks", [])]
-    same = is_chinese(paras)
+    same = _same_language(paras)
     if same and status != "unchanged":
         def fill(paper):  # 原文已經是中文：譯文欄放原文，不送翻譯
             for b in paper.get("blocks", []):
