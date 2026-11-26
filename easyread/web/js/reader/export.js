@@ -43,7 +43,7 @@
   }
 
   function filenameStem() {
-    return shortFilename(englishTitle(), "PaperRead");
+    return shortFilename(englishTitle(), "NewsRead");
   }
 
   function base64(text) {
@@ -135,7 +135,7 @@
     const analysis = [bibliography, pick.paper && note ? "## " + PR.t("論文筆記") + "\n\n" + note : "", prepared.warning].filter(Boolean).join("\n\n");
     const result = [];
     const stem = filenameStem();
-    const paperFolder = shortFilename(m.title_zh || m.title_en || PR.t("論文"), "PaperRead");
+    const paperFolder = shortFilename(m.title_zh || m.title_en || PR.t("論文"), "NewsRead");
 
 
     if (pick.paper) {

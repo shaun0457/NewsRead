@@ -34,10 +34,12 @@
 
   PR.togglePages = function (force) {
     const open = force != null ? force : PR.side !== "pages";
+    if (open && !PR.feature("pages")) return;  // 沒有 PDF，或使用者關了原頁面板
     PR.openSide(open ? "pages" : null);
     if (open) PR.syncPage(true); else pair(null);
   };
   PR.openPage = function (page, blockId) {
+    if (!PR.feature("pages")) return;
     pvBlock = blockId || null;
     if (PR.side !== "pages") PR.openSide("pages");
     showPage(page, blockId);

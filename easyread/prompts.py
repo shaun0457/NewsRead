@@ -129,7 +129,8 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
     paper = ws.load("paper")
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
-    lines = [f"论文：{meta.get('title_en') or meta.get('source', '')}，共 {meta.get('page_count', '?')} 页。"]
+    unit, kind = ("段", "文章") if meta.get("kind") == "text" else ("页", "论文")
+    lines = [f"{kind}：{meta.get('title_en') or meta.get('source', '')}，共 {meta.get('page_count', '?')} {unit}。"]
     gl = paper.get("glossary", [])
     if gl:
         lines.append("已有术语表（必须沿用）：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl))

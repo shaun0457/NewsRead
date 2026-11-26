@@ -234,7 +234,7 @@ window.PR = window.PR || {};
   PR.errorText = function (error) {
     const message = error && error.message != null ? String(error.message) : String(error || "");
     if (error instanceof TypeError && /^(failed to fetch|networkerror when attempting to fetch resource\.?|load failed|network request failed)$/i.test(message.trim()))
-      return PR.t("无法连接到 PaperRead 本地服务。请确认 PaperRead 正在运行后重试。");
+      return PR.t("无法连接到 NewsRead 本地服务。请确认 NewsRead 正在运行后重试。");
     return message;
   };
 

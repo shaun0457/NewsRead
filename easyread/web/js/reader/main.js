@@ -81,7 +81,7 @@
   PR.updateTitle = function () {
     const m = (S.paper && S.paper.meta) || {};
     const titleVal = m.short_zh || m.title_zh || m.title_en || PR.t("论文");
-    document.title = (PR.titleText ? PR.titleText(titleVal) : titleVal) + " · PaperRead";
+    document.title = (PR.titleText ? PR.titleText(titleVal) : titleVal) + " · NewsRead";
     const bar = PR.$(".bar-title");
     if (bar) bar.innerHTML = PR.titleHtml(titleVal || "");
   };

@@ -1,0 +1,45 @@
+/* 貼連結匯入的對話框（common/ingest.js）。文獻庫、閱讀器（base.css）和追蹤對象頁（newsread.css）共用，
+   只用兩邊都有的色票；兩邊沒有的（warn）給預設值。 */
+.ingest-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(20, 18, 15, .28); display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .18s; }
+.ingest-backdrop.open { opacity: 1; pointer-events: auto; }
+.ingest-backdrop[hidden] { display: none; }
+.ingest-dialog { --ingest-warn: var(--warn, #9a6a1c); }
+:root[data-theme="dark"] .ingest-dialog { --ingest-warn: var(--warn, #e0b062); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ingest-dialog { --ingest-warn: var(--warn, #e0b062); } }
+.ingest-dialog:focus { outline: none; }
+.ingest-dialog .btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }  /* 追蹤對象頁的 newsread.css 沒有 accent 按鈕 */
+:root[data-theme="dark"] .ingest-dialog .btn.accent { color: #10201f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ingest-dialog .btn.accent { color: #10201f; } }
+.ingest-dialog .btn[disabled] { opacity: .45; pointer-events: none; }
+.ingest-dialog { width: min(620px, calc(100vw - 32px)); max-height: 88vh; overflow: auto; background: var(--surface); color: var(--ink); border-radius: 14px; box-shadow: var(--shadow-lg, var(--shadow)); padding: 22px 24px; }
+.ingest-dialog h2 { font-size: 18px; margin: 0 0 12px; }
+.ingest-dialog h3 { font-size: 17px; margin: 4px 0 6px; line-height: 1.4; overflow-wrap: anywhere; }
+.ingest-dialog .hint, .ingest-dialog .muted { color: var(--ink-3); font-size: 13px; }
+.ingest-paste { display: flex; gap: 8px; }
+.ingest-paste .input { flex: 1; min-width: 0; font-size: 15px; }
+.ingest-steps { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; color: var(--ink-3); margin: 10px 0 2px; }
+.ingest-steps .done { color: var(--ok); }
+.ingest-steps .now { color: var(--ink); font-weight: 600; }
+.ingest-result { border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+.ingest-result .kind { font-size: 12px; color: var(--ink-3); }
+.ingest-result .kv { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 12px; font-size: 14px; margin: 10px 0 0; }
+.ingest-result .kv dt { color: var(--ink-3); }
+.ingest-result .kv dd { margin: 0; overflow-wrap: anywhere; }
+.ingest-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.ingest-note { font-size: 14px; color: var(--ink-2); margin-top: 12px; }
+.ingest-warn, .ingest-error { border-radius: 10px; padding: 12px 14px; margin-top: 12px; font-size: 14px; line-height: 1.6; }
+.ingest-warn { background: var(--warn-soft, rgba(183, 121, 31, .10)); }
+.ingest-error { background: var(--danger-soft, rgba(176, 72, 52, .08)); }
+.ingest-dialog .chip.warn { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; background: var(--warn-soft, rgba(183, 121, 31, .12)); color: var(--ingest-warn); }
+.ingest-manual { display: grid; gap: 10px; margin-top: 12px; }
+.ingest-manual .field { display: grid; gap: 4px; }
+.ingest-manual .field > span { font-size: 13px; color: var(--ink-2); }
+.ingest-manual textarea { resize: vertical; min-height: 140px; }
+.ingest-foot { margin: 14px 0 0; display: flex; gap: 14px; }
+.ingest-dialog .linkish { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 13px; }
+@media (max-width: 560px) {
+  .ingest-dialog { padding: 18px 16px; }
+  .ingest-paste { flex-direction: column; }
+  .ingest-result .kv { grid-template-columns: 1fr; }
+  .ingest-result .kv dt { margin-top: 6px; }
+}

@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
-from . import planning_store
+from . import ingest, planning_store
 from . import ai_engines, entities, ledger, reader_api
 from .log import log, tail
 from .jobs import Jobs
@@ -30,6 +30,11 @@ mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("text/javascript", ".js")
 DRAIN_MAX = 1024 * 1024  # 超過上限的請求，最多先讀掉多少再回錯誤
 DRAIN_CHUNK = 64 * 1024
+class ClientTimeout(Exception):
+    """讀請求 body 或寫回應時 socket 逾時（對方停住了）。和等鎖逾時這類 TimeoutError 分開：只有這種直接關連線、不回應。"""
+
+
+REQUEST_TIMEOUT = 30.0  # 一般請求每次讀寫 socket 最多等幾秒；宣告了 body 卻不送的連線逾時就關掉（presence WebSocket 例外）
 MAX_UPLOAD = 200 * 1024 * 1024
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -80,9 +85,21 @@ class App:
         self.presence = None  # presence.Presence，serve() 里设
 
 
+def declared_length(headers) -> int:
+    """請求宣告的 body 長度；看不懂的一律回 -1（呼叫的地方會關連線）：用 Transfer-Encoding 送的（不支援分塊，
+    留在連線上會被當成下一個請求）、Content-Length 出現不只一次、不是 ASCII 數字（含負數、前後有空白）、超過 12 位數。"""
+    get_all = getattr(headers, "get_all", None)
+    values = (get_all("Content-Length") if get_all else None) or [headers.get("Content-Length", "0")]
+    raw = values[0]
+    if headers.get("Transfer-Encoding") is not None or len(values) > 1:
+        return -1
+    return int(raw) if raw.isascii() and raw.isdigit() and len(raw) <= 12 else -1
+
+
 class Handler(BaseHTTPRequestHandler):
     app: App
     protocol_version = "HTTP/1.1"
+    timeout = REQUEST_TIMEOUT  # socketserver 在 setup() 套到連線上；逾時由 handle_one_request 關連線
     allowed_hosts: frozenset = LOOPBACK_HOSTS  # launch.serve() 依綁定位址與環境變數覆寫
 
     def _host_ok(self) -> bool:
@@ -91,14 +108,46 @@ class Handler(BaseHTTPRequestHandler):
         if host is not None and host_name(host) in self.allowed_hosts:
             return True
         self.close_connection = True
+        self._body_read = True  # 不認得的 Host 不收 body，回完直接斷線
         self._json(400 if host is None else 403, {"error": "missing host" if host is None else "bad host"})
         return False
 
     def log_message(self, fmt, *args):
-        if args and str(args[1]).startswith(("4", "5")):
+        if len(args) > 1 and str(args[1]).startswith(("4", "5")):  # 逾時這類 log_error 只帶一個參數
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
     # ---------- 输出 ----------
+    def send_response(self, code, message=None):
+        self._drain_unread()  # 先把請求收完再回應，所有回應（含 404、400）都經過這裡
+        super().send_response(code, message)
+
+    def _drain_unread(self):
+        """POST 的路由沒讀 body 就要回應（找不到路由、參數錯）：讀掉丟棄，連線才不會被中止，
+        留在連線上的 body 也不會被當成下一個請求。最多讀 DRAIN_MAX；更大或長度不對就關連線。"""
+        if self.command != "POST" or getattr(self, "_body_read", True):
+            return
+        self._body_read = True
+        left = declared_length(self.headers)
+        if left < 0 or left > DRAIN_MAX:
+            self.close_connection = True
+            return
+        try:
+            while left > 0:  # 分段讀、讀完就丟
+                chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+                if not chunk:
+                    self.close_connection = True
+                    return
+                left -= len(chunk)
+        except TimeoutError:  # 宣告了 body 卻不送完：照樣回應，然後關連線
+            self.close_connection = True
+
+    def _write(self, body: bytes) -> None:
+        try:
+            self.wfile.write(body)
+        except TimeoutError as e:  # 對方不讀了：回應送到一半，不能再補一個錯誤回應
+            self.close_connection = True
+            raise ClientTimeout from e
+
     def _send(self, code: int, body: bytes, ctype: str, cache: bool = False):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -108,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
-            self.wfile.write(body)
+            self._write(body)
 
     def _json(self, code: int, obj):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
@@ -138,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", f"attachment; filename=\"export.html\"; filename*=UTF-8''{quote(filename)}")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(body)
+        self._write(body)
 
     def _chat(self, ws, body: dict):
         """流式回答：一行一个 JSON，{"t": 片段} … 最后 {"done": true, "id": …} 或 {"error": …}。"""
@@ -214,19 +263,23 @@ class Handler(BaseHTTPRequestHandler):
                     path.unlink(missing_ok=True)
 
     def _body(self, limit: int = MAX_UPLOAD) -> bytes:
-        raw = self.headers.get("Content-Length", "0")
-        n = int(raw) if raw.isascii() and raw.isdigit() else -1  # 不是數字（含負數）一律拒絕
-        if n < 0 or n > limit:
-            self.close_connection = True
-            if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
-                left = n
-                while left > 0:  # 分段讀、讀完就丟，不為了丟掉而整塊放進記憶體
-                    chunk = self.rfile.read(min(left, DRAIN_CHUNK))
-                    if not chunk:
-                        break
-                    left -= len(chunk)
-            raise ValueError(tr("文件太大"))
-        return self.rfile.read(n) if n else b""
+        self._body_read = True
+        n = declared_length(self.headers)
+        try:
+            if n < 0 or n > limit:
+                self.close_connection = True
+                if 0 < n <= limit + DRAIN_MAX:  # 不大的就先讀掉，對方才收得到錯誤回應（不然 Windows 會直接中止連線）
+                    left = n
+                    while left > 0:  # 分段讀、讀完就丟，不為了丟掉而整塊放進記憶體
+                        chunk = self.rfile.read(min(left, DRAIN_CHUNK))
+                        if not chunk:
+                            break
+                        left -= len(chunk)
+                raise ValueError(tr("文件太大"))
+            return self.rfile.read(n) if n else b""
+        except TimeoutError as e:
+            self.close_connection = True  # 讀到一半的連線不能再拿來接下一個請求
+            raise ClientTimeout from e
 
     def _import_result(self, ws, fresh, translate_after, scope, read=False, model="", target=""):
         # A failed first preparation still leaves a library entry. Re-importing
@@ -250,6 +303,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with self.app.location.request(self.command, self.path):
                 self._get()
+        except ClientTimeout:
+            self.close_connection = True  # 回應送到一半對方停住：直接關連線
         except ValueError as e:
             self._json(409, {"error": str(e), "library_status": self.app.location.status})
         except Exception as e:  # noqa: BLE001
@@ -379,7 +434,7 @@ class Handler(BaseHTTPRequestHandler):
                          "engine": config.load().get("engine")}
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
-                    pass  # PaperRead does not generate cropped figure assets.
+                    pass  # NewsRead does not generate cropped figure assets.
                 return self._json(200, state)
             if action == "versions":
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})
@@ -418,8 +473,27 @@ class Handler(BaseHTTPRequestHandler):
                                   ctype="application/pdf" if rel == "source.pdf" else None)
         return self._json(404, {"error": "not found"})
 
+    def _ingest(self, app):
+        """POST /api/ingest。錯誤一律回 {"error": 固定訊息, "kind": 類別}；不回上游原文、不回使用者輸入。"""
+        try:
+            raw = self._body(ingest.MAX_BODY)
+        except ValueError:
+            return self._json(413, {"error": tr("資料太大。"), "kind": "too_large"})
+        try:
+            body = json.loads(raw or b"{}")
+        except (ValueError, RecursionError):  # 壞掉的、或巢狀深到解不開的 JSON
+            return self._json(400, {"error": ingest.message("bad_input"), "kind": "bad_input"})
+        try:
+            return self._json(200, ingest.handle(app, body))
+        except ingest.IngestError as e:
+            return self._json(ingest.http_status(e.kind), e.public() | {"error": e.message})
+        except Exception as e:  # 鎖逾時、磁碟錯誤…：例外原文可能帶本機路徑，只記類型、回固定訊息
+            log.warning("ingest failed: %s", type(e).__name__)
+            return self._json(500, {"error": ingest.message("internal"), "kind": "internal"})
+
     # ---------- POST ----------
     def do_POST(self):
+        self._body_read = False  # 同一條連線可以有好幾個請求（HTTP/1.1）
         if not self._host_ok():
             self.close_connection = True
             return
@@ -433,6 +507,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with self.app.location.request("POST", self.path):
                 self._post()
+        except ClientTimeout:
+            self.close_connection = True  # 對方的 body 送到一半停住：不回應、直接關連線
         except (ValueError, KeyError) as e:
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
@@ -450,6 +526,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             wsock.accept(self)
             self.close_connection = True
+            self.connection.settimeout(None)  # 頁面開著就一直連著，不套一般請求的逾時
             wsock.hold(self)
         finally:
             if p:
@@ -464,6 +541,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == reader_api.PREFIX or path.startswith(reader_api.PREFIX + "/"):  # 閱讀器的匯出和心智圖
             result = reader_api.post(app, path, json.loads(self._body() or b"{}"))
             return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
+
+        if path == "/api/ingest":  # 貼新聞連結 / 手動貼全文（ticket 11）
+            return self._ingest(app)
 
         if path == entities.PREFIX or path.startswith(entities.PREFIX + "/"):  # 追蹤對象
             try:

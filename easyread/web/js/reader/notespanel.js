@@ -533,7 +533,7 @@
 
     if (document.hidden && "Notification" in window && Notification.permission === "granted") {
       try {
-        new Notification(PR.t("PaperRead 智慧標註完成"), {
+        new Notification(PR.t("NewsRead 智慧標註完成"), {
           body: msg,
           icon: "/favicon.ico",
         });

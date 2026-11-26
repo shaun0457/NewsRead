@@ -20,7 +20,7 @@ class LibraryLocation:
 
     def _error(self):
         return ValueError(tr("文献库正在迁移，请稍后再试") if self.status == "moving"
-                          else tr("文献库位置已更改，请重启 PaperRead 后再修改"))
+                          else tr("文献库位置已更改，请重启 NewsRead 后再修改"))
 
     def begin(self):
         with self.lock:

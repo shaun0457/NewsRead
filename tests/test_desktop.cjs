@@ -50,7 +50,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
       child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
       child.kill = () => { child.killed = true; child.emit("exit", 0, "SIGTERM"); };
       launches.push({ command, args, options, child });
-      if (ready) queueMicrotask(() => child.stdout.emit("data", "PaperRead 已啟動：http://127.0.0.1:9876\n"));
+      if (ready) queueMicrotask(() => child.stdout.emit("data", "NewsRead 已啟動：http://127.0.0.1:9876\n"));
       return child;
     },
   };
@@ -125,7 +125,7 @@ test("the startup window is visible while the backend is still starting", async 
   assert.equal(d.windows[0].shown, true);
   assert.match(d.windows[0].url, /^data:text\/html/);
   assert.ok(d.stages.indexOf("startup-window-visible") < d.stages.indexOf("backend-spawn"));
-  d.launches[0].child.stdout.emit("data", "PaperRead 已啟動：http://127.0.0.1:9876\n");
+  d.launches[0].child.stdout.emit("data", "NewsRead 已啟動：http://127.0.0.1:9876\n");
   await d.settled();
   assert.equal(d.windows[0].url, "http://127.0.0.1:9876/web/tabs.html");
   assert.ok(d.stages.includes("library-loaded"));

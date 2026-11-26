@@ -56,7 +56,7 @@
 
       const result = await PR.api('/api/p/' + PR.pid + '/chat-export', { method: 'POST', body: { thread, id } });
       const m = (PR.state && PR.state.paper && PR.state.paper.meta) || {};
-      const paperName = shortTitle(m.title_zh || m.title_en || result.paper_title || PR.t("論文"), "PaperRead");
+      const paperName = shortTitle(m.title_zh || m.title_en || result.paper_title || PR.t("論文"), "NewsRead");
       const subfolder = paperName + "/" + PR.t("單則回答");
       const docId = "paper:" + PR.pid + ":chat:" + id;
       const analysisId = "paper:" + PR.pid + ":analysis";

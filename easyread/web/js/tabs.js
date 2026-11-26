@@ -344,7 +344,7 @@
       if (textEl) textEl.textContent = libTitle;
       tab.title = libTitle;
     } else if (tab.frame?.contentDocument?.title) {
-      const docTitle = tab.frame.contentDocument.title.replace(/\s*[·|–-]\s*(PaperRead|EasyRead).*$/i, "");
+      const docTitle = tab.frame.contentDocument.title.replace(/\s*[·|–-]\s*(NewsRead|PaperRead|EasyRead)\b.*$/i, "");
       if (docTitle && docTitle !== t("正在打開…")) {
         tab.title = docTitle;
         const textEl = tab.button.querySelector(".tab-text");
@@ -374,7 +374,7 @@
     if (tab.checkModal) tab.checkModal();
     else document.body?.classList?.remove("modal-open", "modal-mindmap-dark");
     const rawTitle = tab.button.querySelector?.(".tab-text")?.textContent || tab.button.textContent || tab.title || "";
-    document.title = String(rawTitle).replace(/^☾\s*/, "") + " · PaperRead";
+    document.title = String(rawTitle).replace(/^☾\s*/, "") + " · NewsRead";
     tab.node.scrollIntoView({ block: "nearest", inline: "nearest" });
     if (tab.frame?.contentWindow) {
       try { tab.frame.contentWindow.focus(); } catch (_) {}
@@ -801,7 +801,7 @@
           else tab.button.textContent = newTitle;
           tab.button.title = newTitle;
           if (tab.frame) tab.frame.title = newTitle;
-          if (active === tab.id) document.title = newTitle + " · PaperRead";
+          if (active === tab.id) document.title = newTitle + " · NewsRead";
         }
       }
     }
@@ -1208,7 +1208,7 @@
     const updateTitle = () => {
       const title = tab.id === "library"
         ? (win.PR?.t ? win.PR.t("文献库") : (window.PR?.t ? window.PR.t("文献库") : t("文献库")))
-        : (doc.title.replace(/\s*[·|–-]\s*(PaperRead|EasyRead).*$/i, "") || t("論文"));
+        : (doc.title.replace(/\s*[·|–-]\s*(NewsRead|PaperRead|EasyRead)\b.*$/i, "") || t("論文"));
       tab.title = title;
       const textEl = tab.button.querySelector(".tab-text");
       if (textEl) textEl.textContent = title;
@@ -1216,7 +1216,7 @@
       tab.button.title = title;
       if (tab.sleeping) tab.node.classList.add("sleeping");
       if (tab.frame) tab.frame.title = title;
-      if (active === tab.id) document.title = title + " · PaperRead";
+      if (active === tab.id) document.title = title + " · NewsRead";
     };
 
     tab.observer?.disconnect();

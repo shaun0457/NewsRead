@@ -57,7 +57,7 @@ class Library:
         replied = {e.get("reply_to") for e in disc.get("entries", []) if e.get("reply_to")}
         abstract = next((b.get("zh") or b.get("en") for b in paper.get("blocks", []) if b.get("role") == "abstract"), "") or meta.get("abstract_en", "")
         return {
-            "id": ws.id,
+            "id": ws.id, "kind": meta.get("kind") or "pdf",
             "title_zh": meta.get("title_zh", ""), "title_en": meta.get("title_en", ""), "short_zh": meta.get("short_zh", ""), "target": meta.get("target", ""),
             "authors": meta.get("authors", ""), "affiliation": meta.get("affiliation", ""),
             "year": meta.get("year") or _year(meta.get("date", "")), "date": meta.get("date", ""),
@@ -116,7 +116,7 @@ class Library:
             raise ValueError(tr("链接导入只支持本地 PDF 文件"))
         path = Path(source).expanduser().resolve()
         if path.is_relative_to(self.root):
-            raise ValueError(tr("链接的 PDF 必须在 PaperRead 文献库之外"))
+            raise ValueError(tr("链接的 PDF 必须在 NewsRead 文献库之外"))
         if not path.is_file():
             raise ValueError(tr("PDF 不存在或不可读：{path}", path=str(path)))
         try:

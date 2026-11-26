@@ -23,7 +23,7 @@ app.setPath("userData", paperReadUserData);
 startup.mark(app, "electron-entry");
 
 // 桌面版自己的幾句報錯跟系統語言走（介面語言由後端決定，見 easyread/i18n.py）
-const isZh = () => true; // PaperRead desktop defaults to Traditional Chinese.
+const isZh = () => true; // NewsRead desktop defaults to Traditional Chinese.
 let backend;
 let mainWindow;
 let backendReady;
@@ -46,7 +46,7 @@ function backendCommand() {
   if (app.isPackaged) {
     const executable = packagedBackend();
     if (!fs.existsSync(executable)) {
-      throw new Error(isZh() ? `找不到打包後的 PaperRead 後端：${executable}` : `Bundled PaperRead backend not found: ${executable}`);
+      throw new Error(isZh() ? `找不到打包後的 NewsRead 後端：${executable}` : `Bundled NewsRead backend not found: ${executable}`);
     }
     return { command: executable, args: ["serve", "--port", "0"], cwd: os.homedir() };
   }
@@ -90,7 +90,7 @@ function startBackend() {
       fn(value);
     };
     const timer = setTimeout(() => {
-      finish(reject, new Error((isZh() ? "PaperRead 後端啟動超時。" : "PaperRead backend timed out while starting. ") + output.slice(-500)));
+      finish(reject, new Error((isZh() ? "NewsRead 後端啟動超時。" : "NewsRead backend timed out while starting. ") + output.slice(-500)));
       stopBackend();
     }, 30000);
 
@@ -103,7 +103,7 @@ function startBackend() {
     });
     backend.stdout.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
-      const match = output.match(/PaperRead\s+已(?:启动|啟動)：\s*(http:\/\/127\.0\.0\.1:\d+)/);
+      const match = output.match(/NewsRead\s+已(?:启动|啟動)：\s*(http:\/\/127\.0\.0\.1:\d+)/);
       if (match && !settled) { startup.mark(app, "backend-http-ready"); backendUrl = match[1]; finish(resolve, match[1]); }
     });
     backend.stderr.on("data", (chunk) => {
@@ -111,7 +111,7 @@ function startBackend() {
     });
     backend.once("error", (error) => finish(reject, error));
     backend.once("exit", (code, signal) => {
-      if (!settled) finish(reject, new Error((isZh() ? `PaperRead 後端退出（code=${code}, signal=${signal}）。` : `PaperRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
+      if (!settled) finish(reject, new Error((isZh() ? `NewsRead 後端退出（code=${code}, signal=${signal}）。` : `NewsRead backend exited (code=${code}, signal=${signal}). `) + output.slice(-500)));
       backend = undefined;
       backendReady = undefined;
       backendUrl = undefined;
@@ -208,7 +208,7 @@ ipcMain.handle("easyread:pick-folder", async event => {
 });
 ipcMain.handle("easyread:save-file", async (event, options = {}) => {
   trustedWindow(event);
-  const filename = typeof options.filename === "string" && options.filename.trim() ? options.filename.trim() : "PaperRead-export.md";
+  const filename = typeof options.filename === "string" && options.filename.trim() ? options.filename.trim() : "NewsRead-export.md";
   const encoded = typeof options.contentBase64 === "string" ? options.contentBase64 : "";
   if (!encoded || encoded.length > 160 * 1024 * 1024) throw new Error("匯出內容無效或過大");
   const result = await dialog.showSaveDialog(mainWindow, {
@@ -342,7 +342,7 @@ function openLink(target) {
   mainWindow.focus();
   desktopTabs.openPaper(mainWindow, target).then(opened => {
     if (!opened && mainWindow) return mainWindow.loadURL(desktopTabs.shellUrl(backendUrl, target));
-  }).catch(error => dialog.showErrorBox("PaperRead", error.message));
+  }).catch(error => dialog.showErrorBox("NewsRead", error.message));
 }
 
 async function createWindow() {
@@ -408,7 +408,7 @@ async function createWindow() {
   } catch (error) {
     if (mainWindow !== openingWindow || quitting) return;
     startup.mark(app, "startup-failed");
-    dialog.showErrorBox(isZh() ? "PaperRead 啟動失敗" : "PaperRead failed to start", error.message);
+    dialog.showErrorBox(isZh() ? "NewsRead 啟動失敗" : "NewsRead failed to start", error.message);
     app.quit();
   } finally {
     windowOpening = false;
@@ -436,7 +436,7 @@ if (!app.requestSingleInstanceLock()) {
     deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
-      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "YuriyLin/PaperRead",
+      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "",  // NewsRead 還沒有自己的發佈頁：不從 PaperRead 下載更新（ticket 06）
       getWindow: () => mainWindow,
       prepareInstall: stopBackendGracefully,
       recover: async () => {

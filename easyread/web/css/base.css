@@ -1,4 +1,4 @@
-/* PaperRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
+/* NewsRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
 [hidden] { display: none !important; }  /* 元素设了 hidden 就一定藏起来，别被自己的 display 盖掉 */
 :root {
   color-scheme: light;

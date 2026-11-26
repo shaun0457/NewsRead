@@ -1,4 +1,4 @@
-/* PaperRead Interactive Mindmap View (powered by mind-elixir-core) */
+/* NewsRead Interactive Mindmap View (powered by mind-elixir-core) */
 (function (PR) {
   "use strict";
 
@@ -37,7 +37,7 @@
 
   function getTheme(isDark = isDarkTheme()) {
     return {
-      name: isDark ? "PaperReadDark" : "PaperReadLight",
+      name: isDark ? "NewsReadDark" : "NewsReadLight",
       type: isDark ? "dark" : "light",
       palette: isDark ? DARK_PALETTE : LIGHT_PALETTE,
       cssVar: {

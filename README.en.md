@@ -1,22 +1,22 @@
-<p align="center"><img src="easyread/web/paperread-mark.png" width="88" alt="PaperRead"></p>
+<p align="center"><img src="easyread/web/paperread-mark.png" width="88" alt="NewsRead"></p>
 
-# PaperRead
+# NewsRead
 
-A personal workspace for reading and connecting papers.
+A personal reading workspace for Taiwan and US market news, adapted from [PaperRead](https://github.com/YuriyLin/PaperRead).
 
-[Download PaperRead (v1.5.2)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
+[繁體中文](README.md) · [Report an issue](https://github.com/shaun0457/NewsRead/issues)
 
-![Release](https://img.shields.io/badge/release-v1.5.2-blue) ![v1.5.3](https://img.shields.io/badge/v1.5.3-unreleased-orange) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **Release Status**: The latest official release is **v1.5.2**. **v1.5.3 is currently unreleased** (work-in-progress implementations and fixes can be viewed in the [Changelog](CHANGELOG.md)).
+> **Status**: in development. There is no packaged installer and no automatic update yet; run it from source or with Docker.
 
-Built on EasyRead, PaperRead brings reading, source verification, and notes into one local workspace. Literature search, the reading board, reading paths, deep analysis, Zotero migration and bulk import were removed (NewsRead ticket 04).
+NewsRead keeps the PaperRead reader (built on EasyRead) and brings reading, source verification, and notes into one local workspace. Literature search, the reading board, reading paths, deep analysis, Zotero migration and bulk import were removed (NewsRead ticket 04).
 
 ![Bilingual reader and original PDF page](docs/images/readingpage.jpg)
 
-## Why PaperRead?
+## Why NewsRead?
 
-Search results, reading progress, and research notes often live in separate tools. PaperRead helps you stay connected to the original paper and carry your work into your own knowledge base.
+Search results, reading progress, and research notes often live in separate tools. NewsRead helps you stay connected to the original paper and carry your work into your own knowledge base.
 
 ## Three modules
 
@@ -65,17 +65,11 @@ AI is optional. Library management, PDF reading, ink annotations, and knowledge 
 
 ## Installation
 
-Download from [Releases](https://github.com/YuriyLin/PaperRead/releases/latest):
-
-- **Windows x64:** run the Setup installer.
-- **macOS Apple Silicon:** open the arm64 DMG and drag the app to Applications.
-- **Linux x64:** download the AppImage and run `chmod +x PaperRead-*.AppImage` before launching it.
-
-Docker browser edition:
+There is no packaged installer yet. To run from source, see the [contributing guide](CONTRIBUTING.md). Docker browser edition:
 
 ```bash
-git clone https://github.com/YuriyLin/PaperRead.git
-cd PaperRead
+git clone https://github.com/shaun0457/NewsRead.git
+cd NewsRead
 docker compose up -d
 ```
 
@@ -88,7 +82,7 @@ The library is stored locally by default: `C:\Users\<user>\PaperRead` on Windows
 ## Documentation & contribution
 
 - [User guide](docs/index.html) · [System design](docs/design.md) · [Data format](docs/data-format.md) · [API](docs/api.md) · [Changelog](CHANGELOG.md)
-- [Contributing](CONTRIBUTING.md) · [Issues and suggestions](https://github.com/YuriyLin/PaperRead/issues)
+- [Contributing](CONTRIBUTING.md) · [Issues and suggestions](https://github.com/shaun0457/NewsRead/issues)
 
 Contributions, bug reports, and feedback on research workflows are welcome.
 

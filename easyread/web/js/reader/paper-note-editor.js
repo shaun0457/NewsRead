@@ -251,6 +251,7 @@
         ] });
       }
       if (!paragraphs.length) return;
+      if (!rich) { PR.toast(PR.t("論文筆記還沒開好，再按一次")); return; }  // 面板正在打字時不會重畫，編輯器可能還沒掛上
       const content = [{ type: "blockquote", content: paragraphs }, { type: "paragraph" }];
       const { $from } = rich.state.selection;
       let position = $from.pos;

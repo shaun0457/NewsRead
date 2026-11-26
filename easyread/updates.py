@@ -16,7 +16,8 @@ from . import __version__, config, http
 from .log import log
 from .store import read_json, write_json_atomic
 
-REPO = os.environ.get("EASYREAD_UPDATE_REPOSITORY", "YuriyLin/PaperRead").strip()
+# NewsRead 還沒有自己的發佈頁：預設不檢查更新（ticket 06）
+REPO = os.environ.get("EASYREAD_UPDATE_REPOSITORY", "").strip()
 API = f"https://api.github.com/repos/{REPO}/releases/latest" if REPO else ""
 EVERY = 24 * 3600   # 成功问到后多久再问
 RETRY = 3 * 3600    # 没问到（没网）多久后再试
@@ -37,7 +38,7 @@ def newer(latest: str, current: str = __version__) -> bool:
 
 
 def _fetch() -> dict:
-    req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": f"PaperRead/{__version__}"})
+    req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": f"NewsRead/{__version__}"})
     with http.urlopen(req, timeout=8) as r:
         rel = json.loads(r.read())
     return {"latest": (rel.get("tag_name") or "").lstrip("v"), "url": rel.get("html_url") or f"https://github.com/{REPO}/releases/latest",

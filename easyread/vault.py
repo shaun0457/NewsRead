@@ -74,7 +74,7 @@ def set_vault(raw: str, folders=None) -> Path:
     if not path.is_dir():
         raise ValueError(tr("所選路徑不是資料夾。"))
     if path == config.HOME.resolve() or path == config.library_dir().resolve():
-        raise ValueError(tr("請選擇 Obsidian Vault 資料夾，不可選 PaperRead 資料目錄。"))
+        raise ValueError(tr("請選擇 Obsidian Vault 資料夾，不可選 NewsRead 資料目錄。"))
     prefs.save({"research": {"vault": str(path), "folders": selected_folders}})
     for name in {*KINDS.values(), *EXPORT_FOLDERS}:
         (path / "Research" / name).mkdir(parents=True, exist_ok=True)

@@ -218,20 +218,31 @@ class Index:
         return iso(self.clock())
 
     # ---------- Story ----------
-    def ensure_story(self, item_id: str, published_at: str) -> str:
-        """每則 Item 一進來就屬於一個 Story，預設自己一個。已經有歸屬就沿用。"""
+    def ensure_story(self, item_id: str, published_at: str | None) -> str:
+        """每則 Item 一進來就屬於一個 Story，預設自己一個。已經有歸屬就沿用。
+        published_at 是 None 表示發布時間不明：存成空字串，不拿抓取時間冒充（時間不明的不納入事件驗證）。"""
         if not item_id:
             raise ValueError("item_id is required")
-        parse_time(published_at, "published_at")
+        if published_at is not None:
+            parse_time(published_at, "published_at")
         with self._write() as db:
             row = db.execute("SELECT story_id FROM item_story WHERE item_id=?", (item_id,)).fetchone()
             if row:
                 return row["story_id"]
             story_id = "S-" + uuid.uuid4().hex
             now = self.now()
-            db.execute("INSERT INTO stories VALUES (?,?,?,?)", (story_id, item_id, published_at, now))
+            db.execute("INSERT INTO stories VALUES (?,?,?,?)", (story_id, item_id, published_at or "", now))
             db.execute("INSERT INTO item_story VALUES (?,?,?)", (item_id, story_id, now))
             return story_id
+
+    def fill_story_time(self, item_id: str, published_at: str) -> bool:
+        """Story 建立時發布時間不明、後來知道了（手動貼全文時填的）就補上。已經有時間的不改，回傳有沒有補。
+        只補這則 Item 自己開的 Story（first_item_id 是它）。"""
+        parse_time(published_at, "published_at")
+        with self._write() as db:
+            cur = db.execute("UPDATE stories SET first_published_at=? WHERE first_published_at='' AND first_item_id=? "
+                             "AND id=(SELECT story_id FROM item_story WHERE item_id=?)", (published_at, item_id, item_id))
+            return cur.rowcount > 0
 
     def story_of(self, item_id: str) -> str | None:
         with self._connect() as db:

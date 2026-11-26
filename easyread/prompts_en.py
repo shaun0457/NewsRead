@@ -83,11 +83,13 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     records = [link for page in pages for link in urls.get(str(page), [])]
     items = {key: links.insert(value, records) if isinstance(value, str) else value for key, value in items.items()}
     first = 1 in pages
+    text_item = (ws.load("paper").get("meta") or {}).get("kind") == "text"  # 没有 PDF：一段算一页
     target = langs.of_paper(ws.load("paper").get("meta"))
     name = langs.prompt_name(target)
-    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target in ("zh", "zh-TW") else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
+    meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target in ("zh", "zh-TW") else "不超过 6 个词的短标题") + '"},   // ' + ('文章标题：' if text_item else '论文英文标题：')
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
-    lead = _target_prompt(f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。", target)
+    where = f"第 {', '.join(map(str, pages))} 段" if text_item else f"第 {', '.join(map(str, pages))} 页上"
+    lead = _target_prompt(f"你在把一篇{'文章' if text_item else '学术论文'}译成{name}。原文已经{'分好段' if text_item else '整理成块'}，这次只翻译{where}下面这些键对应的文字。", target)
     head_rule = _target_prompt(f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。", target)
     sentence_rule = _target_prompt(f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。", target)
     output_rule = _target_prompt("输出格式：只输出一个 JSON 对象，不要任何别的文字。", target)

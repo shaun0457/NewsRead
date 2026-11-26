@@ -1,4 +1,4 @@
-"""PaperRead interface locales: Traditional Chinese by default, with Simplified Chinese and English.
+"""NewsRead interface locales: Traditional Chinese by default, with Simplified Chinese and English.
 
 代码里只写中文：前端 `PR.t("中文 {n}", {n})`，后端 `tr("中文 {n}", n=…)`。
 中文原文就是词条的键，英文在 web/i18n/en.json；缺了哪条英文，tests/test_i18n.py 会报出来。
