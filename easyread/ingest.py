@@ -311,8 +311,10 @@ def parse_time(value: str) -> str | None:
     value = (value or "").strip()[:64]
     if not value:
         return None
+    value = value[:-1] + "+00:00" if value.endswith("Z") else value
+    value = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value)  # +0800 → +08:00：Python 3.10 的 fromisoformat 只認有冒號的時區
     try:
-        dt = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+        dt = datetime.fromisoformat(value)
     except ValueError:
         return None
     return dt.isoformat() if dt.tzinfo is not None else None
