@@ -283,7 +283,7 @@ def theme_body(value, ctx: _Ctx, by: str, final: bool) -> dict:
         stage = {"name": _text(stage.get("name"), "stage.name", MAX_SHORT, required=True),
                  "basis": _text(stage.get("basis"), "stage.basis", MAX_TEXT)}
     return {
-        "one_liner": _text(value.get("one_liner"), "one_liner", MAX_LINE, required=final),
+        "one_liner": _text(value.get("one_liner"), "one_liner", MAX_LINE),  # 定稿也可以先沒有：故事不一定一開始就清楚
         "analogy": _text(value.get("analogy"), "analogy", MAX_TEXT),
         "origin": origin,
         "second_order": [_text(x, f"second_order.{i}", MAX_LINE, required=True)

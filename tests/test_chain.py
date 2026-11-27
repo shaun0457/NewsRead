@@ -65,6 +65,14 @@ class EditTest(ChainCase):
         self.assertEqual(v["links"][0]["source"], SOURCE)
         self.assertEqual(v["unconfirmed"], 1)
 
+    def test_a_chain_built_on_this_page_can_be_published_without_a_story(self):
+        """這一頁沒有一句話故事的欄位：只有因果鏈的草稿也要能確認成定稿（gate F1）。"""
+        v = self.add(SRC_LINK)
+        self.clock.tick()
+        v = self.edit("publish", base_version=v["version"])
+        self.assertEqual(v["status"], "final")
+        self.assertEqual(self.store.page(self.theme)["final"]["body"]["chain"][0]["relation"], SRC_LINK["relation"])
+
     def test_confirming_an_inferred_link_lets_the_final_through(self):
         self.store.add_theme_version(self.theme, "draft", {"one_liner": "故事"})
         self.clock.tick()

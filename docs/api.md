@@ -185,7 +185,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
   - `op: confirm`：我確認第 `index` 環（只有沒有出處、還沒確認的環節可以）。`link` 裡的 `confirmed` 一律忽略，確認只能走這個動作。
   - `op: remove`：移除第 `index` 環。
   - `op: role`：只換第 `index` 環的 `role`（`leader` / `laggard` / `unknown`，例如採用建議）；其他內容不變，確認過的不用重新確認。只有連到公司的環節可以。
-  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：一句話故事要填、沒確認的 AI 推論環節會被擋（`field: chain.<index>`）。
+  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：沒確認的 AI 推論環節會被擋（`field: chain.<index>`）；一句話故事可以先不填。
   - `add` / `update` / `confirm` / `remove` / `role` 都是從目前的版本複製一份、改掉一環，寫成新的**草稿**（`by = me`）；定稿不會被動到。
 - 領漲 / 補漲：`role` 是我確認的值，預設 `unknown`。`role_suggestion` 只是建議，不會自動寫進 `role`。行情（ticket 30）還沒做時，`market_data` 是 `false`、建議一律是 `unknown`。行情做好後，在 app 上提供 `market_returns(entity_id, since_iso) -> 報酬或 None`：`since` 是這個題材第一個版本的時間，有報酬的公司至少 2 家時，報酬不低於中位數的建議 `leader`，低於的建議 `laggard`；取不到資料的是 `unknown`。每次最多查 100 家、總共最多 3 秒（超過的當成 `unknown`；行情來源要自己限制單次呼叫的時間），行情來源出錯只記錯誤類型。
 - 頁面：`GET /theme/{題材 id}` 是題材頁（目前只有因果鏈區塊）。
