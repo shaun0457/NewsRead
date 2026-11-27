@@ -334,9 +334,9 @@ class Jobs:
                     raise Cancelled()
                 cfg = config.load()
                 if job["kind"] == "answer":
-                    translate.answer(ws, cfg, job["note"], None)
+                    translate.answer(ws, cfg, job["note"], None, translation_meter(cfg))
                 elif job["kind"] == "retranslate":
-                    translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None)
+                    translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None, translation_meter(cfg))
                 elif job["kind"] == "smart-annotate":
                     from . import smart_annotations
 

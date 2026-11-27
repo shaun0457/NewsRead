@@ -18,6 +18,21 @@ class ChatStoreTest(unittest.TestCase):
             chat_store.delete(ws, "t1")
             self.assertEqual(chat_store.threads(ws), [])
 
+    def test_note_reply_holds_only_the_checked_answer(self):
+        """文章問 AI 回答頁邊筆記時，引述對不上原文、畫面上藏起來的句子不寫進頁邊（gate F1）。"""
+        with tempfile.TemporaryDirectory() as d:
+            ws = Workspace(Path(d))
+            write_json_atomic(ws.paper_path, {"blocks": [{"id": "p1"}]})
+            write_json_atomic(ws.root / "reader.json", {"notes": {"n1": {"id": "n1", "anchor": "p1", "body": "?"}}})
+            raw = "- 營收成長〔¶1「營收成長」〕\n- 編造的說法〔¶9「沒有這句」〕"
+            checked = {"lead": "", "dropped": 1, "sections": [
+                {"kind": "said", "items": [{"text": "營收成長", "cites": [{"n": 1, "quote": "營收成長"}]}]}]}
+            chat_store.append(ws, "t1", {"content": "?", "note": "n1"}, raw, "m", "M", extra={"answer": checked})
+            body = ws.load("discussion")["entries"][0]["body"]
+            self.assertIn("營收成長", body)
+            self.assertNotIn("編造的說法", body)
+            self.assertNotIn("沒有這句", body)
+
     def test_same_clock_tick_does_not_alias_threads_or_pinned_answers(self):
         with tempfile.TemporaryDirectory() as d, patch("time.time", return_value=1):
             ws = Workspace(Path(d))

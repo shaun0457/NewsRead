@@ -191,7 +191,9 @@ def cmd_translate(a):
     paper = ws.load("paper")
     done = set(paper.get("translation", {}).get("done_pages", []))
     pages = pages or [p["n"] for p in paper["meta"]["pages"] if p["n"] not in done]
-    failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"))
+    from .jobs import translation_meter
+    failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"),
+                             translation_meter(cfg))  # 命令列翻譯也記進帳本的 AI 用量
     if failed:
         out(f"没译成功的页：{sorted(failed)}，原因见 {ws.root / 'job.log'}")
 

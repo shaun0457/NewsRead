@@ -72,10 +72,11 @@ def append(ws: Workspace, tid: str, user: dict, answer: str, model_id: str, mode
         t.update(updated=stamp, model=model_id, answer_style=style, chat_options=user.get("chat_options", {}))
     ws.update("chat", apply)
     note_id = user.get("note")
-    if note_id and answer.strip():
+    body = article_ask.shown(msg).strip()  # 跟畫面一樣：引述對不上原文的句子不寫進頁邊（ticket 12）
+    if note_id and body:
         disc = ws.load("discussion").get("entries", [])
         old = next((d for d in disc if d.get("reply_to") == note_id and d.get("kind") == "reply" and d.get("live")), None)
-        entry = {"reply_to": note_id, "kind": "reply", "body": answer.strip(), "by": model_name, "live": True}
+        entry = {"reply_to": note_id, "kind": "reply", "body": body, "by": model_name, "live": True}
         if old:
             entry["id"] = old["id"]
         add_discussion(ws, [entry])

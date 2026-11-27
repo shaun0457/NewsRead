@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from easyread import jobs, ledger, textitem
+from easyread import jobs, ledger, textitem, translate
 from easyread.jobs import Jobs
 from easyread.library import Library
 from tests.test_jobs import StopWorker
@@ -128,6 +128,76 @@ class TranslationJobUsageTest(unittest.TestCase):
         self.assertEqual(len(rows), len(self.calls))  # 每次呼叫一筆
         self.assertTrue(all(r["task"] == "translate" and r["model"] == "gpt-test" for r in rows))
         self.assertEqual(sum(r["input_tokens"] for r in rows), 50 * len(self.calls))
+
+
+class OtherTranslationPathsUsageTest(unittest.TestCase):
+    """邊注的 AI 回答、重翻一段、命令列翻譯：每次呼叫也記一筆（gate F2）。"""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.db = Path(tmp.name) / "newsread.sqlite3"
+        p = mock.patch.object(ledger, "default_path", return_value=self.db)
+        p.start()
+        self.addCleanup(p.stop)
+        self.cfg = {"engine": "openai", "openai": {"model": "gpt-test"}}
+
+    @staticmethod
+    def engine(reply):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
+            meter.add(input=40, output=5)  # meter 是 None 就會在這裡失敗：沒傳下來
+            return reply
+        return run
+
+    def test_note_answer_and_retranslate_each_write_one_row(self):
+        ws = mock.MagicMock()
+        ws.load.return_value = {"notes": {"n1": {"anchor": "p1", "body": "?"}}}
+        with mock.patch("easyread.engines.run", self.engine("回答")), \
+                mock.patch.object(translate.prompts, "answer", lambda ws, note: "p"), \
+                mock.patch.object(translate, "add_discussion", lambda *a: None):
+            translate.answer(ws, self.cfg, "n1", None, jobs.translation_meter(self.cfg))
+        with mock.patch("easyread.engines.run", self.engine('{"zh": "新譯文"}')), \
+                mock.patch.object(translate.prompts, "retranslate", lambda ws, k, h: ("p", None)), \
+                mock.patch.object(translate, "set_block_text", lambda *a: None):
+            translate.retranslate(ws, self.cfg, "p1", "", None, jobs.translation_meter(self.cfg))
+        rows = ledger.Index(self.db).usage()
+        self.assertEqual([(r["task"], r["model"], r["input_tokens"]) for r in rows],
+                         [("translate", "gpt-test", 40), ("translate", "gpt-test", 40)])
+
+    def test_small_jobs_pass_a_ledger_meter(self):
+        seen = []
+        with mock.patch("easyread.jobs.threading.Thread.start"):
+            lib = Library(self.db.parent / "lib")
+            runner = Jobs(lib)
+        ws, _ = textitem.create(lib, "Paragraph one.", title="One")
+        with mock.patch("easyread.jobs.config.load", return_value=self.cfg), \
+                mock.patch.object(translate, "answer", lambda *a: seen.append(a[-1])), \
+                mock.patch.object(translate, "retranslate", lambda *a: seen.append(a[-1])):
+            for job in ({"id": "j1", "pid": ws.id, "kind": "answer", "note": "n1"},
+                        {"id": "j2", "pid": ws.id, "kind": "retranslate", "key": "p1"}):
+                runner.small.put(job)
+            get = runner.small.get
+
+            def next_job():
+                if runner.small.empty():
+                    raise StopWorker()
+                return get()
+            with mock.patch.object(runner.small, "get", side_effect=next_job), self.assertRaises(StopWorker):
+                runner._small_loop()
+        self.assertEqual(len(seen), 2)
+        self.assertTrue(all(isinstance(m, jobs.LedgerMeter) for m in seen), seen)
+
+    def test_cli_translate_passes_a_ledger_meter(self):
+        from easyread import cli
+        seen = []
+        ws = mock.MagicMock()
+        ws.load.return_value = {"translation": {"done_pages": []}, "meta": {"pages": [{"n": 1}]}}
+        with mock.patch.object(cli, "find", return_value=ws), mock.patch.object(cli, "running_server", return_value=None), \
+                mock.patch.object(cli.config, "load", return_value=self.cfg), \
+                mock.patch("easyread.translate.translate_pages", lambda *a, **k: seen.append(a[5]) or {}):
+            cli.cmd_translate(mock.Mock(id="x", pages=None))
+        self.assertEqual(len(seen), 1)
+        self.assertIsInstance(seen[0], jobs.LedgerMeter)
 
 
 if __name__ == "__main__":
