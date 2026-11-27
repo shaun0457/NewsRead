@@ -52,14 +52,14 @@ window.PR = window.PR || {};
     loadFailed: PR.t("讀不到 AI 設定。"), retry: PR.t("重試"),
     guardTitle: PR.t("額度保護"),
     bgSub: PR.t("背景工作也可以用訂閱（Claude Code、Codex CLI）"),
-    bgSubHint: PR.t("預設關：Anthropic 和 OpenAI 都沒有明文允許其他程式在背景用個人訂閱，所以背景的分類、翻譯、起草預設改用 API key 或本機模型。你手動按的（問 AI、起草）照常可以用訂閱。"),
+    bgSubHint: PR.t("預設關：Anthropic 和 OpenAI 都沒有明文允許其他程式在背景用個人訂閱，所以背景的分類、起草預設改用 API key 或本機模型。你手動按的（問 AI、起草）照常可以用訂閱。翻譯還用閱讀器自己的引擎設定，還沒接上這裡。"),
     threshold: PR.t("Claude Code 5 小時額度超過"), onWait: PR.t("背景工作等額度重置"), onApi: PR.t("背景工作改用 API key"), onExceed: PR.t("超過門檻時"),
     thresholdHint: PR.t("訂閱是你自己寫程式也在用的同一份額度，背景工作不能把它吃光。只有打開上面的開關才用得到。"),
     cap: PR.t("API 每月上限（USD）"),
-    capHint: PR.t("只算有費用的 API 呼叫。到 80% 時通知（Telegram 接上之後）；到上限就停掉背景的翻譯和起草，分類改等訂閱額度。"),
+    capHint: PR.t("只算有費用的 API 呼叫。到 80% 時通知（Telegram 接上之後）；到上限就停掉背景的起草，分類改等訂閱額度。翻譯還沒接上這個上限。"),
     spent: (spent, cap) => PR.t("這個月已花 ${spent} / ${cap}", { spent, cap }),
     pausedQuota: (pct, when) => PR.t("背景工作暫停中：Claude Code 5 小時額度到 {pct}，{when} 重置後自動接著跑。", { pct, when }),
-    pausedCap: PR.t("背景工作暫停中：API 這個月的花費到了上限，背景的翻譯和起草停下。"),
+    pausedCap: PR.t("背景工作暫停中：API 這個月的花費到了上限，背景的分類和起草停下。翻譯還沒接上這個上限，照樣會跑。"),
     pausedNoApi: PR.t("背景工作暫停中：背景不用訂閱，也還沒有 API key 或本機模型。新資料會先排在待分類。"),
   });
   const esc = (s) => PR.esc(s);

@@ -185,20 +185,24 @@
     ]);
     else if (act === "more") PR.rowMenu(i.id, d);
     else if (act === "cancel") { await PR.api("/api/p/" + i.id + "/cancel", { method: "POST", body: {} }); L.load(); }
-    else if (act === "retry-failed") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { failed: true } }); PR.toast(PR.t("正在重试")); L.load(); }
+    else if (act === "retry-failed") { remindAi(); await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { failed: true } }); PR.toast(PR.t("正在重试")); L.load(); }
     else if (act === "log") { const r = await PR.api("/api/p/" + i.id + "/log"); PR.showText(PR.t("翻译记录"), r.text); }
     else if (act === "pick-pages") PR.pickPages(i, d);
-    else if (act === "translate") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: {} }); PR.toast(PR.t("已开始翻译")); L.load(); }
-    else if (act === "translate-en") { await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { en: true } }); PR.toast(PR.t("已开始翻译，笔记和划线都保留")); L.load(); }
+    else if (act === "translate") { remindAi(); await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: {} }); PR.toast(PR.t("已开始翻译")); L.load(); }
+    else if (act === "translate-en") { remindAi(); await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { en: true } }); PR.toast(PR.t("已开始翻译，笔记和划线都保留")); L.load(); }
     else if (act === "read-rest") {
+      remindAi();
       try {
         await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { read: true, ...((i.job || {}).state === "error" ? { scope: i.job.scope || "all" } : {}) } });
         PR.toast(PR.t("已开始整理原文")); L.load();
       } catch (error) { PR.toast(PR.esc(error.message)); }
     }
   });
+  // 翻譯還沒接上額度保護：手動按的先提醒（gate F1）
+  function remindAi() { if (PR.quotaGuard) PR.quotaGuard.remind(); }
   async function retranslateAll(i) {
     if (!(await PR.confirm({ title: PR.t("全部重新翻译？"), body: PR.t("会消耗模型额度。你改过的译文、笔记都保留。"), ok: PR.t("重新翻译") }))) return;
+    remindAi();
     await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { pages: "1-" + i.pages } });
     PR.toast(PR.t("已开始重新翻译")); L.load();
   }

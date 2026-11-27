@@ -210,7 +210,7 @@ test("leaving the page while a request is running does not schedule another poll
 test("every manual AI entry in the reader reminds before sending", () => {
   // 問 AI（論文和文章共用，筆記卡片的「點評」也走這裡）和筆記幫手（點評、幫我改、起草稿）
   // 智慧標註、心智圖（側欄產生、匯出時補產生）、讓模型重譯這段也是使用者按了就呼叫模型
-  // 翻譯整篇 / 整頁的按鈕不在這裡：翻譯是背景工作，受額度保護暫停（ticket 68）
+  // 翻譯還沒接上額度保護（gate F1），按了才開始的翻譯、整理在下一個測試
   for (const [file, call] of [["chat.js", 'fetch("/api/p/" + PR.pid + "/chat"'], ["notehelp.js", 'fetch("/api/p/" + PR.pid + "/notehelp"'],
     ["notespanel.js", '"/smart-annotate"'], ["planner.js", '"/mindmap/tasks"'], ["export.js", 'PR.api(endpoint, { method: "POST"'],
     ["actions.js", 'PR.ask("retranslate"']]) {
@@ -221,6 +221,27 @@ test("every manual AI entry in the reader reminds before sending", () => {
   }
   const margin = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/margin.js"), "utf8");
   assert.match(margin, /PR\.askModel = function[\s\S]*?PR\.chatAsk\(/);  // 筆記卡片的點評經過 chat.js
+});
+
+test("every translate button reminds before it starts the job", () => {
+  // 翻譯走閱讀器自己的引擎設定，還沒經過額度保護（gate F1）：使用者按了才開始的翻譯、整理都先提醒
+  const read = (f) => fs.readFileSync(path.join(__dirname, "../easyread/web/js", f), "utf8");
+  const before = (src, call, file) => {
+    const at = src.indexOf(call);
+    assert.ok(at > 0, file + " " + call);
+    const r = src.lastIndexOf("remind", at);
+    assert.ok(r > 0 && at - r < 400, file + " " + call);
+  };
+  const actions = read("reader/actions.js");
+  assert.match(actions, /\["retry-failed", "translate-en", "read-rest", "translate-rest"\]\.includes\(t\.dataset\.t\)\) if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\)/);
+  before(read("common/page-cap.js"), 'await PR.api("/api/p/" + id + (action === "skip"', "page-cap.js");
+  before(read("library/batch.js"), "for (const i of todo)", "batch.js");
+  before(read("library/pick-pages.js"), "body: { pages: spec }", "pick-pages.js");
+  const detail = read("library/detail.js");
+  assert.match(detail, /function remindAi\(\) \{ if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\);/);
+  const calls = detail.split('"/translate"').length - 1;
+  const reminded = (detail.match(/remindAi\(\);(\s|\n)*(try \{\s*)?(await )?PR\.api\("\/api\/p\/" \+ i\.id \+ "\/translate"/g) || []).length;
+  assert.equal(reminded, calls);
 });
 
 test("every page with a header loads the indicator", () => {

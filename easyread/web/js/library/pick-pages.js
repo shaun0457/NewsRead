@@ -48,6 +48,7 @@
       if (e.target.closest("[data-pp-go]") && picked.size) {
         const spec = [...picked].sort((a, b) => a - b).join(",");
         close();
+        if (PR.quotaGuard) PR.quotaGuard.remind();  // 翻譯還沒接上額度保護：手動按的先提醒（gate F1）
         try {
           await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: { pages: spec } });
           PR.toast(PR.t("已开始翻译")); PR.lib.load();

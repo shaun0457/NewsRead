@@ -2,7 +2,7 @@
    背景工作暫停時改顯示「背景工作暫停 · …」；兩種都點了到用量頁（/usage）。額度還沒有數字、或已經過了重置時間就不顯示。
    GET /api/ai/guard 每 POLL_MS 問一次；頁面看不到時不問，回到頁面馬上問一次；失敗時間隔加倍，最多 MAX_BACKOFF_MS；
    離開頁面（pagehide）就停。同一時間只有一個請求。
-   每個手動 AI 入口（問 AI、筆記幫手、智慧標註、心智圖、重譯這段）送出前呼叫 PR.quotaGuard.remind()：額度超過門檻、或 API 到上限時提醒（同一段只提醒一次），照樣送出。 */
+   每個手動 AI 入口（問 AI、筆記幫手、智慧標註、心智圖、重譯這段、按了才開始的翻譯和整理）送出前呼叫 PR.quotaGuard.remind()：額度超過門檻、或 API 到上限時提醒（同一段只提醒一次），照樣送出。 */
 (function (PR) {
   "use strict";
 
@@ -40,8 +40,8 @@
 
   function why(s) {
     const r = ((s && s.background) || {}).reason;
-    if (r === "quota") return PR.t("Claude Code 5 小時額度超過你設的門檻，背景的分類、翻譯先等額度重置。你手動按的照跑。");
-    if (r === "api_cap") return PR.t("API 這個月的花費到了上限，背景的翻譯和起草先停下。");
+    if (r === "quota") return PR.t("Claude Code 5 小時額度超過你設的門檻，背景的分類先等額度重置。你手動按的照跑。翻譯還沒接上額度保護，照樣會跑。");
+    if (r === "api_cap") return PR.t("API 這個月的花費到了上限，背景的分類先停下。翻譯還沒接上這個上限，照樣會跑。");
     if (r === "no_api") return PR.t("背景工作預設不用訂閱，也還沒有 API key 或本機模型，新資料先排在待分類。");
     return PR.t("Claude Code 5 小時額度（整個帳號的用量）。點開看用量。");
   }

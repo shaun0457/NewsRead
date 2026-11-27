@@ -25,9 +25,9 @@ window.PR = window.PR || {};
     subscription: PR.t("訂閱"), local: PR.t("本機"),
     // 額度保護
     guardTitle: PR.t("額度保護中："),
-    guardQuota: (pct, limit) => PR.t("Claude Code 5 小時額度到 {pct}，超過你設的 {limit}%。背景的分類和翻譯暫停，你手動按的「問 AI」照跑。", { pct, limit }),
+    guardQuota: (pct, limit) => PR.t("Claude Code 5 小時額度到 {pct}，超過你設的 {limit}%。背景的分類暫停，你手動按的「問 AI」照跑。翻譯還沒接上額度保護，照樣會跑。", { pct, limit }),
     guardQuotaUntil: (time) => PR.t("{time} 額度重置後自動接著跑。", { time }),
-    guardApiCap: PR.t("API 這個月的花費到了上限，背景的翻譯和起草先停下。"),
+    guardApiCap: PR.t("API 這個月的花費到了上限，背景的分類先停下。翻譯還沒接上這個上限，照樣會跑。"),
     guardNoApi: PR.t("背景工作預設不用訂閱，也還沒有 API key 或本機模型，新資料先排在待分類。"),
     guardPaused: PR.t("背景工作暫停。"),
     changeSettings: PR.t("改設定"),

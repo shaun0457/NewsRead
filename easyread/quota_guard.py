@@ -65,7 +65,7 @@ def message(code: str) -> str:
         "QUOTA_SWITCHED_API": tr("Claude Code 5 小時額度超過門檻，背景工作改用 API key。"),
         "BACKGROUND_NO_API": tr("背景工作不用訂閱，也沒有可以用的 API key 或本機模型，先暫停。"),
         "API_CAP_WARN": tr("API 這個月的花費到了上限的 80%。"),
-        "API_CAP_REACHED": tr("API 這個月的花費到了上限：背景的翻譯和起草停下，分類改等訂閱額度。"),
+        "API_CAP_REACHED": tr("API 這個月的花費到了上限：背景的起草停下，分類改等訂閱額度。翻譯還沒接上這個上限。"),
         "API_CAP_STOPPED": tr("API 這個月的花費到了上限，這個背景工作先停下。"),
         "CATCHUP_DONE": tr("暫停期間排隊的工作補做完了。"),
         "RATE_LIMITED": tr("AI 引擎回報限流，重試幾次後仍然失敗。"),
