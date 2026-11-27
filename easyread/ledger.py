@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   quota TEXT,
   context_manifest TEXT REFERENCES context_manifests(id)
 );
+CREATE INDEX IF NOT EXISTS ai_usage_at ON ai_usage (at);  -- 用量頁、API 月花費都依時間查（ticket 29）
 CREATE TABLE IF NOT EXISTS prompt_versions (
   task TEXT NOT NULL,
   version TEXT NOT NULL,

@@ -9,6 +9,8 @@
    （沒有論點時每個追蹤對象一筆）、分類結果、狀態改成完成。中間出錯就整筆不寫，下次重試。
    ContextManifest 在 AI 回答之後才記（判斷時間是送出前的時間）：要等引擎選定才知道實際的 prompt 版本。
 
+分類是背景工作（trigger = background），受額度保護（ticket 68，quota_guard.py）：背景不用訂閱又沒有 API key、
+訂閱額度超過門檻、API 到上限時，資料照樣留在待分類（資料庫裡），重置之後依排進來的順序補做，每一輪最多 CATCHUP_MAX 則。
 失敗：沒有 AI、額度暫停、服務在關，留在待分類、不算次數，這一輪也停下；其他錯誤最多自動試 MAX_ATTEMPTS 次
 （間隔加倍），之後標成失敗，從 POST /api/triage/<id>/retry 重試，這一輪繼續做下一則。錯誤只存代碼，不存上游原文。
 發布時間晚於現在：晚不到 FUTURE_GRACE 就延後到發布時間再分類、不算次數；晚更多是 BAD_TIME。沒有時間是 NO_TIME。
@@ -21,11 +23,12 @@ import json
 import re
 import sqlite3
 import threading
+import time
 import uuid
 from datetime import timedelta, timezone
 from pathlib import Path
 
-from . import ai_engines, article_ask, entities, ledger, narratives, textitem
+from . import ai_engines, article_ask, entities, ledger, narratives, quota_guard, textitem
 from .entities import EntityError, NotFound
 from .i18n import tr
 from .log import log
@@ -41,11 +44,13 @@ THESIS_RELATIONS = narratives.RELATIONS  # strengthens / weakens / related_no_ch
 SIGNAL_RELATIONS = ("strengthens", "weakens", "bull", "bear", "neutral")
 CONFIDENCE = ("low", "mid", "high")
 STATES = ("pending", "done", "failed")
-PAUSE_CODES = ("NO_AI", "PAUSED", "CANCELLED")  # 這些不算失敗：留在待分類，之後再做
+PAUSE_CODES = ("NO_AI", "PAUSED", "CANCELLED", "QUOTA_PAUSED", "API_CAP", "BACKGROUND_NO_API")  # 這些不算失敗：留在待分類，之後再做
 STOP_ROUND_CODES = ("RATE_LIMITED",)  # 算一次失敗，但這一輪停下：不是這則的問題，換下一則也一樣會失敗
 
 INTERVAL = 60.0           # 排程器多久處理一輪（秒）
 MAX_PER_ROUND = 5         # 每一輪最多分類幾則
+ROUND_BUDGET = 15 * 60.0  # 一輪最多跑多久（秒）：補做 50 則時上游卡住也不會佔住排程執行緒好幾個小時
+CATCHUP_MAX = quota_guard.CATCHUP_MAX  # 額度保護暫停結束後補做：每一輪最多幾則（ticket 68）
 MAX_ATTEMPTS = 3          # 自動重試最多幾次（含第一次）
 RETRY_BASE = 300.0        # 第 n 次失敗後等 RETRY_BASE * 2^(n-1) 秒再試
 RETRO_TRADING_DAYS = 2    # 發布後超過這麼多個交易日才判斷 = 事後補判（交易日先用週一到週五算，見 retrospective）
@@ -90,6 +95,7 @@ CREATE TABLE IF NOT EXISTS triage_results (
   context_manifest TEXT NOT NULL REFERENCES context_manifests(id)
 );
 CREATE INDEX IF NOT EXISTS triage_results_item ON triage_results (item_id, seq);
+CREATE INDEX IF NOT EXISTS triage_results_created ON triage_results (created_at);  -- 用量頁依時間數（ticket 29）
 CREATE TRIGGER IF NOT EXISTS triage_results_no_update BEFORE UPDATE ON triage_results
 BEGIN SELECT RAISE(ABORT, 'triage_results is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS triage_results_no_delete BEFORE DELETE ON triage_results
@@ -308,6 +314,7 @@ class Store:
         self.index = index
         self.entities = entities.Store(index)
         self.narratives = narratives.Store(index)
+        self.events = quota_guard.Events(index)
         with index.read() as db:
             db.executescript(SCHEMA)
 
@@ -422,8 +429,8 @@ class Store:
         e_lines, e_refs, t_lines, t_refs, ents = self._context()
         prompt = build_prompt(meta, paras, e_lines, t_lines)
         try:
-            res = engine.run(TASK, prompt, prompt_version=PROMPT_VERSION, source=SOURCE, json_mode=True, cancel=cancel,
-                             tools=False)
+            res = engine.run(TASK, prompt, prompt_version=PROMPT_VERSION, trigger="background", source=SOURCE, json_mode=True,
+                             cancel=cancel, tools=False)
             parsed = parse(res.get("text") or "", paras, e_refs, t_refs)
         except ai_engines.AIError as e:
             if e.code in PAUSE_CODES:
@@ -543,19 +550,50 @@ def enqueue(app, item_id: str, content_hash: str) -> bool:
         return False
 
 
-def run_pending(app, limit: int = MAX_PER_ROUND, engine=None, cancel=None) -> dict:
+def _guard_clear(engine) -> bool:
+    """額度保護已經解除（右上角沒有暫停）。讀不到就當還沒解除：寧可下一輪再記「補做完了」。"""
+    status = getattr(engine, "guard_status", None)
+    if status is None:  # 測試用的假引擎沒有額度保護
+        return True
+    try:
+        return not status()["background"]["paused"]
+    except Exception as e:  # noqa: BLE001
+        log.warning("額度保護狀態讀不到 %s", type(e).__name__)
+        return False
+
+
+def _catchup_done(s, engine, count: int) -> None:
+    try:
+        if _guard_clear(engine):
+            s.events.add("CATCHUP_DONE", TASK, {"count": count})
+    except (OSError, ValueError, sqlite3.Error) as e:
+        log.warning("補做完的事件記不進去 %s", type(e).__name__)
+
+
+def run_pending(app, limit: int = MAX_PER_ROUND, engine=None, cancel=None, clock=time.monotonic) -> dict:
     """排程器每一輪呼叫：最多分類 limit 則。沒有 AI 或暫停時停在這一輪，留給下一輪；一般失敗繼續做下一則。
-    回傳每種結果的數量。"""
+    額度保護暫停過（還沒補做完）時，這一輪最多做 CATCHUP_MAX 則，依匯入（排進來）的順序；排隊的做完就記 CATCHUP_DONE。
+    一輪最多跑 ROUND_BUDGET 秒，超過就停，剩下的留給下一輪。回傳每種結果的數量。"""
     s = store(app)
+    deadline = clock() + ROUND_BUDGET
     counts = {"done": 0, "paused": 0, "pending": 0, "failed": 0, "deferred": 0, "stale": 0, "skipped": 0}
+    catchup = s.events.catchup_open(TASK)
+    if catchup:
+        limit = CATCHUP_MAX
     due = s.due(limit)
     if not due:
+        if catchup:  # 只有還在補做時才看額度保護（會偵測 CLI）
+            _catchup_done(s, engine or ai_engines.for_app(app), 0)
         return counts  # 沒有待分類的就不碰 AI 設定（不偵測 CLI）
     engine = engine or ai_engines.for_app(app)
     if cancel is None:
         cancel = getattr(getattr(app, "scheduler", None), "stopping", None)
+    timed_out = False
     for row in due:
         if cancel is not None and cancel.is_set():
+            break
+        if clock() >= deadline:
+            timed_out = True
             break
         try:
             outcome = s.triage(getattr(app, "lib", None), row["item_id"], row["content_hash"], row["attempts"], engine, cancel)
@@ -569,6 +607,9 @@ def run_pending(app, limit: int = MAX_PER_ROUND, engine=None, cancel=None) -> di
         counts[outcome] = counts.get(outcome, 0) + 1
         if outcome == "paused":
             break  # 沒有 AI、暫停或服務在關：這一輪不再試別則
+    stopped = counts["paused"] or timed_out or (cancel is not None and cancel.is_set())
+    if catchup and not stopped and len(due) < limit:  # 排隊的都輪過一次了，而且保護已經解除：補做完
+        _catchup_done(s, engine, counts["done"])
     return counts
 
 

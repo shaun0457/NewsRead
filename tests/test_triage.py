@@ -93,6 +93,8 @@ class Base(unittest.TestCase):
         self.adapters = {e: FakeAdapter() for e in ai.ENGINES}
         self.adapters["claude"] = self.adapter
         self.settings = ai.Settings(root / "ai.json")
+        # 這些測試用假的 Claude Code 跑背景分類：打開「背景工作也可以用訂閱」（預設關，見 ticket 68 的條款查證）
+        self.settings.update(lambda d: d["guard"].__setitem__("background_subscription", True))
         self.found = json.loads(json.dumps(FOUND_ALL))
 
     def engine(self):

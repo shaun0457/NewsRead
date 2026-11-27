@@ -262,7 +262,8 @@ Vault Root/
 - **因果鏈環節**（ticket 59，沒有自己的表）：存在 `theme_versions.body` 的 `chain` 陣列裡，每一環 `{from, to, relation, source, inferred, confirmed, revenue_share?, role?}`；`from` / `to` 是 `{entity_id}` 或 `{label}`，`source` 是 `{url}` 或 `{item_id}`（沒有就是 `null`，`inferred` 為 true）。`confirmed` 只有我能設，且只在沒有出處的環節上有意義。連到公司的環節才有 `revenue_share`（`"unknown"` 或 `{value | range, source}`）和 `role`。清單頁的每次修改都新增一個草稿版本，舊版本不動。
 - **`theses`**：論點屬於哪個題材，只能新增。`id`（`T-` 開頭）、`theme_id`、`created_at`。論點狀態不存在這裡，存在帳本的 `thesis_status` 紀錄：AI 的是提議（`proposal: true`），`who = me` 的才生效（`{thesis_id, from, to, evidence, reason, confirms}`；駁回是 `{thesis_id, rejects, reason}`）。
 - **`evidence`**：證據，只能新增。`id`（`EV-` 開頭）、`thesis_id`、`item_id` 或 `story_id`（二選一）、`relation`、`grade`（A–D）、`reason`、`source`（JSON）、`by`、`created_at`、`context_manifest`。
-- **`triage_state`**（ticket 14）：每則資料目前的 AI 分類狀態（可以改）：`item_id`、`content_hash`（排進來時的內容）、`state`（`pending` / `done` / `failed`）、`attempts`、`next_at`、`error`（只存代碼）、`result_id`、`updated_at`。
+- **`triage_state`**（ticket 14）：每則資料目前的 AI 分類狀態（可以改）：`item_id`、`content_hash`（排進來時的內容）、`state`（`pending` / `done` / `failed`）、`attempts`、`next_at`、`error`（只存代碼）、`result_id`、`updated_at`。額度保護暫停時（ticket 68）資料留在 `pending`、不算次數，`updated_at` 是排進來的時間，補做時依它排序。
+- **`ai_guard_events`**（ticket 68）：額度保護和 API 上限的事件，欄位見第 10 節最後。
 - **`triage_results`**：分類結果，只能新增。`id`（`TR-` 開頭）、`item_id`、`content_hash`、`who`、`created_at`、`body`（JSON，欄位見 api.md 4.66）、`context_manifest`。同一個交易裡也寫 AI 連結、證據和帳本的 `judgment` 紀錄。
 - **帳本的 `judgment`（AI 分類寫的）**：`who = ai:<model>@triage-v1@<引擎>/<模型>`，payload `{item, story, target: {type: thesis | entity, id}, thesis_version?, relation, signal, importance, importance_signal, noise_kind, confidence, reason, blind: null, retrospective, time_unknown, engine, model, prompt_version, content_hash, baseline: [{entity, benchmark, industry_index, basket_version}]}`。`signal` 由 `relation` 推出（加強、削弱、偏多、偏空、中性）；`importance_signal` = 重要度高或中。`retrospective` = 發布後超過 2 個交易日才判斷（交易日先用週一到週五、台北時間算，國定假日也算進去）；時間不明的資料 `time_unknown = true`、不標事後補判。`baseline.basket_version` 在題材籃子（ticket 32）之前都是 `null`。ContextManifest 在 AI 回答之後才記，判斷時間是送出前的時間。
 - **`mentions`**：資料和追蹤對象的連結，`(item_id, entity_id)` 唯一；`source` 是 `ai` 或 `manual`。`removed=1` 是手動移除留下的紀錄，AI 不能再連回去，也不能蓋掉手動的連結。`created_at` 是連上的時間（移除後再連回來才重設），`updated_at` 是最後一次改動。一個追蹤對象最多 5000 筆。
@@ -275,5 +276,12 @@ Vault Root/
 - **`anthropic`**：`{key, status, tested_at, code}` 或 `null`。
 - **`openai`**：OpenAI 相容服務的清單，每個 `{id, name, base_url, api, model, key, status, tested_at, code}`，最多 10 個。
 - **`engines`**：本機 CLI 最近一次呼叫的結果 `{auth, at, billing}`。
+- **`guard`**（ticket 68，額度保護，見 `easyread/quota_guard.py`）：`{background_subscription, threshold, on_exceed, api_monthly_usd}`。
+  - `background_subscription`：背景工作能不能用訂閱 CLI，預設 `false`（條款不明確，見 ticket 68 的條款查證）。
+  - `threshold`：Claude Code 5 小時額度到幾 % 就保護，1–100 的整數，預設 `70`。
+  - `on_exceed`：超過門檻時 `wait`（等重置，預設）或 `api`（改用 API key）。
+  - `api_monthly_usd`：API 每月上限（美元），0–100000，預設 `15`。
 
 手改壞掉的欄位讀進來時會被丟掉，改回預設。
+
+額度保護的事件存在 `newsread.sqlite3` 的 **`ai_guard_events`**（可以刪，最多留 1000 筆，多的刪最舊的）：`seq`、`at`、`code`（`QUOTA_PAUSED`、`QUOTA_SWITCHED_API`、`BACKGROUND_NO_API`、`API_CAP_WARN`、`API_CAP_REACHED`、`API_CAP_STOPPED`、`CATCHUP_DONE`、`RATE_LIMITED`）、`task`（工作；每月一次的 API 通知是空字串）、`key`（去重用：同一段暫停的重置時間；API 通知、`API_CAP_STOPPED`、`BACKGROUND_NO_API` 是月份；`RATE_LIMITED` 是 10 分鐘的時段）、`data`（JSON，只有固定欄位：`used`、`threshold`、`until`、`spent_usd`、`cap_usd`、`month`、`count`）。不存上游原文。

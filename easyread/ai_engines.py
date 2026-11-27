@@ -6,6 +6,8 @@
 - 每種工作（TASKS）各自指定主要和備用的引擎與模型；實際用的引擎和模型記進 prompt 版本。
 - 每次呼叫都記用量到帳本（ai_usage）：API 記費用，訂閱不折算金額，Claude Code 有回報時記額度和重置時間。
 - 錯誤只帶錯誤代碼和固定訊息（AIError）；上游原文過 fetch.scrub 才留在例外上，不寫進 log。
+- 額度保護（ticket 68，quota_guard.py）：呼叫端一定要標 trigger（background / manual）。背景工作預設不用訂閱 CLI、
+  Claude Code 5 小時額度超過門檻時暫停或改用 API key、API 每月上限到了就停；手動的照跑，回傳 quota_notice 提醒。
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import config, detect, engines, fetch, ledger, usage
+from . import config, detect, engines, fetch, ledger, quota_guard, usage
 from .i18n import tr
 from .log import log
 from .store import read_json, write_json_atomic
@@ -56,6 +58,7 @@ PRICE_PROMPT_LIMIT = {"claude-haiku-5-5": 100_000}  # 這個價格只適用到�
 MAX_ATTEMPTS = 4          # 同一個引擎遇到限流最多試幾次（含第一次）
 BACKOFF_BASE = 2.0        # 第 n 次重試前等 BACKOFF_BASE * 2^n 秒
 BACKOFF_MAX = 30.0        # 每次最多等這麼久（上游的 Retry-After 也截在這裡）
+RATE_EVENT_BUCKET = 600   # 限流事件：同一個工作、同一個 600 秒時段只記一筆
 CALL_TIMEOUT = 600        # API 一次呼叫最多等幾秒
 CHECK_TIMEOUT = 20        # 「儲存並測試」最多等幾秒
 ANTHROPIC_MAX_TOKENS = 16000
@@ -69,7 +72,8 @@ OLLAMA_BASE = "http://127.0.0.1:11434/v1"
 TAIPEI = timezone(timedelta(hours=8))  # 台灣沒有日光節約；Windows 的 zoneinfo 沒有內建時區資料
 LOOPBACK = ("localhost", "127.0.0.1", "::1")
 CODES = ("NO_AI", "PAUSED", "AUTH_INVALID", "RATE_LIMITED", "UPSTREAM_ERROR", "NETWORK", "TIMEOUT", "BAD_REQUEST",
-         "ENGINE_MISSING", "OUTPUT_TRUNCATED", "ENGINE_ERROR", "CANCELLED")
+         "ENGINE_MISSING", "OUTPUT_TRUNCATED", "ENGINE_ERROR", "CANCELLED", "QUOTA_PAUSED", "API_CAP", "BACKGROUND_NO_API")
+TRIGGERS = ("background", "manual")  # 背景工作（排程自己跑的）/ 使用者手動按的
 
 
 def message(code: str) -> str:
@@ -86,6 +90,9 @@ def message(code: str) -> str:
         "ENGINE_MISSING": tr("找不到這個引擎。"),
         "OUTPUT_TRUNCATED": tr("模型的回答太長，被截斷了。"),
         "CANCELLED": tr("已取消。"),
+        "QUOTA_PAUSED": tr("訂閱額度超過你設的門檻，背景工作暫停到額度重置。"),
+        "API_CAP": tr("API 這個月的花費到了上限。"),
+        "BACKGROUND_NO_API": tr("背景工作不用訂閱，也沒有可以用的 API key 或本機模型。"),
     }.get(code, tr("AI 引擎出錯。"))
 
 
@@ -121,7 +128,8 @@ def _now() -> str:
 
 
 def _empty() -> dict:
-    return {"tasks": {t: {"primary": None, "fallback": None} for t in TASKS}, "anthropic": None, "openai": [], "engines": {}}
+    return {"tasks": {t: {"primary": None, "fallback": None} for t in TASKS}, "anthropic": None, "openai": [], "engines": {},
+            "guard": quota_guard.defaults()}
 
 
 def _clean_choice(c) -> dict | None:
@@ -149,6 +157,7 @@ def _clean(raw) -> dict:
             out["openai"].append({k: o.get(k) for k in ("id", "name", "base_url", "api", "model", "key", "status", "tested_at", "code")})
     if isinstance(raw.get("engines"), dict):
         out["engines"] = {e: dict(v) for e, v in raw["engines"].items() if e in CLI and isinstance(v, dict)}
+    out["guard"] = quota_guard.clean(raw.get("guard"))
     return out
 
 
@@ -426,13 +435,17 @@ def anthropic_installed() -> bool:
 # ---------- 選引擎、呼叫、記用量 ----------
 class Engines:
     def __init__(self, settings: Settings, index: ledger.Index | None, *, adapters: dict | None = None,
-                 detector=None, wait=_wait, has_sdk=anthropic_installed, quota=usage.latest):
+                 detector=None, wait=_wait, has_sdk=anthropic_installed, quota=usage.latest, now=time.time,
+                 notifier=quota_guard.notify):
         self.settings, self.index = settings, index
         self.adapters = adapters or default_adapters()
         self.detector = detector or (lambda fresh=False: detect.detect(config.load(), fresh=fresh))
         self.wait = wait
         self.has_sdk = has_sdk
         self.quota = quota
+        self.now = now            # Unix 秒：額度的重置時間、API 花費的月份都用它
+        self.notifier = notifier  # API 上限通知（ticket 16 接 Telegram）
+        self._events: quota_guard.Events | None = None
 
     # ----- 哪些能用 -----
     def _entry(self, data: dict, entry_id: str) -> dict | None:
@@ -458,12 +471,23 @@ class Engines:
             return False, "missing"
         return o.get("status") != "invalid", "auth_invalid"
 
-    def _usable_for(self, task: str, choice: dict, data: dict, found: dict, tools: bool = True) -> tuple[bool, str]:
+    def _usable_for(self, task: str, choice: dict, data: dict, found: dict, tools: bool = True, gate=None) -> tuple[bool, str]:
         """這個工作能不能用這個選項。不能有工具的工作（NO_TOOLS_TASKS 或呼叫端 tools=False）不用關不掉工具的 CLI，
-        原因是 no_tools。plan 和 run 都走這裡，available() 才會跟實際呼叫一致。"""
+        原因是 no_tools。gate 是背景工作的額度保護（_bg_gate）。plan 和 run 都走這裡，available() 才會跟實際呼叫一致。"""
         if (not tools or task in NO_TOOLS_TASKS) and choice["engine"] in NO_TOOLS_UNSUPPORTED:
             return False, "no_tools"
+        why = gate(choice) if gate is not None else None
+        if why:
+            return False, why
         return self.usable(choice, data, found)
+
+    @staticmethod
+    def kind(choice: dict, data: dict) -> str:
+        """subscription / api / local。本機 CLI 最近一次是用 API 計費（例如設了 API key）就算 api。"""
+        e = choice["engine"]
+        if e in CLI and (data["engines"].get(e) or {}).get("billing") == "api":
+            return "api"
+        return KIND[e]
 
     def candidates(self, task: str, data: dict, found: dict) -> list[dict]:
         """「自動」時依序考慮的選項。"""
@@ -479,28 +503,34 @@ class Engines:
                 out += [{"engine": e, "model": m, "entry": ""} for m in (found["ollama"].get("models") or [])[:1]]
         return out
 
-    def plan(self, task: str, data: dict, found: dict, tools: bool = True) -> dict:
-        """這個工作現在會用哪個引擎。state：ready / fallback（主要的不能用，改用備用）/ paused（key 失效、沒備用）/ no_ai。"""
+    def plan(self, task: str, data: dict, found: dict, tools: bool = True, gate=None, use_api: bool = False) -> dict:
+        """這個工作現在會用哪個引擎。state：ready / fallback（主要的不能用，改用備用）/ paused（key 失效、沒備用）/ no_ai。
+        gate、use_api 給背景工作的額度保護用：use_api 時，設定的引擎都不能用就接著試 API key 和本機模型。
+        reasons 是依序試過、不能用的原因。"""
         t = data["tasks"][task]
         primary, fallback = t["primary"], t["fallback"]
         extra: list[dict] = []
         if primary is None:  # 自動：第一個能用的；都不能用時，key 失效的那個當成主要的，好說明為什麼暫停
             options = self.candidates(task, data, found)
-            primary = next((c for c in options if self._usable_for(task, c, data, found, tools)[0]), None) or \
-                next((c for c in options if self._usable_for(task, c, data, found, tools)[1] == "auth_invalid"), None)
+            primary = next((c for c in options if self._usable_for(task, c, data, found, tools, gate)[0]), None) or \
+                next((c for c in options if self._usable_for(task, c, data, found, tools, gate)[1] == "auth_invalid"), None)
             # 自動時其他能用的都當備用：呼叫到一半發現 key 失效，這次就改用下一個，不用等下一次
             extra = [c for c in options if c is not primary and choice_id(c) != choice_id(fallback)]
         order = [c for c in (primary, fallback) if c] + extra
+        if use_api:  # 背景工作改用 API key（和本機模型）：設定裡沒選的也接在後面
+            seen = {choice_id(c) for c in order}
+            order += [c for c in self.candidates(task, data, found)
+                      if self.kind(c, data) != "subscription" and choice_id(c) not in seen]
         reasons = []
         for i, c in enumerate(order):
-            ok, why = self._usable_for(task, c, data, found, tools)
+            ok, why = self._usable_for(task, c, data, found, tools, gate)
             if ok:
                 return {"primary": primary, "fallback": fallback, "using": c, "state": "ready" if i == 0 else "fallback",
-                        "reason": reasons[0] if reasons else None, "order": order[i:]}
+                        "reason": reasons[0] if reasons else None, "reasons": reasons, "order": order[i:]}
             reasons.append(why)
         state = "paused" if "auth_invalid" in reasons else "no_ai"
         return {"primary": primary, "fallback": fallback, "using": None, "state": state,
-                "reason": reasons[0] if reasons else None, "order": []}
+                "reason": reasons[0] if reasons else None, "reasons": reasons, "order": []}
 
     def available(self, task: str) -> bool:
         """其他模組用：這個工作現在有沒有 AI 可以用（沒有就在畫面標「沒有 AI」）。"""
@@ -556,10 +586,16 @@ class Engines:
                 self.wait(delay, cancel)
         raise AIError("RATE_LIMITED")  # 走不到；MAX_ATTEMPTS >= 1
 
-    def run(self, task: str, prompt: str, *, prompt_version: str, source: str = "newsread", cancel=None,
+    def run(self, task: str, prompt: str, *, prompt_version: str, trigger: str, source: str = "newsread", cancel=None,
             json_mode: bool = False, context_manifest: str | None = None, tools: bool = True) -> dict:
-        """呼叫這個工作設定的引擎。回傳 {text, engine, model, prompt_version, fallback, notice, usage_seq}。
+        """呼叫這個工作設定的引擎。回傳 {text, engine, model, prompt_version, fallback, notice, quota_notice, usage_seq}。
 
+        trigger 一定要給：background（排程自己跑的分類、翻譯、起草、論點變化偵測）或 manual（使用者按了才跑的）。
+        背景工作受額度保護（quota_guard）：預設不用訂閱 CLI，改用 API key 或本機模型（都沒有丟 BACKGROUND_NO_API）；
+        設定允許用訂閱時，Claude Code 5 小時額度超過門檻就丟 QUOTA_PAUSED（等重置）或改用 API key；
+        API 這個月到上限時翻譯和起草丟 API_CAP，其他背景工作不用 API。每次觸發都記一筆事件。
+        手動的照跑；額度超過門檻（用 Claude Code 訂閱時）或 API 到上限（用 API 時）在 quota_notice 帶
+        QUOTA_OVER / API_CAP，讓畫面提醒。
         prompt_version 是呼叫端 prompt 的版本；實際記進帳本的是「版本@引擎/模型」，換引擎或模型就是另一個版本。
         key 失效（AUTH_INVALID）不重試同一把：標成失效，有備用就改用並在 notice 帶 AUTH_INVALID，沒有就丟 PAUSED。
         tools=False：prompt 裡有外部內容（文章全文），引擎不能有任何工具；NO_TOOLS_TASKS 的工作一律如此。
@@ -568,6 +604,8 @@ class Engines:
         """
         if task not in TASKS:
             raise ValueError(f"unknown task {task!r}")
+        if trigger not in TRIGGERS:
+            raise ValueError(f"trigger must be one of {TRIGGERS}")
         if not prompt_version:
             raise ValueError("prompt_version is required")
         if self.index is None:
@@ -578,14 +616,20 @@ class Engines:
                     raise ValueError("context manifest not found")
         no_tools = not tools or task in NO_TOOLS_TASKS
         data, found = self.settings.load(), self.detector()
-        p = self.plan(task, data, found, tools=not no_tools)
+        g = self._guard(data)
+        background = trigger == "background" and task in quota_guard.BACKGROUND_TASKS
+        gate, use_api, switching = None, False, False
+        if background:
+            gate, use_api, switching = self._before_background(task, data, found, g, not no_tools)
+        p = self.plan(task, data, found, tools=not no_tools, gate=gate, use_api=use_api)
         auth_failed = p["state"] in ("fallback", "paused") and p["reason"] == "auth_invalid"
         for choice in p["order"]:
-            if not self._usable_for(task, choice, data, found, tools=not no_tools)[0]:
+            if not self._usable_for(task, choice, data, found, tools=not no_tools, gate=gate)[0]:
                 continue
             spec = self._spec(choice, data)
             if no_tools:
                 spec["tools"] = False
+            kind = self.kind(choice, data)
             try:
                 res = self._call(choice, spec, prompt, cancel, json_mode)
             except AIError as e:
@@ -593,8 +637,11 @@ class Engines:
                 if e.usage:
                     try:
                         self._record(task, choice, spec, e.usage, source, context_manifest)
+                        self._after_spend(e.usage.get("cost_usd"), data)
                     except Exception as rec:  # noqa: BLE001 記不進帳本不能蓋掉原本的錯誤代碼
                         log.warning("AI 用量記錄失敗 task=%s %s", task, type(rec).__name__)
+                if e.code == "RATE_LIMITED":  # 重試用完還是限流：記一筆給用量頁（同一個工作、同一個 10 分鐘時段只記一筆）
+                    self._event("RATE_LIMITED", task, g, key=str(int(float(self.now()) // RATE_EVENT_BUCKET)), once=True)
                 if e.code != "AUTH_INVALID":
                     raise
                 self._mark(choice, False, e.code)
@@ -608,10 +655,158 @@ class Engines:
             effective = f"{prompt_version}@{engine}/{model or 'default'}"
             self.index.register_prompt(task, effective, f"base={prompt_version}\nengine={engine}\nmodel={model}")
             seq = self._record(task, choice, spec, res, source, context_manifest)
+            if switching and kind != "subscription":
+                self._event("QUOTA_SWITCHED_API", task, g, key=_until_key(g))
+            self._after_spend(res.get("cost_usd"), data)
+            quota_notice = None
+            if not background:  # 手動（或不受保護的工作）照跑，但提醒
+                if choice["engine"] == "claude" and kind == "subscription" and g["quota"]["over"]:
+                    quota_notice = "QUOTA_OVER"
+                elif kind == "api" and g["api_reached"]:
+                    quota_notice = "API_CAP"
             return {"text": res.get("text") or "", "engine": choice["engine"], "model": model, "prompt_version": effective,
                     "fallback": choice is not p["primary"], "notice": "AUTH_INVALID" if auth_failed else None,
-                    "usage_seq": seq}
+                    "quota_notice": quota_notice, "usage_seq": seq}
+        if background and not auth_failed:
+            reasons = set(p["reasons"])
+            for why, code, event in (("quota_guard", "QUOTA_PAUSED", "QUOTA_PAUSED"), ("api_cap", "API_CAP", "API_CAP_STOPPED"),
+                                     ("background_api_only", "BACKGROUND_NO_API", "BACKGROUND_NO_API")):
+                if why in reasons:
+                    self._event(event, task, g, key=_until_key(g) if why == "quota_guard" else g["month"])  # 其他的每月一段
+                    raise AIError(code)
         raise AIError("PAUSED" if auth_failed else "NO_AI")
+
+    # ----- 額度保護（ticket 68） -----
+    def events(self) -> quota_guard.Events | None:
+        if self.index is None:
+            return None
+        if self._events is None:
+            self._events = quota_guard.Events(self.index)
+        return self._events
+
+    def _guard(self, data: dict) -> dict:
+        """現在的保護設定、Claude Code 額度、這個月的 API 花費。"""
+        g = dict(data["guard"])
+        now = self.now()
+        try:
+            latest = self.quota()
+        except Exception as e:  # noqa: BLE001 額度檔壞了或被鎖住：當作沒有額度資料，不讓每個 AI 呼叫都失敗；log 只記類型
+            log.warning("Claude Code 額度讀不到 %s", type(e).__name__)
+            latest = None
+        q = quota_guard.quota_state(latest, g["threshold"], now)
+        spent = 0.0
+        if self.index is not None:
+            with self.index.read() as db:
+                spent = quota_guard.api_spent(db, now)
+        cap = g["api_monthly_usd"]
+        # 上限 0 = 背景不用 API（api_blocked），不算「到上限」：不通知、不停掉能用本機模型的翻譯和起草、右上角不顯示暫停
+        reached = cap > 0 and spent >= cap
+        return {**g, "now": now, "quota": q, "spent": spent, "month": quota_guard.month_key(now),
+                "api_warn": cap > 0 and spent >= cap * quota_guard.WARN_RATIO, "api_reached": reached,
+                "api_blocked": cap <= 0 or reached}
+
+    def _bg_gate(self, g: dict, data: dict):
+        """背景工作不能用哪些引擎：訂閱（設定不允許，或 Claude Code 額度超過門檻）、API（這個月到上限）。"""
+        def gate(choice):
+            kind = self.kind(choice, data)
+            if kind == "subscription":
+                if not g["background_subscription"]:
+                    return "background_api_only"
+                if choice["engine"] == "claude" and g["quota"]["over"]:
+                    return "quota_guard"
+            elif kind == "api" and g["api_blocked"]:
+                return "api_cap"
+            return None
+        return gate
+
+    def _guarded(self, task: str, data: dict, found: dict, g: dict, tools: bool) -> bool:
+        """允許背景用訂閱、額度超過門檻，而且這個工作本來就會用 Claude Code 訂閱（不是設定成 API 之類的）。"""
+        if not (g["background_subscription"] and g["quota"]["over"]):
+            return False
+        using = self.plan(task, data, found, tools=tools)["using"]
+        return bool(using) and using["engine"] == "claude" and self.kind(using, data) == "subscription"
+
+    def _before_background(self, task: str, data: dict, found: dict, g: dict, tools: bool):
+        """背景工作呼叫前：該停的直接丟錯誤代碼（並記事件），不然回傳 (gate, use_api, switching)。
+        switching：額度超過門檻，這次從 Claude Code 訂閱改用 API key。"""
+        if task in quota_guard.STOP_AT_CAP and g["api_reached"]:
+            self._event("API_CAP_STOPPED", task, g, key=g["month"])
+            raise AIError("API_CAP")
+        guarded = self._guarded(task, data, found, g, tools)
+        if guarded and g["on_exceed"] == "wait":
+            self._event("QUOTA_PAUSED", task, g, key=_until_key(g))
+            raise AIError("QUOTA_PAUSED")  # 等重置，不改用 API
+        use_api = not g["background_subscription"] or (g["quota"]["over"] and g["on_exceed"] == "api")
+        return self._bg_gate(g, data), use_api, guarded
+
+    def _event(self, code: str, task: str, g: dict, key: str = "", once: bool = False) -> dict | None:
+        """記一筆額度保護事件（只有代碼和固定欄位的數字）。記不進去只寫 log，不蓋掉原本的結果或錯誤代碼。"""
+        q = g["quota"]
+        data = {"threshold": g["threshold"], "cap_usd": g["api_monthly_usd"], "spent_usd": g["spent"], "month": g["month"]}
+        if q["used"] is not None:
+            data["used"] = q["used"]
+        if q["until"]:
+            data["until"] = q["until"]
+        try:
+            ev = self.events()
+            return ev.add(code, task, data, key=key, once=once) if ev else None
+        except Exception as e:  # noqa: BLE001
+            log.warning("額度保護事件記不進去 code=%s %s", code, type(e).__name__)
+            return None
+
+    def _after_spend(self, cost, data: dict) -> None:
+        """有費用的呼叫記完之後：這個月的 API 花費到 80%、到上限時，各記一筆並通知一次（每個月一次）。"""
+        if not cost:
+            return
+        try:
+            g = self._guard(data)
+        except Exception as e:  # noqa: BLE001 讀不到花費不影響這次已經成功的呼叫
+            log.warning("API 花費讀不到 %s", type(e).__name__)
+            return
+        for reached, code in ((g["api_reached"], "API_CAP_REACHED"), (g["api_warn"], "API_CAP_WARN")):
+            if reached:
+                ev = self._event(code, "", g, key=g["month"], once=True)
+                if ev:
+                    try:
+                        self.notifier({"code": ev["code"], "message": ev["message"], "data": ev["data"]})
+                    except Exception as e:  # noqa: BLE001 通知送不出去不影響這次呼叫；只記類型
+                        log.warning("額度通知送不出去 %s", type(e).__name__)
+                break  # 已經到上限就不另外送 80% 的通知
+
+    def guard_status(self, data: dict | None = None, found: dict | None = None) -> dict:
+        """GET /api/ai/guard（每頁右上角）和設定頁要的：背景工作現在是不是暫停、為什麼、到什麼時候。
+        reason：quota（額度超過門檻、等重置）/ api_cap（API 到上限）/ no_api（背景不用訂閱，又沒有 API key 或本機模型）。
+        用分類（triage）判斷，因為它是一直在跑的背景工作；根本沒有 AI 時不算保護。"""
+        data = data or self.settings.load()
+        found = found if found is not None else self.detector()
+        g = self._guard(data)
+        q = g["quota"]
+        reason = None
+        if self.plan("triage", data, found, tools=False)["using"] is not None:
+            if g["on_exceed"] == "wait" and self._guarded("triage", data, found, g, False):
+                reason = "quota"
+            else:
+                use_api = not g["background_subscription"] or (q["over"] and g["on_exceed"] == "api")
+                p = self.plan("triage", data, found, tools=False, gate=self._bg_gate(g, data), use_api=use_api)
+                reasons = set(p["reasons"]) if p["using"] is None else set()
+                for why, name in (("quota_guard", "quota"), ("api_cap", "api_cap"), ("background_api_only", "no_api")):
+                    if why in reasons:
+                        reason = name
+                        break
+        if reason is None and g["api_reached"]:
+            reason = "api_cap"  # 背景的翻譯和起草停下
+        return {"settings": {k: g[k] for k in quota_guard.defaults()},
+                "quota": {k: q[k] for k in ("used", "resets_at", "at", "over", "until")},
+                "api": {"spent_usd": g["spent"], "cap_usd": g["api_monthly_usd"], "month": g["month"],
+                        "warn": g["api_warn"], "reached": g["api_reached"]},
+                "background": {"paused": reason is not None, "reason": reason,
+                               "until": q["until"] if reason == "quota" else None}}
+
+    def set_guard(self, body: dict) -> dict:
+        """POST /api/ai/guard：只改有帶的欄位。"""
+        changes = parse_guard(body)
+        self.settings.update(lambda d: d.__setitem__("guard", quota_guard.clean({**d["guard"], **changes})))
+        return self.view()
 
     def _record(self, task: str, choice: dict, spec: dict, res: dict, source: str, context_manifest) -> int:
         return self.index.record_usage(source=source, task=task, engine=choice["engine"], model=spec.get("model") or "",
@@ -698,6 +893,7 @@ class Engines:
             "tasks": tasks,
             "choices": self.choices(data, found),
             "any_ai": any(v["using"] for v in tasks.values()),
+            "guard": self.guard_status(data, found),
         }
 
     # ----- 設定頁的寫入 -----
@@ -802,7 +998,34 @@ class Engines:
         return self.view(fresh=True)
 
 
+def _until_key(g: dict) -> str:
+    """同一段暫停（同一個重置時間）只記一筆事件。"""
+    return str(int(g["quota"]["until"] or 0))
+
+
 # ---------- 輸入檢查 ----------
+def parse_guard(body: dict) -> dict:
+    """額度保護的設定。只回傳有帶、而且格式對的欄位；格式不對丟 InputError。"""
+    out = {}
+    if "background_subscription" in body:
+        if not isinstance(body["background_subscription"], bool):
+            raise InputError(tr("資料格式不對。"), "background_subscription")
+        out["background_subscription"] = body["background_subscription"]
+    if "threshold" in body:
+        if not quota_guard.valid_threshold(body["threshold"]):
+            raise InputError(tr("門檻要是 1 到 100 的整數。"), "threshold")
+        out["threshold"] = body["threshold"]
+    if "on_exceed" in body:
+        if body["on_exceed"] not in quota_guard.ON_EXCEED:
+            raise InputError(tr("選項不對。"), "on_exceed")
+        out["on_exceed"] = body["on_exceed"]
+    if "api_monthly_usd" in body:
+        if not quota_guard.valid_cap(body["api_monthly_usd"]):
+            raise InputError(tr("每月上限要是 0 到 {n} 美元。", n=int(quota_guard.MAX_API_MONTHLY_USD)), "api_monthly_usd")
+        out["api_monthly_usd"] = body["api_monthly_usd"]
+    return out
+
+
 def choice_id(c: dict | None) -> str | None:
     return None if not c else f"{c['engine']}|{c.get('entry') or ''}|{c.get('model') or ''}"
 
@@ -916,9 +1139,15 @@ def api_get(app, path: str) -> dict | None:
     parts = _route(path)
     if parts is None:
         return None
+    eng = for_app(app, create_index=False)
+    if parts == ["guard"]:  # 額度保護的狀態（每頁右上角「背景工作暫停」）
+        return eng.guard_status()
+    if parts == ["guard", "events"]:  # 額度保護、API 上限的事件，新的在前（用量頁，ticket 29）
+        ev = eng.events()
+        return {"events": ev.list() if ev else []}
     if parts:
         raise NotFound(path)
-    return for_app(app, create_index=False).view()
+    return eng.view()
 
 
 def api_post(app, path: str, body) -> dict | None:
@@ -931,6 +1160,8 @@ def api_post(app, path: str, body) -> dict | None:
         return eng.redetect()
     if parts == ["tasks"]:
         return eng.set_task(body)
+    if parts == ["guard"]:
+        return eng.set_guard(body)
     if parts == ["keys", "anthropic"]:
         return eng.set_anthropic(body)
     if parts == ["keys", "anthropic", "remove"]:

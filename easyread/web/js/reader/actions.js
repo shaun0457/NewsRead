@@ -125,6 +125,7 @@
     if (t.dataset.t === "page" && b) PR.openPage(b.page, id);
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
+    if (["retry-failed", "translate-en", "read-rest", "translate-rest"].includes(t.dataset.t)) if (PR.quotaGuard) PR.quotaGuard.remind();  // 翻譯還沒接上額度保護：手動按的先提醒（gate F1）
     if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast(PR.t("正在重试，译好后自动替换")); PR.poll(); });
     if (t.dataset.t === "translate-en") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { en: true } }).then(() => { PR.toast(PR.t("已开始翻译，译好的页就地换成{lang}，笔记和划线都保留", { lang: PR.targetName((PR.state.paper.meta || {}).target || PR.target) })); PR.poll(); });
     if (t.dataset.t === "model-settings") PR.openSettings("chat");
@@ -147,6 +148,7 @@
       if (b.dataset.rt !== "go") return;
       el.classList.add("busy");
       try {
+        if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
         for (const key of PR.blockKeys(PR.blockById[id])) await PR.ask("retranslate", { key, hint });
         PR.toast(PR.t("正在重译，好了会自动替换（你改过的段落会提示对比）"));
       } catch (err) { el.classList.remove("busy"); PR.toast(PR.t("没能提交：{msg}", { msg: PR.esc(err.message) })); }
