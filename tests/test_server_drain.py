@@ -1,4 +1,4 @@
-"""Ticket 71：POST 的路由沒讀 body 就回應（404、400）時，伺服器先把 body 讀掉（有上限）。
+"""Ticket 77：POST 的路由沒讀 body 就回應（404、400）時，伺服器先把 body 讀掉（有上限）。
 
 不讀的話，Windows 上連線會被中止（WinError 10053）；HTTP/1.1 保持連線時，留下的 body 還會被當成下一個請求。"""
 from __future__ import annotations
