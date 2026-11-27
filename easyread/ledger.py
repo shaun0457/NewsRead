@@ -97,6 +97,14 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
   registered_at TEXT NOT NULL,
   PRIMARY KEY (task, version)
 );
+-- 揭露紀錄（Exposure）：哪一則資料的 AI 看法、在哪裡、什麼時候顯示給使用者。之後的判斷用它決定 blind。
+CREATE TABLE IF NOT EXISTS exposures (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id TEXT NOT NULL,
+  place TEXT NOT NULL,
+  at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS exposures_item ON exposures(item_id, place, seq);
 -- 每個 AI 任務目前用哪一版。這張表可以改；版本本身（prompt_versions）只能新增。
 CREATE TABLE IF NOT EXISTS prompt_current (
   task TEXT PRIMARY KEY,
@@ -106,7 +114,10 @@ CREATE TABLE IF NOT EXISTS prompt_current (
 );
 """
 
-APPEND_ONLY = ("ledger", "context_manifests", "ai_usage", "prompt_versions")
+APPEND_ONLY = ("ledger", "context_manifests", "ai_usage", "prompt_versions", "exposures")
+# 揭露的地點：敘事看板、題材頁、今日新聞、簡報、推播、閱讀器、盲測揭曉、問 AI
+EXPOSURE_PLACES = frozenset({"board", "theme", "today", "digest", "push", "reader", "quiz", "ask_ai"})
+MAX_ITEM_ID = 200
 
 
 def _guards() -> str:
@@ -400,6 +411,27 @@ class Index:
         return {"ok": bad == 0, "checked": checked, "head_seq": head_seq, "head_hash": prev if checked else None,
                 "broken": broken, "truncated": bad > len(broken)}
 
+    # ---------- 揭露紀錄 ----------
+    def record_exposure(self, item_id: str, place: str) -> bool:
+        """記下這則資料的 AI 看法在 place 顯示給使用者了。同一則同一個地點只記第一次（盲判只看第一次），
+        回傳這次有沒有新增。"""
+        if place not in EXPOSURE_PLACES:
+            raise ValueError(f"unknown exposure place: {place}")
+        if not isinstance(item_id, str) or not 0 < len(item_id) <= MAX_ITEM_ID:
+            raise ValueError("item_id is required")
+        with self._write() as db:
+            if db.execute("SELECT 1 FROM exposures WHERE item_id=? AND place=? LIMIT 1", (item_id, place)).fetchone():
+                return False
+            db.execute("INSERT INTO exposures (item_id, place, at) VALUES (?,?,?)", (item_id, place, self.now()))
+            return True
+
+    def exposures(self, item_id: str) -> list[dict]:
+        """這則資料被揭露過的地點和時間，依時間排序（每個地點最多一筆，所以筆數有上限）。"""
+        with self._connect() as db:
+            rows = db.execute("SELECT place, at FROM exposures WHERE item_id=? ORDER BY seq LIMIT ?",
+                              (item_id, len(EXPOSURE_PLACES))).fetchall()
+        return [dict(r) for r in rows]
+
     # ---------- AI 用量 ----------
     def record_usage(self, *, source: str, task: str, engine: str, model: str, input_tokens: int = 0,
                      cached_tokens: int = 0, output_tokens: int = 0, cost_usd: float | None = None,
@@ -489,12 +521,13 @@ _SHARED: dict[Path, Index] = {}
 _SHARED_LOCK = threading.Lock()
 
 
-def shared(path: Path | str | None = None) -> Index | None:
-    """伺服器共用的 Index；資料庫檔還不存在就回 None（唯讀的 GET 不建檔）。"""
+def shared(path: Path | str | None = None, create: bool = False) -> Index | None:
+    """伺服器共用的 Index；資料庫檔還不存在就回 None（唯讀的 GET 不建檔）。
+    create=True：不存在就建。建檔和初始化 schema 都在鎖裡做，同時建的幾個執行緒不會互相撞成 database is locked。"""
     path = Path(path) if path else default_path()
     with _SHARED_LOCK:
         if path not in _SHARED:
-            if not path.exists():
+            if not (create or path.exists()):
                 return None
             _SHARED[path] = Index(path)
         return _SHARED[path]

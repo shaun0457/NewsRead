@@ -18,7 +18,7 @@ if not exist ".venv\Scripts\python.exe" goto nopython
 ".venv\Scripts\python.exe" -m pip install -q -e . || goto fail
 
 :run
-start "" ".venv\Scripts\pythonw.exe" -m easyread serve --open --exit-on-close
+start "" ".venv\Scripts\pythonw.exe" -m easyread serve --open
 exit /b 0
 
 :nopython

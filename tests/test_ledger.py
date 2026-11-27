@@ -42,6 +42,7 @@ class StorageTest(LedgerCase):
         self.manifest()
         self.ix.record_usage(source="paste", task="triage", engine="claude", model="m")
         self.ix.register_prompt("triage", "1", "prompt text")
+        self.ix.record_exposure("item-1", "ask_ai")
         db = self.raw()
         db.execute("PRAGMA recursive_triggers=ON")
         for table in ledger.APPEND_ONLY:
@@ -53,6 +54,16 @@ class StorageTest(LedgerCase):
         self.assertEqual(self.ix.records()[0]["payload"], {"relation": "bull"})
         self.assertEqual(len(self.ix.usage()), 1)
         self.assertEqual(self.ix.current_prompt("triage"), "1")
+
+    def test_exposure_keeps_first_record_and_rejects_bad_input(self):
+        self.assertTrue(self.ix.record_exposure("item-1", "ask_ai"))
+        self.assertFalse(self.ix.record_exposure("item-1", "ask_ai"))
+        self.assertTrue(self.ix.record_exposure("item-1", "reader"))
+        self.assertEqual([e["place"] for e in self.ix.exposures("item-1")], ["ask_ai", "reader"])
+        for item, place in (("item-1", "web"), ("", "ask_ai"), ("x" * (ledger.MAX_ITEM_ID + 1), "ask_ai"), (None, "ask_ai")):
+            with self.subTest(item=str(item)[:10], place=place), self.assertRaises(ValueError):
+                self.ix.record_exposure(item, place)
+        self.assertTrue(self.ix.record_exposure("x" * ledger.MAX_ITEM_ID, "ask_ai"))
 
     def test_index_connections_turn_on_recursive_triggers(self):
         self.ix.register_prompt("triage", "1", "prompt text")

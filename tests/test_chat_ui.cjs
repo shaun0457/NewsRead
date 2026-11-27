@@ -10,6 +10,7 @@ const settled = () => new Promise(resolve => setImmediate(resolve));
 
 async function reader(threads = [], options = {}) {
   const listeners = new Map(), events = new Map(), nodes = new Map(), requests = [], copied = [], confirmations = [], focused = [];
+  const apiCalls = [], ingested = [];
   let finish;
   const pendingReads = [];
   const panelEvents = new Map();
@@ -40,7 +41,15 @@ async function reader(threads = [], options = {}) {
     state: {}, store: { mode: "server" }, pid: "test", token: "test-token", side: null,
     $: selector => nodes.get(selector) || null,
     on(name, fn) { events.set(name, fn); }, openSide(side) { this.side = side; }, readingBlock: () => null, blockById: {}, myNotes: () => [],
-    api: async () => ({ threads: structuredClone(threads), models: [{ id: "m", label: "Model" }, { id: "m2", label: "Other model" }], default: "m" }),
+    api: async (url, opts) => {
+      apiCalls.push({ url, body: opts && opts.body });
+      if (String(url).endsWith("/chat/rate")) {
+        if (options.rateFail) throw new Error("rate failed");
+        return { ratings: opts.body.verdict ? { [opts.body.key]: { verdict: opts.body.verdict } } : {} };
+      }
+      return { threads: structuredClone(threads), models: [{ id: "m", label: "Model" }, { id: "m2", label: "Other model" }], default: "m" };
+    },
+    noPdf: options.noPdf ? () => true : undefined, openIngest: url => ingested.push(url),
     confirm: async opts => { confirmations.push(opts); return true; },
     nowIso: () => "2026-01-01T00:00:00Z", shortTime: () => "today", autosize() {}, imageUrl: name => "/p/test/" + name,
     esc: text => String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), errorText: error => String(error?.message || error), icon: () => "", logo: () => "", md: text => text, mdBlocks: text => text,
@@ -64,7 +73,7 @@ async function reader(threads = [], options = {}) {
           opts.signal.addEventListener("abort", () => ctrl.error(Object.assign(new Error("Stopped"), { name: "AbortError" })));
           finish = () => {
             const events = [{ thread: "new", model: "Model", answer_style: requests.at(-1).answer_style },
-              { t: answer }, { done: true, id: "answer" }];
+              { t: options.text || answer }, { done: true, id: "answer", ...(options.done || {}) }];
             ctrl.enqueue(new TextEncoder().encode(events.map(e => JSON.stringify(e) + "\n").join("")));
             ctrl.close();
           };
@@ -73,7 +82,7 @@ async function reader(threads = [], options = {}) {
     },
   });
   const dispatch = async (name, target, extra = {}) => { for (const fn of listeners.get(name) || []) await fn({ target, ...extra }); };
-  const action = (name, card, row) => ({ dataset: { c: name, m: name === "model" ? "m2" : undefined }, closest: selector => {
+  const action = (name, card, row, data) => ({ dataset: { c: name, m: name === "model" ? "m2" : undefined, ...(data || {}) }, closest: selector => {
     if (selector === "#chatpanel") return panel;
     if (selector === "#chatStyleHelpButton" && name === "style-help") return nodes.get("#chatStyleHelpButton");
     if (selector === "#chatStyleHelp" && name === "style-help-close") return nodes.get("#chatStyleHelp");
@@ -83,7 +92,7 @@ async function reader(threads = [], options = {}) {
     return null;
   } });
   let actionTarget;
-  const click = (name, card, row) => { actionTarget = action(name, card, row); return dispatch("click", actionTarget); };
+  const click = (name, card, row, data) => { actionTarget = action(name, card, row, data); return dispatch("click", actionTarget); };
   const selectThread = id => {
     const row = { dataset: { t: id } };
     return dispatch("click", { closest: selector => selector.includes(".ch-thread[data-t]") ? row : selector === "#chatpanel" ? panel : null });
@@ -94,7 +103,7 @@ async function reader(threads = [], options = {}) {
     const select = nodes.get("#chatAnswerStyle");
     if (!select.disabled && select.value !== value) await click("style");
   };
-  return { PR, panel, nodes, requests, copied, confirmations, focused, dispatch, click, selectThread, setStyle,
+  return { PR, panel, nodes, requests, copied, confirmations, focused, dispatch, click, selectThread, setStyle, apiCalls, ingested,
     finishImages: () => pendingReads.splice(0).forEach(done => done()),
     paste: files => { let prevented = false; return Promise.resolve(panelEvents.get("paste")({ target: { id: "chatInput" }, clipboardData: { items: files.map(file => ({ kind: "file", type: file.type, getAsFile: () => file })) }, preventDefault: () => { prevented = true; } })).then(() => prevented); },
     emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish() };
@@ -417,4 +426,152 @@ test("saved attachments use scoped URLs and malformed image paths are ignored", 
   assert.ok(r.panel.innerHTML.includes('/p/test/' + image));
   assert.ok(!r.panel.innerHTML.includes("../../config.json"));
   assert.ok(!r.panel.innerHTML.includes("javascript:alert"));
+});
+
+/* ---------- 文章的問 AI（ticket 12） ---------- */
+const structured = {
+  version: 1, lead: "", dropped: 1, truncated: false,
+  sections: [
+    { kind: "said", items: [{ text: "營收成長 12%。", cites: [{ n: 1, id: "p1", quote: "revenue rose 12%" }] }] },
+    { kind: "general", items: [{ text: "營收成長不等於獲利成長。", cites: [] }] },
+    { kind: "missing", items: [{ text: "文章沒提股價。", cites: [] }] },
+  ],
+};
+
+async function askArticle(extra = {}) {
+  const options = Object.assign({ noPdf: true, text: "【文章怎麼說】…", done: { answer: structured, prompt_version: "ask-article-v1@claude/opus" } }, extra);
+  const r = await reader([], options);
+  r.options = options;
+  r.nodes.get("#chatInput").value = "營收多少？";
+  const sending = r.click("send");
+  await settled();
+  r.finish();
+  await sending;
+  return r;
+}
+
+test("article answers render the three sections with checked paragraph cites", async () => {
+  const r = await askArticle();
+  const html = r.panel.innerHTML;
+  for (const text of ["文章怎麼說", "一般解釋（文中沒寫）", "這篇沒告訴你的", "營收成長 12%。", "AI 解釋", "有 1 句的引述對不上原文，已隱藏",
+    "prompt ask-article-v1", "白話", "引用的 ¶ 都對過原文"]) assert.ok(html.includes(text), text);
+  assert.ok(!html.includes("@claude/opus"));
+  assert.ok(html.includes('data-c="go" data-anchor="p1" title="revenue rose 12%">¶1</button>'));
+  assert.equal((html.match(/data-c="rate"/g) || []).length, 9);  // 三點，各三個按鈕
+  assert.ok(!html.includes("【文章怎麼說】…"));  // 拆好的段落取代原文
+});
+
+test("rating a sentence saves it and a second click on the same verdict clears it", async () => {
+  const r = await askArticle();
+  const card = { dataset: { id: "answer" } };
+  await r.click("rate", card, null, { k: "1.0", v: "wrong" });
+  assert.deepEqual(JSON.parse(JSON.stringify(r.apiCalls.at(-1))), { url: "/api/p/test/chat/rate", body: { thread: "new", id: "answer", key: "1.0", verdict: "wrong" } });
+  assert.ok(r.panel.innerHTML.includes('data-k="1.0" data-v="wrong" class="on" aria-pressed="true"'));
+  await r.click("rate", card, null, { k: "1.0", v: "wrong" });
+  assert.equal(r.apiCalls.at(-1).body.verdict, null);
+  assert.ok(!r.panel.innerHTML.includes('aria-pressed="true" title="錯誤"'));
+});
+
+test("a failed rating keeps the old marks and tells the reader", async () => {
+  const r = await askArticle();
+  const toasts = [];
+  r.PR.toast = msg => toasts.push(msg);
+  const card = { dataset: { id: "answer" } };
+  await r.click("rate", card, null, { k: "0.0", v: "correct" });
+  r.options.rateFail = true;
+  await r.click("rate", card, null, { k: "0.0", v: "wrong" });
+  assert.deepEqual(toasts, ["沒有存到：rate failed"]);
+  assert.ok(r.panel.innerHTML.includes('data-k="0.0" data-v="correct" class="on" aria-pressed="true"'));
+  assert.ok(!r.panel.innerHTML.includes('data-v="wrong" class="on"'));
+});
+
+test("a second rating click while one is saving is ignored", async () => {
+  const r = await askArticle();
+  const card = { dataset: { id: "answer" } };
+  await Promise.all([r.click("rate", card, null, { k: "0.0", v: "correct" }), r.click("rate", card, null, { k: "0.0", v: "correct" })]);
+  assert.equal(r.apiCalls.filter(c => c.url.endsWith("/chat/rate")).length, 1);
+  assert.ok(r.panel.innerHTML.includes('data-k="0.0" data-v="correct" class="on"'));  // 設定，而不是設定後又取消
+});
+
+test("copy gives only the checked sections; the static build hides rating buttons", async () => {
+  const r = await askArticle();
+  await r.click("copy", { dataset: { id: "answer" } });
+  assert.ok(r.copied[0].startsWith("## 文章怎麼說\n- 營收成長 12%。〔¶1「revenue rose 12%」〕"));
+  assert.ok(r.copied[0].includes("有 1 句的引述對不上原文，已隱藏"));
+  assert.ok(!r.copied[0].includes("【文章怎麼說】…"));
+  r.PR.store.mode = "static";
+  await r.click("list");
+  assert.ok(r.panel.innerHTML.includes("文章怎麼說"));
+  assert.ok(!r.panel.innerHTML.includes('data-c="rate"'));
+});
+
+test("a saved article conversation reopens with its sections, ratings and 精讀 mode", async () => {
+  const r = await reader([{ id: "t1", title: "T", answer_style: "xray", messages: [
+    { id: "u", role: "user", content: "營收多少？", answer_style: "xray" },
+    { id: "a", role: "assistant", content: "raw text", answer_style: "xray", answer: structured, ratings: { "2.0": { verdict: "fabricated" } } }] },
+  { id: "t2", title: "Old", answer_style: "ste100", messages: [{ id: "b", role: "assistant", content: "舊回答" }] }], { noPdf: true });
+  await r.selectThread("t1");
+  const html = r.panel.innerHTML;
+  assert.ok(html.includes("這篇沒告訴你的"));
+  assert.ok(!html.includes("raw text"));
+  assert.ok(html.includes('data-k="2.0" data-v="fabricated" class="on" aria-pressed="true"'));
+  assert.ok(html.includes('class="ch-pill on" data-c="style"'));
+  await r.selectThread("t2");  // 文章裡舊的简明回答對話：回到白話
+  assert.ok(r.panel.innerHTML.includes('class="ch-pill" data-c="style"'));
+});
+
+test("articles offer 精讀 (xray) instead of the brief mode", async () => {
+  const r = await reader([], { noPdf: true });
+  assert.ok(r.panel.innerHTML.includes(">精讀</button>"));
+  await r.click("style");
+  r.nodes.get("#chatInput").value = "為什麼？";
+  const sending = r.click("send");
+  await settled();
+  assert.equal(r.requests[0].answer_style, "xray");
+  r.finish();
+  await sending;
+  assert.ok(r.panel.innerHTML.includes('class="cm-style">精讀</span>'));
+});
+
+test("pasting only a link asks whether to import it or ask AI", async () => {
+  const r = await reader();
+  r.nodes.get("#chatInput").value = "https://example.com/news/1";
+  await r.click("send");
+  assert.equal(r.requests.length, 0);
+  assert.ok(r.panel.innerHTML.includes('class="ch-url" role="alert"'));
+  await r.click("url-import");
+  assert.deepEqual(r.ingested, ["https://example.com/news/1"]);
+  assert.equal(r.requests.length, 0);
+  assert.ok(!r.panel.innerHTML.includes("ch-url"));
+
+  r.nodes.get("#chatInput").value = "https://example.com/news/2";
+  await r.click("send");
+  const sending = r.click("url-ask");
+  await settled();
+  assert.equal(r.requests.length, 1);
+  assert.equal(r.requests[0].text, "https://example.com/news/2");
+  r.finish();
+  await sending;
+
+  r.nodes.get("#chatInput").value = "https://example.com/news/4";  // 提示出現後開新對話：提示要消失
+  await r.click("send");
+  assert.ok(r.panel.innerHTML.includes("ch-url"));
+  await r.click("new");
+  assert.ok(!r.panel.innerHTML.includes("ch-url"));
+
+  r.nodes.get("#chatInput").value = "https://example.com/news/5";  // 提示出現後改了輸入框：照樣問送改過的
+  await r.click("send");
+  r.nodes.get("#chatInput").value = "幫我摘要 https://example.com/news/5";
+  const edited = r.click("url-ask");
+  await settled();
+  assert.equal(r.requests.at(-1).text, "幫我摘要 https://example.com/news/5");
+  r.finish();
+  await edited;
+
+  r.nodes.get("#chatInput").value = "看一下 https://example.com/news/3";
+  const plain = r.click("send");
+  await settled();
+  assert.equal(r.requests.length, 3);  // 網址夾在句子裡就直接問
+  r.finish();
+  await plain;
 });

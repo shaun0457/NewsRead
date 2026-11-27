@@ -1,6 +1,8 @@
 """命令行。给人用，也给对话里的 agent 用（它在对话里翻译、追加讨论时走这些命令）。
 
-  easyread serve [--open] [--port N] [--host HOST] [--exit-on-close]   启动（或复用已在跑的）服务
+  easyread serve [--open] [--port N] [--host HOST] [--exit-on-close]   启动（或复用已在跑的）服务；預設常駐
+  easyread stop                           請在跑的服務停下（還有工作沒做完時會拒絕）
+  easyread autostart on|off|status        Windows 登入後自動在背景啟動服務
   easyread list                           列出文献库
   easyread import 论文.pdf|arXiv编号 [--no-translate]
   easyread translate ID [--pages 3-5]     排队翻译（需要服务在跑；否则直接前台译）
@@ -21,6 +23,8 @@ import argparse
 import json
 import sys
 import threading
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -45,15 +49,33 @@ def find(pid: str):
     return matches[0]
 
 
+START_WAIT = 15.0          # 鎖被佔著、位址還沒寫出來（另一個剛開始啟動）時，最多等幾秒再開瀏覽器
+LIBRARY_MAX_BYTES = 32 << 20  # easyread stop 讀 /api/library（拿 token）最多讀多少
+
+
 def running_server() -> str | None:
-    info = read_json(config.SERVER_INFO, {}) or {}
-    if not info.get("url"):
+    from .instance import server_url
+    try:
+        url = server_url(read_json(config.SERVER_INFO, {}))
+    except (OSError, ValueError, RecursionError):
+        return None
+    if not url:
         return None
     try:
-        urllib.request.urlopen(info["url"] + "/api/config", timeout=1.5)
-        return info["url"]
+        with urllib.request.urlopen(url + "/api/config", timeout=1.5):
+            return url
     except Exception:  # noqa: BLE001
         return None
+
+
+def wait_for_server(seconds: float) -> str | None:
+    """等另一個正在啟動的服務能回應，最多 seconds 秒。"""
+    deadline = time.monotonic() + seconds
+    while True:
+        url = running_server()
+        if url or time.monotonic() >= deadline:
+            return url
+        time.sleep(0.5)
 
 
 def cmd_serve(a):
@@ -70,8 +92,58 @@ def cmd_serve(a):
             import webbrowser
             webbrowser.open(url)
         return
+    from .instance import AlreadyRunning
     from .launch import serve
-    serve(a.port, a.open, exit_on_close=a.exit_on_close, host=getattr(a, "host", None))
+    try:
+        serve(a.port, a.open, exit_on_close=a.exit_on_close, host=getattr(a, "host", None))
+    except AlreadyRunning as e:  # 同一個資料目錄已經有一個服務（剛開始啟動，或卡住沒回應）：不啟動第二個
+        url = wait_for_server(START_WAIT) if a.open else None  # 再點一次 start.cmd：等它起來再開瀏覽器
+        if url:
+            out(f"服务已在运行：{url}")
+            import webbrowser
+            webbrowser.open(url)
+            return
+        out(f"NewsRead 已經在執行{'：' + e.url if e.url else ''}，不再啟動第二個。要重新啟動請先 easyread stop，或結束那個程序。")
+        sys.exit(3)
+
+
+def cmd_stop(a):
+    url = running_server()
+    if not url:
+        out("沒有在跑的服務")
+        return
+    try:
+        with urllib.request.urlopen(url + "/api/library", timeout=5) as r:
+            token = json.loads(r.read(LIBRARY_MAX_BYTES))["token"]
+        req = urllib.request.Request(url + "/api/shutdown", data=b"{}",
+                                     headers={"X-Token": token, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except urllib.error.HTTPError as e:
+        out("服務還有工作沒做完，稍後再試" if e.code == 400 else f"服務拒絕停止（HTTP {e.code}）")
+        sys.exit(1)
+    except (OSError, ValueError, KeyError):
+        out("連不上服務，沒有停下")
+        sys.exit(1)
+    out(f"已請服務停止：{url}")
+
+
+def cmd_autostart(a):
+    from . import autostart
+    if not autostart.is_windows():
+        out("開機自動啟動目前只支援 Windows")
+        sys.exit(2)
+    if a.action == "on":
+        autostart.enable()
+        out("已設定：登入 Windows 後在背景啟動 NewsRead")
+    elif a.action == "off":
+        out("已取消開機自動啟動" if autostart.disable() else "本來就沒有設定開機自動啟動")
+    else:
+        s = autostart.status()
+        if not s["enabled"]:
+            out("開機自動啟動：關")
+        else:
+            out("開機自動啟動：開" + ("" if s["current"] else "（登記的路徑不是這一份 NewsRead，請重新 easyread autostart on）"))
 
 
 def cmd_list(a):
@@ -119,7 +191,9 @@ def cmd_translate(a):
     paper = ws.load("paper")
     done = set(paper.get("translation", {}).get("done_pages", []))
     pages = pages or [p["n"] for p in paper["meta"]["pages"] if p["n"] not in done]
-    failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"))
+    from .jobs import translation_meter
+    failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"),
+                             translation_meter(cfg))  # 命令列翻譯也記進帳本的 AI 用量
     if failed:
         out(f"没译成功的页：{sorted(failed)}，原因见 {ws.root / 'job.log'}")
 
@@ -220,8 +294,11 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd")
     p = sub.add_parser("serve"); p.add_argument("--open", action="store_true"); p.add_argument("--port", type=int)
     p.add_argument("--host", help="绑定服务的网卡位址；Docker 等容器环境可使用 0.0.0.0")
-    p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（start.cmd / start.sh 用）")
+    p.add_argument("--exit-on-close", action="store_true", help="页面都关了、后台任务做完后自动退出（預設常駐）")
     p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser("stop"); p.set_defaults(fn=cmd_stop)
+    p = sub.add_parser("autostart"); p.add_argument("action", choices=("on", "off", "status"), nargs="?", default="status")
+    p.set_defaults(fn=cmd_autostart)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
     p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.add_argument("--link", action="store_true", help="链接外部本地 PDF，不复制"); p.set_defaults(fn=cmd_import)
     p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)

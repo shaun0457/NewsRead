@@ -428,7 +428,7 @@ def _same_language(paragraphs: list[str]) -> bool:
 # ---------- 建立資料 ----------
 def _index(app):
     path = Path(getattr(app, "ledger_path", None) or ledger.default_path())
-    return ledger.shared(path) or ledger.Index(path)
+    return ledger.shared(path, create=True)
 
 
 def _busy(ws) -> bool:

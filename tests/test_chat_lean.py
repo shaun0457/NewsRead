@@ -56,6 +56,36 @@ class ChatClaudeLeanTest(unittest.TestCase):
         self.assertIn("--tools", calls[0])
         self.assertNotIn("--tools", calls[1])
 
+    def test_no_tools_mode_passes_empty_tools_and_fails_closed(self):
+        calls = []
+
+        def popen(args, cwd):
+            calls.append(list(args))
+            return FakeProc(result_lines("答"))
+        with mock.patch.object(engines, "claude_path", lambda c: "claude"), mock.patch.object(engines, "_popen", popen):
+            out = "".join(chat._stream_claude({}, "q", Path("."), threading.Event(), tools=False))
+        self.assertEqual(out, "答")
+        a = calls[0]
+        self.assertEqual(a[a.index("--tools") + 1], "")
+        self.assertNotIn("--allowedTools", a)
+        self.assertNotIn("Read", a)
+
+        procs = [FakeProc([], err="error: unknown option '--tools'"), FakeProc(result_lines("答"))]
+        calls.clear()
+        with mock.patch.object(engines, "claude_path", lambda c: "claude"), \
+                mock.patch.object(engines, "_popen", lambda args, cwd: calls.append(args) or procs[len(calls) - 1]), \
+                self.assertRaises(engines.EngineError):
+            "".join(chat._stream_claude({}, "q", Path("."), threading.Event(), tools=False))
+        self.assertEqual(len(calls), 1)  # 不退回有工具的呼叫
+
+    def test_stream_forwards_tools_flag(self):
+        seen = []
+        with mock.patch.object(chat, "_stream_claude", lambda *a: seen.append(a[-1]) or iter(["答"])), \
+                mock.patch.object(chat.netcheck, "problem", lambda c: ""):
+            list(chat.stream({"engine": "claude", "claude": {}}, "q", Path("."), threading.Event(), tools=False))
+            list(chat.stream({"engine": "claude", "claude": {}}, "q", Path("."), threading.Event()))
+        self.assertEqual(seen, [False, True])
+
     def test_other_errors_are_not_retried(self):
         with self.assertRaises(engines.EngineError):
             self.stream([FakeProc([], err="network down")])

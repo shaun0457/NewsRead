@@ -16,7 +16,7 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 | `report.json` | 引擎寫入 | 論文深度技術剖析（五維技術審查報告） |
 | `layout.json` | 系統生成 | PDF 字元座標與區塊歸一化邊界框（Bounding Box），供原頁燈箱高亮 |
 | `item.json` | 系統/使用者 | 閱讀狀態、星標、自定義分類標籤與中繼資料覆蓋 |
-| `chat.json` | 系統寫入 | 「問 AI」的多分頁對話記錄、圖片附件與錨定上下文 |
+| `chat.json` | 系統寫入 | 「問 AI」的多分頁對話記錄、圖片附件與錨定上下文。文章的回答另外存 `answer`（拆好的三段，格式見 api.md 4.55）、`prompt_version`、`manifest`（ContextManifest ID），逐句標記存在 `ratings`：`{"段序.點序": {"verdict": "correct" \| "wrong" \| "fabricated", "at"}}` |
 | `job.json` | 系統排程 | 背景翻譯任務狀態（進度、失敗頁面、重試佇列） |
 | `source.pdf` | 唯讀原檔 | 使用者匯入的原始 PDF 檔案 |
 | `pages/page-*.webp` | 系統生成 | PDF 各頁高解析度光柵圖，供原頁燈箱全頁呈現 |
@@ -253,7 +253,7 @@ Vault Root/
 
 ## 9. NewsRead 索引資料庫 (`newsread.sqlite3`)
 
-放在資料目錄根目錄，SQLite WAL 模式。帳本相關的表（`stories`、`item_story`、`ledger`、`context_manifests`、`ai_usage`、`prompt_versions`、`prompt_current`）見 `easyread/ledger.py`，其中帳本類的表由 trigger 擋掉更新和刪除。追蹤對象（ticket 13）放在同一個檔案：
+放在資料目錄根目錄，SQLite WAL 模式。帳本相關的表（`stories`、`item_story`、`ledger`、`context_manifests`、`ai_usage`、`prompt_versions`、`prompt_current`、`exposures`）見 `easyread/ledger.py`，其中帳本類的表由 trigger 擋掉更新和刪除。`exposures` 是揭露紀錄：`item_id`、`place`（`board`、`theme`、`today`、`digest`、`push`、`reader`、`quiz`、`ask_ai`）、`at`；同一則資料同一個地點只記第一次，之後的判斷用它決定 `blind`。追蹤對象（ticket 13）放在同一個檔案：
 
 - **`entities`**：`id`（`E-` 加 32 位十六進位）、`type`、`name`、`benchmark`（`NULL` = 用預設）、`industry_index`、`archived`、`created_at`、`updated_at`。封存只設 `archived=1`，不刪資料。
 - **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。

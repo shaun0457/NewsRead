@@ -358,7 +358,7 @@ def _store(app, create: bool) -> Store | None:
         if path not in _STORES:
             if not create and not path.exists():
                 return None  # 唯讀的 GET 不建檔
-            _STORES[path] = Store(ledger.shared(path) or ledger.Index(path))
+            _STORES[path] = Store(ledger.shared(path, create=True))
         return _STORES[path]
 
 

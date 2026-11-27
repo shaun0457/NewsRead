@@ -181,3 +181,21 @@ body.ch-open #chatpanel { transform: none; }
 
 .ch-document { display:inline-block; max-width:100%; overflow-wrap:anywhere; font-size:.85em; padding:2px 6px; margin:2px; border:1px solid var(--rule); border-radius:6px }
 .ch-document button { border:0; background:transparent; color:inherit; cursor:pointer }
+
+/* 文章問 AI 的三段回答（ticket 12） */
+.ans-sec { margin: 0 0 12px; }
+.ans-sec h4 { margin: 0 0 6px; font: 600 12.5px var(--ui); color: var(--ink-2); }
+.ans-item { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 4px 0; border-top: 1px solid var(--rule); }
+.ans-item:first-of-type { border-top: 0; }
+.ans-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ans-cite { margin-left: 4px; padding: 0 5px; border: 1px solid var(--rule-2); border-radius: 4px; background: var(--surface-2); color: var(--accent); font: 12px var(--ui); cursor: pointer; }
+.ans-cite:hover { background: var(--accent-soft); }
+.ans-tag { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--ink-2); font: 11px var(--ui); white-space: nowrap; }
+.ans-rate { display: flex; gap: 2px; flex: none; }
+.ans-rate button { min-width: 26px; padding: 1px 5px; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: var(--ink-3); font: 11.5px var(--ui); cursor: pointer; }
+.ans-rate button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.ans-rate button[data-v="fabricated"].on { border-color: var(--danger); color: var(--danger); }
+.ans-dropped, .ans-foot { margin: 6px 0 0; font: 11.5px var(--ui); color: var(--ink-3); }
+.ch-url { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); font-size: 12.5px; }
+.ch-url span { flex: 1 1 160px; }
+@media (max-width: 480px) { .ans-item { flex-direction: column; } }

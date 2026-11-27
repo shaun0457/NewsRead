@@ -10,7 +10,15 @@
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
   const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
-  const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
+  const article = () => Boolean(PR.noPdf && PR.noPdf());  // 文章（沒有 PDF）：回答分三段、對過引述（ticket 12）
+  // 文章只有白話 / 精讀（xray）；論文只有一般 / 简明（ste100）。另一邊留下的舊模式都回到預設
+  const styleOf = (t) => {
+    const s = t && t.answer_style;
+    return article() ? (s === "xray" ? "xray" : "standard") : (s === "ste100" ? "ste100" : "standard");
+  };
+  const SECTION_TITLE = { said: "文章怎麼說", general: "一般解釋（文中沒寫）", missing: "這篇沒告訴你的" };  // i18n-ok 顯示時才 PR.t
+  const VERDICTS = [["correct", "✓", "正確"], ["wrong", "✗", "錯誤"], ["fabricated", "編造", "編造"]];  // i18n-ok 顯示時才 PR.t
+  const URL_ONLY = /^https?:\/\/\S+$/i;
   Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null });
   const imageDraft = PR.createChatImages(st, panel, render, () => focusInput());
   const imagesHtml = imageDraft.html;
@@ -126,12 +134,42 @@
     }
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") +
-      (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
+      (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : m.answer_style === "xray" ? '<span class="cm-style">' + PR.t("精讀") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : !live && m.answer ? answerHtml(m) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         '<button data-c="export-md" title="' + PR.t("下載 Markdown 文件") + '">' + PR.icon("download", "sm") + PR.t("下載") + '</button>' +
         '<button data-c="export-obsidian" title="' + PR.t("匯出至 Obsidian Vault") + '">' + PR.icon("book", "sm") + PR.t("匯出 Obsidian") + '</button>' +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
+  }
+  function answerHtml(m) {
+    const a = m.answer || {};
+    const ratings = m.ratings || {};
+    const secs = (a.sections || []).map((s, si) => '<section class="ans-sec ans-' + PR.esc(s.kind) + '"><h4>' + PR.esc(PR.t(SECTION_TITLE[s.kind] || s.kind)) + "</h4>" +
+      (s.items || []).map((it, ii) => {
+        const key = si + "." + ii, cur = (ratings[key] || {}).verdict;
+        return '<div class="ans-item"><div class="ans-text">' + PR.md(it.text || "", { cite: false, xref: false }) +
+          (it.cites || []).map((c) => '<button class="ans-cite" data-c="go" data-anchor="' + PR.esc(c.id) + '" title="' + PR.esc(c.quote) + '">¶' + PR.esc(String(c.n)) + "</button>").join("") +
+          (s.kind === "general" ? '<span class="ans-tag">' + PR.t("AI 解釋") + "</span>" : "") + "</div>" +
+          (PR.canChat() ? '<div class="ans-rate" role="group" aria-label="' + PR.t("標記這句") + '">' + VERDICTS.map(([v, mark, label]) =>
+            '<button data-c="rate" data-k="' + key + '" data-v="' + v + '" class="' + (cur === v ? "on" : "") + '" aria-pressed="' + (cur === v) + '" title="' + PR.t(label) + '">' +
+            (v === "fabricated" ? PR.t(mark) : mark) + "</button>").join("") + "</div>" : "") + "</div>";
+      }).join("") + "</section>").join("");
+    const lead = a.lead ? '<div class="ans-lead">' + PR.mdBlocks(a.lead) + "</div>" : "";
+    const dropped = a.dropped ? '<p class="ans-dropped">' + PR.t("有 {n} 句的引述對不上原文，已隱藏", { n: a.dropped }) + "</p>" : "";
+    const foot = '<p class="ans-foot">' + [m.answer_style === "xray" ? PR.t("精讀") : PR.t("白話"),
+      m.prompt_version ? "prompt " + PR.esc(String(m.prompt_version).split("@")[0]) : "", PR.t("引用的 ¶ 都對過原文")].filter(Boolean).join(" · ") + "</p>";
+    return lead + secs + dropped + foot;
+  }
+  function answerText(m) {  // 複製：只有畫面上顯示的內容，對不上原文的句子不會跑回來
+    const a = m.answer || {};
+    const out = a.lead ? [a.lead] : [];
+    (a.sections || []).forEach((s) => {
+      out.push("", "## " + PR.t(SECTION_TITLE[s.kind] || s.kind));
+      (s.items || []).forEach((it) => out.push("- " + (it.text || "") +
+        (it.cites || []).map((c) => "〔¶" + c.n + "「" + (c.quote || "") + "」〕").join("")));  // i18n-ok 出處格式
+    });
+    if (a.dropped) out.push("", PR.t("有 {n} 句的引述對不上原文，已隱藏", { n: a.dropped }));
+    return out.join("\n").trim();
   }
   function emptyHtml() {
     const counts = markCounts();
@@ -152,9 +190,13 @@
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + (x.id === st.model ? '<span class="ch-model-check">✓</span>' : '') + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
       PR.chatEffort.section(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
-    const brief = st.answerStyle === "ste100";
+    const deep = article();
+    const brief = deep ? st.answerStyle === "xray" : st.answerStyle === "ste100";
     const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
-      PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
+      PR.esc(deep ? PR.t("精讀：解釋得完整一點，把因果和前提講清楚；不按就是白話。範圍只有這篇全文，不上網查。")
+        : PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + (deep ? PR.t("精讀") : PR.t("简明回答")) + "</button>";
+    const urlAsk = st.urlAsk ? '<div class="ch-url" role="alert"><span>' + PR.t("這是一個連結。要匯入成一則資料，還是照樣問 AI？") + "</span>" +
+      '<button class="btn sm accent" data-c="url-import">' + PR.t("匯入") + '</button><button class="btn sm" data-c="url-ask">' + PR.t("照樣問 AI") + "</button></div>" : "";
     const imageStatus = st.imageError || (st.imageLoading ? PR.t("正在读取图片…") : "");
     const fileStatus = st.fileError || (st.fileLoading ? PR.t("正在读取文件…") : "");
     const attach = '<input id="chatFileInput" type="file" accept=".pdf,.txt,.md" multiple hidden>' +
@@ -162,7 +204,7 @@
       (st.streaming || st.fileLoading ? ' disabled' : '') + '>' + PR.icon("paperclip", "sm") + '</button>';
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       fileDraft.html(st.documents, true) + (fileStatus ? '<div class="ch-attach-status" role="status">' + PR.esc(fileStatus) + '</div>' : '') +
-      imagesHtml(st.images, true) + (imageStatus ? '<div class="ch-attach-status" role="' + (st.imageError ? 'alert' : 'status') + '">' + PR.esc(imageStatus) + '</div>' : '') +
+      imagesHtml(st.images, true) + (imageStatus ? '<div class="ch-attach-status" role="' + (st.imageError ? 'alert' : 'status') + '">' + PR.esc(imageStatus) + '</div>' : '') + urlAsk +
       '<textarea id="chatInput" rows="1" aria-label="' + PR.t("提问，可粘贴图片") + '" placeholder="' + (st.images.length ? PR.t("补充问题，或直接发送图片…") : PR.t("输入问题，或粘贴截图…")) + '">' + PR.esc(st.draft) + "</textarea>" +
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + attach + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
@@ -197,6 +239,11 @@
   async function send(text, noteId, only) {
     text = (text || "").trim();
     if (st.imageLoading || st.fileLoading || st.streaming || (!text && !st.images.length && !st.documents.length)) return;
+    if (!only && !noteId && URL_ONLY.test(text) && st.urlOk !== text && !st.images.length && !st.documents.length) {
+      st.urlAsk = text; st.draft = text;  // 只貼了一個網址：先問要匯入還是照樣問
+      return render();
+    }
+    st.urlAsk = null; st.urlOk = null;
     const documents = only ? [] : st.documents.slice();
     if (!text && documents.length) text = PR.t("请解释附件的内容。");
     const images = only ? [] : st.images.map(image => image.data);
@@ -243,7 +290,7 @@
           if (ev.model) msg.model = ev.model;
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
-          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
+          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.answer) msg.answer = ev.answer; if (ev.prompt_version) msg.prompt_version = ev.prompt_version; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
         }
       }
@@ -278,10 +325,11 @@
     if (c === "unfile") { st.documents.splice(Number(b.dataset.i), 1); st.fileError = ""; return render(); }
     if (c === "unimage") { st.images.splice(Number(b.dataset.i), 1); st.imageError = ""; render(); return focusInput(); }
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
-    if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; resetAttachments(); st.draft = ""; if (PR.$("#chatInput")) PR.$("#chatInput").value = ""; autoContext(); render(); return focusInput(); }
+    if (c === "new") { if (st.streaming) return; st.urlAsk = st.urlOk = null; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; resetAttachments(); st.draft = ""; if (PR.$("#chatInput")) PR.$("#chatInput").value = ""; autoContext(); render(); return focusInput(); }
     if (c === "style") {
       if (st.streaming) return;
-      st.answerStyle = st.answerStyle === "ste100" ? "standard" : "ste100";
+      const alt = article() ? "xray" : "ste100";
+      st.answerStyle = st.answerStyle === alt ? "standard" : alt;
       const t = thread();
       if (t) t.answer_style = st.answerStyle;
       return render();
@@ -314,6 +362,19 @@
       if (st.cur === t.id) { resetAttachments(); st.cur = null; st.answerStyle = "standard"; }
       return render();
     }
+    if (c === "url-import") {  // 匯入輸入框裡的網址（提示出現後又改過就用改過的）
+      const typed = ((PR.$("#chatInput") && PR.$("#chatInput").value) || "").trim();
+      const url = URL_ONLY.test(typed) ? typed : st.urlAsk;
+      st.urlAsk = null; st.draft = "";
+      if (PR.$("#chatInput")) PR.$("#chatInput").value = "";
+      render();
+      return url && PR.openIngest && PR.openIngest(url);
+    }
+    if (c === "url-ask") {  // 照樣問：送輸入框目前的內容
+      const text = (((PR.$("#chatInput") && PR.$("#chatInput").value) || "").trim()) || st.urlAsk;
+      st.urlAsk = null; st.urlOk = text;
+      return send(text);
+    }
     const card = b.closest(".cm.ai");
     if (!card) return;
     const mid = card.dataset.id;
@@ -324,9 +385,24 @@
       m = t && (t.messages || []).find((x) => x.id === mid);
     }
     const tid = (t && t.id) || st.cur;
+    if (c === "rate" && m && tid) {  // 逐句標「正確 / 錯誤 / 編造」；再按一次同一個就取消
+      if (st.rateBusy) return;  // 上一個還沒存好：不同時送兩個，畫面才不會跟存下來的對不上
+      const key = b.dataset.k, v = b.dataset.v;
+      const cur = ((m.ratings || {})[key] || {}).verdict;
+      st.rateBusy = true;
+      try {
+        const res = await PR.api("/api/p/" + PR.pid + "/chat/rate", { method: "POST", body: { thread: tid, id: m.id, key, verdict: cur === v ? null : v } });
+        m.ratings = (res && res.ratings) || {};
+      } catch (err) {
+        PR.toast(PR.t("沒有存到：{msg}", { msg: PR.errorText(err) }));
+      } finally {
+        st.rateBusy = false;
+      }
+      return render();
+    }
     if (c === "export-md" && m) return PR.exportChatMarkdown(tid, m.id, b);
     if (c === "export-obsidian" && m) return PR.exportChatObsidian(tid, m.id, b);
-    if (c === "copy" && m) navigator.clipboard.writeText(m.content).then(() => PR.toast(PR.t("已复制")));
+    if (c === "copy" && m) navigator.clipboard.writeText(m.answer ? answerText(m) : m.content).then(() => PR.toast(PR.t("已复制")));
     if (c === "pin" && m) {
       try {
         await PR.api("/api/p/" + PR.pid + "/chat/pin", { method: "POST", body: { thread: tid, id: m.id } });
@@ -338,7 +414,7 @@
     const row = e.target.closest("#chatpanel .ch-thread[data-t]");
     if (!row || e.target.closest("[data-c]") || st.streaming) return;
     if (st.cur !== row.dataset.t) resetAttachments();
-    st.cur = row.dataset.t; st.listOpen = false;
+    st.cur = row.dataset.t; st.listOpen = false; st.urlAsk = st.urlOk = null;
     const t = thread();
     if (t && t.model && st.models.some((m) => m.id === t.model)) st.model = t.model;
     st.answerStyle = styleOf(t);

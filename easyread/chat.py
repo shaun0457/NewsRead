@@ -258,8 +258,10 @@ def image_paths(ws: Workspace, messages: list[dict]) -> list[Path]:
     return paths[-4:]
 
 
-def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images: list[Path] | None = None) -> Iterator[str]:
-    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。"""
+def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None, images: list[Path] | None = None,
+           tools: bool = True) -> Iterator[str]:
+    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。
+    tools=False：Claude Code 不给任何工具（文章的問 AI，prompt 裡有外部內容）。"""
     e = ecfg.get("engine")
     bad = netcheck.problem(ecfg)
     if bad:
@@ -273,7 +275,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
         text += "\n\n读者附上的图片，请用读图工具查看这些本地文件：\n" + "\n".join(str(path) for path in images)  # i18n-ok
     try:
         if e == "claude":
-            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter)
+            yield from _stream_claude(ecfg["claude"], text, cwd, cancel, on_model, meter, tools)
         elif e == "openai":
             yield from openai_api.stream(ecfg["openai"], text, cancel, meter, images=images)
         else:  # codex 没有逐字输出，整段给；不拉起用户的 MCP 和用不到的功能（见 codex_lean）
@@ -282,26 +284,30 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
         raise engines.EngineError(netcheck.explain(ecfg, str(err))) from None
 
 
-def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
+def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None, tools: bool = True) -> Iterator[str]:
     """只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
-    这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。"""
+    这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。
+    tools=False：一個工具都不給（--tools ""）；不認 --tools 就直接失敗，不退回有工具的呼叫。"""
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))
     args = [exe, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-            "--allowedTools", "Read", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
+            *(["--allowedTools", "Read"] if tools else []), "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
+    lean = engines.CLAUDE_LEAN if tools else ["--tools", ""]
     if c.get("model"):
         args += ["--model", c["model"]]
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]
     said = []
     try:
-        for piece in _stream_once(args + engines.CLAUDE_LEAN, text, cwd, cancel, on_model, meter):
+        for piece in _stream_once(args + lean, text, cwd, cancel, on_model, meter):
             said.append(piece)
             yield piece
     except engines.EngineError as e:
         if said or not engines.option_unknown(e):
             raise
+        if not tools:
+            raise engines.EngineError(tr("這版 Claude Code 太舊，沒辦法關掉工具；請更新 Claude Code 再問")) from None
         log.warning("Claude Code 不认 --tools，照旧调用：%s", str(e)[-300:])
         yield from _stream_once(args, text, cwd, cancel, on_model, meter)
 

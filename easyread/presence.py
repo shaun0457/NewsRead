@@ -1,10 +1,10 @@
-"""关掉页面后自动退出（只在 start.cmd / start.sh 启动时开）。
+"""关掉页面后自动退出（只在指定 --exit-on-close 时开；預設常駐，見 ticket 07）。
 
 每个文献库页、阅读页都连着一条 WebSocket（见 wsock.py）。最后一个页面关掉后，
 等一会儿（刷新、在文献库和阅读页之间跳转时，新页面几秒内就会连上来）还是没有页面，
 并且没有翻译、回答问题之类的后台任务在跑，就退出服务。后台任务没做完时先不退，做完再退。
 
-命令行 `easyread serve`（agent 用的）和桌面版不开这个，服务一直跑。
+start.cmd / start.sh、命令行 `easyread serve`（agent 用的）和桌面版都不开这个，服务一直跑。
 """
 from __future__ import annotations
 
@@ -27,8 +27,17 @@ class Presence:
         self.seen = False  # 有没有页面连上来过
         self.lock = threading.Lock()
         self.idle_since: float | None = time.monotonic()
+        self._closed = threading.Event()
+        self.thread: threading.Thread | None = None
         if enabled:
-            threading.Thread(target=self._watch, daemon=True).start()
+            self.thread = threading.Thread(target=self._watch, name="presence", daemon=True)
+            self.thread.start()
+
+    def close(self, timeout: float = 2.0) -> None:
+        """服務停了：監看執行緒最多等 timeout 秒結束。"""
+        self._closed.set()
+        if self.thread and self.thread is not threading.current_thread():
+            self.thread.join(timeout)
 
     def enter(self) -> None:
         with self.lock:
@@ -57,8 +66,7 @@ class Presence:
         return now - self.idle_since >= wait
 
     def _watch(self) -> None:
-        while self.enabled:
-            time.sleep(self.tick)
+        while self.enabled and not self._closed.wait(self.tick):
             if self.enabled and self.should_stop(time.monotonic()):
                 log.info("页面都关了，后台没有任务在跑，退出服务")
                 self.stop()

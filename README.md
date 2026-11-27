@@ -75,9 +75,11 @@ docker compose up -d
 
 開啟 http://localhost:8765。原始碼安裝與開發方式見 [貢獻指南](CONTRIBUTING.md)。
 
+NewsRead 關掉頁面後仍在背景執行，定時工作才會一直跑；同一個資料目錄同時只會有一個在跑。用 `start.cmd` 啟動的，停止用 `.venv\Scripts\easyread stop`（macOS／Linux 的 `start.sh`：`.venv/bin/easyread stop`），工作管理員裡看到的是 `pythonw.exe`；Windows 上 `.venv\Scripts\easyread autostart on` 設定登入後自動啟動（`off` 取消）。
+
 ## 資料與隱私
 
-文獻庫預設儲存在本機：Windows 為 `C:\Users\<使用者名稱>\PaperRead`，macOS／Linux 為 `~/PaperRead`。論文資料與註記使用 JSON 等檔案保存，可自行備份或以 Git 管理。使用雲端模型，或用 DOI／標題匯入論文（會查 Semantic Scholar／arXiv）時，相關內容會傳送至所選服務；請依需求選擇服務與模型。貼新聞連結匯入時，NewsRead 會直接連到那個網址抓頁面（不經過其他服務），不抓指向本機或內網的網址。
+文獻庫預設儲存在本機：Windows 為 `C:\Users\<使用者名稱>\PaperRead`，macOS／Linux 為 `~/PaperRead`。論文資料與註記使用 JSON 等檔案保存，可自行備份或以 Git 管理。使用雲端模型，或用 DOI／標題匯入論文（會查 Semantic Scholar／arXiv）時，相關內容會傳送至所選服務；請依需求選擇服務與模型。貼新聞連結匯入時，NewsRead 會直接連到那個網址抓頁面（不經過其他服務），不抓指向本機或內網的網址。服務只聽本機（127.0.0.1），但同一台電腦上的其他使用者帳號也連得到；請在只有自己使用的電腦上執行。
 
 ## 文件與參與
 
