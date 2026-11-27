@@ -283,7 +283,7 @@ def theme_body(value, ctx: _Ctx, by: str, final: bool) -> dict:
         stage = {"name": _text(stage.get("name"), "stage.name", MAX_SHORT, required=True),
                  "basis": _text(stage.get("basis"), "stage.basis", MAX_TEXT)}
     return {
-        "one_liner": _text(value.get("one_liner"), "one_liner", MAX_LINE, required=final),
+        "one_liner": _text(value.get("one_liner"), "one_liner", MAX_LINE),  # 定稿也可以先沒有：故事不一定一開始就清楚
         "analogy": _text(value.get("analogy"), "analogy", MAX_TEXT),
         "origin": origin,
         "second_order": [_text(x, f"second_order.{i}", MAX_LINE, required=True)
@@ -388,11 +388,17 @@ class Store:
         except ValueError:
             raise _bad("context_manifest", tr("ContextManifest 不對。")) from None
 
-    def add_theme_version(self, theme_id: str, status: str, body, by: str = ME, context_manifest: str | None = None) -> dict:
+    def add_theme_version(self, theme_id: str, status: str, body, by: str = ME, context_manifest: str | None = None,
+                          expected_version: int | None = None) -> dict:
+        """expected_version：呼叫端讀到的最新版本。給了就在同一個寫入交易裡比對，期間有別的版本寫進來就拒絕。"""
         status = _choice(status, "status", VERSION_STATUSES)
         by = _check_by(by)
         with self.index.write() as db:
             self._theme(db, theme_id)
+            if expected_version is not None:
+                last = db.execute("SELECT max(version) AS v FROM theme_versions WHERE theme_id=?", (theme_id,)).fetchone()["v"] or 0
+                if last != expected_version:
+                    raise _bad("base_version", tr("這一頁已經有新的版本，請重新整理再改。"))
             clean = theme_body(body, _Ctx(db), by, status == "final")
             row = self._add_version(db, "theme_versions", "theme_id", theme_id, status, clean, by, context_manifest, "theme")
         return {"id": row["id"], "version": row["version"]}

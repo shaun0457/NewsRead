@@ -174,6 +174,22 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 
 以上這些寫入的 POST 都回傳更新後的題材頁。版本、論點、證據的數量上限是永久的（只能新增，退休的論點也算進 50 個）。
 
+### 因果鏈清單（ticket 59，`easyread/chain.py`）
+
+因果鏈存在題材頁版本的 `body.chain`（見 4.62）。清單頁用下面兩個介面改一環，不用整份題材頁送回去：
+
+- `GET /api/themes/{題材 id}/chain`：目前的因果鏈（草稿比定稿新就是草稿，否則是定稿）。回傳 `{theme_id, status, version, final_version, links, unconfirmed, market_data}`。`status` 是 `draft` / `final`，題材頁還沒有任何版本時是 `null`、`version` 是 0。`links` 每一環除了 4.62 的欄位，另有 `index`、`from` / `to` 的 `name` 和 `type`（節點是追蹤對象時）、`inferred`（沒有出處）、`confirmed`（我確認過沒有出處的環節），連到公司的環節多一個 `role_suggestion`（`leader` / `laggard` / `unknown`）。`unconfirmed` 是還沒確認的 AI 推論環節數（確認前不能進定稿）。`market_data` 是行情有沒有接上。
+- `POST /api/themes/{題材 id}/chain`：body `{op, base_version, index?, link?, role?}`，回傳更新後的 `GET` 內容。`base_version` 一定要帶，且要等於目前的 `version`，不然回 400（`field: base_version`），免得蓋掉別處的修改；寫入時在同一個交易裡再比對一次，兩個分頁同時送出時後到的會被擋。
+  - `op: add`：`link` 是新的一環（`from`、`to`、`relation`、`source?`，`to` 是公司時可帶 `revenue_share`、`role`；欄位檢查跟 4.62 的環節一樣）。一條鏈最多 100 環。
+  - `op: update`：換掉第 `index` 環。改過的環節要重新確認：`confirmed` 不會帶過去。
+  - `op: confirm`：我確認第 `index` 環（只有沒有出處、還沒確認的環節可以）。`link` 裡的 `confirmed` 一律忽略，確認只能走這個動作。
+  - `op: remove`：移除第 `index` 環。
+  - `op: role`：只換第 `index` 環的 `role`（`leader` / `laggard` / `unknown`，例如採用建議）；其他內容不變，確認過的不用重新確認。只有連到公司的環節可以。
+  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：沒確認的 AI 推論環節會被擋（`field: chain.<index>`）；一句話故事可以先不填。
+  - `add` / `update` / `confirm` / `remove` / `role` 都是從目前的版本複製一份、改掉一環，寫成新的**草稿**（`by = me`）；定稿不會被動到。
+- 領漲 / 補漲：`role` 是我確認的值，預設 `unknown`。`role_suggestion` 只是建議，不會自動寫進 `role`。行情（ticket 30）還沒做時，`market_data` 是 `false`、建議一律是 `unknown`。行情做好後，在 app 上提供 `market_returns(entity_id, since_iso) -> 報酬或 None`：`since` 是這個題材第一個版本的時間，有報酬的公司至少 2 家時，報酬不低於中位數的建議 `leader`，低於的建議 `laggard`；取不到資料的是 `unknown`。每次最多查 100 家、總共最多 3 秒（超過的當成 `unknown`；行情來源要自己限制單次呼叫的時間），行情來源出錯只記錯誤類型。
+- 頁面：`GET /theme/{題材 id}` 是題材頁（目前只有因果鏈區塊）。
+
 ## 4.65 貼新聞連結匯入 (`POST /api/ingest`)
 
 每一頁右上角的「＋ 貼網址」、不在輸入框時按 Ctrl+V 貼網址，都呼叫這一個介面（`easyread/ingest.py`）。
@@ -198,6 +214,17 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - 分類的 prompt 裡是外部內容，所以引擎不能有任何工具：只用 Claude Code（以 `--tools ""` 呼叫，不帶設定裡的額外參數；版本太舊不認這個參數就失敗，不退回有工具的呼叫）、API key（Anthropic、OpenAI 相容服務）或 Ollama。Codex CLI 和 Antigravity CLI 關不掉工具，分類一律跳過它們；只剩它們時算沒有 AI（`/api/ai` 的 `triage` 是 `no_ai`、`reason: no_tools`）。
 - 沒有 AI、key 失效又沒有備用、服務在關：留在待分類，不算次數，這一輪停下。其他錯誤最多自動試 3 次，間隔 5、10 分鐘，之後標成 `failed`；一則失敗不影響同一輪的下一則，只有限流（`RATE_LIMITED`）算一次失敗之後這一輪就停下。沒預期的內部錯誤記成 `INTERNAL`，同樣算一次。找不到資料、不是文章的直接標 `failed`（`NOT_ARTICLE`）。
 - 發布時間晚於現在不到 24 小時：延後到發布時間再分類，不算次數；晚超過 24 小時記 `BAD_TIME`。沒有發布時間也沒有匯入時間記 `NO_TIME`。
+
+## 4.67 今日新聞 (`POST /api/today`)
+
+今日新聞頁（`/today`，`easyread/today.py`，ticket 15）用這一個介面。它會寫揭露紀錄，所以只有 POST：要帶 `X-Token`（別的網站觸發不了），body 是 JSON，上限 1 KB（超過回 413，不是 JSON 物件回 400）。沒有 GET。
+
+- body 欄位（都可省略）：`importance`（逗號分隔，`high`、`mid`、`none`、`low`、`noise`，預設 `high,mid,none`；`none` = 還沒有重要度：待分類、失敗，或沒有相關對象）、`entity`（追蹤對象 id，也可以是題材；只列連到它的資料，題材是透過論點所屬的題材連到）、`limit`（預設 50，最多 200，超過照 200 回）。不認得的值回 400 `{error, field}`。
+- 「今天」是台北時間的日期，依發布時間算（時間不明就用匯入時間，跟分類一樣）。一次最多讀 1000 則最近兩天有動靜（分類狀態有更新）的資料，新的在前，超過時 `truncated` 是 `true`（畫面請使用者用篩選縮小）。讀不出來的資料（檔案壞掉或被鎖住）跳過那一則，log 只記 ID 和錯誤類型。標題和來源顯示使用者改過的（`meta_override`）。
+- 回傳 `{date, tz, levels, limit, items, total, more, truncated, counts, entities}`：`total` 是符合篩選的總數，`more` 是還有沒回的；`counts` 是各重要度的數量（已套用 `entity`，不套用 `importance`）；`entities` 是追蹤對象 / 題材的篩選清單 `[{id, name, type, count}]`（已套用 `importance`，最多 200 個）。資料庫還沒建時回空列表，不會建檔。
+- `items` 依重要度（高、中、未分類、低、雜訊）再依時間（新的在前）排，每則 `{id, title, publisher, published_at, time_known, at, url, preview_only, state, importance, stale, retrospective, reader_url, top, entities, theses}`。`importance` 是它對各論點最高的一級（有論點就只看論點，沒有論點才看各追蹤對象，見規格「雜訊是相對的」）；`top` 是決定這一級的那個判斷（所以標籤和理由一定對得上） `{kind, id, relation, importance, confidence, reason}`；`entities`、`theses` 是相對於每個追蹤對象 / 論點的判斷（欄位同 4.66，論點另有 `claim`、`theme_name`）。沒有分類結果的資料 `top` 是 `null`、兩個清單是空的；分類結果讀不出來或格式不對的判斷也當成沒有。
+- **揭露紀錄**：讀取全部做完之後，用一個交易替回傳的每一則、而且有分類結果的資料寫揭露紀錄（地點 = `today`，同一則只記第一次），寫完才回傳；寫不進去整個請求失敗（500），不回任何 AI 的看法，也不會留下一部分紀錄。被篩掉或超過 `limit` 沒回的不寫。`counts` 和 `entities` 只有數量，沒有個別資料的看法，不算揭露。
+- 資料庫被鎖住或讀寫出錯時回 500，訊息是固定的一句，不帶原始錯誤。
 
 ## 4.7 AI 引擎與自帶 key (`/api/ai/*`)
 

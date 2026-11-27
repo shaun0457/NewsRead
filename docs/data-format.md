@@ -259,6 +259,7 @@ Vault Root/
 - **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。
 - **`entity_aliases`**：`entity_id`、`position`、`alias`、`folded`（比對用的小寫）。
 - **`theme_versions`、`thesis_versions`**（ticket 57）：題材頁和論點的版本，只能新增。`id`（`TV-` / `PV-` 開頭）、`theme_id` 或 `thesis_id`、`version`（從 1 起）、`status`（`draft` / `final`）、`by`（`me` 或 `ai:<model>@<prompt 版本>`）、`created_at`、`body`（JSON，欄位見 api.md 4.62）、`content_hash`、`context_manifest`（AI 才有）。AI 的版本同時在帳本記一筆 `draft` 紀錄，payload 是 `{target: theme | thesis, of: 題材或論點 id, version_id, version, content_hash}`。
+- **因果鏈環節**（ticket 59，沒有自己的表）：存在 `theme_versions.body` 的 `chain` 陣列裡，每一環 `{from, to, relation, source, inferred, confirmed, revenue_share?, role?}`；`from` / `to` 是 `{entity_id}` 或 `{label}`，`source` 是 `{url}` 或 `{item_id}`（沒有就是 `null`，`inferred` 為 true）。`confirmed` 只有我能設，且只在沒有出處的環節上有意義。連到公司的環節才有 `revenue_share`（`"unknown"` 或 `{value | range, source}`）和 `role`。清單頁的每次修改都新增一個草稿版本，舊版本不動。
 - **`theses`**：論點屬於哪個題材，只能新增。`id`（`T-` 開頭）、`theme_id`、`created_at`。論點狀態不存在這裡，存在帳本的 `thesis_status` 紀錄：AI 的是提議（`proposal: true`），`who = me` 的才生效（`{thesis_id, from, to, evidence, reason, confirms}`；駁回是 `{thesis_id, rejects, reason}`）。
 - **`evidence`**：證據，只能新增。`id`（`EV-` 開頭）、`thesis_id`、`item_id` 或 `story_id`（二選一）、`relation`、`grade`（A–D）、`reason`、`source`（JSON）、`by`、`created_at`、`context_manifest`。
 - **`triage_state`**（ticket 14）：每則資料目前的 AI 分類狀態（可以改）：`item_id`、`content_hash`（排進來時的內容）、`state`（`pending` / `done` / `failed`）、`attempts`、`next_at`、`error`（只存代碼）、`result_id`、`updated_at`。

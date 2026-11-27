@@ -246,7 +246,7 @@ window.PR = window.PR || {};
     if (body != null && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) { body = JSON.stringify(body); headers["Content-Type"] = "application/json"; }
     if (opts.method && opts.method !== "GET") headers["X-Token"] = PR.token || "";
     let r;
-    try { r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" }); }
+    try { r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store", signal: opts.signal }); }  // signal：呼叫端設的等待上限
     catch (error) { throw new Error(PR.errorText(error)); }
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {

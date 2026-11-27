@@ -88,7 +88,7 @@ class VersionTest(StoreCase):
         self.assertEqual(self.store.page(self.theme, ledger.iso(T0 - timedelta(days=1)))["theses"], [])
 
     def test_final_needs_the_full_story_but_a_draft_can_be_partial(self):
-        self.bad("one_liner", self.store.add_theme_version, self.theme, "final", {"analogy": "只有類比"})
+        self.store.add_theme_version(self.theme, "final", {"analogy": "只有類比"})  # 題材的一句話故事可以之後再寫
         self.store.add_theme_version(self.theme, "draft", {"analogy": "只有類比"})
         for field in ("timing", "edge", "horizon", "refute_if"):
             with self.subTest(field=field):

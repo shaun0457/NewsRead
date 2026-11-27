@@ -1,0 +1,42 @@
+/* 今日新聞頁（ticket 15）。色票和元件沿用 newsread.css，照 Mockup A（docs/mockups/v1-a/today.html）。 */
+.t-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; }
+.filters { position: sticky; top: 70px; align-self: start; display: grid; gap: 16px; font-size: 14px; }
+.filters fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.filters legend { font-size: 12.5px; color: var(--ink-3); letter-spacing: .05em; padding: 0; margin-bottom: 6px; }
+.filters label { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: pointer; }
+.filters .n { margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
+.section-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink-2); margin: 0 0 8px; }
+.today-note { font-size: 13px; color: var(--ink-3); margin: 0 0 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.shown { font-size: 12.5px; margin: 0 0 10px; }
+.group { margin: 0 0 18px; }
+h2.section-title { font-size: 13px; }
+.section-title .count { font-weight: 400; color: var(--ink-3); }
+.noise-group > summary { cursor: pointer; list-style-position: inside; }
+.noise-list .story { opacity: .8; padding-block: 10px; }
+.noise-list .story .t { font-size: 15px; }
+.empty .acts, .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.line { box-shadow: inset 0 0 0 1px var(--rule-2); }  /* 同 base.css；這頁沒載入 base.css */
+.imp { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; }
+.imp.h { background: var(--danger); } .imp.m { background: var(--warn); } .imp.l { background: var(--ink-3); }
+.imp.n, .imp.u { background: transparent; color: var(--ink-3); border: 1px dashed var(--rule-2); font-weight: 500; }
+.story { padding: 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+.story + .story { border-top: 1px solid var(--rule); }
+.story .aside { grid-row: span 5; padding-top: 3px; }
+.story .t { font-family: var(--serif-zh); font-size: 17px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.story .t a { color: var(--ink); }
+.story .meta { font-size: 12.5px; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.story .why { font-size: 14px; color: var(--ink-2); overflow-wrap: anywhere; }
+.story .why b { color: var(--accent); font-weight: 600; }
+.story .ents { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.chip.entity { background: var(--surface); border-color: var(--rule-2); color: var(--ink); }
+.detail { grid-column: 2; margin-top: 6px; font-size: 13.5px; }
+.detail summary { cursor: pointer; color: var(--accent); }
+.detail h4 { margin: 10px 0 4px; font-size: 12.5px; color: var(--ink-3); }
+.judges { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.judges li { border-left: 2px solid var(--rule-2); padding-left: 10px; }
+.judges .jh { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
+.judges .jh .sub { color: var(--ink-3); font-size: 12.5px; }
+.judges .jm { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 3px; }
+.judges .jr { color: var(--ink-2); margin-top: 3px; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .t-layout { grid-template-columns: minmax(0, 1fr); } .filters { position: static; display: flex; flex-wrap: wrap; } }
