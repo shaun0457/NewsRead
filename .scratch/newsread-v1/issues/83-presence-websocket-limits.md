@@ -1,6 +1,6 @@
-# 77: presence WebSocket 的上限
+# 83: presence WebSocket 的上限
 
-**What to build:** `GET /api/presence` 只檢查 Origin（沒有 token），升級之後沒有逾時（ticket 73 刻意排除）。現在沒有連線數上限，`wsock.hold` 也照對方宣告的訊框長度（最多 2^63）去讀、會先配置那麼多記憶體。本機風險小；Docker 綁 0.0.0.0 時，任何允許的 Host 都能占住 thread 和記憶體。（ticket 73 security review MEDIUM）
+**What to build:** `GET /api/presence` 只檢查 Origin（沒有 token），升級之後沒有逾時（ticket 79 刻意排除）。現在沒有連線數上限，`wsock.hold` 也照對方宣告的訊框長度（最多 2^63）去讀、會先配置那麼多記憶體。本機風險小；Docker 綁 0.0.0.0 時，任何允許的 Host 都能占住 thread 和記憶體。（ticket 79 security review MEDIUM）
 
 **Blocked by:** None (can start immediately)
 

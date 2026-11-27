@@ -1,4 +1,4 @@
-# 74: 資料目錄和深層連結和 PaperRead 分開
+# 80: 資料目錄和深層連結和 PaperRead 分開
 
 **What to build:** ticket 06 只改了產品名稱。下面這些還沿用 PaperRead 的名字，和 PaperRead 裝在同一台電腦時會共用同一份資料：安裝版的資料目錄 `~/PaperRead`（`easyread/config.py`）、桌面版的 userData `PaperRead`（`electron/main.cjs`）、雲端同步資料夾底下的 `PaperRead` 子資料夾（`easyread/cloudlib_detect.py`）、深層連結 `easyread://` / `paperread://`（`electron/deep-link.cjs`）、Docker 的 `/data/PaperRead`。改成 NewsRead 自己的，並決定已經在用舊位置的人怎麼搬（不能把 PaperRead 本身的資料當成 NewsRead 的）。
 

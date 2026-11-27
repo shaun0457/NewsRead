@@ -1,4 +1,4 @@
-# 70: 閱讀器 `PR.selectionAction` 定義了兩次
+# 76: 閱讀器 `PR.selectionAction` 定義了兩次
 
 **What to build:** `easyread/web/js/reader/anchor.js` 裡 `PR.selectionAction` 被定義兩次（約第 390 行和第 427 行），後面那個蓋掉前面那個。從 PaperRead 帶過來就有，不是 NewsRead 的改動造成的。整理成一個定義，確認選取文字後的標記、筆記、提問（滑鼠按鈕和快捷鍵 `n` / `q`、顏色鍵）行為不變。
 

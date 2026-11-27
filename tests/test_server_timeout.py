@@ -1,4 +1,4 @@
-"""Ticket 73：一般請求讀寫 socket 有逾時；宣告了 body 卻不送的連線逾時後被關掉。presence WebSocket 不受影響。"""
+"""Ticket 79：一般請求讀寫 socket 有逾時；宣告了 body 卻不送的連線逾時後被關掉。presence WebSocket 不受影響。"""
 from __future__ import annotations
 
 import os
@@ -63,7 +63,7 @@ class SocketTimeoutTest(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 4)  # 約 SHORT 秒就關，不是一直卡著
         self.assertEqual(out, b"")  # 不回應，直接關
 
-    def test_unread_body_on_an_unknown_route_is_closed(self):  # ticket 71 的「先讀掉 body」也受逾時保護
+    def test_unread_body_on_an_unknown_route_is_closed(self):  # ticket 77 的「先讀掉 body」也受逾時保護
         with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
             sock.sendall((f"POST /api/no-such-route HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nX-Token: {self.app.token}\r\n"
                           f"Content-Length: 100\r\n\r\n").encode())

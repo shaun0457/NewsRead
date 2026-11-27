@@ -1,6 +1,6 @@
-# 73: 本機伺服器的連線逾時
+# 79: 本機伺服器的連線逾時
 
-**What to build:** `easyread/server.py` 的 `Handler` 沒有設 socket 逾時。客戶端宣告了 body（`Content-Length`）卻不送完、也不關連線，讀 body 的那條 thread 會一直卡住；ticket 71 讓 404 / 400 的回應也會先讀掉 body，同樣受影響。只綁 127.0.0.1、要有 token 才會讀，風險小，但等待要有上限（見 rules/coding.md）。難處是常駐的 presence WebSocket（`wsock.hold`）本來就是長連線，逾時不能套到它。
+**What to build:** `easyread/server.py` 的 `Handler` 沒有設 socket 逾時。客戶端宣告了 body（`Content-Length`）卻不送完、也不關連線，讀 body 的那條 thread 會一直卡住；ticket 77 讓 404 / 400 的回應也會先讀掉 body，同樣受影響。只綁 127.0.0.1、要有 token 才會讀，風險小，但等待要有上限（見 rules/coding.md）。難處是常駐的 presence WebSocket（`wsock.hold`）本來就是長連線，逾時不能套到它。
 
 **Blocked by:** None (can start immediately)
 

@@ -1,4 +1,4 @@
-"""Ticket 06：產品名稱改成 NewsRead；打包版不從 PaperRead 的發佈頁下載更新。資料目錄、深層連結先不動（另見 ticket 74）。"""
+"""Ticket 06：產品名稱改成 NewsRead；打包版不從 PaperRead 的發佈頁下載更新。資料目錄、深層連結先不動（另見 ticket 80）。"""
 from __future__ import annotations
 
 import json
@@ -20,7 +20,7 @@ class RenameTest(unittest.TestCase):
         pkg = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         build = pkg["build"]
         self.assertEqual(build["productName"], "NewsRead")
-        self.assertNotIn("easyread", build["appId"])  # 安裝程式不會蓋掉 PaperRead；資料目錄和深層連結還共用，見 ticket 74
+        self.assertNotIn("easyread", build["appId"])  # 安裝程式不會蓋掉 PaperRead；資料目錄和深層連結還共用，見 ticket 80
         self.assertIsNone(build["publish"])
         self.assertTrue(build["win"]["target"] and build["nsis"]["artifactName"].startswith("NewsRead-"))
         self.assertNotIn("PaperRead", pkg["repository"]["url"])

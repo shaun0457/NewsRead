@@ -1,4 +1,4 @@
-# 78: AI 分類的 review 後續
+# 84: AI 分類的 review 後續
 
 **What to build:** ticket 14 第 1 輪 review（python-reviewer、security-reviewer）的 MEDIUM，當時決定不擋 commit，在這裡補上。
 

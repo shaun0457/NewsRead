@@ -1,4 +1,4 @@
-// 選取文字之後的浮動條（ticket 70）：劃線、筆記、提問、論文筆記，以及按鈕和快捷鍵兩個入口。
+// 選取文字之後的浮動條（ticket 76）：劃線、筆記、提問、論文筆記，以及按鈕和快捷鍵兩個入口。
 // main.js 的快捷鍵（1–4、n、q）直接呼叫 PR.selectionAction(kind, color)，這裡用同樣的呼叫釘住。
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
