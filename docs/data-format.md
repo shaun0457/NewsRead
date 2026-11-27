@@ -258,6 +258,12 @@ Vault Root/
 - **`entities`**：`id`（`E-` 加 32 位十六進位）、`type`、`name`、`benchmark`（`NULL` = 用預設）、`industry_index`、`archived`、`created_at`、`updated_at`。封存只設 `archived=1`，不刪資料。
 - **`entity_listings`**：`entity_id`、`position`（0 是主要代號）、`market`、`symbol`；`(market, symbol)` 全域唯一。
 - **`entity_aliases`**：`entity_id`、`position`、`alias`、`folded`（比對用的小寫）。
+- **`theme_versions`、`thesis_versions`**（ticket 57）：題材頁和論點的版本，只能新增。`id`（`TV-` / `PV-` 開頭）、`theme_id` 或 `thesis_id`、`version`（從 1 起）、`status`（`draft` / `final`）、`by`（`me` 或 `ai:<model>@<prompt 版本>`）、`created_at`、`body`（JSON，欄位見 api.md 4.62）、`content_hash`、`context_manifest`（AI 才有）。AI 的版本同時在帳本記一筆 `draft` 紀錄，payload 是 `{target: theme | thesis, of: 題材或論點 id, version_id, version, content_hash}`。
+- **`theses`**：論點屬於哪個題材，只能新增。`id`（`T-` 開頭）、`theme_id`、`created_at`。論點狀態不存在這裡，存在帳本的 `thesis_status` 紀錄：AI 的是提議（`proposal: true`），`who = me` 的才生效（`{thesis_id, from, to, evidence, reason, confirms}`；駁回是 `{thesis_id, rejects, reason}`）。
+- **`evidence`**：證據，只能新增。`id`（`EV-` 開頭）、`thesis_id`、`item_id` 或 `story_id`（二選一）、`relation`、`grade`（A–D）、`reason`、`source`（JSON）、`by`、`created_at`、`context_manifest`。
+- **`triage_state`**（ticket 14）：每則資料目前的 AI 分類狀態（可以改）：`item_id`、`content_hash`（排進來時的內容）、`state`（`pending` / `done` / `failed`）、`attempts`、`next_at`、`error`（只存代碼）、`result_id`、`updated_at`。
+- **`triage_results`**：分類結果，只能新增。`id`（`TR-` 開頭）、`item_id`、`content_hash`、`who`、`created_at`、`body`（JSON，欄位見 api.md 4.66）、`context_manifest`。同一個交易裡也寫 AI 連結、證據和帳本的 `judgment` 紀錄。
+- **帳本的 `judgment`（AI 分類寫的）**：`who = ai:<model>@triage-v1@<引擎>/<模型>`，payload `{item, story, target: {type: thesis | entity, id}, thesis_version?, relation, signal, importance, importance_signal, noise_kind, confidence, reason, blind: null, retrospective, time_unknown, engine, model, prompt_version, content_hash, baseline: [{entity, benchmark, industry_index, basket_version}]}`。`signal` 由 `relation` 推出（加強、削弱、偏多、偏空、中性）；`importance_signal` = 重要度高或中。`retrospective` = 發布後超過 2 個交易日才判斷（交易日先用週一到週五、台北時間算，國定假日也算進去）；時間不明的資料 `time_unknown = true`、不標事後補判。`baseline.basket_version` 在題材籃子（ticket 32）之前都是 `null`。ContextManifest 在 AI 回答之後才記，判斷時間是送出前的時間。
 - **`mentions`**：資料和追蹤對象的連結，`(item_id, entity_id)` 唯一；`source` 是 `ai` 或 `manual`。`removed=1` 是手動移除留下的紀錄，AI 不能再連回去，也不能蓋掉手動的連結。`created_at` 是連上的時間（移除後再連回來才重設），`updated_at` 是最後一次改動。一個追蹤對象最多 5000 筆。
 
 ## 10. AI 引擎設定 (`ai.json`)

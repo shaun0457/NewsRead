@@ -304,6 +304,17 @@ class ServeTest(ServeBase):
         self.start()
         self.assertEqual(self.app.scheduler.state_path, self.home / launch.SCHEDULE_NAME)
 
+    def test_server_schedules_ai_triage(self):
+        """排程器裡有 AI 分類這個工作，跑它就是對這個 app 跑 triage.run_pending（gate F1：自動分類只靠這一行）。"""
+        from easyread import triage
+        self.start()
+        job = self.app.scheduler.jobs.get("triage")
+        self.assertIsNotNone(job, sorted(self.app.scheduler.jobs))
+        self.assertEqual(job.interval, triage.INTERVAL)
+        with mock.patch.object(triage, "run_pending") as run_pending:
+            job.run()
+        run_pending.assert_called_once_with(self.app)
+
     def test_temporary_library_takes_no_lock(self):
         with mock.patch.dict(os.environ, {"EASYREAD_LIBRARY": str(self.home / "tmp-lib")}), \
                 instance.InstanceLock(self.home / instance.LOCK_NAME) as other:

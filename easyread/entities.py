@@ -318,23 +318,32 @@ class Store:
         if source not in ("ai", "manual"):
             raise EntityError(tr("連結來源只能是 AI 或手動。"), "source")
         with self.index.write() as db:
-            if not db.execute("SELECT 1 FROM entities WHERE id=?", (entity_id,)).fetchone():
-                raise NotFound(entity_id)
-            now = self.index.now()
-            exists = db.execute("SELECT 1 FROM mentions WHERE item_id=? AND entity_id=?", (item_id, entity_id)).fetchone()
-            if not exists and db.execute("SELECT count(*) FROM mentions WHERE entity_id=?", (entity_id,)).fetchone()[0] >= MAX_LINKS:
-                if source == "ai":
-                    return False
-                raise EntityError(tr("這個追蹤對象連的資料太多了（最多 {n} 則）。", n=MAX_LINKS), "item_id")
-            if source == "manual":
-                # created_at 是「連上的時間」：手動移除後再連回來才重算
-                db.execute("INSERT INTO mentions VALUES (?,?,'manual',0,?,?) ON CONFLICT (item_id, entity_id) "
-                           "DO UPDATE SET source='manual', created_at=CASE WHEN removed=1 THEN excluded.created_at ELSE created_at END, "
-                           "removed=0, updated_at=excluded.updated_at", (item_id, entity_id, now, now))
-                return True
-            cur = db.execute("INSERT INTO mentions VALUES (?,?,'ai',0,?,?) ON CONFLICT (item_id, entity_id) DO NOTHING",
-                             (item_id, entity_id, now, now))
-            return bool(cur.rowcount)
+            return self.link_in(db, item_id, entity_id, source)
+
+    def link_in(self, db, item_id: str, entity_id: str, source: str) -> bool:
+        """同 link，寫在呼叫端已經開好的寫入交易裡（AI 分類的連結跟帳本判斷一起寫，要嘛都成功、要嘛都不寫）。"""
+        if not db.in_transaction:
+            raise RuntimeError("link_in must run inside Index.write()")
+        check_item_id(item_id)
+        if source not in ("ai", "manual"):
+            raise EntityError(tr("連結來源只能是 AI 或手動。"), "source")
+        if not db.execute("SELECT 1 FROM entities WHERE id=?", (entity_id,)).fetchone():
+            raise NotFound(entity_id)
+        now = self.index.now()
+        exists = db.execute("SELECT 1 FROM mentions WHERE item_id=? AND entity_id=?", (item_id, entity_id)).fetchone()
+        if not exists and db.execute("SELECT count(*) FROM mentions WHERE entity_id=?", (entity_id,)).fetchone()[0] >= MAX_LINKS:
+            if source == "ai":
+                return False
+            raise EntityError(tr("這個追蹤對象連的資料太多了（最多 {n} 則）。", n=MAX_LINKS), "item_id")
+        if source == "manual":
+            # created_at 是「連上的時間」：手動移除後再連回來才重算
+            db.execute("INSERT INTO mentions VALUES (?,?,'manual',0,?,?) ON CONFLICT (item_id, entity_id) "
+                       "DO UPDATE SET source='manual', created_at=CASE WHEN removed=1 THEN excluded.created_at ELSE created_at END, "
+                       "removed=0, updated_at=excluded.updated_at", (item_id, entity_id, now, now))
+            return True
+        cur = db.execute("INSERT INTO mentions VALUES (?,?,'ai',0,?,?) ON CONFLICT (item_id, entity_id) DO NOTHING",
+                         (item_id, entity_id, now, now))
+        return bool(cur.rowcount)
 
     def unlink(self, item_id: str, entity_id: str) -> None:
         """手動移除連結：那筆紀錄改成 removed=1，AI 之後不會再連回去。沒連過的資料不留紀錄。"""

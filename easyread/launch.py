@@ -11,7 +11,7 @@ import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import __version__, config, detect, instance
+from . import __version__, config, detect, instance, triage
 from .i18n import tr
 from .log import log, setup as setup_log
 from .presence import Presence
@@ -87,6 +87,7 @@ def _serve(cfg: dict, started: float, port, open_browser: bool, path: str, exit_
         app.location.marker.start()
         app.presence = Presence(lambda: app.jobs.busy() or research_tasks.busy(), httpd.shutdown, exit_on_close)
         app.scheduler = Scheduler(None if config.temp_library() else config.HOME / SCHEDULE_NAME)
+        app.scheduler.add("triage", triage.INTERVAL, lambda: triage.run_pending(app))  # AI 分類（ticket 14）
         app.scheduler.start()
         if not config.temp_library():
             write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})

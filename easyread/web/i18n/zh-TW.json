@@ -681,5 +681,8 @@
   "測試通過 {when}": "測試通過 {when}",
   "測試通過。": "測試通過。",
   "這台電腦沒有已登入的 Claude Code / Codex CLI，也沒有填 API key。": "這台電腦沒有已登入的 Claude Code / Codex CLI，也沒有填 API key。",
-  "這台電腦沒裝 anthropic 套件，Anthropic key 存得起來但還不能用。": "這台電腦沒裝 anthropic 套件，Anthropic key 存得起來但還不能用。"
+  "這台電腦沒裝 anthropic 套件，Anthropic key 存得起來但還不能用。": "這台電腦沒裝 anthropic 套件，Anthropic key 存得起來但還不能用。",
+  "只有題材類型的追蹤對象才有題材頁。": "只有題材類型的追蹤對象才有題材頁。",
+  "營收占比和領漲 / 補漲只在連到公司時填。": "營收占比和領漲 / 補漲只在連到公司時填。",
+  "營收占比要是 0 到 100 的數字。": "營收占比要是 0 到 100 的數字。"
 }

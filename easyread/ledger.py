@@ -317,6 +317,15 @@ class Index:
 
         AI 紀錄的 who 寫成 ai:<model>@<prompt 版本>，prompt 版本要跟 manifest 的一致。
         """
+        with self._write() as db:
+            return self.append_in(db, kind, who, payload, supersedes=supersedes, context_manifest=context_manifest)
+
+    def append_in(self, db: sqlite3.Connection, kind: str, who: str, payload: dict, *, supersedes: str | None = None,
+                  context_manifest: str | None = None) -> dict:
+        """同 append，但寫在呼叫端已經開好的寫入交易（write()，BEGIN IMMEDIATE）裡：跟別的表一起寫，要嘛都成功、要嘛都不寫。
+        一定要在 write() 裡：讀「最後一筆雜湊」和寫入之間不能被別的寫入插隊，不然雜湊鏈會分岔。"""
+        if not db.in_transaction:
+            raise RuntimeError("append_in must run inside Index.write()")
         if kind not in KINDS:
             raise ValueError(f"unknown ledger kind: {kind}")
         if not who or not who.strip():
@@ -329,33 +338,26 @@ class Index:
         ai = is_ai(who)
         if ai and not context_manifest:
             raise ValueError("AI ledger records must point to a context manifest")
-        with self._write() as db:
-            recorded_at = self.now()
-            if context_manifest:
-                m = db.execute("SELECT decided_at, prompt_version FROM context_manifests WHERE id=?", (context_manifest,)).fetchone()
-                if not m:
-                    raise ValueError("context manifest not found")
-                if parse_time(m["decided_at"]) > parse_time(recorded_at):
-                    raise ValueError("context manifest is dated after this record")
-                if ai and not who.endswith("@" + m["prompt_version"]):
-                    raise ValueError("who does not match the manifest prompt version")
-            if supersedes:
-                old = db.execute("SELECT kind FROM ledger WHERE id=?", (supersedes,)).fetchone()
-                if not old:
-                    raise ValueError("superseded record not found")
-                if old["kind"] != kind:
-                    raise ValueError("a correction must keep the same kind")
-                if db.execute("SELECT 1 FROM ledger WHERE supersedes=?", (supersedes,)).fetchone():
-                    raise ValueError("record was already corrected; correct the latest version")
-            last = db.execute("SELECT content_hash FROM ledger ORDER BY seq DESC LIMIT 1").fetchone()
-            prev_hash = last["content_hash"] if last else GENESIS
-            row = {"id": "L-" + uuid.uuid4().hex, "kind": kind, "who": who, "recorded_at": recorded_at,
-                   "payload": text, "supersedes": supersedes, "context_manifest": context_manifest}
-            row["prev_hash"] = prev_hash
-            row["content_hash"] = _record_hash(prev_hash, row)
-            cur = db.execute("INSERT INTO ledger (id, kind, who, recorded_at, payload, supersedes, context_manifest, prev_hash, content_hash) "
-                             "VALUES (:id,:kind,:who,:recorded_at,:payload,:supersedes,:context_manifest,:prev_hash,:content_hash)", row)
-            row["seq"] = cur.lastrowid
+        recorded_at = self.now()
+        if context_manifest:
+            check_manifest(db, who, context_manifest, recorded_at)
+        if supersedes:
+            old = db.execute("SELECT kind FROM ledger WHERE id=?", (supersedes,)).fetchone()
+            if not old:
+                raise ValueError("superseded record not found")
+            if old["kind"] != kind:
+                raise ValueError("a correction must keep the same kind")
+            if db.execute("SELECT 1 FROM ledger WHERE supersedes=?", (supersedes,)).fetchone():
+                raise ValueError("record was already corrected; correct the latest version")
+        last = db.execute("SELECT content_hash FROM ledger ORDER BY seq DESC LIMIT 1").fetchone()
+        prev_hash = last["content_hash"] if last else GENESIS
+        row = {"id": "L-" + uuid.uuid4().hex, "kind": kind, "who": who, "recorded_at": recorded_at,
+               "payload": text, "supersedes": supersedes, "context_manifest": context_manifest}
+        row["prev_hash"] = prev_hash
+        row["content_hash"] = _record_hash(prev_hash, row)
+        cur = db.execute("INSERT INTO ledger (id, kind, who, recorded_at, payload, supersedes, context_manifest, prev_hash, content_hash) "
+                         "VALUES (:id,:kind,:who,:recorded_at,:payload,:supersedes,:context_manifest,:prev_hash,:content_hash)", row)
+        row["seq"] = cur.lastrowid
         return _public(row)
 
     def records(self, kind: str | None = None, after: int = 0, limit: int = DEFAULT_LIST, current_only: bool = False,
@@ -508,6 +510,17 @@ class Index:
         finally:
             tmp.unlink(missing_ok=True)
         return dest
+
+
+def check_manifest(db: sqlite3.Connection, who: str, manifest_id: str, recorded_at: str) -> None:
+    """AI 產出指向的 ContextManifest：要存在、判斷時間不晚於這筆紀錄、prompt 版本跟 who 寫的一致。不對丟 ValueError。"""
+    m = db.execute("SELECT decided_at, prompt_version FROM context_manifests WHERE id=?", (manifest_id,)).fetchone()
+    if not m:
+        raise ValueError("context manifest not found")
+    if parse_time(m["decided_at"]) > parse_time(recorded_at):
+        raise ValueError("context manifest is dated after this record")
+    if is_ai(who) and not who.endswith("@" + m["prompt_version"]):
+        raise ValueError("who does not match the manifest prompt version")
 
 
 def _public(row: dict) -> dict:

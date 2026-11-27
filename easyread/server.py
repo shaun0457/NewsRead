@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from . import article_ask, ingest, planning_store
-from . import ai_engines, entities, ledger, reader_api
+from . import ai_engines, entities, ledger, narratives, reader_api, triage
 from .log import log, tail
 from .jobs import Jobs, LedgerMeter
 from .library import Library
@@ -366,14 +366,14 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
-    def _entities(self, call):
-        """追蹤對象 API 的錯誤對應：輸入不對 400（附欄位），找不到 404。"""
+    def _entities(self, call, missing: str | None = None):
+        """追蹤對象、題材頁 API 的錯誤對應：輸入不對 400（附欄位），找不到 404。"""
         try:
             result = call()
         except entities.EntityError as e:
             return self._json(400, {"error": str(e), "field": e.field})
         except entities.NotFound:
-            return self._json(404, {"error": tr("找不到這個追蹤對象。")})
+            return self._json(404, {"error": missing or tr("找不到這個追蹤對象。")})
         except sqlite3.Error as e:  # 資料庫被鎖住、磁碟錯誤：只記錯誤類型，不回原文
             log.warning("追蹤對象資料庫錯誤 %s", type(e).__name__)
             return self._json(500, {"error": tr("本機資料庫暫時不能用，請稍後再試。")})
@@ -409,6 +409,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, result) if result is not None else self._json(404, {"error": "not found"})
         if path == entities.PREFIX or path.startswith(entities.PREFIX + "/"):  # 追蹤對象
             return self._entities(lambda: entities.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()}))
+        if triage.handles(path):  # AI 分類的狀態和結果（ticket 14）
+            return self._entities(lambda: triage.api_get(app, path), tr("這則還沒有排進 AI 分類。"))
+        if narratives.handles(path):  # 題材頁與論點（ticket 57）
+            return self._entities(lambda: narratives.api_get(app, path, {k: v[0] for k, v in parse_qs(url.query).items()}),
+                                  tr("找不到這個題材或論點。"))
         if path == "/entities":
             return self._page(WEB / "entities.html")
         if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎、自帶 key、每種工作用哪個
@@ -610,6 +615,23 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, RecursionError):  # RecursionError：很深的巢狀 [[[…]]]
                 return self._json(400, {"error": tr("資料格式不對。")})
             return self._entities(lambda: entities.api_post(app, path, data))
+
+        if triage.handles(path):  # 重試 AI 分類（ticket 14）；body 讀掉但不用（最多 1 KB）
+            try:
+                self._body(1024)
+            except ValueError:
+                return self._json(413, {"error": tr("資料太大。")})
+            return self._entities(lambda: triage.api_post(app, path), tr("這則還沒有排進 AI 分類。"))
+        if narratives.handles(path):  # 題材頁與論點（ticket 57）
+            try:
+                body = self._body(narratives.MAX_BODY)
+            except ValueError:
+                return self._json(413, {"error": tr("資料太大。")})
+            try:
+                data = json.loads(body or b"{}")
+            except (ValueError, RecursionError):
+                return self._json(400, {"error": tr("資料格式不對。")})
+            return self._entities(lambda: narratives.api_post(app, path, data), tr("找不到這個題材或論點。"))
 
         if path == ai_engines.PREFIX or path.startswith(ai_engines.PREFIX + "/"):  # AI 引擎設定
             try:
