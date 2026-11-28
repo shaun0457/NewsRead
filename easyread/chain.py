@@ -19,6 +19,7 @@ PREFIX = "/api/themes"
 OPS = ("add", "update", "confirm", "remove", "role", "publish")
 LINK_KEYS = ("from", "to", "relation", "source", "revenue_share", "role")  # 我能填的欄位；confirmed 只能走 confirm
 ROLES = ("leader", "laggard", "unknown")
+OTHER_FIELDS = ("one_liner", "analogy", "origin", "second_order", "stage")  # 因果鏈以外的欄位
 MAX_LINKS = narratives.MAX_LINKS
 MARKET_BUDGET = 3.0  # 一次畫面最多花幾秒查行情；超過的公司當成沒資料（unknown）
 
@@ -84,6 +85,7 @@ def view(app, store: narratives.Store, theme_id: str) -> dict:
     page = store.page(theme_id)
     head = _head(page)
     chain = (head["body"].get("chain") or []) if head else []
+    prov = narratives.provenance_of(head)
     entity_ids = {n["entity_id"] for link in chain for n in (link["from"], link["to"]) if "entity_id" in n}
     companies = sorted({link["to"]["entity_id"] for link in chain if "revenue_share" in link})
     with store.index.read() as db:
@@ -91,7 +93,7 @@ def view(app, store: narratives.Store, theme_id: str) -> dict:
     suggestions = suggest_roles(_returns(app, store, theme_id, companies)) if companies else {}
     links = []
     for i, link in enumerate(chain):
-        out = dict(link, index=i)
+        out = dict(link, index=i, provenance=prov["chain"][i])
         for side in ("from", "to"):
             node = link[side]
             out[side] = dict(node, **({"name": names[node["entity_id"]]["name"], "type": names[node["entity_id"]]["type"]}
@@ -102,6 +104,9 @@ def view(app, store: narratives.Store, theme_id: str) -> dict:
     return {"theme_id": theme_id, "status": head["status"] if head else None, "version": head["version"] if head else 0,
             "final_version": page["final"]["version"] if page["final"] else None, "links": links,
             "unconfirmed": sum(1 for x in chain if x.get("inferred") and not x.get("confirmed")),
+            # 這頁沒顯示的欄位：定稿前的預覽要列出來（ticket 106）
+            "fields": {k: (head["body"].get(k) if head else None) for k in OTHER_FIELDS},
+            "provenance": {k: prov[k] for k in OTHER_FIELDS},
             "market_data": callable(getattr(app, "market_returns", None))}
 
 
@@ -119,11 +124,16 @@ def edit(app, store: narratives.Store, theme_id: str, body) -> dict:
     if isinstance(base, bool) or base != version:
         raise _bad("base_version", tr("這一頁已經有新的版本，請重新整理再改。"))
     theme = copy.deepcopy(head["body"]) if head else {}
+    theme.pop("provenance", None)
+    prov = narratives.provenance_of(head)  # 只改這一環的來源；其他欄位照舊是誰寫的就是誰寫的（ticket 106）
     chain = theme.get("chain") or []
     if op == "publish":
         if not head or head["status"] != "draft":
             raise _bad("op", tr("沒有可以確認成定稿的草稿。"))
-        store.add_theme_version(theme_id, "final", theme, expected_version=version)
+        # 定稿前畫面已經預覽過所有欄位：AI 寫的標成看過，但還是 AI 寫的
+        reviewed = {k: narratives.mark(prov[k]["by"], True) for k in narratives.PROVENANCE_FIELDS}
+        reviewed.update({k: [narratives.mark(e["by"], True) for e in prov[k]] for k in narratives.PROVENANCE_LISTS})
+        store.add_theme_version(theme_id, "final", theme, expected_version=version, provenance=reviewed)
         return view(app, store, theme_id)
     index = body.get("index")
     if op != "add":
@@ -138,8 +148,10 @@ def edit(app, store: narratives.Store, theme_id: str, body) -> dict:
             if len(chain) >= MAX_LINKS:
                 raise _bad("link", tr("因果鏈最多 {n} 環。", n=MAX_LINKS))
             chain.append(clean)
+            prov["chain"].append(narratives.mark(narratives.ME))
         else:
             chain[index] = clean  # 改過的環節要重新確認：confirmed 不帶過去
+            prov["chain"][index] = narratives.mark(narratives.ME)
     elif op == "confirm":
         if not chain[index].get("inferred") or chain[index].get("confirmed"):
             raise _bad("index", tr("這一環有出處，或已經確認過了。"))
@@ -153,8 +165,9 @@ def edit(app, store: narratives.Store, theme_id: str, body) -> dict:
         chain[index] = dict(chain[index], role=role)
     else:
         del chain[index]
+        del prov["chain"][index]
     theme["chain"] = chain
-    store.add_theme_version(theme_id, "draft", theme, expected_version=version)
+    store.add_theme_version(theme_id, "draft", theme, expected_version=version, provenance=prov)
     return view(app, store, theme_id)
 
 

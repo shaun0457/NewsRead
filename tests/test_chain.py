@@ -35,6 +35,7 @@ class EditTest(ChainCase):
     def test_empty_theme_has_an_empty_chain(self):
         v = self.head()
         self.assertEqual((v["links"], v["version"], v["status"], v["unconfirmed"]), ([], 0, None, 0))
+        self.assertEqual((v["fields"]["one_liner"], v["provenance"]["second_order"]), (None, []))
 
     def test_add_update_remove_write_drafts_and_leave_the_final_alone(self):
         self.store.add_theme_version(self.theme, "final", {"one_liner": "定稿", "chain": [SRC_LINK]})
@@ -182,6 +183,61 @@ class EditTest(ChainCase):
     def test_unknown_theme_is_not_found(self):
         with self.assertRaises(entities.NotFound):
             chain.edit(APP, self.store, "E-" + "0" * 32, {"op": "add", "base_version": 0, "link": SRC_LINK})
+
+
+class ProvenanceTest(ChainCase):
+    """Ticket 106：改一環只把那一環算成我寫的；定稿前預覽過的 AI 欄位標成看過，但還是 AI 寫的。"""
+    AI = "ai:opus@v1"
+
+    def setUp(self):
+        super().setUp()
+        mid = self.manifest()
+        self.clock.tick()
+        self.store.add_theme_version(self.theme, "draft", {"one_liner": "AI 的故事", "second_order": ["外溢"],
+                                                           "chain": [SRC_LINK, INFERRED, self.company_link()]},
+                                     by=self.AI, context_manifest=mid)
+        self.clock.tick()
+
+    def who(self, v=None):
+        v = v or self.head()
+        return [x["provenance"]["by"] for x in v["links"]]
+
+    def test_editing_one_link_leaves_the_rest_as_ai_wrote_it(self):
+        v = self.edit("update", base_version=1, index=0, link={**SRC_LINK, "relation": "我改的"})
+        self.assertEqual(self.who(v), ["me", self.AI, self.AI])
+        self.assertEqual((v["provenance"]["one_liner"]["by"], v["provenance"]["second_order"][0]["by"]), (self.AI, self.AI))
+        self.assertEqual(self.store.page(self.theme)["draft"]["by"], "me")  # 版本是我寫的，欄位的來源各自記
+        self.clock.tick()
+        v = self.add(SRC_LINK)
+        self.assertEqual(self.who(v), ["me", self.AI, self.AI, "me"])
+        self.clock.tick()
+        v = self.edit("remove", base_version=v["version"], index=0)
+        self.assertEqual(self.who(v), [self.AI, self.AI, "me"])
+
+    def test_confirm_and_role_keep_the_writer(self):
+        v = self.edit("confirm", base_version=1, index=1)
+        self.clock.tick()
+        v = self.edit("role", base_version=v["version"], index=2, role="leader")
+        self.assertEqual(self.who(v), [self.AI, self.AI, self.AI])
+        self.assertFalse(any(x["provenance"]["reviewed"] for x in v["links"]))
+
+    def test_publish_marks_ai_fields_reviewed_and_keeps_them_ai(self):
+        v = self.edit("confirm", base_version=1, index=1)
+        self.clock.tick()
+        v = self.edit("update", base_version=v["version"], index=0, link=SRC_LINK)
+        self.clock.tick()
+        v = self.edit("publish", base_version=v["version"])
+        self.assertEqual(v["status"], "final")
+        self.assertEqual([x["provenance"] for x in v["links"]],
+                         [{"by": "me", "reviewed": False}, {"by": self.AI, "reviewed": True}, {"by": self.AI, "reviewed": True}])
+        self.assertEqual(v["provenance"]["one_liner"], {"by": self.AI, "reviewed": True})
+        self.assertEqual(self.store.page(self.theme)["final"]["by"], "me")
+
+    def test_the_view_lists_the_fields_this_page_does_not_show(self):
+        v = self.head()
+        self.assertEqual(set(v["fields"]), {"one_liner", "analogy", "origin", "second_order", "stage"})
+        self.assertEqual((v["fields"]["one_liner"], v["fields"]["second_order"], v["fields"]["analogy"]), ("AI 的故事", ["外溢"], None))
+        self.assertEqual(set(v["provenance"]), set(v["fields"]))
 
 
 class RoleTest(ChainCase):

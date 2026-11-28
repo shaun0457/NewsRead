@@ -161,6 +161,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 - `GET /api/themes/{題材 id}[?at=ISO 時間]`：題材頁。`at` 是時間點（要帶時區，URL 編碼），回傳那時候的版本和狀態；預設是現在。回傳 `{theme_id, at, final, draft, theses}`：
   - `final` 是最新的定稿，`draft` 是比它新的最新草稿（沒有就是 `null`）；草稿不會蓋掉定稿。每個版本是 `{id, version, status, by, created_at, content_hash, context_manifest, body}`。
   - 題材頁的 `body`：`one_liner`、`analogy`、`origin {kind: market_first | news_first, item_id, rotation_event}`、`second_order`（最多 20 點）、`stage {name, basis}`、`chain`（因果鏈，最多 100 環）。
+  - `body.provenance` 記每個欄位是誰寫的（ticket 106）：`{one_liner, analogy, origin, stage: P, second_order: [P], chain: [P]}`（每一點、每一環各一個），`P = {by, reviewed}`。`by` 是 `me` 或 AI 的 `ai:…`；`reviewed` 只對 AI 寫的有意義：定稿前我在預覽裡看過。AI 寫的版本整份都是 AI；從 HTTP 寫的版本整份都是我（送進來的 `body.provenance` 不看）；因果鏈清單（下面）只把改到的那一環算成我寫的。定稿裡不能有沒看過的 AI 欄位（`field: provenance`）。之前的版本沒有存，整份算寫那一版的人。
   - 因果鏈每一環：`from` / `to`（`{entity_id}` 或 `{label}`）、`relation`、`source`（`{item_id}` 或 `{url}`，沒有就是 `null`）、`inferred`（沒有出處 = AI 推論）、`confirmed`（只有我能確認）。`to` 是公司時多了 `revenue_share`（`{value 或 range, source}`；沒有出處一律 `"unknown"`）和 `role`（`leader` / `laggard` / `unknown`）。沒確認的 AI 推論環節不能進定稿。
   - `theses` 每個論點：`{id, created_at, final, draft, status, status_record, missing_first_hand, evidence, proposals}`。論點的 `body`：`claim`、`direction_implication {direction: bull | bear, targets: [追蹤對象 id]}`、`timing`（`now` / `roadmap`）、`edge`（賺什麼錢）、`horizon`、`refute_if`、`exit_if`（可選）。定稿要填齊（`exit_if` 除外），草稿只要 `claim`。
   - `status` 只看我確認過的變化（預設 `open`）。`evidence` 只列看得到的證據：我加的、揭露過的、我判斷過的，或被我確認的狀態變化引用過的；A、B 級排前面，再依時間由新到舊，最多 50 則。`missing_first_hand` = 看得到的證據都是 C、D 級。
@@ -179,15 +180,15 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 
 因果鏈存在題材頁版本的 `body.chain`（見 4.62）。清單頁用下面兩個介面改一環，不用整份題材頁送回去：
 
-- `GET /api/themes/{題材 id}/chain`：目前的因果鏈（草稿比定稿新就是草稿，否則是定稿）。回傳 `{theme_id, status, version, final_version, links, unconfirmed, market_data}`。`status` 是 `draft` / `final`，題材頁還沒有任何版本時是 `null`、`version` 是 0。`links` 每一環除了 4.62 的欄位，另有 `index`、`from` / `to` 的 `name` 和 `type`（節點是追蹤對象時）、`inferred`（沒有出處）、`confirmed`（我確認過沒有出處的環節），連到公司的環節多一個 `role_suggestion`（`leader` / `laggard` / `unknown`）。`unconfirmed` 是還沒確認的 AI 推論環節數（確認前不能進定稿）。`market_data` 是行情有沒有接上。
+- `GET /api/themes/{題材 id}/chain`：目前的因果鏈（草稿比定稿新就是草稿，否則是定稿）。回傳 `{theme_id, status, version, final_version, links, unconfirmed, market_data, fields, provenance}`。`status` 是 `draft` / `final`，題材頁還沒有任何版本時是 `null`、`version` 是 0。`links` 每一環除了 4.62 的欄位，另有 `index`、`from` / `to` 的 `name` 和 `type`（節點是追蹤對象時）、`inferred`（沒有出處）、`confirmed`（我確認過沒有出處的環節），連到公司的環節多一個 `role_suggestion`（`leader` / `laggard` / `unknown`）。`unconfirmed` 是還沒確認的 AI 推論環節數（確認前不能進定稿）。`market_data` 是行情有沒有接上。每一環另有 `provenance`（見 4.62 的 `body.provenance`）；`fields` 是這頁沒顯示的欄位（`one_liner`、`analogy`、`origin`、`second_order`、`stage`）目前的內容，`provenance` 是它們的來源，給定稿前的預覽用。
 - `POST /api/themes/{題材 id}/chain`：body `{op, base_version, index?, link?, role?}`，回傳更新後的 `GET` 內容。`base_version` 一定要帶，且要等於目前的 `version`，不然回 400（`field: base_version`），免得蓋掉別處的修改；寫入時在同一個交易裡再比對一次，兩個分頁同時送出時後到的會被擋。題材頁新增或修改一環被擋時，表單和打的內容留著，畫面讀新版、可以並排比較，按「用我的內容重送」以新版為底再送（ticket 108）；其他動作（確認、移除、領漲 / 補漲、定稿）被擋時照舊重新載入。
   - `op: add`：`link` 是新的一環（`from`、`to`、`relation`、`source?`，`to` 是公司時可帶 `revenue_share`、`role`；欄位檢查跟 4.62 的環節一樣）。一條鏈最多 100 環。
   - `op: update`：換掉第 `index` 環。改過的環節要重新確認：`confirmed` 不會帶過去。
   - `op: confirm`：我確認第 `index` 環（只有沒有出處、還沒確認的環節可以）。`link` 裡的 `confirmed` 一律忽略，確認只能走這個動作。
   - `op: remove`：移除第 `index` 環。
   - `op: role`：只換第 `index` 環的 `role`（`leader` / `laggard` / `unknown`，例如採用建議）；其他內容不變，確認過的不用重新確認。只有連到公司的環節可以。
-  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：沒確認的 AI 推論環節會被擋（`field: chain.<index>`）；一句話故事可以先不填。
-  - `add` / `update` / `confirm` / `remove` / `role` 都是從目前的版本複製一份、改掉一環，寫成新的**草稿**（`by = me`）；定稿不會被動到。
+  - `op: publish`：把目前的草稿寫成定稿版本。沿用 4.62 的定稿規則：沒確認的 AI 推論環節會被擋（`field: chain.<index>`）；一句話故事可以先不填。畫面在送出前先預覽所有欄位，所以 AI 寫的欄位在定稿裡標成看過（`reviewed: true`），`by` 還是 AI。
+  - `add` / `update` / `confirm` / `remove` / `role` 都是從目前的版本複製一份、改掉一環，寫成新的**草稿**（`by = me`）；定稿不會被動到。只有 `add`、`update` 的那一環來源變成我；`confirm`、`role` 不改來源，其他欄位照舊。
 - 領漲 / 補漲：`role` 是我確認的值，預設 `unknown`。`role_suggestion` 只是建議，不會自動寫進 `role`。行情（ticket 30）還沒做時，`market_data` 是 `false`、建議一律是 `unknown`。行情做好後，在 app 上提供 `market_returns(entity_id, since_iso) -> 報酬或 None`：`since` 是這個題材第一個版本的時間，有報酬的公司至少 2 家時，報酬不低於中位數的建議 `leader`，低於的建議 `laggard`；取不到資料的是 `unknown`。每次最多查 100 家、總共最多 3 秒（超過的當成 `unknown`；行情來源要自己限制單次呼叫的時間），行情來源出錯只記錯誤類型。
 - 頁面：`GET /theme/{題材 id}` 是題材頁（目前只有因果鏈區塊）。
 

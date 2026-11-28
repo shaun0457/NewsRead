@@ -293,6 +293,73 @@ def theme_body(value, ctx: _Ctx, by: str, final: bool) -> dict:
     }
 
 
+PROVENANCE_FIELDS = ("one_liner", "analogy", "origin", "stage")  # 一個值的欄位
+PROVENANCE_LISTS = ("second_order", "chain")  # 每一點、每一環各自記
+
+
+def mark(by: str, reviewed: bool = False) -> dict:
+    """一個欄位是誰寫的。reviewed 只對 AI 寫的有意義：定稿前我在預覽裡看過（ticket 106）。"""
+    return {"by": by, "reviewed": bool(reviewed and is_ai(by))}
+
+
+def _uniform(body: dict, by: str) -> dict:
+    out = {k: mark(by) for k in PROVENANCE_FIELDS}
+    for k in PROVENANCE_LISTS:
+        out[k] = [mark(by) for _ in body.get(k) or []]
+    return out
+
+
+def _entry(value, field: str) -> dict:
+    if not isinstance(value, dict) or set(value) - {"by", "reviewed"}:
+        raise _bad(field)
+    reviewed = value.get("reviewed", False)
+    if not isinstance(reviewed, bool):
+        raise _bad(field)
+    try:
+        by = _check_by(value.get("by"))
+    except EntityError:
+        raise _bad(field) from None
+    return mark(by, reviewed)
+
+
+def _entries(prov: dict) -> list[dict]:
+    return [prov[k] for k in PROVENANCE_FIELDS] + [e for k in PROVENANCE_LISTS for e in prov[k]]
+
+
+def _provenance(value, clean: dict, by: str, final: bool) -> dict:
+    """每個欄位的來源。AI 寫的版本整份都是 AI；我寫的版本用呼叫端給的（只有 Python 介面能給，
+    例如因果鏈只改一環時，其他欄位照舊）；沒給就整份算我寫的。HTTP 寫入一律不給。"""
+    if is_ai(by) or value is None:
+        out = _uniform(clean, by)
+    else:
+        if not isinstance(value, dict):
+            raise _bad("provenance")
+        out = {k: _entry(value.get(k), f"provenance.{k}") for k in PROVENANCE_FIELDS}
+        for k in PROVENANCE_LISTS:
+            items = value.get(k)
+            if not isinstance(items, list) or len(items) != len(clean.get(k) or []):
+                raise _bad(f"provenance.{k}")
+            out[k] = [_entry(x, f"provenance.{k}.{i}") for i, x in enumerate(items)]
+    if final and not is_ai(by) and any(is_ai(e["by"]) and not e["reviewed"] for e in _entries(out)):  # AI 寫定稿另外擋（status）
+        raise _bad("provenance", tr("AI 起草的欄位要先在預覽裡看過，才能放進定稿。"))
+    return out
+
+
+def provenance_of(version: dict | None) -> dict:
+    """版本裡每個欄位的來源 {one_liner, analogy, origin, stage: P, second_order: [P], chain: [P]}，P = {by, reviewed}。
+    沒有版本就是空的；舊版本沒有存（或存的對不上內容）就整份算寫這版的人。"""
+    if not version:
+        return _uniform({}, ME)
+    body = version["body"]
+    stored = body.get("provenance")
+    if isinstance(stored, dict):
+        try:
+            return _provenance(stored, body, ME, False)
+        except EntityError:
+            pass
+    return _uniform(body, version["by"])
+
+
 def thesis_body(value, ctx: _Ctx, final: bool) -> dict:
     if not isinstance(value, dict):
         raise _bad("body")
@@ -389,8 +456,9 @@ class Store:
             raise _bad("context_manifest", tr("ContextManifest 不對。")) from None
 
     def add_theme_version(self, theme_id: str, status: str, body, by: str = ME, context_manifest: str | None = None,
-                          expected_version: int | None = None) -> dict:
-        """expected_version：呼叫端讀到的最新版本。給了就在同一個寫入交易裡比對，期間有別的版本寫進來就拒絕。"""
+                          expected_version: int | None = None, provenance: dict | None = None) -> dict:
+        """expected_version：呼叫端讀到的最新版本。給了就在同一個寫入交易裡比對，期間有別的版本寫進來就拒絕。
+        provenance：每個欄位的來源（見 provenance_of），只有我寫的版本能給；body 裡的 provenance 一律不看。"""
         status = _choice(status, "status", VERSION_STATUSES)
         by = _check_by(by)
         with self.index.write() as db:
@@ -400,6 +468,7 @@ class Store:
                 if last != expected_version:
                     raise _bad("base_version", tr("這一頁已經有新的版本，請重新整理再改。"))
             clean = theme_body(body, _Ctx(db), by, status == "final")
+            clean["provenance"] = _provenance(provenance, clean, by, status == "final")
             row = self._add_version(db, "theme_versions", "theme_id", theme_id, status, clean, by, context_manifest, "theme")
         return {"id": row["id"], "version": row["version"]}
 

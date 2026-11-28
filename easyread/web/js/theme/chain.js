@@ -19,7 +19,7 @@ window.PR = window.PR || {};
     noMarket: PR.t("領漲 / 補漲：unknown（行情還沒接上）"),
     useSuggestion: PR.t("採用建議"),
     edit: PR.t("修改"), remove: PR.t("移除"), confirm: PR.t("我確認這一環"), add: PR.t("＋ 新增一環"),
-    save: PR.t("儲存"), cancel: PR.t("取消"), publish: PR.t("確認成定稿"),
+    save: PR.t("儲存"), cancel: PR.t("取消"),
     from: PR.t("從"), to: PR.t("到"), relation: PR.t("關係說明"), kindLabel: PR.t("環節名稱"), kindEntity: PR.t("追蹤對象"),
     pickEntity: PR.t("選一個追蹤對象…"), source: PR.t("出處網址"), sourceItem: PR.t("或選資料庫裡的一則資料"), noneItem: PR.t("不選"),
     shareMode: PR.t("營收占比"), shareUnknown: PR.t("不知道"), shareValue: PR.t("一個數值（%）"), shareRange: PR.t("一個區間（%）"),
@@ -40,6 +40,19 @@ window.PR = window.PR || {};
     seeNew: PR.t("看新版"), resend: PR.t("用我的內容重送"), discard: PR.t("放棄我的，改用新版"),
     theirs: PR.t("新版"), theirsChip: (v) => PR.t("v{v} · 另一個分頁", { v }), mine: PR.t("我的內容"), mineChip: PR.t("還沒送出"),
     sourceCol: PR.t("出處"),
+    // 每個欄位的來源和定稿前的預覽（ticket 106）
+    aiChip: PR.t("AI 起草"), aiReviewedChip: PR.t("AI 起草・你確認過"), mineWrote: PR.t("我寫的"),
+    publishOpen: PR.t("確認成定稿…"),
+    pvTitle: PR.t("定稿前看一下：這些欄位都會進定稿"),
+    pvLead: (v) => PR.t("定稿 v{v} 會用這份草稿的全部內容。標「AI」的欄位確認之後會標成「AI 起草・你確認過」，來源還是 AI。不想收進定稿的，先取消回去改。", { v }),
+    pvField: PR.t("欄位"), pvValue: PR.t("內容"), pvSource: PR.t("現在的來源"), pvHidden: PR.t("這頁沒顯示"),
+    pvAi: PR.t("AI"), pvAiReviewed: PR.t("AI・你確認過"), pvMe: PR.t("我"), pvBlank: PR.t("沒有填"),
+    fOneLiner: PR.t("一句話故事"), fAnalogy: PR.t("白話類比"), fOrigin: PR.t("起源"), fStage: PR.t("階段"),
+    fSecond: (n) => PR.t("第二層效應 {n}", { n }), fLink: (n) => PR.t("因果鏈第 {n} 環", { n }),
+    originMarket: PR.t("行情先動"), originNews: PR.t("消息先動"), stageBasis: (basis) => PR.t("依據：{basis}", { basis }),
+    pvSummary: (n, ai, hidden) => PR.t("共 {n} 個欄位：{ai} 個 AI 寫的會標成你確認過，其中 {hidden} 個這頁沒顯示。", { n, ai, hidden }),
+    pvSummaryMine: (n) => PR.t("共 {n} 個欄位，沒有要確認的 AI 欄位。", { n }),
+    pvConfirm: (v) => PR.t("確認成定稿 v{v}", { v }),
   });
   const esc = (s) => PR.esc(s);
 
@@ -219,6 +232,60 @@ window.PR = window.PR || {};
       + `<button class="btn sm ghost" type="button" data-act="discard"${S.busy ? " disabled" : ""}>${esc(tx.discard)}</button></div></div></div>`;
   }
 
+  /* ---------- 欄位的來源與定稿前的預覽（ticket 106） ---------- */
+  const isAi = (p) => !!p && typeof p.by === "string" && p.by.indexOf("ai:") === 0;
+
+  /* 這一版有沒有 AI 寫的欄位：沒有的話畫面不標來源（全部都是我寫的） */
+  function anyAi(view) {
+    if (!view) return false;
+    const prov = view.provenance || {};
+    const fields = Object.keys(prov).some((k) => (Array.isArray(prov[k]) ? prov[k].some(isAi) : isAi(prov[k])));
+    return fields || (view.links || []).some((l) => isAi(l.provenance));
+  }
+
+  function provChip(p, tx) {
+    if (isAi(p)) return `<span class="chip ai">${esc(p.reviewed ? tx.aiReviewedChip : tx.aiChip)}</span>`;
+    return `<span class="chip mine">${esc(tx.mineWrote)}</span>`;
+  }
+
+  /* 預覽的每一列：{label, hidden, value, prov}。這頁沒顯示的欄位（一句話故事、類比、起源、第二層效應、階段）標 hidden */
+  function previewRows(view, tx) {
+    tx = tx || T();
+    const f = view.fields || {}, prov = view.provenance || {}, rows = [];
+    const text = (s) => (typeof s === "string" && s.trim() ? s : tx.pvBlank);
+    rows.push({ label: tx.fOneLiner, hidden: true, value: text(f.one_liner), prov: prov.one_liner });
+    rows.push({ label: tx.fAnalogy, hidden: true, value: text(f.analogy), prov: prov.analogy });
+    const o = f.origin;
+    const origin = o ? [o.kind === "market_first" ? tx.originMarket : tx.originNews, o.item_id ? tx.item(o.item_id) : "", o.rotation_event || ""]
+      .filter(Boolean).join(" · ") : tx.pvBlank;
+    rows.push({ label: tx.fOrigin, hidden: true, value: origin, prov: prov.origin });
+    (Array.isArray(f.second_order) ? f.second_order : []).forEach((s, i) =>
+      rows.push({ label: tx.fSecond(i + 1), hidden: true, value: text(s), prov: (prov.second_order || [])[i] }));
+    const st = f.stage;
+    rows.push({ label: tx.fStage, hidden: true, value: st ? [st.name, st.basis ? tx.stageBasis(st.basis) : ""].filter(Boolean).join(" · ") : tx.pvBlank,
+                prov: prov.stage });
+    (view.links || []).forEach((l, i) =>
+      rows.push({ label: tx.fLink(i + 1), hidden: false, value: `${nodeText(l.from)} → ${nodeText(l.to)}${PR.lang === "en" ? ": " : "："}${l.relation || ""}`,  // i18n-ok：標點
+                  prov: l.provenance }));
+    return rows;
+  }
+
+  function previewHtml(view, tx) {
+    tx = tx || T();
+    const rows = previewRows(view, tx);
+    const pending = rows.filter((r) => isAi(r.prov) && !r.prov.reviewed);
+    const src = (p) => (isAi(p) ? `<span class="chip ai">${esc(p.reviewed ? tx.pvAiReviewed : tx.pvAi)}</span>` : `<span class="chip mine">${esc(tx.pvMe)}</span>`);
+    const body = rows.map((r) => `<tr><td class="f">${esc(r.label)}${r.hidden ? `<span class="hidden-tag">${esc(tx.pvHidden)}</span>` : ""}</td>`
+      + `<td class="v" data-no-i18n>${esc(r.value)}</td><td>${src(r.prov)}</td></tr>`).join("");
+    const next = (view.version || 0) + 1;
+    return `<form method="dialog" class="pv"><h1 id="chain-pv-title">${esc(tx.pvTitle)}</h1><p class="hint">${esc(tx.pvLead(next))}</p>`
+      + `<div class="scroll-x"><table class="tbl"><thead><tr><th>${esc(tx.pvField)}</th><th>${esc(tx.pvValue)}</th><th>${esc(tx.pvSource)}</th></tr></thead>`
+      + `<tbody>${body}</tbody></table></div>`
+      + `<p class="hint">${esc(pending.length ? tx.pvSummary(rows.length, pending.length, pending.filter((r) => r.hidden).length) : tx.pvSummaryMine(rows.length))}</p>`
+      + `<div class="foot"><button class="btn sm ghost" value="cancel" autofocus>${esc(tx.cancel)}</button>`
+      + `<button class="btn sm primary" value="publish">${esc(tx.pvConfirm(next))}</button></div></form>`;
+  }
+
   /* ---------- 畫面 ---------- */
   function sourceHtml(src, tx) {
     const s = sourceView(src);
@@ -251,8 +318,9 @@ window.PR = window.PR || {};
   /* locked：有表單開著或請求還沒回來。這時其他環節的動作都停用：移除前面的環節會讓表單的 index 對到別的環節 */
   function linkHtml(link, view, tx, locked) {
     const infer = pending(link);
-    const chips = infer ? `<span class="chip warn">${esc(tx.inferred)}</span>`
-      : link.inferred && link.confirmed ? `<span class="chip mine">${esc(tx.confirmedChip)}</span>` : "";
+    const chips = (infer ? `<span class="chip warn">${esc(tx.inferred)}</span>`
+      : link.inferred && link.confirmed ? `<span class="chip mine">${esc(tx.confirmedChip)}</span>` : "")
+      + (anyAi(view) ? " " + provChip(link.provenance, tx) : "");
     const company = "revenue_share" in link;
     const name = `${nodeText(link.from)} → ${nodeText(link.to)}`;
     const btn = (act, cls, label) => `<button class="btn sm${cls}" type="button" data-act="${act}" data-i="${link.index}"`
@@ -338,7 +406,7 @@ window.PR = window.PR || {};
       + (v.links.length || adding ? `<ol class="chain">${links}${adding}</ol>` : `<p class="muted">${esc(tx.empty)}</p>`)
       + `<div class="row" style="margin-top:10px"><button class="btn sm" type="button" data-act="add"${full || ed ? " disabled" : ""}>${esc(tx.add)}</button>`
       + (full ? `<span class="muted">${esc(tx.full(MAX_LINKS))}</span>` : "")
-      + (v.status === "draft" ? `<span class="grow"></span><button class="btn sm primary" type="button" data-act="publish"${S.busy || ed ? " disabled" : ""}>${esc(tx.publish)}</button>` : "")
+      + (v.status === "draft" ? `<span class="grow"></span><button class="btn sm primary" type="button" data-act="publish" aria-haspopup="dialog"${S.busy || ed ? " disabled" : ""}>${esc(tx.publishOpen)}</button>` : "")
       + `</div></section>`;
   }
 
@@ -441,6 +509,39 @@ window.PR = window.PR || {};
     else render(S.conflict ? "[data-act=resend]" : ".chain-form .invalid, .chain-form .err");
   }
 
+  /* 定稿前的預覽：一個放在 #view 外面的 <dialog>（重畫 #view 不會關掉它）。確認後以預覽時的版本送出：
+     期間有新版本，後端會擋（base_version），不會把沒看過的內容定稿 */
+  function previewDialog() {
+    let d = document.getElementById("chain-pv");
+    if (!d) {
+      d = document.createElement("dialog");
+      d.id = "chain-pv"; d.className = "pv-dlg";
+      d.setAttribute("aria-labelledby", "chain-pv-title");
+      d.addEventListener("close", () => {
+        const choice = d.returnValue, version = d.dataset.version;
+        d.returnValue = "";  // Esc 不會設值，有的瀏覽器也不清掉上一次的
+        if (choice === "publish") publish(Number(version)).catch(() => { S.busy = false; S.note = T().saveFailed; render(); });
+      });
+      document.body.appendChild(d);
+    }
+    return d;
+  }
+
+  function openPreview() {
+    if (S.busy || S.editing || !S.view || S.view.status !== "draft") return;
+    const d = previewDialog();
+    d.innerHTML = previewHtml(S.view, T());
+    d.dataset.version = String(S.view.version);
+    d.returnValue = "";
+    d.showModal();
+  }
+
+  async function publish(version) {
+    const view = await post({ op: "publish", base_version: version });
+    if (view) PR.toast(esc(T().published));
+    render(view ? "[data-act=add]" : null);
+  }
+
   async function act(name, i, extra) {
     if (S.busy && name !== "retry") return;  // 請求進行中：不開表單、不取消，等回應回來
     if (name === "edit") { S.editing = { index: i, draft: toDraft(S.view.links[i]), errors: {} }; return void render(".chain-form input"); }
@@ -454,8 +555,7 @@ window.PR = window.PR || {};
     if (name === "confirm") view = await post({ op: "confirm", index: i });
     else if (name === "remove") view = await post({ op: "remove", index: i });
     else if (name === "role") view = await post({ op: "role", index: i, role: extra });  // 只換 role：確認和占比都留著
-    else if (name === "publish") view = await post({ op: "publish" });
-    if (view && name === "publish") PR.toast(esc(T().published));
+    else if (name === "publish") return openPreview();
     if (view && name === "remove") PR.toast(esc(T().removed));
     render();
   }
@@ -506,6 +606,6 @@ window.PR = window.PR || {};
   }
 
   PR.themeChain = { sourceView, shareView, nodeText, pending, blankDraft, toDraft, payload, fieldKey, capChoices, entityIsCompany,
-                    matchLink, cmpRows, viewHtml, act, submit, MAX_CHOICES, MAX_LINKS, state: S };
+                    matchLink, cmpRows, viewHtml, act, submit, anyAi, previewRows, previewHtml, MAX_CHOICES, MAX_LINKS, state: S };
   document.addEventListener("DOMContentLoaded", init);
 })(window.PR);
