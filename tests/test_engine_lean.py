@@ -128,6 +128,43 @@ class EngineLeanTest(unittest.TestCase):
         _, calls = self.run_claude({"lean": True, "extra_args": extra}, ["ok"])
         self.assertIn("--mcp-config", calls[0])  # 一般呼叫照樣帶使用者的參數
 
+    def test_claude_no_tools_passes_allowlisted_connection_args(self):
+        """#103：不給工具時，連線相關的額外參數照傳。"""
+        proxy = json.dumps({"env": {"HTTPS_PROXY": "http://proxy.example:8080", "no_proxy": "localhost"}})
+        extra = ["--settings", proxy, "--fallback-model=sonnet", "--mcp-config", "x.json"]
+        with self.assertLogs("easyread", "WARNING") as logs:
+            _, calls = self.run_claude({"lean": True, "no_tools": True, "extra_args": extra}, ["ok"])
+        args = calls[0]
+        self.assertEqual(args[args.index("--settings") + 1], proxy)
+        self.assertEqual(args[args.index("--fallback-model") + 1], "sonnet")
+        self.assertNotIn("--mcp-config", args)
+        self.assertNotIn("x.json", args)
+        self.assertEqual(logs.output, ["WARNING:easyread:Claude Code 不給工具時略過額外參數：--mcp-config"])
+
+    def test_no_tools_args_refuses_tools_hooks_and_unknown_args(self):
+        hooks = json.dumps({"hooks": {"PreToolUse": []}, "env": {"HTTPS_PROXY": "http://p"}})
+        cases = [
+            (["--allowedTools", "Bash"], ["--allowedTools"]),
+            (["--mcp-config", "x.json"], ["--mcp-config"]),
+            (["--add-dir", "C:/"], ["--add-dir"]),
+            (["--settings", hooks], ["--settings"]),  # hooks 跟 env 一起也不收
+            (["--settings", "settings.json"], ["--settings"]),  # 檔案路徑讀不到內容
+            (["--settings", json.dumps({"env": {"PATH": "x"}})], ["--settings"]),  # 不是連線用的環境變數
+            (["--settings", json.dumps({"env": {}})], ["--settings"]),
+            (["--settings"], ["--settings"]),
+            (["--fallback-model", "--mcp-config", "x.json"], ["--fallback-model", "--mcp-config"]),
+            (["--dangerously-skip-permissions"], ["--dangerously-skip-permissions"]),
+            (["--unknown-flag"], ["--unknown-flag"]),
+            (["--weird;rm -rf"], ["?"]),
+        ]
+        for extra, skipped in cases:
+            with self.subTest(extra=extra):
+                self.assertEqual(engines.no_tools_args(extra), ([], skipped))
+        self.assertEqual(engines.no_tools_args(None), ([], []))
+        self.assertEqual(engines.no_tools_args(["--fallback-model", "opus", 3]), (["--fallback-model", "opus"], []))
+        secret = json.dumps({"env": {"HTTPS_PROXY": "http://user:pw@p"}, "apiKeyHelper": "x"})
+        self.assertNotIn("pw", " ".join(engines.no_tools_args(["--settings", secret])[1]))  # 只回參數名，不回值
+
     def test_claude_other_errors_not_retried(self):
         with self.assertRaises(engines.EngineError):
             self.run_claude({"lean": True}, [engines.EngineError("network down")])
