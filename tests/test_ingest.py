@@ -352,6 +352,91 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(paper["translation"]["en_pages"], [])
         self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
 
+    def test_simplified_original_is_shown_in_traditional_without_ai(self):
+        """譯文語言是台灣繁體、原文是簡體：匯入時用 OpenCC 轉成繁體放譯文欄，不叫 AI，原文保留（#98）。"""
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        ws_text = "台积电表示，先进封装的产能会继续扩充。" + chr(10) * 2 + "分析师认为软件与网络服务的需求也会增加。"
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            r = ingest.handle(app, {"text": ws_text, "title": "台积电扩充产能"})
+        self.assertTrue(r["same_language"] and r["hant_converted"])
+        self.assertEqual(app.jobs.enqueued, [])  # 不送 AI 翻譯
+        paper = app.lib.ws(r["id"]).load("paper")
+        en = [b["en"] for b in paper["blocks"]]
+        zh = [b["zh"] for b in paper["blocks"]]
+        self.assertEqual(en[0], "台积电表示，先进封装的产能会继续扩充。")  # 原文不動
+        self.assertEqual(zh[0], "台積電表示，先進封裝的產能會繼續擴充。")  # 「台」不轉成「臺」
+        self.assertIn("軟體", zh[1])  # s2twp：台灣用語
+        meta = paper["meta"]
+        self.assertEqual((meta["title_en"], meta["title_zh"]), ("台积电扩充产能", "台積電擴充產能"))
+        self.assertEqual((meta["target"], meta["paperread_traditional_v"]), ("zh-TW", 1))  # 打開閱讀頁時不再轉一次
+        from easyread import traditional
+        self.assertFalse(traditional.migrate(app.lib.ws(r["id"])))
+
+    def test_traditional_original_stays_as_it_is(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            r = ingest.handle(app, {"text": "台積電表示，先進封裝的產能會繼續擴充。", "title": "台積電擴充產能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+        self.assertEqual(paper["meta"]["title_zh"], "")  # 繁體原文：不另外存標題，照舊顯示原標題
+        self.assertNotIn("hant_converted", paper["meta"])
+        from easyread import traditional
+        self.assertFalse(traditional.migrate(app.lib.ws(r["id"])))  # 打開閱讀頁時也不轉：「台」不會變成「臺」
+        self.assertEqual(app.lib.ws(r["id"]).load("paper")["blocks"][0]["zh"], "台積電表示，先進封裝的產能會繼續擴充。")
+
+    def test_reimport_converts_paragraphs_kept_from_an_earlier_import(self):
+        """先用簡體譯文語言匯入（譯文欄是原文拷貝），之後改成台灣繁體再匯入同一個網址：沿用的段落也要轉。"""
+        app = make_app(self.root)
+        body = {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能", "url": URL}
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh"}):
+            ingest.handle(app, body)
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            r = ingest.handle(app, {**body, "text": body["text"] + chr(10) * 2 + "分析师认为软件需求也会增加。"})
+        self.assertEqual(r["status"], "updated")
+        zh = [b["zh"] for b in app.lib.ws(r["id"]).load("paper")["blocks"]]
+        self.assertEqual(zh, ["台積電表示，先進封裝的產能會繼續擴充。", "分析師認為軟體需求也會增加。"])
+
+    def test_reimport_keeps_a_title_that_was_changed_after_the_conversion(self):
+        app = make_app(self.root)
+        body = {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能", "url": URL}
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            first = ingest.handle(app, body)
+            again = ingest.handle(app, {**body, "text": body["text"] + "产能", "title": "台积电再扩产能"})
+            self.assertEqual(app.lib.ws(first["id"]).load("paper")["meta"]["title_zh"], "台積電再擴產能")  # 沒改過：跟著更新
+            app.lib.ws(first["id"]).update("paper", lambda p: p["meta"].update(title_zh="AI 寫的標題"))
+            ingest.handle(app, {**body, "text": body["text"] + "继续", "title": "台积电三扩产能"})
+        self.assertEqual(again["status"], "updated")
+        self.assertEqual(app.lib.ws(first["id"]).load("paper")["meta"]["title_zh"], "AI 寫的標題")
+
+    def test_simplified_detection(self):
+        from easyread import traditional
+        self.assertTrue(traditional.looks_simplified(["台积电表示，先进封装的产能会继续扩充。"]))
+        self.assertFalse(traditional.looks_simplified(["台積電表示，先進封裝的產能會繼續擴充。"]))
+        self.assertFalse(traditional.looks_simplified(["台北"]))  # 只有簡繁共用的字：不轉
+        self.assertFalse(traditional.looks_simplified(["公里"]))  # 里、后、游、范這種繁體也用的字不算簡體
+        self.assertFalse(traditional.looks_simplified(["之后他游了五公里，范先生于是干杯"]))
+        self.assertEqual(traditional.to_taiwan("国立臺灣大学在台北"), "國立臺灣大學在台北")  # 原文本來的「臺」不動
+        self.assertEqual(traditional.to_taiwan("台北股市上涨，软件股领涨"), "台北股市上漲，軟體股領漲")
+
+    def test_simplified_target_keeps_the_original_copy(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh"}):
+            r = ingest.handle(app, {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+        self.assertNotIn("paperread_traditional_v", paper["meta"])
+
+    def test_without_opencc_the_original_is_copied(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}), \
+                mock.patch("easyread.i18n._tw_converter", return_value=False):
+            r = ingest.handle(app, {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+        self.assertFalse(r["hant_converted"])
+        self.assertEqual(paper["meta"].get("title_zh", ""), "")
+        self.assertNotIn("paperread_traditional_v", paper["meta"])
+
     def test_chinese_article_is_translated_when_target_is_not_chinese(self):
         app = make_app(self.root, fixture("news-jsonld.html"))
         with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "ja"}):

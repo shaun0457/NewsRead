@@ -246,7 +246,7 @@ def create(library, text: str, *, title: str = "", url: str | None = None, meta:
             return ws, "unchanged"
         _save_version(ws, paper)
         blocks = _blocks(paras, {b.get("id"): b for b in paper.get("blocks") or [] if isinstance(b, dict)})
-        keep = {k: v for k, v in old_meta.items() if k in ("title_zh", "short_zh", "target", "date", "authors", "published_at", "time_source",
+        keep = {k: v for k, v in old_meta.items() if k in ("title_zh", "title_zh_auto", "short_zh", "target", "date", "authors", "published_at", "time_source",
                                                        "publisher", "published_raw", "canonical_url")}
         new_meta = _meta(paras, _title(title or old_meta.get("title_en", ""), paras), clean_url, {**keep, **(meta or {}), **extra})
         new_meta.update(version=int(old_meta.get("version") or 1) + 1, fetched_at=now_iso())
