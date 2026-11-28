@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-review
+**Status:** done（PR #120，2026-11-28）
 
 - [x] UI 先做 mockup 給使用者確認（2026-11-28 核准）
 - [x] 被擋後表單內容還在（測試）

@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #114，2026-11-28）
 
 - [x] 允許清單內的參數照傳（測試）
 - [x] 會開工具、hooks 的參數被拒並提示（測試）

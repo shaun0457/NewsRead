@@ -4,7 +4,7 @@
 
 **Blocked by:** 73
 
-**Status:** in-progress
+**Status:** done（PR #116，2026-11-28）
 
 - [x] 結束：接手的服務被停掉（測試）
 - [x] 只關視窗：服務留著（測試）

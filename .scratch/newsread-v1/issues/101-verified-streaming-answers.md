@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #115，2026-11-28）
 
 - [x] 未驗證的句子不出現在畫面上（測試）
 - [x] 對不上的引述照現在的規則標示（測試）

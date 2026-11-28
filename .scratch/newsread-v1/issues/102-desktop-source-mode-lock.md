@@ -4,7 +4,7 @@
 
 **Blocked by:** 73（接手服務）
 
-**Status:** in-progress
+**Status:** done（PR #117，2026-11-28）
 
 - [x] start.cmd 常駐時開桌面版：接手現有服務、不退出（測試）
 - [x] 實機跑一次並記錄結果

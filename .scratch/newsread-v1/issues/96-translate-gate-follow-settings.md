@@ -4,7 +4,7 @@
 
 **Blocked by:** 68（額度保護）
 
-**Status:** in-progress
+**Status:** done（PR #109，2026-11-28）
 
 - [x] `on_exceed=api`、有 key、未到上限：背景翻譯改用 API，實際引擎和用量記下來（測試）
 - [x] 沒有 key 或到上限：照樣等，原因寫清楚（測試）

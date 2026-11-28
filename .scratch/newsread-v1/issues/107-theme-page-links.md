@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #118，2026-11-28）
 
 - [x] UI 先做 mockup 給使用者確認（2026-11-28 核准）
 - [x] 清單上每個題材都有連到題材頁（測試）

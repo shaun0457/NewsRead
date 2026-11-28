@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #121，2026-11-28）
 
 - [x] UI 先做 mockup 給使用者確認（2026-11-28 核准）
 - [x] 編輯只改看得到的欄位，其他保留原本的 by（測試）
