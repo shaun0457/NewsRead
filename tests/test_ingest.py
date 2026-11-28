@@ -238,6 +238,57 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(paper["translation"]["en_pages"], [])
         self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
 
+    def test_simplified_original_is_shown_in_traditional_without_ai(self):
+        """譯文語言是台灣繁體、原文是簡體：匯入時用 OpenCC 轉成繁體放譯文欄，不叫 AI，原文保留（#98）。"""
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        ws_text = "台积电表示，先进封装的产能会继续扩充。" + chr(10) * 2 + "分析师认为软件与网络服务的需求也会增加。"
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            r = ingest.handle(app, {"text": ws_text, "title": "台积电扩充产能"})
+        self.assertTrue(r["same_language"] and r["hant_converted"])
+        self.assertEqual(app.jobs.enqueued, [])  # 不送 AI 翻譯
+        paper = app.lib.ws(r["id"]).load("paper")
+        en = [b["en"] for b in paper["blocks"]]
+        zh = [b["zh"] for b in paper["blocks"]]
+        self.assertEqual(en[0], "台积电表示，先进封装的产能会继续扩充。")  # 原文不動
+        self.assertEqual(zh[0], "台積電表示，先進封裝的產能會繼續擴充。")  # 「台」不轉成「臺」
+        self.assertIn("軟體", zh[1])  # s2twp：台灣用語
+        meta = paper["meta"]
+        self.assertEqual((meta["title_en"], meta["title_zh"]), ("台积电扩充产能", "台積電擴充產能"))
+        self.assertEqual((meta["target"], meta["paperread_traditional_v"]), ("zh-TW", 1))  # 打開閱讀頁時不再轉一次
+        from easyread import traditional
+        self.assertFalse(traditional.migrate(app.lib.ws(r["id"])))
+
+    def test_traditional_original_stays_as_it_is(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}):
+            r = ingest.handle(app, {"text": "台積電表示，先進封裝的產能會繼續擴充。", "title": "台積電擴充產能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+        self.assertEqual(paper["meta"]["title_zh"], "")  # 繁體原文：不另外存標題，照舊顯示原標題
+        self.assertNotIn("hant_converted", paper["meta"])
+
+    def test_simplified_detection(self):
+        from easyread import traditional
+        self.assertTrue(traditional.looks_simplified(["台积电表示，先进封装的产能会继续扩充。"]))
+        self.assertFalse(traditional.looks_simplified(["台積電表示，先進封裝的產能會繼續擴充。"]))
+        self.assertFalse(traditional.looks_simplified(["台北"]))  # 只有簡繁共用的字：不轉
+        self.assertEqual(traditional.to_taiwan("台北股市上涨，软件股领涨"), "台北股市上漲，軟體股領漲")
+
+    def test_simplified_target_keeps_the_original_copy(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh"}):
+            r = ingest.handle(app, {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+        self.assertNotIn("paperread_traditional_v", paper["meta"])
+
+    def test_without_opencc_the_original_is_copied(self):
+        app = make_app(self.root, fixture("news-jsonld.html"))
+        with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "zh-TW"}),                 mock.patch("easyread.i18n._tw_converter", return_value=False):
+            r = ingest.handle(app, {"text": "台积电表示，先进封装的产能会继续扩充。", "title": "台积电扩充产能"})
+        paper = app.lib.ws(r["id"]).load("paper")
+        self.assertTrue(all(b["zh"] == b["en"] for b in paper["blocks"]))
+
     def test_chinese_article_is_translated_when_target_is_not_chinese(self):
         app = make_app(self.root, fixture("news-jsonld.html"))
         with mock.patch.object(ingest.config, "load", lambda: {"auto_translate": True, "target": "ja"}):

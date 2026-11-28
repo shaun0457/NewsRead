@@ -108,7 +108,7 @@
       ? '<div class="ingest-warn">⚠ <b>' + PR.t("只有預覽") + "</b>" + PR.t("：") + PR.t("這篇在付費牆後面，只抓到前面幾段。已匯入並標示「只有預覽」。") +
         '<div class="ingest-actions"><a class="btn line" href="' + readHref(r.id) + '">' + PR.t("先讀預覽") + "</a>" +
         ' <button class="btn line" type="button" data-act="manual">' + PR.t("貼上全文") + "</button></div></div>" : "";
-    const next = r.same_language ? PR.t("原文是中文，不用翻譯") : r.translate ? PR.t("翻譯中（可以先讀）") : PR.t("沒有自動翻譯");
+    const next = r.hant_converted ? PR.t("原文是簡體，已轉成繁體（不用 AI，原文保留）") : r.same_language ? PR.t("原文是中文，不用翻譯") : r.translate ? PR.t("翻譯中（可以先讀）") : PR.t("沒有自動翻譯");
     return head + preview +
       '<section class="ingest-result"><div class="kind">' + PR.t("新聞 · 自成一個 Story") + "</div><h3>" + PR.esc(r.title || r.url || "") + "</h3>" +
       '<dl class="kv"><dt>' + PR.t("媒體") + "</dt><dd>" + PR.esc(r.publisher || "") + "</dd>" +
