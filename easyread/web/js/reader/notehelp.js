@@ -86,7 +86,7 @@
     updateTopbarIndicator(true);
     let aborted = false;
     try {
-      if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的點評、幫我改、起草稿照跑，先提醒（ticket 68）
+      if (PR.quotaGuard) PR.quotaGuard.remind({ model: "" });  /* 用問 AI 名單的預設模型（#97） */  // 額度超過門檻：手動按的點評、幫我改、起草稿照跑，先提醒（ticket 68）
       const res = await fetch("/api/p/" + PR.pid + "/notehelp", {
         method: "POST", signal: ai.ctrl.signal, headers: { "Content-Type": "application/json", "X-Token": PR.token || "" },
         body: JSON.stringify({ mode, note }),

@@ -185,11 +185,36 @@ test("the reminder only talks about the engine being used, when that is known", 
   assert.ok(s.toasts[0].includes("API") && !s.toasts[0].includes("Claude Code"));
   s = setup([both]);
   await s.flush();
-  assert.equal(s.PR.quotaGuard.remind("subscription"), true);
-  assert.ok(s.toasts[0].includes("Claude Code"));
+  assert.equal(s.PR.quotaGuard.remind("claude"), true);
+  assert.ok(s.toasts[0].includes("Claude Code") && !s.toasts[0].includes("API"));
   s = setup([paused("quota")]);
   await s.flush();
   assert.equal(s.PR.quotaGuard.remind("api"), false);  // 用 API 時訂閱額度超過不用提醒
+  for (const kind of ["subscription", "local", "none"]) assert.equal(s.PR.quotaGuard.remind(kind), false, kind);  // Codex、本機模型：看不到或不用額度
+});
+
+test("the reminder follows the engine the server says each entry uses (#97)", async () => {
+  const both = paused("quota", { api: { spent_usd: 15, cap_usd: 15, reached: true, month: "2026-11" },
+    engines: { translate: "local", chat: { "m-api": "api", "m-claude": "claude" }, chat_default: "claude" } });
+  let s = setup([both]);
+  await s.flush();
+  assert.equal(s.PR.quotaGuard.remind(), false);  // 翻譯用本機模型：不提醒 Claude 額度
+  assert.equal(s.PR.quotaGuard.remind({ model: "m-api" }), true);
+  assert.ok(s.toasts[0].includes("API") && !s.toasts[0].includes("Claude Code"));
+  s = setup([both]);
+  await s.flush();
+  assert.equal(s.PR.quotaGuard.remind({ model: "" }), true);  // 名單的預設
+  assert.ok(s.toasts[0].includes("Claude Code") && !s.toasts[0].includes("API"));
+});
+
+test("when the engine is not known, every limit that applies is shown together (#97)", async () => {
+  const both = paused("quota", { api: { spent_usd: 15, cap_usd: 15, reached: true, month: "2026-11" } });
+  const s = setup([both]);
+  await s.flush();
+  assert.equal(s.PR.quotaGuard.remind(), true);
+  assert.ok(s.toasts[0].includes("Claude Code") && s.toasts[0].includes("API"));
+  assert.equal(s.toasts.length, 1);
+  assert.equal(s.PR.quotaGuard.remind(), false);  // 同一段只提醒一次
 });
 
 test("leaving the page while a request is running does not schedule another poll", async () => {
@@ -215,7 +240,7 @@ test("every manual AI entry in the reader reminds before sending", () => {
     ["notespanel.js", '"/smart-annotate"'], ["planner.js", '"/mindmap/tasks"'], ["export.js", 'PR.api(endpoint, { method: "POST"'],
     ["actions.js", 'PR.ask("retranslate"']]) {
     const src = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader", file), "utf8");
-    const remind = src.indexOf("PR.quotaGuard.remind()");
+    const remind = src.indexOf("PR.quotaGuard.remind(");
     assert.ok(remind > 0, file);
     assert.ok(remind < src.indexOf(call), file);
   }

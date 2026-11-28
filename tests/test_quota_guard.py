@@ -576,6 +576,36 @@ API_CFG = {"engine": "openai", "openai": {"base_url": "https://api.example.com/v
 LOCAL_CFG = {"engine": "openai", "openai": {"base_url": "http://127.0.0.1:11434/v1", "model": "m"}}
 
 
+class ManualKindsTest(GuardBase):
+    """手動提醒要知道這次用的引擎算哪一種（#97）。"""
+
+    def test_reader_kind_by_engine_and_billing(self):
+        data = self.settings.load()
+        k = ai.Engines.reader_kind
+        self.assertEqual(k({"engine": "claude"}, data), "claude")
+        self.assertEqual(k({"engine": "codex"}, data), "subscription")
+        self.assertEqual(k({"engine": "openai", "openai": {"base_url": "https://api.example.com/v1"}}, data), "api")
+        self.assertEqual(k({"engine": "openai", "openai": {"base_url": "http://127.0.0.1:11434/v1"}}, data), "local")
+        self.assertEqual(k({"engine": "openai", "openai": {"preset": "ollama"}}, data), "local")
+        self.assertEqual(k({"engine": "none"}, data), "none")
+        self.settings.update(lambda d: d["engines"].__setitem__("claude", {"auth": "ok", "billing": "api"}))
+        self.assertEqual(k({"engine": "claude"}, self.settings.load()), "api")
+
+    def test_guard_status_lists_the_kinds(self):
+        import copy
+        from easyread import config
+        cfg = {**copy.deepcopy(config.DEFAULTS), "engine": "openai", "openai": {"base_url": "https://api.example.com/v1", "model": "m"},
+               "chat": {"default": "c1", "models": [{"id": "c1", "engine": "claude"},
+                                                     {"id": "c2", "engine": "openai", "preset": "ollama", "model": "q"}]}}
+        with mock.patch("easyread.ai_engines.config.load", return_value=cfg):
+            kinds = self.engines().guard_status()["engines"]
+        self.assertEqual(kinds, {"translate": "api", "chat": {"c1": "claude", "c2": "local"}, "chat_default": "claude"})
+
+    def test_unreadable_config_leaves_the_kinds_empty(self):
+        with mock.patch("easyread.ai_engines.config.load", side_effect=OSError("locked")), self.assertLogs(level="WARNING"):
+            self.assertEqual(self.engines().guard_status()["engines"], {})
+
+
 class TranslationGateTest(GuardBase):
     """匯入後自動開始的翻譯（閱讀器自己的引擎設定）送出前問額度保護（使用者 2026-11-28）。"""
 
