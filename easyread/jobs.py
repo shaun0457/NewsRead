@@ -17,6 +17,7 @@ from .store import DataReadError, Workspace, now_iso
 
 WAIT_REASONS = ("subscription", "quota", "api_off", "api_cap", "check")  # 見 ai_engines.Engines.translation_gate；
 # check：額度保護還沒接上（剛啟動）或讀不到，下一輪補翻時再問
+AUTO_OFF = "auto_off"  # 「匯入後自動翻譯」關掉了：在等的不自動補翻，要使用者按（使用者 2026-11-28）
 CATCHUP_PER_ROUND = 5  # 〔預設〕額度解除後，每一輪最多補翻幾篇（依排進來的先後）
 
 
@@ -24,12 +25,15 @@ class LedgerMeter(usage.Meter):
     """翻譯、問 AI 的用量：照樣累計在任務或對話裡，每次呼叫 AI 另外記一筆到帳本的 AI 用量（ticket 12）。
     帳本第一次有呼叫時才打開（沒呼叫 AI 就不建資料庫檔）；記不進去只寫一行 log，不讓翻譯或回答失敗。"""
 
-    def __init__(self, engine: str, model: str, path=None, task: str = "translate", manifest: str | None = None):
+    def __init__(self, engine: str, model: str, path=None, task: str = "translate", manifest: str | None = None,
+                 priced: bool = False):
         super().__init__(engine)
-        self.model, self.path, self.task, self.manifest = model, path, task, manifest
+        self.model, self.path, self.task, self.manifest, self.priced = model, path, task, manifest, priced
 
     def add(self, input: int = 0, cached: int = 0, output: int = 0, cost_usd: float | None = None, limits: dict | None = None,
             context_window: int | None = None, actual_model: str | None = None):
+        if cost_usd is None and self.priced:
+            cost_usd = api_cost(str(actual_model or self.model), input, cached, output)
         super().add(input, cached, output, cost_usd, limits, context_window, actual_model)
         try:
             path = self.path or ledger.default_path()
@@ -43,12 +47,26 @@ class LedgerMeter(usage.Meter):
             log.warning("AI 用量沒記進帳本（%s）：%s", self.task, type(e).__name__)
 
 
+def api_cost(model: str, input: int, cached: int, output: int) -> float | None:
+    """OpenAI 相容接口回報的用量換算成美元（價格表見 ai_engines.PRICES；不認得的模型回 None）。
+    各家的 input 有的含快取、有的不含：一律照沒快取的價格算，寧可多算，API 每月上限才不會被低估。"""
+    from . import ai_engines
+    fresh = max(0, int(input or 0))
+    cached = max(0, int(cached or 0))
+    if cached > fresh:
+        fresh += cached  # input 不含快取
+    return ai_engines.price(model, fresh, 0, 0, max(0, int(output or 0)))
+
+
 def translation_meter(cfg: dict) -> usage.Meter:
     engine = cfg.get("engine") or ""
     section = cfg.get(engine) if isinstance(cfg.get(engine), dict) else {}
     if engine == "openai" and section.get("preset") == "ollama":
         engine = "ollama"  # 本機模型：跟 Engines 記的引擎名稱一致，不算成 OpenAI
-    return LedgerMeter(engine, str(section.get("model") or ""))
+    from . import ai_engines
+    local = engine == "ollama" or (engine == "openai" and ai_engines._is_loopback(str(section.get("base_url") or "")))
+    # API：算出金額記進帳本，才算得進 API 每月上限（額度保護）；認不得的模型照舊記「費用不明」
+    return LedgerMeter(engine, str(section.get("model") or ""), priced=engine == "openai" and not local)
 
 
 def engine_for(cfg: dict, model: str | None) -> dict:
@@ -163,6 +181,8 @@ class Jobs:
         except Exception as e:  # noqa: BLE001
             log.warning("翻譯的額度保護讀不到 %s", type(e).__name__)
             return {"reason": "check", "until": None}
+        if isinstance(wait, dict) and isinstance(wait.get("use"), dict):
+            return {"use": wait["use"]}  # 額度超過門檻，這次改用 API key 或本機模型
         if wait and (not isinstance(wait, dict) or wait.get("reason") not in WAIT_REASONS):
             return {"reason": "check", "until": None}
         return wait
@@ -180,11 +200,21 @@ class Jobs:
             if job.get("state") == "waiting":
                 waiting.append((job.get("updated") or "", ws, job))
         waiting.sort(key=lambda w: w[0])
+        cfg = config.load()
+        if not cfg.get("auto_translate", True):
+            # 關掉了「匯入後自動翻譯」：在等的不補翻，標成要使用者按（保留在清單；開回來之後下一輪照常問）
+            for _, ws, job in waiting:
+                if (job.get("wait") or {}).get("reason") != AUTO_OFF:
+                    with self.lock:
+                        if (ws.load("job") or {}).get("state") == "waiting":
+                            self._write(ws, wait={"reason": AUTO_OFF, "until": None})
+            return 0
         n = 0
         for _, ws, job in waiting:
             if n >= limit:
                 break
-            if self._gate(engine_for(config.load(), job.get("model"))):
+            wait = self._gate(engine_for(cfg, job.get("model")))
+            if wait and "use" not in wait:
                 continue
             with self.lock:
                 if (ws.load("job") or {}).get("state") != "waiting":
@@ -278,6 +308,8 @@ class Jobs:
             return
         if job.get("background") and (self.translate_gate or self.gate_required):
             wait = self._gate(cfg)
+            if wait and "use" in wait:
+                cfg, wait = wait["use"], None  # 改用 API key 或本機模型（用量照實際的引擎記）
             if wait:
                 with self.lock:
                     if cancel.is_set():

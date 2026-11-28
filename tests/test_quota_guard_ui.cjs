@@ -265,6 +265,16 @@ test("a waiting auto-translation says why and whether it will continue by itself
   assert.equal(g.waitLabel({ wait: {} }), "等額度重置");  // 看不懂的原因：當作等額度
 });
 
+test("a job left waiting after auto-translate was turned off waits for the user (#96)", async () => {
+  const s = setup([]);
+  await s.flush();
+  const g = s.PR.quotaGuard;
+  const job = { wait: { reason: "auto_off", until: null } };
+  assert.equal(g.waitLabel(job), "等你按翻譯");
+  assert.match(g.waitText(job), /你關掉了「匯入後自動翻譯」，這篇不會自動翻譯/);
+  assert.equal(g.waitCanWait(job), false);
+});
+
 test("library and reader show the waiting state with a way to start now or drop it", () => {
   const read = (f) => fs.readFileSync(path.join(__dirname, "../easyread/web/js", f), "utf8");
   const app = read("library/app.js");
