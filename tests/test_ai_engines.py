@@ -770,5 +770,37 @@ class AiApiTest(AiApiCase):
         self.assertEqual(self.get("/settings")[0], 200)
 
 
+class NoToolsHintTest(Base):
+    """Ticket 104：只有關不掉工具的 CLI（Codex、Antigravity）時，設定頁和今日新聞說明分類為什麼停著。"""
+
+    def codex_only(self):
+        self.found = json.loads(json.dumps(FOUND_NONE))
+        self.found["codex"] = {"found": True, "version": "codex 1"}
+
+    def test_triage_block_names_the_found_cli_only_when_no_tools_is_the_reason(self):
+        self.codex_only()
+        eng = self.engines()
+        self.assertEqual(eng.triage_block(), {"reason": "no_tools", "engines": ["codex"]})
+        self.found["antigravity"] = {"found": True}
+        self.assertEqual(eng.triage_block(), {"reason": "no_tools", "engines": ["codex", "antigravity"]})
+        self.set_task("triage", {"engine": "codex", "model": "", "entry": ""})  # 自己選了 Codex：一樣說明
+        self.assertEqual(eng.triage_block()["reason"], "no_tools")
+
+    def test_no_block_when_triage_can_run_or_there_is_no_ai_at_all(self):
+        self.assertIsNone(self.engines().triage_block())  # Claude Code 找得到
+        self.found = json.loads(json.dumps(FOUND_NONE))
+        self.assertIsNone(self.engines().triage_block())  # 根本沒有 AI：交給「沒有 AI」的提示
+        self.codex_only()
+        self.add_anthropic()
+        self.assertIsNone(self.engines().triage_block())  # 有 API key：分類改用它
+
+    def test_view_lists_the_no_tools_engines_and_tasks_and_the_triage_reason(self):
+        self.codex_only()
+        v = self.engines().view()
+        self.assertEqual(v["no_tools"], {"engines": ["codex", "antigravity"], "tasks": ["triage"]})
+        self.assertEqual((v["tasks"]["triage"]["state"], v["tasks"]["triage"]["reason"]), ("no_ai", "no_tools"))
+        self.assertEqual((v["tasks"]["translate"]["state"], v["tasks"]["translate"]["using"]), ("ready", "codex||"))
+
+
 if __name__ == "__main__":
     unittest.main()
