@@ -223,7 +223,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 
 - body 欄位（都可省略）：`importance`（逗號分隔，`high`、`mid`、`none`、`low`、`noise`，預設 `high,mid,none`；`none` = 還沒有重要度：待分類、失敗，或沒有相關對象）、`entity`（追蹤對象 id，也可以是題材；只列連到它的資料，題材是透過論點所屬的題材連到）、`limit`（預設 50，最多 200，超過照 200 回）。不認得的值回 400 `{error, field}`。
 - 「今天」是台北時間的日期，依發布時間算（時間不明就用匯入時間，跟分類一樣）。一次最多讀 1000 則最近兩天有動靜（分類狀態有更新）的資料，新的在前，超過時 `truncated` 是 `true`（畫面請使用者用篩選縮小）。讀不出來的資料（檔案壞掉或被鎖住）跳過那一則，log 只記 ID 和錯誤類型。標題和來源顯示使用者改過的（`meta_override`）。
-- 回傳 `{date, tz, levels, limit, items, total, more, truncated, counts, entities}`：`total` 是符合篩選的總數，`more` 是還有沒回的；`counts` 是各重要度的數量（已套用 `entity`，不套用 `importance`）；`entities` 是追蹤對象 / 題材的篩選清單 `[{id, name, type, count}]`（已套用 `importance`，最多 200 個）。資料庫還沒建時回空列表，不會建檔。
+- 回傳 `{date, tz, levels, limit, items, total, more, truncated, counts, entities, pending, triage_block}`：`total` 是符合篩選的總數，`more` 是還有沒回的；`counts` 是各重要度的數量（已套用 `entity`，不套用 `importance`）；`entities` 是追蹤對象 / 題材的篩選清單 `[{id, name, type, count}]`（已套用 `importance`，最多 200 個）。`pending` 是今天待分類的數量（不套用篩選）。`triage_block`（ticket 104）：有待分類、而分類因為只找得到關不掉工具的 CLI（Codex CLI、Antigravity CLI）跑不了時是 `{reason: "no_tools", engines}`（`engines` 是這台電腦找到的那幾個），其他時候（分類能跑、根本沒有 AI、AI 設定讀不到）是 `null`；畫面據此在上方說明、待分類的每則寫出原因。資料庫還沒建時回空列表，不會建檔。
 - `items` 依重要度（高、中、未分類、低、雜訊）再依時間（新的在前）排，每則 `{id, title, publisher, published_at, time_known, at, url, preview_only, state, importance, stale, retrospective, reader_url, top, entities, theses}`。`importance` 是它對各論點最高的一級（有論點就只看論點，沒有論點才看各追蹤對象，見規格「雜訊是相對的」）；`top` 是決定這一級的那個判斷（所以標籤和理由一定對得上） `{kind, id, relation, importance, confidence, reason}`；`entities`、`theses` 是相對於每個追蹤對象 / 論點的判斷（欄位同 4.66，論點另有 `claim`、`theme_name`）。沒有分類結果的資料 `top` 是 `null`、兩個清單是空的；分類結果讀不出來或格式不對的判斷也當成沒有。
 - **揭露紀錄**：讀取全部做完之後，用一個交易替回傳的每一則、而且有分類結果的資料寫揭露紀錄（地點 = `today`，同一則只記第一次），寫完才回傳；寫不進去整個請求失敗（500），不回任何 AI 的看法，也不會留下一部分紀錄。被篩掉或超過 `limit` 沒回的不寫。`counts` 和 `entities` 只有數量，沒有個別資料的看法，不算揭露。
 - 資料庫被鎖住或讀寫出錯時回 500，訊息是固定的一句，不帶原始錯誤。
@@ -240,6 +240,7 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
   - `tasks`：五種工作（`triage` 分類、`translate` 翻譯、`draft` 題材頁 / 概念卡起草、`thesis_change` 論點變化偵測、`ask` 問 AI），每個 `{primary, fallback, resolved, using, state, reason, today, month_cost}`。`primary` / `fallback` 是選項 id（`null` = 自動 / 不用備用）；`resolved` 是實際的主要引擎（自動時是自動挑到的），`using` 是現在會用的。`state`：`ready`、`fallback`（主要的不能用，改用備用）、`paused`（key 失效或登入過期，也沒有可以用的備用）、`no_ai`（沒有任何可以用的引擎）。`reason` 是主要的不能用的原因（`missing` / `auth_invalid` / `no_tools`：這個工作不能用關不掉工具的 CLI，目前只有 `triage`，見 4.66）。`today` 是今天（台北時間）的呼叫次數，`month_cost` 是這個月的 API 花費（美元，沒有就是 `null`）。
   - `choices`：下拉選單的選項，每個 `{id, engine, model, entry, model_label, name, kind, usable}`。選項 id 是 `引擎|服務 id|模型`，例如 `claude||claude-haiku-5-5`、`codex||`、`openai|o1a2b3c4d5e6|gpt-x`。
   - `any_ai`：有沒有任何工作找得到引擎。
+  - `no_tools`：`{engines: ["codex", "antigravity"], tasks: ["triage"]}`，關不掉工具的 CLI 和不能有工具的工作（ticket 104）。設定頁在找到的這些 CLI 旁標「可閱讀／翻譯，但不支援分類」，這些工作的下拉選單裡它們是灰的；`state` 是 `no_ai`、`reason` 是 `no_tools` 時，分類那格寫「不能分類」和要什麼引擎。
   - `guard`：額度保護的狀態，同 `GET /api/ai/guard`。
 - `POST /api/ai/detect`：重新偵測。之前標成登入過期的 CLI 會先清掉標記，下次呼叫再看結果。
 - `POST /api/ai/tasks`：`{task, primary, fallback}`，設定一種工作的主要和備用引擎；空字串 = 自動 / 不用備用，備用跟主要一樣等於不用備用。

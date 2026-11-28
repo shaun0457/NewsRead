@@ -61,6 +61,10 @@ window.PR = window.PR || {};
     pausedQuota: (pct, when) => PR.t("背景工作暫停中：Claude Code 5 小時額度到 {pct}，{when} 重置後自動接著跑。", { pct, when }),
     pausedCap: PR.t("背景工作暫停中：API 這個月的花費到了上限，背景的起草和匯入後的自動翻譯停下。"),
     pausedNoApi: PR.t("背景工作暫停中：背景不用訂閱，也還沒有 API key 或本機模型。新資料會先排在待分類。"),
+    noToolsChip: PR.t("可閱讀／翻譯，但不支援分類"),
+    noToolsHint: (engines) => PR.t("分類要把文章全文交給 AI，引擎不能帶任何工具。{engines} 的工具關不掉，所以分類只能用 Claude Code、API key 或本機模型（Ollama）。", { engines }),
+    noToolsOption: (label) => PR.t("{label} · 不支援分類", { label }),
+    cannotTriage: PR.t("不能分類"), triageNeeds: PR.t("分類要 Claude Code、API key 或本機模型"), addKey: PR.t("填 API key"),
   });
   const esc = (s) => PR.esc(s);
   const joinList = (xs) => xs.join(PR.lang === "en" ? ", " : "、");  // i18n-ok：列表分隔符號
@@ -103,8 +107,15 @@ window.PR = window.PR || {};
     return tx.quota(pct(five), pct(seven));
   }
 
+  /* 關不掉工具的 CLI 和不能有工具的工作（ticket 104，伺服器的 NO_TOOLS_UNSUPPORTED / NO_TOOLS_TASKS） */
+  const noTools = (view) => {
+    const n = view.no_tools || {};
+    return { engines: Array.isArray(n.engines) ? n.engines : [], tasks: Array.isArray(n.tasks) ? n.tasks : [] };
+  };
+
   function engineRowsHtml(view, tx, now) {
     const det = view.detected || {};
+    const nt = noTools(view).engines;
     const rows = CLI.map((e) => {
       const d = det[e] || {};
       let chip;
@@ -112,7 +123,8 @@ window.PR = window.PR || {};
       else if (d.auth === "invalid") chip = `<span class="chip bad">${esc(tx.authBad)}</span>`;
       else if (d.auth === "ok") chip = `<span class="chip ok">${esc(d.billing === "api" ? tx.loggedInApi : tx.loggedIn)}</span>`;
       else chip = `<span class="chip">${esc(tx.foundUnused)}</span>`;
-      const version = d.found && d.version ? `<span class="sub num" data-no-i18n>${esc(d.version)}</span>` : "";
+      const version = (d.found && d.version ? `<span class="sub num" data-no-i18n>${esc(d.version)}</span>` : "")
+        + (d.found && nt.includes(e) ? `<span class="sub no-tools"><span class="chip warn">${esc(tx.noToolsChip)}</span></span>` : "");
       let quota = `<span class="muted">—</span>`;
       if (e === "claude" && d.found) quota = quotaText(view.claude_quota, tx, now) ? `<span>${esc(quotaText(view.claude_quota, tx, now))}</span>` : `<span class="muted">${esc(tx.noQuotaYet)}</span>`;
       if (e === "codex" && d.found) quota = `<span class="muted">${esc(tx.codexQuota)}</span>`;
@@ -122,6 +134,13 @@ window.PR = window.PR || {};
     const ochip = o.running ? `<span class="chip ok">${esc(tx.running((o.models || []).length))}</span>` : `<span class="chip">${esc(tx.notRunning)}</span>`;
     rows.push(`<tr><td>${esc(tx.ollamaName)}</td><td>${ochip}</td><td class="muted">${esc(tx.ollamaQuota)}</td></tr>`);
     return rows.join("");
+  }
+
+  /* 找到關不掉工具的 CLI 時，表格下面說明為什麼分類不能用它（ticket 104） */
+  function noToolsHintHtml(view, tx) {
+    const nt = noTools(view).engines, det = view.detected || {};
+    if (!nt.some((e) => (det[e] || {}).found)) return "";
+    return `<p class="hint no-tools">${esc(tx.noToolsHint(joinList(nt.map((e) => ENGINE[e] || e))))}</p>`;
   }
 
   function statusHtml(k, tx) {
@@ -213,14 +232,20 @@ window.PR = window.PR || {};
     }).join("");
   }
 
-  function optionsHtml(view, selected, tx, first) {
-    return first + (view.choices || []).map((c) =>
-      `<option value="${esc(c.id)}"${c.id === selected ? " selected" : ""}>${esc(choiceLabel(c, tx))}</option>`).join("");
+  function optionsHtml(view, selected, tx, first, task) {
+    const nt = noTools(view), blocked = nt.tasks.includes(task);
+    return first + (view.choices || []).map((c) => {
+      const off = blocked && nt.engines.includes(c.engine);  // 這個工作不能用的 CLI：灰掉（已經選了的照樣顯示）
+      return `<option value="${esc(c.id)}"${c.id === selected ? " selected" : ""}${off ? " disabled" : ""}>`
+        + `${esc(off ? tx.noToolsOption(choiceLabel(c, tx)) : choiceLabel(c, tx))}</option>`;
+    }).join("");
   }
 
   function taskHint(s, view, tx) {
     const parts = [];
-    if (s.state === "no_ai") parts.push(`<span class="chip">${esc(tx.noAi)}</span>`);
+    if (s.state === "no_ai" && s.reason === "no_tools") {  // 只有關不掉工具的 CLI（ticket 104）
+      parts.push(`<span class="chip bad">${esc(tx.cannotTriage)}</span> ${esc(tx.triageNeeds)}`, `<a href="#byok">${esc(tx.addKey)}</a>`);
+    } else if (s.state === "no_ai") parts.push(`<span class="chip">${esc(tx.noAi)}</span>`);
     if (s.state === "paused") parts.push(`<span class="chip bad">${esc(tx.pausedChip)}</span>`);
     if (s.state === "fallback") parts.push(esc(tx.usingFallback(choiceLabel(Object.assign({}, findChoice(view, s.using), { usable: true }), tx))));
     parts.push(esc(tx.today(s.today || 0)));
@@ -234,10 +259,10 @@ window.PR = window.PR || {};
       const using = s.state === "ready" ? findChoice(view, s.using) : null;
       const auto = `<option value=""${s.primary ? "" : " selected"}>${esc(!s.primary && using ? tx.autoNow(choiceLabel(using, tx)) : tx.auto)}</option>`;
       return `<div class="field"><label for="f-task-${t}">${esc(tx[t])}</label>` +
-        `<select class="input" id="f-task-${t}" data-task="${t}" data-slot="primary" data-no-i18n>${optionsHtml(view, s.primary, tx, auto)}</select>` +
+        `<select class="input" id="f-task-${t}" data-task="${t}" data-slot="primary" data-no-i18n>${optionsHtml(view, s.primary, tx, auto, t)}</select>` +
         `<div class="row fallback"><label class="hint" for="f-fb-${t}">${esc(tx.fallbackLabel)}</label>` +
         `<select class="input" id="f-fb-${t}" data-task="${t}" data-slot="fallback" data-no-i18n>` +
-        `${optionsHtml(view, s.fallback, tx, `<option value=""${s.fallback ? "" : " selected"}>${esc(tx.noFallback)}</option>`)}</select></div>` +
+        `${optionsHtml(view, s.fallback, tx, `<option value=""${s.fallback ? "" : " selected"}>${esc(tx.noFallback)}</option>`, t)}</select></div>` +
         `<span class="hint">${taskHint(s, view, tx)}</span></div>`;
     }).join("");
   }
@@ -289,8 +314,8 @@ window.PR = window.PR || {};
     return `<fieldset class="plain"${S.busy ? " disabled" : ""}>` + noai +
       `<div class="label">${esc(when ? tx.detected(when) : tx.detecting)}<button class="btn sm ghost" type="button" data-act="detect">${esc(tx.redetect)}</button></div>` +
       `<div class="scroll-x"><table class="tbl"><thead><tr><th>${esc(tx.engineCol)}</th><th>${esc(tx.statusCol)}</th><th>${esc(tx.quotaCol)}</th></tr></thead>` +
-      `<tbody>${engineRowsHtml(v, tx, now == null ? Date.now() : now)}</tbody></table></div>` +
-      `<div class="label">${esc(tx.byok)}</div>` +
+      `<tbody>${engineRowsHtml(v, tx, now == null ? Date.now() : now)}</tbody></table></div>` + noToolsHintHtml(v, tx) +
+      `<div class="label" id="byok">${esc(tx.byok)}</div>` +
       `<div class="scroll-x"><table class="tbl keys"><thead><tr><th>${esc(tx.providerCol)}</th><th>${esc(tx.keyCol)}</th><th>${esc(tx.statusCol)}</th><th></th></tr></thead>` +
       `<tbody>${anthropicRowHtml(v, ui, tx)}${openaiRowsHtml(v, ui, tx)}</tbody></table></div>` +
       `<p class="hint">${esc(tx.keyHint)}</p>` + bannersHtml(v, tx) +

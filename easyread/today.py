@@ -7,6 +7,7 @@
   被篩掉或超過上限沒回的資料不寫。
 - 哪一天：發布時間（時間不明就用匯入時間，跟分類一樣）換成台北時間的日期。
 - 上限：一次最多掃 MAX_SCAN 則待分類 / 已分類的資料（超過回 truncated）、最多回 MAX_LIMIT 則。
+- 今天有待分類的資料、而分類因為只有關不掉工具的 CLI（Codex、Antigravity）跑不了時，回 triage_block 說明（ticket 104）。
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import entities, ledger, textitem, triage
+from . import ai_engines, entities, ledger, textitem, triage
 from .entities import EntityError
 from .i18n import tr
 from .store import DataReadError
@@ -107,7 +108,16 @@ def _linked(result: dict) -> set[str]:
 
 def _empty(date: str, levels, limit: int) -> dict:
     return {"date": date, "tz": "Asia/Taipei", "levels": list(levels), "limit": limit, "items": [], "total": 0, "more": False,
-            "truncated": False, "counts": {level: 0 for level in LEVELS}, "entities": []}
+            "truncated": False, "counts": {level: 0 for level in LEVELS}, "entities": [], "pending": 0, "triage_block": None}
+
+
+def _triage_block(app, engine) -> dict | None:
+    """分類為什麼停著（ai_engines.Engines.triage_block）。AI 設定讀不到時不讓今日新聞失敗，當作沒有說明；log 只記類型。"""
+    try:
+        return (engine or ai_engines.for_app(app, create_index=False)).triage_block()
+    except Exception as e:  # noqa: BLE001
+        log.warning("今日新聞讀不到分類引擎的狀態 %s", type(e).__name__)
+        return None
 
 
 def _scan(s, lib, today, now) -> tuple[list[dict], bool]:
@@ -214,8 +224,9 @@ def _top(result: dict) -> dict | None:
             "confidence": r["confidence"], "reason": r["reason"]}
 
 
-def build(app, query: dict) -> dict:
-    """{"importance": "high,mid,none", "entity": "<id>", "limit": 50} → 今天的資料。輸入不對丟 EntityError，資料庫出錯丟 sqlite3.Error。"""
+def build(app, query: dict, engine=None) -> dict:
+    """{"importance": "high,mid,none", "entity": "<id>", "limit": 50} → 今天的資料。輸入不對丟 EntityError，資料庫出錯丟 sqlite3.Error。
+    engine：測試用的 ai_engines.Engines；沒給就用伺服器共用的。"""
     levels, limit, entity = _levels(query.get("importance")), _limit(query.get("limit")), _entity(query.get("entity"))
     s = triage.store(app, create=False)
     if s is None:  # 資料庫還沒建：空狀態，不建檔
@@ -269,10 +280,14 @@ def build(app, query: dict) -> dict:
                               "claim": claims.get(t["id"], ""), "theme_name": detail_names.get(t.get("theme_id"), {}).get("name") or ""}
                              for t in result["theses"]]
         items.append(row)
+    # 待分類的數量不看篩選；有待分類的才去問分類為什麼停著（要讀 AI 設定和偵測結果）
+    pending = sum(1 for i in found if i["state"] == "pending")
+    block = _triage_block(app, engine) if pending else None
     # 讀取都做完了才寫揭露紀錄（一個交易），寫完直接回傳：寫失敗就整個請求失敗，不會留下「記了但沒顯示」的紀錄
     s.index.record_exposures([i["id"] for i in shown if i["result"]], "today")
     return {"date": today.isoformat(), "tz": "Asia/Taipei", "levels": list(levels), "limit": limit, "items": items,
-            "total": len(matching), "more": len(matching) > len(shown), "truncated": truncated, "counts": counts, "entities": ents}
+            "total": len(matching), "more": len(matching) > len(shown), "truncated": truncated, "counts": counts, "entities": ents,
+            "pending": pending, "triage_block": block}
 
 
 def _today_of(now) -> str:
