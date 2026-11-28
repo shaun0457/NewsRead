@@ -569,5 +569,68 @@ class GuardApiTest(AiApiCase):
         self.assertEqual(self.get("/api/ai/guard/nope")[0], 404)
 
 
+
+CLAUDE_CFG = {"engine": "claude", "claude": {}}
+CODEX_CFG = {"engine": "codex", "codex": {}}
+API_CFG = {"engine": "openai", "openai": {"base_url": "https://api.example.com/v1", "model": "m"}}
+LOCAL_CFG = {"engine": "openai", "openai": {"base_url": "http://127.0.0.1:11434/v1", "model": "m"}}
+
+
+class TranslationGateTest(GuardBase):
+    """匯入後自動開始的翻譯（閱讀器自己的引擎設定）送出前問額度保護（使用者 2026-11-28）。"""
+
+    def spend(self, usd):
+        self.index.record_usage(source="test", task="ask", engine="openai", model="m", cost_usd=usd)
+
+    def gate(self, cfg):
+        return self.engines().translation_gate(cfg)
+
+    def test_claude_and_codex_subscriptions_wait_for_the_user_by_default(self):
+        for cfg in (CLAUDE_CFG, CODEX_CFG):
+            self.assertEqual(self.gate(cfg), {"reason": "subscription", "until": None}, cfg["engine"])
+        self.assertIsNone(self.gate({"engine": "antigravity", "antigravity": {}}))  # 其他訂閱照樣自動翻
+        self.assertIsNone(self.gate({"engine": "none"}))
+        self.assertEqual(self.events(), [])  # 不算觸發保護，不記事件
+
+    def test_api_keys_and_local_models_translate_automatically(self):
+        self.assertIsNone(self.gate(API_CFG))
+        self.assertIsNone(self.gate(LOCAL_CFG))
+
+    def test_claude_cli_billed_through_the_api_counts_as_api(self):
+        self.settings.update(lambda d: d["engines"].__setitem__("claude", {"auth": "ok", "billing": "api"}))
+        self.assertIsNone(self.gate(CLAUDE_CFG))
+        self.guard(api_monthly_usd=1.0)
+        self.spend(1.5)
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "api_cap")
+
+    def test_allowed_subscription_waits_only_while_the_claude_quota_is_over(self):
+        self.guard(background_subscription=True)
+        self.assertIsNone(self.gate(CLAUDE_CFG))
+        self.q = quota(0.75, self.t)
+        for _ in range(2):  # 同一段暫停只記一筆
+            wait = self.gate(CLAUDE_CFG)
+            self.assertEqual(wait["reason"], "quota")
+            self.assertEqual(wait["until"], self.t + 3600.0)
+        self.assertEqual([(e["code"], e["task"]) for e in self.events()], [("QUOTA_PAUSED", "translate")])
+        self.assertIsNone(self.gate(CODEX_CFG))  # 看不到 Codex 的額度
+        self.q = quota(0.4, self.t)
+        self.assertIsNone(self.gate(CLAUDE_CFG))
+
+    def test_api_cap_stops_automatic_translation_until_it_is_raised(self):
+        self.guard(api_monthly_usd=1.0)
+        self.spend(1.0)
+        for _ in range(2):
+            self.assertEqual(self.gate(API_CFG), {"reason": "api_cap", "until": None})
+        self.assertEqual([(e["code"], e["task"]) for e in self.events()], [("API_CAP_STOPPED", "translate")])
+        self.assertIsNone(self.gate(LOCAL_CFG))  # 本機模型不花錢
+        self.guard(api_monthly_usd=5.0)
+        self.assertIsNone(self.gate(API_CFG))
+
+    def test_a_zero_cap_means_background_never_uses_the_api(self):
+        self.guard(api_monthly_usd=0)
+        self.assertEqual(self.gate(API_CFG), {"reason": "api_off", "until": None})
+        self.assertEqual(self.events(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

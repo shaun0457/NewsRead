@@ -210,7 +210,7 @@ test("leaving the page while a request is running does not schedule another poll
 test("every manual AI entry in the reader reminds before sending", () => {
   // 問 AI（論文和文章共用，筆記卡片的「點評」也走這裡）和筆記幫手（點評、幫我改、起草稿）
   // 智慧標註、心智圖（側欄產生、匯出時補產生）、讓模型重譯這段也是使用者按了就呼叫模型
-  // 翻譯還沒接上額度保護（gate F1），按了才開始的翻譯、整理在下一個測試
+  // 按了才開始的翻譯、整理在下一個測試
   for (const [file, call] of [["chat.js", 'fetch("/api/p/" + PR.pid + "/chat"'], ["notehelp.js", 'fetch("/api/p/" + PR.pid + "/notehelp"'],
     ["notespanel.js", '"/smart-annotate"'], ["planner.js", '"/mindmap/tasks"'], ["export.js", 'PR.api(endpoint, { method: "POST"'],
     ["actions.js", 'PR.ask("retranslate"']]) {
@@ -224,7 +224,7 @@ test("every manual AI entry in the reader reminds before sending", () => {
 });
 
 test("every translate button reminds before it starts the job", () => {
-  // 翻譯走閱讀器自己的引擎設定，還沒經過額度保護（gate F1）：使用者按了才開始的翻譯、整理都先提醒
+  // 使用者按了才開始的翻譯、整理照跑，送出前提醒；匯入後自動開始的才受額度保護暫停（ticket 68）
   const read = (f) => fs.readFileSync(path.join(__dirname, "../easyread/web/js", f), "utf8");
   const before = (src, call, file) => {
     const at = src.indexOf(call);
@@ -242,6 +242,41 @@ test("every translate button reminds before it starts the job", () => {
   const calls = detail.split('"/translate"').length - 1;
   const reminded = (detail.match(/remindAi\(\);(\s|\n)*(try \{\s*)?(await )?PR\.api\("\/api\/p\/" \+ i\.id \+ "\/translate"/g) || []).length;
   assert.equal(reminded, calls);
+});
+
+test("a waiting auto-translation says why and whether it will continue by itself", async () => {
+  const s = setup([]);
+  await s.flush();
+  const g = s.PR.quotaGuard;
+  const sub = { state: "waiting", wait: { reason: "subscription", until: null } };
+  assert.equal(g.waitLabel(sub), "等你按翻譯");
+  assert.match(g.waitText(sub), /Claude Code、Codex 訂閱時，匯入後不會自動翻譯/);
+  assert.equal(g.waitCanWait(sub), false);
+  assert.equal(g.waitLabel({ wait: { reason: "api_off" } }), "等你按翻譯");
+  const until = new Date(2026, 10, 28, 16, 40).getTime() / 1000;
+  const quota = { state: "waiting", wait: { reason: "quota", until } };
+  assert.equal(g.waitLabel(quota), "等額度重置");
+  assert.match(g.waitText(quota), /16:40 額度重置後自動接著做/);
+  assert.equal(g.waitCanWait(quota), true);
+  assert.match(g.waitText({ wait: { reason: "quota", until: null } }), /先等，額度重置後自動接著做/);  // 不知道重置時間
+  const cap = { read: true, wait: { reason: "api_cap", until: null } };
+  assert.equal(g.waitLabel(cap), "API 到上限");
+  assert.match(g.waitText(cap), /匯入後的自動整理先等，下個月或調高上限後/);
+  assert.equal(g.waitLabel({ wait: {} }), "等額度重置");  // 看不懂的原因：當作等額度
+});
+
+test("library and reader show the waiting state with a way to start now or drop it", () => {
+  const read = (f) => fs.readFileSync(path.join(__dirname, "../easyread/web/js", f), "utf8");
+  const app = read("library/app.js");
+  assert.match(app, /j\.state === "waiting" && PR\.quotaGuard\) return '<span class="stat wait"[^\n]*waitText\(j\)[^\n]*waitLabel\(j\)/);
+  const detail = read("library/detail.js");
+  assert.match(detail, /const waiting = j\.state === "waiting" && PR\.quotaGuard;/);
+  assert.match(detail, /waiting \? '<button class="btn sm line" data-d="cancel">' \+ PR\.t\("不用了"\)/);
+  assert.match(detail, /data-d="' \+ \(read \? "read-rest" : "translate"\) \+ '">/);  // 「開始翻譯」就是現在翻譯（手動）
+  assert.match(read("reader/panels.js"), /j\.state === "waiting" && PR\.quotaGuard\) \{ el\.textContent = PR\.quotaGuard\.waitLabel\(j\)/);
+  const render = read("reader/render.js");
+  assert.match(render, /job\.state === "waiting" && PR\.quotaGuard \? '<span class="wait">'/);
+  assert.equal((render.match(/先放原页。", \{ n: miss\.length \}\) \+ wait \+/g) || []).length, 2);
 });
 
 test("every page with a header loads the indicator", () => {

@@ -346,7 +346,8 @@ class Handler(BaseHTTPRequestHandler):
         if queued:
             if translate_after and not read:
                 langs.remember(ws, target)  # 导入框里选的译文语言
-            self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model)
+            # 匯入後接著翻譯 / 整理：算背景工作，受額度保護（ticket 68）
+            self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model, background=translate_after)
         return self._json(200, {"id": ws.id, "new": fresh, "queued": queued})
 
     # ---------- GET ----------

@@ -15,6 +15,9 @@ from .library import Library
 from .log import log
 from .store import DataReadError, Workspace, now_iso
 
+WAIT_REASONS = ("subscription", "quota", "api_off", "api_cap")  # 見 ai_engines.Engines.translation_gate
+CATCHUP_PER_ROUND = 5  # 〔預設〕額度解除後，每一輪最多補翻幾篇（依排進來的先後）
+
 
 class LedgerMeter(usage.Meter):
     """翻譯、問 AI 的用量：照樣累計在任務或對話裡，每次呼叫 AI 另外記一筆到帳本的 AI 用量（ticket 12）。
@@ -68,6 +71,8 @@ class Jobs:
         self.small_cancels: dict[str, threading.Event] = {}
         self.recent: list[dict] = []  # 小任务的状态，给页面轮询
         self.lock = threading.Lock()
+        # 匯入後自動翻譯的額度保護：cfg -> None 或 {reason, until}（launch 接 ai_engines.Engines.translation_gate）；None = 不檢查
+        self.translate_gate = None
         self._resume()
         for target in (self._bulk_loop, self._small_loop):
             threading.Thread(target=target, daemon=True).start()
@@ -85,21 +90,24 @@ class Jobs:
                 raise
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
-                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False):
+                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False,
+                background: bool = False):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。
         read：只读原文，用模型把页整理成段落、公式、表格，不翻译；之后再翻译时就地补中文。
         model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。
         confirmed：只接受真正的 True；target：续跑时保留原任务的译文语言。
-        cap_check：pages 来自系统计划而非用户指定，仍检查页数上限并跳过已完成页。"""
+        cap_check：pages 来自系统计划而非用户指定，仍检查页数上限并跳过已完成页。
+        background：匯入後自動開始的翻譯（不是使用者按的）：送出前先問 translation_gate，不能送就改成 waiting。"""
         target = langs.valid(target) if target else langs.of_paper((ws.load("paper") or {}).get("meta"))
         def apply(job):
             if job.get("state") in ("queued", "running"):
                 raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
             job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
                        state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
-                       confirmed=confirmed is True, target=target, cap_check=cap_check is True,
+                       confirmed=confirmed is True, target=target, cap_check=cap_check is True, background=background is True,
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
             job.pop("page_cap", None)
+            job.pop("wait", None)
         with self.lock:
             ws.update("job", apply)
             self.bulk.put(ws.id)
@@ -113,7 +121,7 @@ class Jobs:
             job = (ws.load("job") or {}) if ws else {}
             if job.get("state") == "queued":
                 self._write(ws, state="cancelled", message=tr("已取消"))
-            elif job.get("state") == "confirm":
+            elif job.get("state") in ("confirm", "waiting"):
                 self._write(ws, state="done", message=tr("已导入，未整理") if job.get("read") else tr("已导入，未翻译"))
 
     def stop_model_work(self, ids: list[str] | None = None) -> int:
@@ -127,19 +135,57 @@ class Jobs:
                     continue
                 job = ws.load("job") or {}
                 state = job.get("state")
-                if state not in ("queued", "running", "confirm") or not job.get("translate"):
+                if state not in ("queued", "running", "confirm", "waiting") or not job.get("translate"):
                     continue
                 n += 1
                 if state == "running":
                     ev = self.cancels.get(ws.id)
                     if ev:
                         ev.set()
-                elif state == "confirm":
+                elif state in ("confirm", "waiting"):
                     self._write(ws, state="done", message=tr("已导入，未整理") if job.get("read") else tr("已导入，未翻译"))
                 elif (ws.load("paper") or {}).get("meta", {}).get("pages"):
                     self._write(ws, state="cancelled", message=tr("已取消"))
                 else:  # 留在队里，轮到时只渲染原页
                     self._write(ws, type="prepare", translate=False, read=False, message=tr("排队中"))
+        return n
+
+    def _gate(self, cfg: dict) -> dict | None:
+        """問額度保護；問不到（帳本被鎖、設定壞了）就先等，下一輪補翻時再問。log 只記類型。"""
+        try:
+            wait = self.translate_gate(cfg)
+        except Exception as e:  # noqa: BLE001
+            log.warning("翻譯的額度保護讀不到 %s", type(e).__name__)
+            return {"reason": "quota", "until": None}
+        if wait and wait.get("reason") not in WAIT_REASONS:
+            return {"reason": "quota", "until": None}
+        return wait
+
+    def resume_waiting(self, limit: int = CATCHUP_PER_ROUND) -> int:
+        """排程每一輪呼叫：等額度的翻譯，額度解除（或使用者改了設定）就排回去，依排進來的先後，最多 limit 篇。回傳排回幾篇。"""
+        if not self.translate_gate:
+            return 0
+        waiting = []
+        for ws in self.lib.all():
+            try:
+                job = ws.load("job") or {}
+            except DataReadError:
+                continue
+            if job.get("state") == "waiting":
+                waiting.append((job.get("updated") or "", ws, job))
+        waiting.sort(key=lambda w: w[0])
+        n = 0
+        for _, ws, job in waiting:
+            if n >= limit:
+                break
+            if self._gate(engine_for(config.load(), job.get("model"))):
+                continue
+            with self.lock:
+                if (ws.load("job") or {}).get("state") != "waiting":
+                    continue  # 使用者剛好按了翻譯或取消
+                self._write(ws, state="queued", message=tr("排队中"), wait=None)
+                self.bulk.put(ws.id)
+            n += 1
         return n
 
     def _resume(self):
@@ -224,6 +270,15 @@ class Jobs:
         if not pages:
             self._write(ws, state="done", message=tr("选定范围已整理完") if read else tr("选定范围已译完"))
             return
+        if job.get("background") and self.translate_gate:
+            wait = self._gate(cfg)
+            if wait:
+                with self.lock:
+                    if cancel.is_set():
+                        raise Cancelled()
+                    self._write(ws, state="waiting", wait=wait, total=len(pages),
+                                message=tr("匯入後的自動整理先等，要你按或等額度重置") if read else tr("匯入後的自動翻譯先等，要你按或等額度重置"))
+                return
 
         cap = cfg.get("page_cap", 60)
         if type(cap) is not int or cap < 0:

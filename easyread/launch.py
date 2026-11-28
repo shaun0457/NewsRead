@@ -11,7 +11,7 @@ import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import __version__, config, detect, instance, triage
+from . import __version__, ai_engines, config, detect, instance, triage
 from .i18n import tr
 from .log import log, setup as setup_log
 from .presence import Presence
@@ -22,6 +22,7 @@ from .store import now_iso, read_json, write_json_atomic
 
 STOP_TIMEOUT = 5.0  # 停止時最多等排程工作幾秒；卡住的工作是 daemon 執行緒，不會擋住程序結束
 SCHEDULE_NAME = "schedule.json"
+TRANSLATE_CATCHUP_INTERVAL = 300.0  # 〔預設〕每 5 分鐘看一次等額度的翻譯能不能補翻
 
 
 class _Server(ThreadingHTTPServer):
@@ -88,6 +89,8 @@ def _serve(cfg: dict, started: float, port, open_browser: bool, path: str, exit_
         app.presence = Presence(lambda: app.jobs.busy() or research_tasks.busy(), httpd.shutdown, exit_on_close)
         app.scheduler = Scheduler(None if config.temp_library() else config.HOME / SCHEDULE_NAME)
         app.scheduler.add("triage", triage.INTERVAL, lambda: triage.run_pending(app))  # AI 分類（ticket 14）
+        app.jobs.translate_gate = lambda cfg: ai_engines.for_app(app).translation_gate(cfg)  # 匯入後自動翻譯的額度保護
+        app.scheduler.add("translate_catchup", TRANSLATE_CATCHUP_INTERVAL, lambda: app.jobs.resume_waiting())  # 額度解除後補翻
         app.scheduler.start()
         if not config.temp_library():
             write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})

@@ -53,4 +53,5 @@ class ImportRetryTest(unittest.TestCase):
                 self.assertEqual(result["queued"], expected)
                 self.assertEqual(handler.app.jobs.enqueue.call_count, int(expected))
                 if expected:
-                    handler.app.jobs.enqueue.assert_called_with(self.ws, translate_after=False, scope="range:1-1", read=False, model="")
+                    handler.app.jobs.enqueue.assert_called_with(self.ws, translate_after=False, scope="range:1-1", read=False, model="",
+                                                               background=False)
