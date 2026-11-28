@@ -466,6 +466,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/engines":
             cfg = config.load()
             found = detect.detect(cfg, fresh=parse_qs(url.query).get("fresh") == ["1"])
+            if isinstance(found.get("claude"), dict):  # 設定頁提示：不給工具的工作不帶哪些額外參數（#103）；不改 detect 的快取
+                found = {**found, "claude": {**found["claude"], "no_tools_skipped": engines.no_tools_args((cfg.get("claude") or {}).get("extra_args"))[1]}}
             return self._json(200, {"found": found, "ready": detect.ready(cfg, found), "engine": cfg.get("engine"), "models": cli_models.listing()})
         if path == "/api/prefs":
             return self._json(200, prefs.load())

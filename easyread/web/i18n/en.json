@@ -610,6 +610,7 @@
   "本周额度": "Weekly quota",
   "本机已下载": "Downloaded locally",
   "本机没找到 {name}": "{name} not found on this computer",
+  "AI 分類這類不給工具的工作不會帶這些額外參數：{flags}（只收 --fallback-model 和只設連線環境變數的 --settings）": "Work that runs without tools, such as AI triage, leaves out these extra arguments: {flags} (only --fallback-model and a --settings that sets connection variables only are kept)",
   "本机没找到 {source}": "{source} not found on this computer",
   "本机装了 Claude Code 或 Codex 就能直接用，不用 Key；也可以用 DeepSeek、智谱、通义、Gemini 等 API，或本机 Ollama。在设置里换。": "If Claude Code or Codex is installed, it works right away with no key. You can also use APIs like DeepSeek, Zhipu, Qwen or Gemini, or a local Ollama. Change it in Settings.",
   "本机运行（离线、免费）": "Local (offline, free)",

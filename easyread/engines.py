@@ -94,6 +94,48 @@ def claude_path(c: dict) -> str | None:
     return shutil.which(c.get("command") or "claude")
 
 
+# 不給工具時（AI 分類：prompt 裡有外部文章）使用者的 Claude Code 額外參數只收連線相關的（#103）。
+# 會加工具、hooks、MCP 或讀檔權限的參數（--mcp-config、--allowedTools、--add-dir、--settings 檔案…）一律不收。
+_NO_TOOLS_FLAGS = ("--fallback-model",)  # 後面跟一個值
+_NO_TOOLS_ENV = frozenset({"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "NODE_EXTRA_CA_CERTS", "ANTHROPIC_BASE_URL"})
+_FLAG_NAME = re.compile(r"--?[A-Za-z][A-Za-z0-9-]{0,40}")
+
+
+def _connection_settings(value: str) -> bool:
+    """--settings 的值是不是只設連線用的環境變數：要寫成 JSON（檔案路徑讀不到內容，可能帶 hooks），
+    只有 env 一個鍵，env 裡只有 proxy / 憑證 / API 位址。"""
+    try:
+        data = json.loads(value)
+    except (TypeError, ValueError):
+        return False
+    env = data.get("env") if isinstance(data, dict) and set(data) == {"env"} else None
+    return (isinstance(env, dict) and bool(env)
+            and all(isinstance(k, str) and k.upper() in _NO_TOOLS_ENV and isinstance(v, str) for k, v in env.items()))
+
+
+def no_tools_args(extra) -> tuple[list[str], list[str]]:
+    """使用者的額外參數 → (不給工具時照傳的, 不收的參數名)。不收的只回參數名（值可能帶帳號密碼），不是參數樣子的記成 "?"。"""
+    items = [a for a in (extra or []) if isinstance(a, str)]
+    kept: list[str] = []
+    skipped: list[str] = []
+    i = 0
+    while i < len(items):
+        name, eq, value = items[i].partition("=")
+        takes_value = name == "--settings" or name in _NO_TOOLS_FLAGS
+        if takes_value and not eq:
+            value = items[i + 1] if i + 1 < len(items) else None
+        ok_value = value is not None and value != "" and not value.startswith("-")  # 「-」開頭的是下一個參數，不是值
+        step = 2 if takes_value and not eq and ok_value else 1
+        if takes_value and ok_value and (name in _NO_TOOLS_FLAGS or _connection_settings(value)):
+            kept += [name, value]
+        elif items[i].startswith("-") or takes_value:
+            label = name if _FLAG_NAME.fullmatch(name) else "?"
+            if label not in skipped:
+                skipped.append(label)
+        i += step
+    return kept, skipped
+
+
 def codex_path(c: dict) -> str | None:
     return shutil.which(c.get("command") or "codex")
 
@@ -114,7 +156,12 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
     args = [exe, "-p", *base]
     if c.get("model"):
         args += ["--model", c["model"]]
-    if not no_tools:  # 使用者的額外參數可能帶 --mcp-config、--allowedTools，把工具加回來：不能有工具時不用
+    if no_tools:  # 使用者的額外參數可能帶 --mcp-config、--allowedTools、hooks，把工具加回來：只收允許清單內的
+        kept, skipped = no_tools_args(c.get("extra_args"))
+        args += kept
+        if skipped:
+            log.warning("Claude Code 不給工具時略過額外參數：%s", " ".join(skipped))
+    else:
         args += list(c.get("extra_args") or [])
     if c.get("reasoning_effort"):
         args += ["--effort", c["reasoning_effort"]]

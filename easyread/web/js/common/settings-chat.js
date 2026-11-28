@@ -100,7 +100,10 @@
     if (f.kind === "claude" || f.kind === "codex" || f.kind === "antigravity") {
       const found = (s.found || {})[f.kind];
       h += '<label class="field"><span>' + PR.t("模型") + "</span>" + PR.cliModelSelect(s, f.kind, f.model, 'id="cmModel"') + "</label>" +
-        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : (f.kind === "codex" ? "Codex CLI" : "Antigravity CLI") }) + "</p>" : "");
+        (found && !found.found ? '<p class="hint">' + PR.t("本机没找到 {name}", { name: f.kind === "claude" ? '<a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noopener">Claude Code</a>' : (f.kind === "codex" ? "Codex CLI" : "Antigravity CLI") }) + "</p>" : "") +
+        // #103：AI 分類這類不給工具的工作，只帶連線相關的額外參數
+        (found && Array.isArray(found.no_tools_skipped) && found.no_tools_skipped.length
+          ? '<p class="hint">' + PR.t("AI 分類這類不給工具的工作不會帶這些額外參數：{flags}（只收 --fallback-model 和只設連線環境變數的 --settings）", { flags: PR.esc(found.no_tools_skipped.join(" ")) }) + "</p>" : "");
     } else {
       h += PR.apiForm.html(s, f, { keyProp: "key", vision: false });
     }
