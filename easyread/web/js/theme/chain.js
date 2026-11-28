@@ -190,6 +190,13 @@ window.PR = window.PR || {};
     return link;
   }
 
+  /* 收起的比較區：支援 hidden="until-found" 的瀏覽器用它（頁內搜尋找得到）；不支援的退回一般的 hidden，
+     不然那些瀏覽器會把它當成沒隱藏（作者樣式的 display: grid 蓋過預設的 display: none） */
+  function collapsedAttr() {
+    const body = typeof document !== "undefined" && document.body;
+    return body && "onbeforematch" in body ? ' hidden="until-found"' : " hidden";
+  }
+
   function compareHtml(S, tx) {
     const c = S.conflict, ed = S.editing;
     if (!c || !c.theirs || !ed) return "";
@@ -197,7 +204,7 @@ window.PR = window.PR || {};
     const withCompany = "revenue_share" in c.theirs || "revenue_share" in mine;
     const a = cmpRows(c.theirs, tx, withCompany), b = cmpRows(mine, tx, withCompany);
     const dl = (rows, other) => `<dl>${rows.map(([k, v], i) => `<dt>${esc(k)}</dt><dd${v !== other[i][1] ? ' class="chg"' : ""} data-no-i18n>${esc(v)}</dd>`).join("")}</dl>`;
-    return `<div class="cmp" id="chain-cmp"${c.open ? "" : ' hidden="until-found"'}>`
+    return `<div class="cmp" id="chain-cmp"${c.open ? "" : collapsedAttr()}>`
       + `<div><h3>${esc(tx.theirs)} <span class="chip">${esc(tx.theirsChip(c.version))}</span></h3>${dl(a, b)}</div>`
       + `<div><h3>${esc(tx.mine)} <span class="chip mine">${esc(tx.mineChip)}</span></h3>${dl(b, a)}</div></div>`;
   }

@@ -240,7 +240,7 @@ test("while a request is in flight, no form opens and cancel is disabled", async
 });
 
 /* ---------- 版本衝突時保留表單（ticket 108） ---------- */
-function loadWith(replies) {
+function loadWith(replies, doc = { addEventListener() {} }) {
   const calls = [];
   const PR = {
     lang: "zh-TW",
@@ -254,7 +254,7 @@ function loadWith(replies) {
       return r.fail ? Promise.reject(r.fail) : Promise.resolve(r.ok);
     },
   };
-  const context = { window: { PR }, document: { addEventListener() {} } };
+  const context = { window: { PR }, document: doc };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/theme/chain.js"), "utf8"), context);
   return { C: PR.themeChain, calls, replies };
 }
@@ -271,7 +271,7 @@ function editing(C, links, index, relation) {
 
 test("a save blocked by a newer version keeps the form, shows the new version beside mine, and resends on top of it", async () => {
   const theirs = Object.assign({}, B, { relation: "月產能年底前到 8 萬片（另一個分頁）" });
-  const { C, calls, replies } = loadWith([STALE, { ok: view([A, theirs], { version: 3 }) }]);
+  const { C, calls, replies } = loadWith([STALE, { ok: view([A, theirs], { version: 3 }) }], { addEventListener() {}, body: { onbeforematch: null } });
   editing(C, [A, B], 1, "月產能拉到 9 萬片");
   await C.submit();
   assert.equal(C.state.editing.index, 1);
@@ -371,5 +371,16 @@ test("matchLink: same place first, then the only link with the same from and to;
   assert.equal(C.matchLink(B, 1, [A]), null);
   assert.equal(C.matchLink(link({ from: { label: "需求" }, to: { entity_id: E2 } }), 0, [ent]), 0);  // 追蹤對象看 id，不看名稱
   assert.equal(C.matchLink(null, 0, [A]), null);
+});
+
+test("browsers without hidden=until-found get a plain hidden comparison, and the global hidden rule leaves until-found alone", async () => {
+  const theirs = Object.assign({}, B, { relation: "另一個分頁的說明" });
+  const { C } = loadWith([STALE, { ok: view([A, theirs], { version: 3 }) }], { addEventListener() {}, body: {} });
+  editing(C, [A, B], 1, "我的說明");
+  await C.submit();
+  assert.match(C.viewHtml(C.state), /<div class="cmp" id="chain-cmp" hidden>/);
+  const css = fs.readFileSync(path.join(__dirname, "../easyread/web/css/newsread.css"), "utf8");
+  assert.match(css, /\[hidden\]:not\(\[hidden="until-found" i\]\) \{ display: none !important; \}/);
+  assert.doesNotMatch(css, /^\[hidden\] \{ display: none/m);
 });
 
