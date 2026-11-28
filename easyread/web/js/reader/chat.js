@@ -135,14 +135,19 @@
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") +
       (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : m.answer_style === "xray" ? '<span class="cm-style">' + PR.t("精讀") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
-      '<div class="body">' + (m.error ? PR.esc(m.error) : !live && m.answer ? answerHtml(m) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
+      '<div class="body">' + (m.error ? PR.esc(m.error) : liveBody(m, live)) + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         '<button data-c="export-md" title="' + PR.t("下載 Markdown 文件") + '">' + PR.icon("download", "sm") + PR.t("下載") + '</button>' +
         '<button data-c="export-obsidian" title="' + PR.t("匯出至 Obsidian Vault") + '">' + PR.icon("book", "sm") + PR.t("匯出 Obsidian") + '</button>' +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
-  function answerHtml(m) {
-    const a = m.answer || {};
+  function liveBody(m, live) {  // 文章串流中只畫伺服器拆好、對過引述的部分（ticket 101），不畫原文
+    if (live && m.partial) return answerHtml(m, true);
+    if (!live && m.answer) return answerHtml(m);
+    return m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>';
+  }
+  function answerHtml(m, live) {
+    const a = (live ? m.partial : m.answer) || {};
     const ratings = m.ratings || {};
     const secs = (a.sections || []).map((s, si) => '<section class="ans-sec ans-' + PR.esc(s.kind) + '"><h4>' + PR.esc(PR.t(SECTION_TITLE[s.kind] || s.kind)) + "</h4>" +
       (s.items || []).map((it, ii) => {
@@ -150,7 +155,7 @@
         return '<div class="ans-item"><div class="ans-text">' + PR.md(it.text || "", { cite: false, xref: false }) +
           (it.cites || []).map((c) => '<button class="ans-cite" data-c="go" data-anchor="' + PR.esc(c.id) + '" title="' + PR.esc(c.quote) + '">¶' + PR.esc(String(c.n)) + "</button>").join("") +
           (s.kind === "general" ? '<span class="ans-tag">' + PR.t("AI 解釋") + "</span>" : "") + "</div>" +
-          (PR.canChat() ? '<div class="ans-rate" role="group" aria-label="' + PR.t("標記這句") + '">' + VERDICTS.map(([v, mark, label]) =>
+          (PR.canChat() && !live && m.id ? '<div class="ans-rate" role="group" aria-label="' + PR.t("標記這句") + '">' + VERDICTS.map(([v, mark, label]) =>
             '<button data-c="rate" data-k="' + key + '" data-v="' + v + '" class="' + (cur === v ? "on" : "") + '" aria-pressed="' + (cur === v) + '" title="' + PR.t(label) + '">' +
             (v === "fabricated" ? PR.t(mark) : mark) + "</button>").join("") + "</div>" : "") + "</div>";
       }).join("") + "</section>").join("");
@@ -158,7 +163,8 @@
     const dropped = a.dropped ? '<p class="ans-dropped">' + PR.t("有 {n} 句的引述對不上原文，已隱藏", { n: a.dropped }) + "</p>" : "";
     const foot = '<p class="ans-foot">' + [m.answer_style === "xray" ? PR.t("精讀") : PR.t("白話"),
       m.prompt_version ? "prompt " + PR.esc(String(m.prompt_version).split("@")[0]) : "", PR.t("引用的 ¶ 都對過原文")].filter(Boolean).join(" · ") + "</p>";
-    return lead + secs + dropped + foot;
+    const stopped = m.stopped ? '<p class="ans-dropped">' + PR.t("（已停止）") + "</p>" : "";
+    return lead + secs + dropped + (live ? "" : stopped + foot);
   }
   function answerText(m) {  // 複製：只有畫面上顯示的內容，對不上原文的句子不會跑回來
     const a = m.answer || {};
@@ -227,7 +233,7 @@
   function renderLive() {
     const node = st.streaming && PR.$("#chatList .cm.ai:last-child .body");
     if (!node) return;
-    node.innerHTML = st.streaming.msg.content ? PR.mdBlocks(st.streaming.msg.content) : '<p class="thinking"><i></i><i></i><i></i></p>';
+    node.innerHTML = liveBody(st.streaming.msg, true);
     const box = PR.$("#chatList");
     if (box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
   }
@@ -291,12 +297,14 @@
           if (ev.model) msg.model = ev.model;
           if (ev.answer_style) msg.answer_style = t.answer_style = ev.answer_style;
           if (ev.t) { msg.content += ev.t; renderLiveSoon(); }
-          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.answer) msg.answer = ev.answer; if (ev.prompt_version) msg.prompt_version = ev.prompt_version; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
+          if (ev.partial) { msg.partial = ev.partial; renderLiveSoon(); }
+          if (ev.done) { msg.id = ev.id; if (ev.usage) msg.usage = ev.usage; if (ev.answer) msg.answer = ev.answer; if (ev.prompt_version) msg.prompt_version = ev.prompt_version; if (typeof ev.content === "string") msg.content = ev.content; if (ev.usage && ev.usage.limits) st.limits = { limits: ev.usage.limits, at: Date.now() / 1000 }; }
           if (ev.error) msg.error = ev.error;
         }
       }
     } catch (e) {
-      if (e.name === "AbortError") msg.content += "\n\n" + PR.t("（已停止）");
+      if (e.name === "AbortError" && msg.partial && !msg.answer) { msg.answer = msg.partial; msg.stopped = true; }  // 文章：只留對過的部分
+      else if (e.name === "AbortError") msg.content += "\n\n" + PR.t("（已停止）");
       else msg.error = PR.t("没能回答：{msg}", { msg: PR.errorText(e) });
     }
     st.streaming = null;

@@ -193,7 +193,8 @@ class Handler(BaseHTTPRequestHandler):
         self._write(body)
 
     def _chat(self, ws, body: dict):
-        """流式回答：一行一个 JSON，{"t": 片段} … 最后 {"done": true, "id": …} 或 {"error": …}。"""
+        """流式回答：一行一个 JSON，{"t": 片段} … 最后 {"done": true, "id": …} 或 {"error": …}。
+        文章不送原文片段，改送 {"partial": 拆好、對過引述的部分}，答完的 done 再帶 content（ticket 101）。"""
         text = (body.get("text") or "").strip()
         if not text:
             raise ValueError(tr("问题是空的"))
@@ -258,22 +259,31 @@ class Handler(BaseHTTPRequestHandler):
             if article and not attachments:
                 image_options["tools"] = False  # 文章是外部內容：Claude 不給任何工具（防文章裡的指示叫它讀檔）
             received = 0
+            live = article_ask.Live(article_ask.paragraphs(ws)) if article else None
+
+            def forward(piece):
+                if live is None:
+                    return send({"t": piece})
+                shown = live.feed(piece)
+                if shown is not None:
+                    send({"partial": shown})
             for piece in chat.stream(ecfg, prompt_text, ws.root, cancel, seen, meter, **image_options):
                 if article and not received:
                     self._ask_exposure(ledger_path, ws)  # 有回答出來才算揭露
                 piece = piece[:MAX_ANSWER_CHARS - received]
                 received += len(piece)
                 pieces.append(piece)
-                send({"t": piece})
+                forward(piece)
                 if received >= MAX_ANSWER_CHARS:
                     cancel.set()  # 回答太長：停掉引擎（關掉 generator 時也會 kill 子程序）
                     tail = "\n\n" + tr("（回答太長，已截斷）")
                     pieces.append(tail)
-                    send({"t": tail})
+                    forward(tail)
                     break
             msg = chat_store.append(ws, tid, user, "".join(pieces), m["id"], model, meter.snapshot(), extra())
             send({"done": True, "id": msg["id"], "usage": msg.get("usage"), "answer": msg.get("answer"),
-                  "prompt_version": msg.get("prompt_version")})
+                  "prompt_version": msg.get("prompt_version"),
+                  **({"content": msg["content"]} if article and not msg.get("answer") else {})})  # 沒照格式：照原文顯示
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             cancel.set()  # 读者点了停止或关了页面
             if pieces:
