@@ -138,6 +138,68 @@ class VersionTest(StoreCase):
             self.bad("theme_id", self.store.add_thesis, self.theme, "draft", {"claim": "第三個"})
 
 
+class ProvenanceTest(StoreCase):
+    """Ticket 106：每個欄位記是誰寫的，AI 寫的在定稿前要看過。"""
+    AI = "ai:opus@v1"
+    BODY = {"one_liner": "故事", "analogy": "類比", "second_order": ["外溢一", "外溢二"],
+            "chain": [{"from": {"label": "A"}, "to": {"label": "B"}, "relation": "r", "source": SOURCE}]}
+
+    def ai_draft(self, body=None):
+        mid = self.manifest()
+        self.clock.tick()
+        self.store.add_theme_version(self.theme, "draft", body or self.BODY, by=self.AI, context_manifest=mid)
+        return self.store.page(self.theme)["draft"]
+
+    def test_every_field_of_a_version_records_its_writer(self):
+        prov = self.ai_draft()["body"]["provenance"]
+        ai = {"by": self.AI, "reviewed": False}
+        self.assertEqual(prov, {"one_liner": ai, "analogy": ai, "origin": ai, "stage": ai, "second_order": [ai, ai], "chain": [ai]})
+        self.clock.tick()
+        self.store.add_theme_version(self.theme, "draft", self.BODY)
+        me = {"by": "me", "reviewed": False}
+        self.assertEqual(self.store.page(self.theme)["draft"]["body"]["provenance"]["second_order"], [me, me])
+
+    def test_provenance_in_the_body_is_ignored(self):
+        ai = {"by": self.AI, "reviewed": True}
+        self.store.add_theme_version(self.theme, "draft", {**self.BODY, "provenance": {"one_liner": ai}})
+        self.assertEqual(self.store.page(self.theme)["draft"]["body"]["provenance"]["one_liner"], {"by": "me", "reviewed": False})
+
+    def test_unreviewed_ai_fields_cannot_go_into_a_final(self):
+        prov = narratives.provenance_of(self.ai_draft())
+        body = {k: self.BODY[k] for k in self.BODY}
+        self.bad("provenance", self.store.add_theme_version, self.theme, "final", body, provenance=prov)
+        prov["one_liner"]["reviewed"] = True
+        prov["analogy"]["reviewed"] = prov["origin"]["reviewed"] = prov["stage"]["reviewed"] = True
+        prov["second_order"] = [narratives.mark(self.AI, True), narratives.mark("me")]
+        prov["chain"] = [narratives.mark(self.AI, True)]
+        self.clock.tick()
+        self.store.add_theme_version(self.theme, "final", body, provenance=prov)
+        final = self.store.page(self.theme)["final"]
+        self.assertEqual(final["by"], "me")
+        self.assertEqual(final["body"]["provenance"]["second_order"], [{"by": self.AI, "reviewed": True}, {"by": "me", "reviewed": False}])
+
+    def test_bad_provenance_is_refused(self):
+        good = narratives.provenance_of(None)
+        good["second_order"] = [narratives.mark("me")] * 2
+        good["chain"] = [narratives.mark("me")]
+        cases = [("provenance", "x"), ("provenance.second_order", {**good, "second_order": []}),
+                 ("provenance.one_liner", {**good, "one_liner": {"by": "someone"}}),
+                 ("provenance.one_liner", {**good, "one_liner": {"by": "me", "reviewed": "yes"}}),
+                 ("provenance.chain.0", {**good, "chain": [{"by": "me", "extra": 1}]})]
+        for field, prov in cases:
+            with self.subTest(field=field):
+                self.bad(field, self.store.add_theme_version, self.theme, "draft", self.BODY, provenance=prov)
+        self.store.add_theme_version(self.theme, "draft", self.BODY, provenance=good)
+
+    def test_versions_without_stored_provenance_belong_to_their_writer(self):
+        old = {"by": self.AI, "status": "draft", "body": {"one_liner": "x", "second_order": ["一"], "chain": []}}
+        prov = narratives.provenance_of(old)
+        self.assertEqual((prov["one_liner"], prov["second_order"], prov["chain"]), ({"by": self.AI, "reviewed": False}, [{"by": self.AI, "reviewed": False}], []))
+        broken = {"by": "me", "body": {"second_order": ["一"], "provenance": {"second_order": []}}}  # 存的對不上內容
+        self.assertEqual(narratives.provenance_of(broken)["second_order"], [{"by": "me", "reviewed": False}])
+        self.assertEqual(narratives.provenance_of(None)["chain"], [])
+
+
 class ChainTest(StoreCase):
     def link(self, **kw):
         return {"from": {"label": "CoWoS 產能"}, "to": {"entity_id": self.company}, "relation": "產能吃緊帶動接單", **kw}
@@ -393,6 +455,9 @@ class ApiTest(ApiTestCase):
         theme = self.ok("POST", "/api/entities", {"type": "theme", "name": "範例題材"})["id"]
         page = self.ok("POST", f"/api/themes/{theme}/versions", {"status": "final", "body": {"one_liner": "一句話"}})
         self.assertEqual(page["final"]["by"], "me")
+        ai = {"by": "ai:opus@v1", "reviewed": True}  # 從 HTTP 寫的整份都是我寫的，body 裡的 provenance 不看
+        page = self.ok("POST", f"/api/themes/{theme}/versions", {"status": "draft", "body": {"one_liner": "x", "provenance": {"one_liner": ai}}})
+        self.assertEqual(page["draft"]["body"]["provenance"]["one_liner"], {"by": "me", "reviewed": False})
         page = self.ok("POST", f"/api/themes/{theme}/theses", {"status": "draft", "body": {"claim": "論點"}})
         thesis = page["theses"][0]["id"]
         page = self.ok("POST", f"/api/theses/{thesis}/evidence", {"item_id": "item-1", "relation": "weakens", "grade": "A", "reason": "r"})

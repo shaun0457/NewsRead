@@ -384,3 +384,87 @@ test("browsers without hidden=until-found get a plain hidden comparison, and the
   assert.doesNotMatch(css, /^\[hidden\] \{ display: none/m);
 });
 
+/* ---------- 欄位的來源和定稿前的預覽（ticket 106） ---------- */
+const AI = { by: "ai:opus@v1", reviewed: false }, REVIEWED = { by: "ai:opus@v1", reviewed: true }, ME = { by: "me", reviewed: false };
+
+test("each link shows who wrote it once AI wrote anything in this version; nothing when it is all mine", () => {
+  const html = render(view([link({ index: 0, provenance: AI }), link({ index: 1, provenance: REVIEWED }), link({ index: 2, provenance: ME })],
+                           { provenance: { one_liner: ME, second_order: [] } }));
+  const items = html.split("<li").slice(1);
+  assert.match(items[0], /<span class="chip ai">AI 起草<\/span>/);
+  assert.match(items[1], /<span class="chip ai">AI 起草・你確認過<\/span>/);
+  assert.match(items[2], /<span class="chip mine">我寫的<\/span>/);
+  assert.doesNotMatch(render(view([link({ provenance: ME })], { provenance: { one_liner: ME, second_order: [ME] } })), /我寫的|AI 起草/);
+  assert.match(render(view([link({ provenance: ME })], { provenance: { one_liner: AI } })), /我寫的/);  // AI 寫的是這頁沒顯示的欄位也算
+  assert.doesNotMatch(render(view([link()])), /我寫的|AI 起草/);  // 舊的回應沒有 provenance
+});
+
+const PREVIEW = () => view([link({ index: 0, provenance: AI }), company({ index: 1, provenance: ME })], {
+  version: 5,
+  fields: { one_liner: "雲端廠把資本支出集中到 AI 伺服器", analogy: null, origin: { kind: "news_first", item_id: "item-3", rotation_event: null },
+            second_order: ["液冷需求上升", "通用伺服器被排擠"], stage: { name: "放量期", basis: "ODM 月營收連三月年增" } },
+  provenance: { one_liner: AI, analogy: AI, origin: AI, second_order: [AI, REVIEWED], stage: ME },
+});
+
+test("the preview lists every field that goes into the final, tags the ones this page does not show, and counts what you review", () => {
+  const rows = C.previewRows(PREVIEW());
+  same(rows.map((r) => [r.label, r.hidden, r.value, r.prov.by]), [
+    ["一句話故事", true, "雲端廠把資本支出集中到 AI 伺服器", "ai:opus@v1"], ["白話類比", true, "沒有填", "ai:opus@v1"],
+    ["起源", true, "消息先動 · 資料 item-3", "ai:opus@v1"], ["第二層效應 1", true, "液冷需求上升", "ai:opus@v1"],
+    ["第二層效應 2", true, "通用伺服器被排擠", "ai:opus@v1"], ["階段", true, "放量期 · 依據：ODM 月營收連三月年增", "me"],
+    ["因果鏈第 1 環", false, "需求 → 瓶頸：說明", "ai:opus@v1"], ["因果鏈第 2 環", false, "需求 → 範例電源 A：說明", "me"]]);
+  const html = C.previewHtml(PREVIEW());
+  assert.match(html, /<form method="dialog" class="pv"><h1 id="chain-pv-title">/);
+  assert.match(html, /一句話故事<span class="hidden-tag">這頁沒顯示<\/span>/);
+  assert.doesNotMatch(html, /因果鏈第 1 環<span class="hidden-tag">/);
+  assert.match(html, /<span class="chip ai">AI・你確認過<\/span>/);
+  assert.match(html, /共 8 個欄位：5 個 AI 寫的會標成你確認過，其中 4 個這頁沒顯示。/);
+  assert.match(html, /<button class="btn sm ghost" value="cancel" autofocus>取消<\/button><button class="btn sm primary" value="publish">確認成定稿 v6<\/button>/);
+  const mine = C.previewHtml(view([link({ provenance: ME })], { version: 1, fields: {}, provenance: { one_liner: ME } }));
+  assert.match(mine, /共 5 個欄位，沒有要確認的 AI 欄位。/);
+  const bad = C.previewHtml(view([], { fields: { one_liner: "<img src=x onerror=alert(1)>" }, provenance: {} }));
+  assert.doesNotMatch(bad, /<img/);
+});
+
+function fakeDialogDoc() {
+  const els = {};
+  const doc = {
+    addEventListener() {}, getElementById: (id) => els[id] || null,
+    body: { appendChild(el) { els[el.id] = el; } },
+    createElement: () => ({
+      dataset: {}, attrs: {}, listeners: {}, returnValue: "", open: false, innerHTML: "",
+      setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(k, f) { this.listeners[k] = f; },
+      showModal() { this.open = true; },
+      close(value) { if (value !== undefined) this.returnValue = value; this.open = false; if (this.listeners.close) this.listeners.close(); },
+    }),
+  };
+  return { doc, els };
+}
+
+test("publish opens the preview first; cancelling or Esc sends nothing, confirming publishes the version that was previewed", async () => {
+  const { doc, els } = fakeDialogDoc();
+  const { C, calls } = loadWith([{ ok: view([], { status: "final", version: 6 }) }], doc);
+  Object.assign(C.state, { id: "E-x", status: "ready", view: PREVIEW(), editing: null, busy: false, conflict: null, note: "" });
+  assert.match(C.viewHtml(C.state), /data-act="publish" aria-haspopup="dialog">確認成定稿…<\/button>/);
+  await C.act("publish", null);
+  const d = els["chain-pv"];
+  same([d.open, d.attrs["aria-labelledby"], calls.length], [true, "chain-pv-title", 0]);
+  assert.match(d.innerHTML, /確認成定稿 v6/);
+  d.close("cancel");
+  same([d.open, d.returnValue, calls.length], [false, "", 0]);
+  await C.act("publish", null);
+  d.close();  // Esc：沒有 returnValue
+  assert.equal(calls.length, 0);
+  await C.act("publish", null);
+  C.state.view = Object.assign(PREVIEW(), { version: 9 });  // 預覽開著時畫面換了版本：送出的還是預覽的那一版
+  d.close("publish");
+  await new Promise((r) => setImmediate(r));
+  same([calls.length, calls[0].method, calls[0].body.op, calls[0].body.base_version], [1, "POST", "publish", 5]);
+  assert.equal(C.state.view.status, "final");
+  C.state.view = PREVIEW();
+  C.state.editing = { index: null, draft: C.blankDraft(), errors: {} };
+  d.innerHTML = "";
+  await C.act("publish", null);  // 有表單開著（按鈕停用）時不開預覽
+  assert.equal(d.innerHTML, "");
+});
+
