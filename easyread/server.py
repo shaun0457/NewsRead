@@ -79,9 +79,9 @@ def _safe(base: Path, rel: str) -> Path | None:
 
 
 class App:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, gate_required: bool = False):
         self.lib = Library(config.library_dir(cfg))
-        self.jobs = Jobs(self.lib)
+        self.jobs = Jobs(self.lib, gate_required=gate_required)
         self.token = os.urandom(12).hex()
         self.location = library_api.LibraryLocation(self)
         self.presence = None  # presence.Presence，serve() 里设
@@ -346,7 +346,8 @@ class Handler(BaseHTTPRequestHandler):
         if queued:
             if translate_after and not read:
                 langs.remember(ws, target)  # 导入框里选的译文语言
-            self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model)
+            # 匯入後接著翻譯 / 整理：算背景工作，受額度保護（ticket 68）
+            self.app.jobs.enqueue(ws, translate_after=translate_after, scope=scope, read=read, model=model, background=translate_after)
         return self._json(200, {"id": ws.id, "new": fresh, "queued": queued})
 
     # ---------- GET ----------

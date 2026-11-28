@@ -212,6 +212,7 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual((r["publisher"], r["time_source"], r["paragraphs"]), ("Example Wire", "metadata", 3))
         self.assertTrue(r["translate"])
         self.assertEqual([i for i, _ in app.jobs.enqueued], [r["id"]])
+        self.assertIs(app.jobs.enqueued[0][1]["background"], True)  # 匯入後自動翻譯受額度保護
         meta = app.lib.ws(r["id"]).load("paper")["meta"]
         self.assertEqual(meta["source_url"], URL)
         self.assertEqual(meta["published_at"], "2026-11-10T13:05:00+00:00")

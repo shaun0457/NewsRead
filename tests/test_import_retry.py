@@ -53,4 +53,15 @@ class ImportRetryTest(unittest.TestCase):
                 self.assertEqual(result["queued"], expected)
                 self.assertEqual(handler.app.jobs.enqueue.call_count, int(expected))
                 if expected:
-                    handler.app.jobs.enqueue.assert_called_with(self.ws, translate_after=False, scope="range:1-1", read=False, model="")
+                    handler.app.jobs.enqueue.assert_called_with(self.ws, translate_after=False, scope="range:1-1", read=False, model="",
+                                                               background=False)
+
+    def test_pdf_import_with_translate_counts_as_background(self):
+        """匯入 PDF 時勾了翻譯：算匯入後的自動翻譯，受額度保護（gate F3）。"""
+        handler = object.__new__(Handler)
+        handler.app = types.SimpleNamespace(jobs=Mock())
+        handler._json = lambda code, obj: obj
+        with patch("easyread.server.langs.remember"):
+            handler._import_result(self.ws, True, True, "all", target="ja")
+        handler.app.jobs.enqueue.assert_called_once_with(self.ws, translate_after=True, scope="all", read=False, model="",
+                                                         background=True)

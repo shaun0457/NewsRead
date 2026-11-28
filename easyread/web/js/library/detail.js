@@ -34,6 +34,9 @@
       h += read ? "<div>" + PR.t("英文原文：{done} / {total} 页", { done: i.done_pages, total: i.pages }) + (full ? PR.t(" · 全文") : "") + (i.done_pages - en ? PR.t(" · 其中 {n} 页已译", { n: i.done_pages - en }) : "") + "</div>"
         : "<div>" + PR.t("译文：{s}", { s: i.pages ? PR.t("{done} / {total} 页", { done: i.done_pages, total: i.pages }) : PR.t("尚未处理") }) + (full ? PR.t(" · 全文") : "") + "</div>";
       const failed = Object.keys(j.failed || {}).map(Number).sort((a, b) => a - b);
+      const waiting = j.state === "waiting" && PR.quotaGuard;  // 匯入後的自動翻譯在等（ticket 68）
+      if (waiting) h += '<div class="wait">' + PR.esc(PR.quotaGuard.waitText(j)) + "</div>" +
+        (PR.quotaGuard.waitCanWait(j) ? '<div class="hint">' + PR.t("不想等可以現在開始，會用掉額度。") + "</div>" : "");
       if (j.state === "error") h += '<div class="err">' + (j.read ? PR.t("上次整理原文出错：") : PR.t("上次翻译出错：")) + PR.esc(j.error || j.message) + "</div>";
       if (j.read && j.state === "error") h += '<p class="hint">' + PR.t("整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。") + '</p><button class="btn sm line" data-d="model-settings">' + PR.t("模型设置") + "</button>";
       h += PR.usageCard(j.usage, j.usage_total);
@@ -43,6 +46,7 @@
         (en ? '<button class="btn sm accent" data-d="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName(PR.target) }) + "</button>" : "") +
         (!full && !(j.state === "partial" && failed.length) ? '<button class="btn sm ' + (en ? "line" : "accent") + '" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? (j.state === "error" ? PR.t("重试整理原文") : PR.t("继续整理剩下的页")) : i.done_pages ? PR.t("继续翻译剩下的页") : PR.t("开始翻译")) + "</button>" : "") +
         (!full && j.state === "partial" && failed.length && i.pages - i.done_pages > failed.length ? '<button class="btn sm line" data-d="' + (read ? "read-rest" : "translate") + '">' + (read ? PR.t("继续整理剩下的页") : PR.t("继续翻译剩下的页")) + "</button>" : "") +
+        (waiting ? '<button class="btn sm line" data-d="cancel">' + PR.t("不用了") + "</button>" : "") +
         (!full && i.todo ? '<button class="btn sm line" data-d="pick-pages">' + PR.t("选页翻译…") + "</button>" : "") +
         (j.state ? '<button class="btn sm" data-d="log">' + PR.icon("log", "sm") + PR.t("翻译记录") + "</button>" : "") + "</div>" +
         (L.engine === "none" ? '<div class="hint" style="margin-top:6px">' + PR.t("当前没有开启翻译引擎，去设置里选一个。") + "</div>" : "");
@@ -198,7 +202,7 @@
       } catch (error) { PR.toast(PR.esc(error.message)); }
     }
   });
-  // 翻譯還沒接上額度保護：手動按的先提醒（gate F1）
+  // 手動按的翻譯照跑，額度超過門檻時先提醒（ticket 68）
   function remindAi() { if (PR.quotaGuard) PR.quotaGuard.remind(); }
   async function retranslateAll(i) {
     if (!(await PR.confirm({ title: PR.t("全部重新翻译？"), body: PR.t("会消耗模型额度。你改过的译文、笔记都保留。"), ok: PR.t("重新翻译") }))) return;

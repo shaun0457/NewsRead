@@ -40,8 +40,8 @@
 
   function why(s) {
     const r = ((s && s.background) || {}).reason;
-    if (r === "quota") return PR.t("Claude Code 5 小時額度超過你設的門檻，背景的分類先等額度重置。你手動按的照跑。翻譯還沒接上額度保護，照樣會跑。");
-    if (r === "api_cap") return PR.t("API 這個月的花費到了上限，背景的分類先停下。翻譯還沒接上這個上限，照樣會跑。");
+    if (r === "quota") return PR.t("Claude Code 5 小時額度超過你設的門檻，背景的分類和匯入後的自動翻譯先等額度重置。你手動按的照跑。");
+    if (r === "api_cap") return PR.t("API 這個月的花費到了上限，匯入後的自動翻譯和背景的起草先停下。");
     if (r === "no_api") return PR.t("背景工作預設不用訂閱，也還沒有 API key 或本機模型，新資料先排在待分類。");
     return PR.t("Claude Code 5 小時額度（整個帳號的用量）。點開看用量。");
   }
@@ -112,13 +112,46 @@
     return true;
   }
 
+  /* 匯入後的自動翻譯在等（job.state === "waiting"，原因在 job.wait.reason；ticket 68）：清單和閱讀器的短標籤、詳情的說明 */
+  function clock(sec) {
+    if (typeof sec !== "number" || !isFinite(sec)) return "";
+    const d = new Date(sec * 1000);
+    return isNaN(d.getTime()) ? "" : String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function waitLabel(job) {
+    const r = ((job && job.wait) || {}).reason;
+    if (r === "subscription" || r === "api_off") return PR.t("等你按翻譯");
+    if (r === "api_cap") return PR.t("API 到上限");
+    if (r === "check") return PR.t("稍後自動翻譯");
+    return PR.t("等額度重置");
+  }
+
+  function waitText(job) {
+    const w = (job && job.wait) || {};
+    const what = job && job.read ? PR.t("整理") : PR.t("翻譯");
+    if (w.reason === "subscription") return PR.t("用 Claude Code、Codex 訂閱時，匯入後不會自動{what}，要你按了才開始。", { what });
+    if (w.reason === "api_off") return PR.t("API 每月上限設成 0（背景不用 API），匯入後不會自動{what}，要你按了才開始。", { what });
+    if (w.reason === "check") return PR.t("匯入後的自動{what}在等額度保護確認，幾分鐘內自動接著做。", { what });
+    if (w.reason === "api_cap") return PR.t("API 這個月的花費到了上限，匯入後的自動{what}先等，下個月或調高上限後自動接著做。", { what });
+    const time = clock(w.until);
+    return time ? PR.t("Claude Code 5 小時額度超過你設的門檻，匯入後的自動{what}先等，{time} 額度重置後自動接著做。", { what, time })
+      : PR.t("Claude Code 5 小時額度超過你設的門檻，匯入後的自動{what}先等，額度重置後自動接著做。", { what });
+  }
+
+  function waitCanWait(job) {  // 會自己接著做的（等額度），另外提示可以現在開始
+    const r = ((job && job.wait) || {}).reason;
+    return r !== "subscription" && r !== "api_off";
+  }
+
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { clearTimeout(timer); timer = 0; } else poll();
   });
   window.addEventListener("pagehide", stop);
   window.addEventListener("pageshow", (e) => { if (e.persisted) { stopped = false; poll(); } });  // 從上一頁快取回來
 
-  PR.quotaGuard = { poll, stop, remind, get status() { return status; }, _state: () => ({ timer, delay, busy, stopped }) };
+  PR.quotaGuard = { poll, stop, remind, waitLabel, waitText, waitCanWait, get status() { return status; },
+    _state: () => ({ timer, delay, busy, stopped }) };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", poll);
   else poll();

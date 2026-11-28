@@ -74,6 +74,8 @@ LOOPBACK = ("localhost", "127.0.0.1", "::1")
 CODES = ("NO_AI", "PAUSED", "AUTH_INVALID", "RATE_LIMITED", "UPSTREAM_ERROR", "NETWORK", "TIMEOUT", "BAD_REQUEST",
          "ENGINE_MISSING", "OUTPUT_TRUNCATED", "ENGINE_ERROR", "CANCELLED", "QUOTA_PAUSED", "API_CAP", "BACKGROUND_NO_API")
 TRIGGERS = ("background", "manual")  # 背景工作（排程自己跑的）/ 使用者手動按的
+# 用這兩家的訂閱翻譯時，匯入後不自動翻，要使用者按（使用者 2026-11-28）；設定允許背景用訂閱時照額度門檻跑
+MANUAL_SUBSCRIPTION = ("claude", "codex")
 
 
 def message(code: str) -> str:
@@ -772,6 +774,44 @@ class Engines:
                     except Exception as e:  # noqa: BLE001 通知送不出去不影響這次呼叫；只記類型
                         log.warning("額度通知送不出去 %s", type(e).__name__)
                 break  # 已經到上限就不另外送 80% 的通知
+
+    def translation_gate(self, cfg: dict) -> dict | None:
+        """匯入後自動開始的翻譯（閱讀器自己的 /api/config 引擎設定）現在能不能送出。None = 可以；否則 {reason, until}。
+        reason：subscription（用 Claude Code / Codex 訂閱，設定不允許背景用訂閱：要使用者按）、
+        quota（允許時，Claude Code 5 小時額度超過門檻；until 是預計重置的時間）、
+        api_off（API 每月上限設 0 = 背景不用 API：要使用者按）、api_cap（API 這個月到上限）。
+        Antigravity 訂閱、本機模型不受限；Codex 看不到額度，允許背景用訂閱時不受門檻影響。
+        quota、api_cap 各記一筆事件（同一段暫停、同一個月只記一次）。使用者按的翻譯不經過這裡。"""
+        engine = cfg.get("engine")
+        if engine in CLI:
+            data = self.settings.load()
+            if (data["engines"].get(engine) or {}).get("billing") == "api":
+                kind = "api"  # 本機 CLI 最近一次是 API 計費
+            else:
+                kind = "subscription"
+        elif engine == "openai":
+            data = self.settings.load()
+            kind = "local" if _is_loopback(str((cfg.get("openai") or {}).get("base_url") or "")) else "api"
+        else:
+            return None  # 沒有引擎（none）：交給翻譯任務自己處理
+        if kind == "local":
+            return None
+        g = self._guard(data)
+        if kind == "subscription":
+            if engine not in MANUAL_SUBSCRIPTION:
+                return None
+            if not g["background_subscription"]:
+                return {"reason": "subscription", "until": None}
+            if engine == "claude" and g["quota"]["over"]:
+                self._event("QUOTA_PAUSED", "translate", g, key=_until_key(g))
+                return {"reason": "quota", "until": g["quota"]["until"]}
+            return None
+        if g["api_reached"]:
+            self._event("API_CAP_STOPPED", "translate", g, key=g["month"])
+            return {"reason": "api_cap", "until": None}
+        if g["api_blocked"]:
+            return {"reason": "api_off", "until": None}
+        return None
 
     def guard_status(self, data: dict | None = None, found: dict | None = None) -> dict:
         """GET /api/ai/guard（每頁右上角）和設定頁要的：背景工作現在是不是暫停、為什麼、到什麼時候。

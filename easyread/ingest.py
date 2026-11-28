@@ -500,7 +500,7 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     translate = False
     if status in ("created", "updated") and not same and config.load().get("auto_translate", True):
         try:
-            app.jobs.enqueue(ws, translate_after=True, scope="all")
+            app.jobs.enqueue(ws, translate_after=True, scope="all", background=True)  # 匯入後自動翻：受額度保護
             translate = True
         except ValueError:
             translate = False  # 剛好有任務在跑：匯入照樣成功，之後再翻

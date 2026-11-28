@@ -58,6 +58,133 @@ class JobsTest(unittest.TestCase):
         self.assertEqual(self.ws.load("job")["state"], "done")
         self.assertNotIn(self.ws.id, self.jobs.cancels)
 
+    # ---------- 匯入後自動翻譯的額度保護（ticket 68） ----------
+    CLAUDE = {"engine": "claude", "claude": {}}
+
+    def run_background(self, gate, background=True):
+        self.jobs.translate_gate = gate
+        self.jobs.enqueue(self.ws, background=background)
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE), \
+                patch("easyread.jobs.translate.translate_pages", return_value={}) as tp:
+            self.drain()
+        return tp
+
+    def test_background_translation_waits_when_the_gate_says_so(self):
+        tp = self.run_background(lambda cfg: {"reason": "subscription", "until": None})
+        job = self.ws.load("job")
+        self.assertEqual(job["state"], "waiting")
+        self.assertEqual(job["wait"], {"reason": "subscription", "until": None})
+        self.assertEqual(job["total"], 1)
+        tp.assert_not_called()
+
+    def test_manual_translation_ignores_the_gate(self):
+        calls = []
+        tp = self.run_background(lambda cfg: calls.append(cfg) or {"reason": "quota", "until": 1}, background=False)
+        tp.assert_called_once()
+        self.assertEqual(calls, [])
+        self.assertEqual(self.ws.load("job")["state"], "done")
+
+    def test_an_unreadable_gate_waits_instead_of_spending(self):
+        def broken(cfg):
+            raise OSError("locked")
+        tp = self.run_background(broken)
+        tp.assert_not_called()
+        self.assertEqual(self.ws.load("job")["wait"]["reason"], "check")  # 不說成 Claude 額度超過
+
+    def test_an_unknown_gate_answer_also_waits(self):
+        tp = self.run_background(lambda cfg: {"reason": "something-new"})
+        tp.assert_not_called()
+        self.assertEqual(self.ws.load("job")["wait"]["reason"], "check")
+
+    def test_waiting_translation_is_queued_again_once_the_gate_clears(self):
+        blocked = {"on": True}
+        self.run_background(lambda cfg: {"reason": "quota", "until": 1} if blocked["on"] else None)
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(self.jobs.resume_waiting(), 0)
+            self.assertEqual(self.ws.load("job")["state"], "waiting")
+            blocked["on"] = False
+            self.assertEqual(self.jobs.resume_waiting(), 1)
+        job = self.ws.load("job")
+        self.assertEqual((job["state"], job["wait"], job["background"]), ("queued", None, True))
+        self.assertEqual(self.jobs.bulk.qsize(), 1)
+
+    def test_catch_up_queues_at_most_the_round_limit_in_arrival_order(self):
+        names = []
+        for i in range(4):
+            root = self.lib.root / f"paper{i + 10:04d}"
+            root.mkdir()
+            ws = Workspace(root)
+            write_json_atomic(ws.paper_path, {"meta": {"pages": [{"n": 1}], "page_count": 1}})
+            write_json_atomic(root / "job.json", {"state": "waiting", "translate": True, "background": True,
+                                                  "updated": f"2026-11-28T0{4 - i}:00:00"})
+            names.append(ws.id)
+        self.jobs.translate_gate = lambda cfg: None
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(self.jobs.resume_waiting(limit=2), 2)
+        queued = [self.jobs.bulk.get_nowait() for _ in range(self.jobs.bulk.qsize())]
+        self.assertEqual(queued, [names[3], names[2]])  # 最早開始等的先補
+
+    def test_waiting_translation_can_be_cancelled_or_started_by_hand(self):
+        self.run_background(lambda cfg: {"reason": "subscription", "until": None})
+        self.jobs.cancel(self.ws.id)
+        self.assertEqual(self.ws.load("job")["state"], "done")
+        self.run_background(lambda cfg: {"reason": "subscription", "until": None})
+        self.jobs.enqueue(self.ws)  # 使用者按了翻譯：手動，不再問額度保護
+        job = self.ws.load("job")
+        self.assertEqual((job["state"], job["background"], "wait" in job), ("queued", False, False))
+
+    def test_stop_all_model_work_also_clears_waiting_translations(self):
+        self.run_background(lambda cfg: {"reason": "api_cap", "until": None})
+        self.assertEqual(self.jobs.stop_model_work(), 1)
+        self.assertEqual(self.ws.load("job")["state"], "done")
+
+    def test_waiting_translation_is_not_resumed_on_restart(self):
+        self.run_background(lambda cfg: {"reason": "quota", "until": 1})
+        with patch("easyread.jobs.threading.Thread.start"):
+            again = Jobs(self.lib)
+        self.assertEqual(again.bulk.qsize(), 0)
+        self.assertEqual(self.ws.load("job")["state"], "waiting")
+
+    def test_background_job_before_the_gate_is_wired_waits_for_the_check(self):
+        """正式執行：重啟後排回去的背景任務，可能在 launch 接上額度保護之前就輪到（gate F1）。"""
+        self.jobs.enqueue(self.ws, background=True)
+        with patch("easyread.jobs.threading.Thread.start"):
+            again = Jobs(self.lib, gate_required=True)  # 重啟：_resume 把排隊的排回去，這時還沒有 translate_gate
+        self.assertEqual(again.bulk.qsize(), 1)
+        self.jobs = again
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE), \
+                patch("easyread.jobs.translate.translate_pages", return_value={}) as tp:
+            self.drain()
+        tp.assert_not_called()
+        self.assertEqual(self.ws.load("job")["wait"], {"reason": "check", "until": None})
+        again.translate_gate = lambda cfg: None  # launch 接上之後，補翻那一輪就排回去
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(again.resume_waiting(), 1)
+
+    def test_manual_job_is_not_held_back_while_the_gate_is_not_wired(self):
+        with patch("easyread.jobs.threading.Thread.start"):
+            self.jobs = Jobs(self.lib, gate_required=True)
+        self.jobs.enqueue(self.ws)
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE), \
+                patch("easyread.jobs.translate.translate_pages", return_value={}) as tp:
+            self.drain()
+        tp.assert_called_once()
+
+    def test_start_now_on_a_waiting_job_keeps_what_the_import_chose(self):
+        """在等的任務按「開始翻譯」（body 是空的）：沿用匯入時選的範圍、模型、語言、只整理原文（gate F2）。"""
+        from easyread import translate_api
+        write_json_atomic(self.ws.root / "job.json", {"state": "waiting", "translate": True, "background": True,
+                                                      "scope": "body", "model": "m-1", "target": "ja", "read": True,
+                                                      "wait": {"reason": "subscription", "until": None}})
+        translate_api.enqueue(self.jobs, self.ws, {})
+        job = self.ws.load("job")
+        self.assertEqual((job["state"], job["scope"], job["model"], job["target"], job["read"], job["background"]),
+                         ("queued", "body", "m-1", "ja", True, False))
+        self.assertNotIn("wait", job)
+
+    def test_catch_up_without_a_gate_does_nothing(self):
+        self.assertEqual(self.jobs.resume_waiting(), 0)
+
     def test_cancel_during_preparation_is_not_reported_done(self):
         write_json_atomic(self.ws.paper_path, {"meta": {}})
         self.jobs.enqueue(self.ws, translate_after=False)

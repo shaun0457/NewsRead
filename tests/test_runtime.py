@@ -127,8 +127,8 @@ class ServeBase(unittest.TestCase):
         self.apps = []
         real_app = launch.App
 
-        def remember(cfg):
-            app = real_app(cfg)
+        def remember(cfg, **kw):
+            app = real_app(cfg, **kw)
             self.apps.append(app)
             return app
         for patcher in (mock.patch.dict(os.environ, env, clear=True),
@@ -314,6 +314,23 @@ class ServeTest(ServeBase):
         with mock.patch.object(triage, "run_pending") as run_pending:
             job.run()
         run_pending.assert_called_once_with(self.app)
+
+    def test_server_catches_up_waiting_translations_through_the_quota_guard(self):
+        """匯入後自動翻譯等額度時，排程每一輪補翻；送出前問的是 ai_engines 的額度保護。"""
+        from easyread import ai_engines, launch
+        self.start()
+        job = self.app.scheduler.jobs.get("translate_catchup")
+        self.assertIsNotNone(job, sorted(self.app.scheduler.jobs))
+        self.assertEqual(job.interval, launch.TRANSLATE_CATCHUP_INTERVAL)
+        with mock.patch.object(self.app.jobs, "resume_waiting") as resume:
+            job.run()
+        resume.assert_called_once_with()
+        self.assertTrue(self.app.jobs.gate_required)  # 接上之前輪到的背景任務先等
+        fake = mock.Mock()
+        fake.translation_gate.return_value = {"reason": "quota", "until": None}
+        with mock.patch.object(ai_engines, "for_app", return_value=fake) as for_app:
+            self.assertEqual(self.app.jobs.translate_gate({"engine": "claude"}), {"reason": "quota", "until": None})
+        for_app.assert_called_once_with(self.app)
 
     def test_temporary_library_takes_no_lock(self):
         with mock.patch.dict(os.environ, {"EASYREAD_LIBRARY": str(self.home / "tmp-lib")}), \
