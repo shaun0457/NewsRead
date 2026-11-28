@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #111，2026-11-28）
 
 - [x] 簡體原文 → 繁體顯示，不呼叫 AI（測試）
 - [x] 原文保留、可切回（測試）

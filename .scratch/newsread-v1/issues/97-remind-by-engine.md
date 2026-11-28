@@ -4,7 +4,7 @@
 
 **Blocked by:** 68
 
-**Status:** in-progress
+**Status:** done（PR #110，2026-11-28）
 
 - [x] 本機模型：不出現 Claude 額度提醒（測試）
 - [x] API key：顯示本月已用 / 上限（測試）

@@ -4,7 +4,7 @@
 
 **Blocked by:** —
 
-**Status:** in-progress
+**Status:** done（PR #112，2026-11-28）
 
 - [x] 短網址轉址到已匯入的網址：判為重複（測試）
 - [x] canonical 指到已匯入的網址、同網域：判為重複（測試）
