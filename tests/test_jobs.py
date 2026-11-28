@@ -108,6 +108,36 @@ class JobsTest(unittest.TestCase):
         self.assertEqual((job["state"], job["wait"], job["background"]), ("queued", None, True))
         self.assertEqual(self.jobs.bulk.qsize(), 1)
 
+    def test_background_translation_uses_the_engine_the_gate_switched_to(self):
+        """額度超過門檻、改用 API key：這次用 gate 給的設定翻，不等（#96）。"""
+        api = {"engine": "openai", "openai": {"preset": "anthropic", "base_url": "https://api.anthropic.com/v1",
+                                              "model": "claude-sonnet-5-5", "api_key": "k"}}
+        tp = self.run_background(lambda cfg: {"use": api})
+        tp.assert_called_once()
+        self.assertEqual(tp.call_args.args[1]["engine"], "openai")
+        self.assertNotEqual(self.ws.load("job")["state"], "waiting")
+
+    def test_switched_job_is_queued_again_by_the_catch_up(self):
+        self.run_background(lambda cfg: {"reason": "quota", "until": 1})
+        self.jobs.translate_gate = lambda cfg: {"use": {"engine": "openai", "openai": {}}}
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(self.jobs.resume_waiting(), 1)
+        self.assertEqual(self.ws.load("job")["state"], "queued")
+
+    def test_turning_off_auto_translate_stops_the_catch_up(self):
+        """關掉「匯入後自動翻譯」：在等的不補翻，標成要使用者按；開回來後照常（#96，使用者 2026-11-28）。"""
+        self.run_background(lambda cfg: {"reason": "quota", "until": 1})
+        self.jobs.translate_gate = lambda cfg: None
+        off = {**self.CLAUDE, "auto_translate": False}
+        with patch("easyread.jobs.config.load", return_value=off):
+            self.assertEqual(self.jobs.resume_waiting(), 0)
+            self.assertEqual(self.jobs.resume_waiting(), 0)
+        job = self.ws.load("job")
+        self.assertEqual((job["state"], job["wait"]), ("waiting", {"reason": "auto_off", "until": None}))
+        self.assertEqual(self.jobs.bulk.qsize(), 0)
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(self.jobs.resume_waiting(), 1)
+
     def test_catch_up_queues_at_most_the_round_limit_in_arrival_order(self):
         names = []
         for i in range(4):
@@ -223,3 +253,36 @@ class JobsTest(unittest.TestCase):
         self.drain(small=True)
         self.assertEqual(self.jobs.small_status()[0]["state"], "error")
         self.assertIn("已移除", job["message"])
+
+
+class TranslationCostTest(unittest.TestCase):
+    """閱讀器的翻譯走 API 時算出金額，才算得進 API 每月上限（#96）。"""
+
+    def test_api_translation_is_priced(self):
+        from easyread import jobs
+        m = jobs.translation_meter({"engine": "openai", "openai": {"base_url": "https://api.anthropic.com/v1",
+                                                                     "model": "claude-sonnet-5-5"}})
+        self.assertTrue(m.priced)
+        self.assertEqual(jobs.api_cost("claude-sonnet-5-5", 1_000_000, 0, 100_000), 3.0)
+
+    def test_cached_tokens_are_never_priced_below_full_price(self):
+        from easyread import jobs
+        self.assertEqual(jobs.api_cost("claude-sonnet-5-5", 1_000_000, 400_000, 0), 2.0)  # input 含快取：整個照全價
+        self.assertEqual(jobs.api_cost("claude-sonnet-5-5", 100_000, 900_000, 0), 2.0)  # input 不含快取：加回去
+
+    def test_local_models_and_unknown_models_stay_unpriced(self):
+        from easyread import jobs
+        for cfg in ({"engine": "openai", "openai": {"preset": "ollama", "model": "q"}},
+                    {"engine": "openai", "openai": {"base_url": "http://127.0.0.1:1234/v1", "model": "q"}},
+                    {"engine": "claude", "claude": {}}):
+            self.assertFalse(jobs.translation_meter(cfg).priced, cfg)
+        self.assertIsNone(jobs.api_cost("gpt-x", 10, 0, 10))
+
+    def test_the_ledger_row_carries_the_cost(self):
+        from easyread import jobs
+        m = jobs.translation_meter({"engine": "openai", "openai": {"base_url": "https://api.anthropic.com/v1",
+                                                                     "model": "claude-sonnet-5-5"}})
+        with patch("easyread.jobs.ledger.shared") as shared:
+            m.add(input=1_000_000, output=0)
+        self.assertEqual(shared.return_value.record_usage.call_args.kwargs["cost_usd"], 2.0)
+        self.assertEqual(m.snapshot()["cost_usd"], 2.0)

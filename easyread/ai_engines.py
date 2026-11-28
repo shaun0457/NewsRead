@@ -69,6 +69,7 @@ MAX_NAME = 40
 MAX_MODEL = 100
 MAX_BODY = 16 * 1024
 OLLAMA_BASE = "http://127.0.0.1:11434/v1"
+ANTHROPIC_OPENAI_BASE = "https://api.anthropic.com/v1"  # 閱讀器的翻譯走 OpenAI 相容接口（同 presets 的 Anthropic）
 TAIPEI = timezone(timedelta(hours=8))  # 台灣沒有日光節約；Windows 的 zoneinfo 沒有內建時區資料
 LOOPBACK = ("localhost", "127.0.0.1", "::1")
 CODES = ("NO_AI", "PAUSED", "AUTH_INVALID", "RATE_LIMITED", "UPSTREAM_ERROR", "NETWORK", "TIMEOUT", "BAD_REQUEST",
@@ -775,13 +776,38 @@ class Engines:
                         log.warning("額度通知送不出去 %s", type(e).__name__)
                 break  # 已經到上限就不另外送 80% 的通知
 
+    def _translate_switch(self, cfg: dict, data: dict, g: dict) -> dict | None:
+        """額度超過門檻、改用 API key 時，自動翻譯改用哪一個（AI 模型頁設定的，依「自動」的順序）：
+        本機模型，或價格認得的 API（花費才算得進每月上限；這個月沒到上限、上限不是 0）。都沒有回 None。
+        回傳閱讀器翻譯用的設定（OpenAI 相容接口），沿用原本設定的其他欄位（目標語言、頁數上限等）。"""
+        found = self.detector()
+        timeout = (cfg.get("openai") or {}).get("timeout") or 600
+        for c in self.candidates("translate", data, found):
+            kind = self.kind(c, data)
+            if kind == "subscription" or c["engine"] in CLI or not self.usable(c, data, found)[0]:
+                continue
+            spec = self._spec(c, data)
+            model = spec.get("model") or ""
+            if kind == "api" and (g["api_blocked"] or price(model, 1, 0, 0, 1) is None):
+                continue
+            if c["engine"] == "ollama":
+                section = {"preset": "ollama", "base_url": OLLAMA_BASE, "api": "chat", "api_key": ""}
+            elif c["engine"] == "anthropic":
+                section = {"preset": "anthropic", "base_url": ANTHROPIC_OPENAI_BASE, "api": "chat", "api_key": spec["key"]}
+            else:
+                section = {"preset": "", "base_url": spec["base_url"], "api": spec["api"], "api_key": spec["key"]}
+            section.update(model=model, vision=False, timeout=timeout)
+            return {**cfg, "engine": "openai", "openai": section}
+        return None
+
     def translation_gate(self, cfg: dict) -> dict | None:
         """匯入後自動開始的翻譯（閱讀器自己的 /api/config 引擎設定）現在能不能送出。None = 可以；否則 {reason, until}。
         reason：subscription（用 Claude Code / Codex 訂閱，設定不允許背景用訂閱：要使用者按）、
         quota（允許時，Claude Code 5 小時額度超過門檻；until 是預計重置的時間）、
         api_off（API 每月上限設 0 = 背景不用 API：要使用者按）、api_cap（API 這個月到上限）。
+        額度超過門檻、設定是「改用 API key」時，有能用的就回 {"use": 改用的引擎設定}（_translate_switch），沒有才等。
         Antigravity 訂閱、本機模型不受限；Codex 看不到額度，允許背景用訂閱時不受門檻影響。
-        quota、api_cap 各記一筆事件（同一段暫停、同一個月只記一次）。使用者按的翻譯不經過這裡。"""
+        quota、api_cap、改用 API 各記一筆事件（同一段暫停、同一個月只記一次）。使用者按的翻譯不經過這裡。"""
         engine = cfg.get("engine")
         if engine in CLI:
             data = self.settings.load()
@@ -803,6 +829,11 @@ class Engines:
             if not g["background_subscription"]:
                 return {"reason": "subscription", "until": None}
             if engine == "claude" and g["quota"]["over"]:
+                if g["on_exceed"] == "api":
+                    use = self._translate_switch(cfg, data, g)
+                    if use is not None:
+                        self._event("QUOTA_SWITCHED_API", "translate", g, key=_until_key(g))
+                        return {"use": use}
                 self._event("QUOTA_PAUSED", "translate", g, key=_until_key(g))
                 return {"reason": "quota", "until": g["quota"]["until"]}
             return None

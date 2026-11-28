@@ -626,6 +626,48 @@ class TranslationGateTest(GuardBase):
         self.guard(api_monthly_usd=5.0)
         self.assertIsNone(self.gate(API_CFG))
 
+    def over_with_api_fallback(self):
+        self.guard(background_subscription=True, on_exceed="api")
+        self.q = quota(0.75, self.t)
+
+    def test_over_the_threshold_switches_to_a_priced_api_key_when_set_to(self):
+        """設定「超過門檻改用 API key」：自動翻譯改用 AI 模型頁的 Anthropic key，不等重置（#96，使用者 2026-11-28）。"""
+        self.over_with_api_fallback()
+        self.add_anthropic()
+        cfg = {**CLAUDE_CFG, "target": "zh-TW", "openai": {"timeout": 300}}
+        use = self.gate(cfg)["use"]
+        self.assertEqual((use["engine"], use["target"]), ("openai", "zh-TW"))
+        o = use["openai"]
+        self.assertEqual((o["preset"], o["base_url"], o["model"], o["api_key"], o["timeout"]),
+                         ("anthropic", ai.ANTHROPIC_OPENAI_BASE, "claude-sonnet-5-5", SECRET, 300))
+        self.gate(cfg)
+        self.assertEqual([(e["code"], e["task"]) for e in self.events()], [("QUOTA_SWITCHED_API", "translate")])
+
+    def test_switching_still_waits_without_a_usable_key_or_with_the_cap_reached(self):
+        self.over_with_api_fallback()
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")  # 沒有 key
+        self.add_anthropic(status="invalid")
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")  # key 失效
+        self.add_anthropic()
+        self.guard(api_monthly_usd=1.0)
+        self.spend(1.0)
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")  # 這個月到上限
+        self.guard(api_monthly_usd=0)
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")  # 上限 0 = 背景不用 API
+
+    def test_switching_skips_an_api_whose_price_is_unknown(self):
+        """價格不認得的 API 花費算不進每月上限，不自動改用它。"""
+        self.over_with_api_fallback()
+        self.settings.update(lambda d: d["openai"].append(
+            {"id": "oA", "name": "A", "base_url": "https://a.example/v1", "api": "chat", "model": "gpt-x", "key": "k" * 20}))
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")
+
+    def test_wait_setting_keeps_waiting_even_with_a_key(self):
+        self.guard(background_subscription=True, on_exceed="wait")
+        self.q = quota(0.75, self.t)
+        self.add_anthropic()
+        self.assertEqual(self.gate(CLAUDE_CFG)["reason"], "quota")
+
     def test_a_zero_cap_means_background_never_uses_the_api(self):
         self.guard(api_monthly_usd=0)
         self.assertEqual(self.gate(API_CFG), {"reason": "api_off", "until": None})
