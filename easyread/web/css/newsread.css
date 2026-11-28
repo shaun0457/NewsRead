@@ -1,6 +1,6 @@
 /* NewsRead 新頁面的共用樣式。設計變數和元件照核准的 Mockup A（docs/mockups/v1-a/mockup.css），
    拿掉 mockup 專用的控制列。PaperRead 留下來的頁面還是用 base.css。 */
-[hidden] { display: none !important; }
+[hidden]:not([hidden="until-found" i]) { display: none !important; }  /* until-found 交給瀏覽器（頁內搜尋找得到，ticket 108） */
 :root {
   color-scheme: light;
   --bg: #f6f3ec; --surface: #fbfaf6; --surface-2: #efebe2;
@@ -71,6 +71,7 @@ svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-widt
 .banner.warn { background: var(--warn-soft); }
 .banner.bad { background: var(--danger-soft); }
 .banner .ico { font-weight: 700; }
+.banner .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
 .field { display: grid; gap: 4px; margin-bottom: 14px; }
 .field > label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
