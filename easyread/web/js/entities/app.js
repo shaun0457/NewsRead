@@ -41,7 +41,10 @@ window.PR = window.PR || {};
     emptyTitle: PR.t("還沒有追蹤對象"), emptyBody: PR.t("先加幾個你關心的：一家公司、一個題材、一個總經主題。"),
     emptyHint: PR.t("建議從你熟悉的產業開始。"), addFirst: PR.t("＋ 新增第一個"),
     noneOfType: PR.t("這個類型還沒有追蹤對象。"), benchCol: PR.t("基準 / 產業"), recentCol: PR.t("近 7 天"),
+    themePage: PR.t("題材頁 →"), themePageOf: (name) => PR.t("{name}的題材頁", { name }), openThemePage: PR.t("開啟題材頁 →"),
   });
+  // 題材頁（ticket 59 的因果鏈、之後的敘事看板）：只有存成「題材」的才有（ticket 107）
+  const themeHref = (id) => "/theme/" + encodeURIComponent(id);
   const esc = (s) => PR.esc(s);
   const typeLabel = (k, tx) => (TYPES.includes(k) ? tx[k] : k);
   const joinList = (xs) => xs.join(PR.lang === "en" ? ", " : "、");  // i18n-ok：列表分隔符號
@@ -53,7 +56,7 @@ window.PR = window.PR || {};
   }
 
   function toDraft(e) {
-    return { id: e.id, title: e.name, type: e.type, name: e.name,
+    return { id: e.id, title: e.name, type: e.type, savedType: e.type, name: e.name,
              listings: (e.listings || []).map((l) => ({ market: l.market, symbol: l.symbol })),
              aliases: (e.aliases || []).slice(), benchmark: e.benchmark_default ? "" : (e.benchmark || ""),
              industry_index: e.industry_index || "", archived: !!e.archived, mentions: e.mentions || [], aliasInput: "" };
@@ -128,7 +131,9 @@ window.PR = window.PR || {};
     const bench = e.type === "company"
       ? `<span data-no-i18n>${esc(e.benchmark || "—")}<span class="sub">${esc(e.industry_index || tx.noIndustry)}</span></span>`
       : `<span class="muted">—</span>`;
-    return `<tr${selected ? ' class="sel"' : ""}><td><button type="button" class="name" data-no-i18n data-open="${esc(e.id)}">${esc(e.name)}</button>${archived}${aliases}</td>`
+    const theme = e.type === "theme" && e.id
+      ? `<a class="linkish theme-link" href="${esc(themeHref(e.id))}" aria-label="${esc(tx.themePageOf(e.name))}" data-no-i18n>${esc(tx.themePage)}</a>` : "";
+    return `<tr${selected ? ' class="sel"' : ""}><td><button type="button" class="name" data-no-i18n data-open="${esc(e.id)}">${esc(e.name)}</button>${archived}${aliases}${theme}</td>`
       + `<td>${esc(typeLabel(e.type, tx))}</td><td>${symbols}</td><td class="hide-sm bench">${bench}</td>`
       + `<td>${esc(tx.items(e.recent_mentions || 0))}</td></tr>`;
   }
@@ -192,7 +197,9 @@ window.PR = window.PR || {};
     if (d.id) h += mentionsHtml(d, tx, items, err);
     h += err("form");
     h += `<div class="row"><button type="submit" class="btn primary"${busy ? " disabled" : ""}>${esc(tx.save)}</button>`
-      + `<button type="button" class="btn ghost" data-act="cancel">${esc(tx.cancel)}</button><span class="grow"></span>`
+      + `<button type="button" class="btn ghost" data-act="cancel">${esc(tx.cancel)}</button>`
+      + (d.id && d.savedType === "theme" ? `<a class="btn" href="${esc(themeHref(d.id))}" data-no-i18n>${esc(tx.openThemePage)}</a>` : "")  // 存好的類型；表單上剛改成題材、還沒存的不給
+      + `<span class="grow"></span>`
       + (d.id ? `<button type="button" class="btn ghost danger" data-act="archive"${busy ? " disabled" : ""}>${esc(d.archived ? tx.unarchive : tx.archive)}</button>` : "")
       + `</div>`;
     if (d.id) h += `<p class="hint note">${esc(tx.archiveNote)}</p>`;

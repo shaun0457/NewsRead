@@ -154,3 +154,18 @@ test("page states: loading, error, empty and the list with type counts", () => {
   assert.ok(!filtered.includes("範例晶圓廠"));
   assert.ok(filtered.includes("AI 伺服器"));
 });
+
+test("each theme in the list and its drawer link to the theme page; other types do not (ticket 107)", () => {
+  const theme = Object.assign({}, COMPANY, { id: "E-" + "b".repeat(32), type: "theme", name: "AI <伺服器>", listings: [] });
+  const row = E.rowHtml(theme, false);
+  assert.ok(row.includes(`href="/theme/E-${"b".repeat(32)}"`));
+  assert.ok(row.includes('aria-label="AI &lt;伺服器&gt;的題材頁"'));
+  assert.ok(row.includes(">題材頁 →</a>"));
+  assert.ok(!E.rowHtml(COMPANY, false).includes("/theme/"));
+  const drawer = E.drawerHtml(E.toDraft(theme), {}, [], false);
+  assert.ok(drawer.includes(`<a class="btn" href="/theme/E-${"b".repeat(32)}" data-no-i18n>開啟題材頁 →</a>`));
+  assert.ok(!E.drawerHtml(E.toDraft(COMPANY), {}, [], false).includes("/theme/"));
+  const changed = Object.assign(E.toDraft(COMPANY), { type: "theme" });  // 表單上剛改成題材、還沒存
+  assert.ok(!E.drawerHtml(changed, {}, [], false).includes("/theme/"));
+  assert.ok(!E.drawerHtml(Object.assign(E.blankDraft(), { type: "theme" }), {}, [], false).includes("/theme/"));  // 新增中，還沒有 id
+});
