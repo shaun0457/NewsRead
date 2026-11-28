@@ -2851,6 +2851,7 @@
   "匯入": "Import",
   "原始連結": "Original link",
   "原文和上次不同，存成新版本；舊版本保留。": "The article changed since last time. Saved as a new version; the old one is kept.",
+  "原文是簡體，已轉成繁體（不用 AI，原文保留）": "The original is in Simplified Chinese and was converted to Traditional (no AI; the original is kept)",
   "原文是中文，不用翻譯": "Already in Chinese; no translation needed",
   "只有預覽": "Preview only",
   "媒體": "Publisher",
