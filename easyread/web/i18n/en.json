@@ -3180,5 +3180,17 @@
   "匯入後的自動{what}在等額度保護確認，幾分鐘內自動接著做。": "{what} after import is waiting for the quota check. It continues within a few minutes.",
   "題材頁 →": "Theme page →",
   "{name}的題材頁": "Theme page for {name}",
-  "開啟題材頁 →": "Open theme page →"
+  "開啟題材頁 →": "Open theme page →",
+  "另一個分頁已經存了新版本（v{v}）。你這邊打的內容還在，還沒送出。": "Another tab saved a newer version (v{v}). What you typed is still here and has not been sent.",
+  "另一個分頁已經存了新版本（v{v}），上面已經是新版的因果鏈。你這邊打的內容還在，還沒送出。": "Another tab saved a newer version (v{v}); the chain above is the new version. What you typed is still here and has not been sent.",
+  "另一個分頁已經存了新版本（v{v}），這一環在新版裡被移除，或改了從、到。你這邊打的內容還在，重送會加成新的一環。": "Another tab saved a newer version (v{v}) in which this link was removed or its from / to changed. What you typed is still here; sending it adds a new link.",
+  "另一個分頁已經存了新版本，但現在讀不到新版。你這邊打的內容還在，稍後再按「用我的內容重送」。": "Another tab saved a newer version, but it cannot be read right now. What you typed is still here; press “Send mine again” later.",
+  "看新版": "See the new version",
+  "用我的內容重送": "Send mine again",
+  "放棄我的，改用新版": "Drop mine, use the new version",
+  "新版": "New version",
+  "v{v} · 另一個分頁": "v{v} · another tab",
+  "我的內容": "Mine",
+  "還沒送出": "not sent",
+  "出處": "Source"
 }

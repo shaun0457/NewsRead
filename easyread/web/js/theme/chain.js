@@ -33,6 +33,13 @@ window.PR = window.PR || {};
     saved: PR.t("已存成草稿。"), published: PR.t("已確認成定稿。"), removed: PR.t("已移除這一環。"),
     saveFailed: PR.t("存不了，請稍後再試。"), stale: PR.t("這一頁已經有新的版本，已重新載入。"),
     full: (n) => PR.t("最多 {n} 環。", { n }),
+    conflict: (v) => PR.t("另一個分頁已經存了新版本（v{v}）。你這邊打的內容還在，還沒送出。", { v }),
+    conflictAdd: (v) => PR.t("另一個分頁已經存了新版本（v{v}），上面已經是新版的因果鏈。你這邊打的內容還在，還沒送出。", { v }),
+    conflictMoved: (v) => PR.t("另一個分頁已經存了新版本（v{v}），這一環在新版裡被移除，或改了從、到。你這邊打的內容還在，重送會加成新的一環。", { v }),
+    conflictUnread: PR.t("另一個分頁已經存了新版本，但現在讀不到新版。你這邊打的內容還在，稍後再按「用我的內容重送」。"),
+    seeNew: PR.t("看新版"), resend: PR.t("用我的內容重送"), discard: PR.t("放棄我的，改用新版"),
+    theirs: PR.t("新版"), theirsChip: (v) => PR.t("v{v} · 另一個分頁", { v }), mine: PR.t("我的內容"), mineChip: PR.t("還沒送出"),
+    sourceCol: PR.t("出處"),
   });
   const esc = (s) => PR.esc(s);
 
@@ -140,6 +147,71 @@ window.PR = window.PR || {};
     return (links || []).some((l) => ["from", "to"].some((s) => l[s] && l[s].entity_id === id && l[s].type === "company"));
   }
 
+  /* 版本衝突（ticket 108）：另一個分頁先存了新版本時，正在改的那一環在新版裡是哪一環。
+     同一個位置、從和到都一樣就是它；不然找從和到都一樣的唯一一環；找不到（被移除、改了從或到、有好幾個一樣的）回 null。 */
+  function nodeKey(n) {
+    if (!n) return "";
+    return n.entity_id ? "e:" + n.entity_id : "l:" + String(n.label || "");
+  }
+
+  function matchLink(before, index, links) {
+    if (!before) return null;
+    const same = (l) => l && nodeKey(l.from) === nodeKey(before.from) && nodeKey(l.to) === nodeKey(before.to);
+    if (index !== null && index !== undefined && same(links[index])) return index;
+    const hits = links.map((l, i) => (same(l) ? i : -1)).filter((i) => i >= 0);
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  /* 比較用：一環的各欄位顯示成文字（新版的環節，或我的草稿轉成的環節） */
+  function cmpRows(link, tx, withCompany) {
+    const src = (s) => { const v = sourceView(s); return v.kind === "url" ? v.url : v.kind === "item" ? tx.item(v.id) : tx.noSource; };
+    const rows = [[tx.from + " → " + tx.to, nodeText(link.from) + " → " + nodeText(link.to)], [tx.relation, link.relation || ""],
+                  [tx.sourceCol, src(link.source)]];
+    if (withCompany) {
+      const share = shareView(link.revenue_share);
+      const role = ROLES.includes(link.role) ? link.role : "unknown";
+      rows.push([tx.share, share.kind === "unknown" ? tx.unknown : share.text + " · " + src(link.revenue_share.source)],
+                [tx.role, role === "leader" ? tx.leader : role === "laggard" ? tx.laggard : tx.roleUnknown]);
+    }
+    return rows;
+  }
+
+  /* 我的草稿 → 跟新版同形狀的環節（追蹤對象補上名稱，比較時才看得懂） */
+  function draftLink(d, S) {
+    const company = d.to.kind === "entity" && entityIsCompany(S.entities, d.to.entity, S.view && S.view.links);
+    const link = payload(d, company);
+    for (const side of ["from", "to"]) {
+      const id = link[side].entity_id;
+      if (id) {
+        const e = (S.entities || []).find((x) => x.id === id);
+        link[side] = Object.assign({}, link[side], { name: e ? e.name : id });
+      }
+    }
+    return link;
+  }
+
+  function compareHtml(S, tx) {
+    const c = S.conflict, ed = S.editing;
+    if (!c || !c.theirs || !ed) return "";
+    const mine = draftLink(ed.draft, S);
+    const withCompany = "revenue_share" in c.theirs || "revenue_share" in mine;
+    const a = cmpRows(c.theirs, tx, withCompany), b = cmpRows(mine, tx, withCompany);
+    const dl = (rows, other) => `<dl>${rows.map(([k, v], i) => `<dt>${esc(k)}</dt><dd${v !== other[i][1] ? ' class="chg"' : ""} data-no-i18n>${esc(v)}</dd>`).join("")}</dl>`;
+    return `<div class="cmp" id="chain-cmp"${c.open ? "" : ' hidden="until-found"'}>`
+      + `<div><h3>${esc(tx.theirs)} <span class="chip">${esc(tx.theirsChip(c.version))}</span></h3>${dl(a, b)}</div>`
+      + `<div><h3>${esc(tx.mine)} <span class="chip mine">${esc(tx.mineChip)}</span></h3>${dl(b, a)}</div></div>`;
+  }
+
+  function conflictHtml(S, tx) {
+    const c = S.conflict;
+    if (!c || !S.editing) return "";
+    const text = c.unread ? tx.conflictUnread : c.moved ? tx.conflictMoved(c.version) : c.theirs ? tx.conflict(c.version) : tx.conflictAdd(c.version);
+    const see = c.theirs ? `<button class="btn sm" type="button" data-act="compare" aria-expanded="${c.open ? "true" : "false"}" aria-controls="chain-cmp">${esc(tx.seeNew)}</button>` : "";
+    return `<div class="banner warn" role="alert"><span class="ico">!</span><div>${esc(text)}<div class="acts">${see}`
+      + `<button class="btn sm primary" type="button" data-act="resend"${S.busy ? " disabled" : ""}>${esc(tx.resend)}</button>`
+      + `<button class="btn sm ghost" type="button" data-act="discard"${S.busy ? " disabled" : ""}>${esc(tx.discard)}</button></div></div></div>`;
+  }
+
   /* ---------- 畫面 ---------- */
   function sourceHtml(src, tx) {
     const s = sourceView(src);
@@ -235,7 +307,7 @@ window.PR = window.PR || {};
       + `<label>${esc(tx.sourceItem)}<select class="input" data-k="item">${itemOpts}</select></label>`
       + share
       + (e.form ? `<div class="err" role="alert">${esc(e.form)}</div>` : "")
-      + `<div class="row"><button class="btn primary sm" type="submit"${S.busy ? " disabled" : ""}>${esc(tx.save)}</button>`
+      + `<div class="row"><button class="btn primary sm" type="submit"${S.busy ? " disabled" : ""}>${esc(S.conflict ? tx.resend : tx.save)}</button>`
       + `<button class="btn sm ghost" type="button" data-act="cancel"${S.busy ? " disabled" : ""}>${esc(tx.cancel)}</button></div></form>`;
   }
 
@@ -248,13 +320,14 @@ window.PR = window.PR || {};
     }
     const v = S.view, ed = S.editing;
     const locked = !!ed || S.busy;
-    const links = v.links.map((l) => (ed && ed.index === l.index ? `<li class="edit">${formHtml(ed, S, tx)}</li>` : linkHtml(l, v, tx, locked))).join("");
-    const adding = ed && ed.index === null ? `<li class="edit">${formHtml(ed, S, tx)}</li>` : "";
+    const form = () => `<li class="edit">${compareHtml(S, tx)}${formHtml(ed, S, tx)}</li>`;
+    const links = v.links.map((l) => (ed && ed.index === l.index ? form() : linkHtml(l, v, tx, locked))).join("");
+    const adding = ed && ed.index === null ? form() : "";
     const full = v.links.length >= MAX_LINKS;
     const banner = v.status === "draft" && v.unconfirmed > 0 ? `<div class="banner warn"><span class="ico">!</span><div>${esc(tx.unconfirmed(v.unconfirmed))}</div></div>` : "";
     const note = S.note ? `<div class="banner bad" role="alert"><span class="ico">!</span><div>${esc(S.note)}</div></div>` : "";
     return `<section class="card sec" id="chain"><h2>${esc(tx.heading)} <span class="muted" style="font-size:12.5px;font-weight:400">${esc(tx.legend)}</span></h2>`
-      + note + banner
+      + note + conflictHtml(S, tx) + banner
       + (v.links.length || adding ? `<ol class="chain">${links}${adding}</ol>` : `<p class="muted">${esc(tx.empty)}</p>`)
       + `<div class="row" style="margin-top:10px"><button class="btn sm" type="button" data-act="add"${full || ed ? " disabled" : ""}>${esc(tx.add)}</button>`
       + (full ? `<span class="muted">${esc(tx.full(MAX_LINKS))}</span>` : "")
@@ -263,7 +336,8 @@ window.PR = window.PR || {};
   }
 
   /* ---------- 狀態與動作 ---------- */
-  const S = { id: null, title: "", view: null, entities: [], items: [], editing: null, status: "loading", busy: false, note: "" };
+  // conflict：送出被擋（另一個分頁先存了新版本）時保留表單（ticket 108）。{version, theirs, moved, unread, open}
+  const S = { id: null, title: "", view: null, entities: [], items: [], editing: null, status: "loading", busy: false, note: "", conflict: null };
   let seq = 0;
 
   function render(focus) {
@@ -309,17 +383,36 @@ window.PR = window.PR || {};
     } catch (e) { /* 名單讀不到也能看因果鏈；新增時下拉選單是空的 */ }
   }
 
+  const chainUrl = () => "/api/themes/" + encodeURIComponent(S.id) + "/chain";
+
+  /* 新增或修改一環時被擋：讀新版、表單和打的內容留著；要改的那一環在新版裡找不到時改成新增。讀不到新版就留在舊版，下次重送再試 */
+  async function keepForm() {
+    const ed = S.editing, before = ed.index === null ? null : S.view.links[ed.index];
+    seq++;  // 之前還沒回來的 load 不要蓋掉這次讀到的
+    let fresh;
+    try { fresh = await PR.api(chainUrl()); } catch (e) { fresh = null; }
+    if (S.editing !== ed) return;
+    if (!fresh || !Array.isArray(fresh.links)) { S.conflict = { unread: true, theirs: null, open: false }; return; }
+    const at = matchLink(before, ed.index, fresh.links);
+    S.view = fresh; S.status = "ready";
+    S.conflict = { version: fresh.version, theirs: at === null ? null : fresh.links[at], moved: !!before && at === null, unread: false,
+                   open: !!(S.conflict && S.conflict.open) };
+    ed.index = before ? at : null;
+    ed.errors = {};
+  }
+
   async function post(body) {
     if (S.busy) return null;
     S.busy = true; S.note = "";
     render();  // 馬上停用按鈕：回應回來前開了別的表單，index 可能對到移除後的另一環
     try {
-      const view = await PR.api("/api/themes/" + encodeURIComponent(S.id) + "/chain", { method: "POST", body: Object.assign({ base_version: S.view.version }, body) });
+      const view = await PR.api(chainUrl(), { method: "POST", body: Object.assign({ base_version: S.view.version }, body) });
       S.view = view;
       return view;
     } catch (e) {
       const info = errorInfo(e, T().saveFailed);
-      if (info.field === "base_version") { S.note = T().stale; S.editing = null; await load(true); }
+      if (info.field === "base_version" && S.editing && (body.op === "add" || body.op === "update")) await keepForm();
+      else if (info.field === "base_version") { S.note = T().stale; S.editing = null; S.conflict = null; await load(true); }
       else if (S.editing) {
         const at = S.editing.index === null ? S.view.links.length : S.editing.index;
         S.editing.errors = { [fieldKey(info.field, at)]: info.message };
@@ -337,15 +430,18 @@ window.PR = window.PR || {};
     const company = ed.draft.to.kind === "entity" && entityIsCompany(S.entities, ed.draft.to.entity, S.view && S.view.links);
     const link = payload(ed.draft, company);
     const view = await post(ed.index === null ? { op: "add", link } : { op: "update", index: ed.index, link });
-    if (view) { S.editing = null; PR.toast(esc(T().saved)); render("[data-act=add]"); }
-    else render(".chain-form .invalid, .chain-form .err");
+    if (view) { S.editing = null; S.conflict = null; PR.toast(esc(T().saved)); render("[data-act=add]"); }
+    else render(S.conflict ? "[data-act=resend]" : ".chain-form .invalid, .chain-form .err");
   }
 
   async function act(name, i, extra) {
     if (S.busy && name !== "retry") return;  // 請求進行中：不開表單、不取消，等回應回來
     if (name === "edit") { S.editing = { index: i, draft: toDraft(S.view.links[i]), errors: {} }; return void render(".chain-form input"); }
     if (name === "add") { S.editing = { index: null, draft: blankDraft(), errors: {} }; return void render(".chain-form input"); }
-    if (name === "cancel") { S.editing = null; return void render(); }
+    if (name === "cancel") { S.editing = null; S.conflict = null; return void render(); }
+    if (name === "compare" && S.conflict) { S.conflict.open = !S.conflict.open; return void render("[data-act=compare]"); }
+    if (name === "resend") return submit();
+    if (name === "discard") { S.editing = null; S.conflict = null; return load(true); }
     if (name === "retry") return void load();
     let view;
     if (name === "confirm") view = await post({ op: "confirm", index: i });
@@ -391,11 +487,18 @@ window.PR = window.PR || {};
     root.addEventListener("input", onInput);
     root.addEventListener("change", onChange);
     root.addEventListener("submit", (ev) => { ev.preventDefault(); submit(); });
+    // 頁內搜尋找到收起來的比較內容時，瀏覽器會自己打開它：按鈕的狀態跟著改（不重畫，免得搜尋位置跑掉）
+    root.addEventListener("beforematch", (ev) => {
+      if (!S.conflict || !ev.target || ev.target.id !== "chain-cmp") return;
+      S.conflict.open = true;
+      const b = PR.$("[data-act=compare]", root);
+      if (b) b.setAttribute("aria-expanded", "true");
+    });
     loadLists().then(() => { const t = PR.$("#title"); if (t) t.textContent = S.title; });
     load();
   }
 
   PR.themeChain = { sourceView, shareView, nodeText, pending, blankDraft, toDraft, payload, fieldKey, capChoices, entityIsCompany,
-                    viewHtml, act, MAX_CHOICES, MAX_LINKS, state: S };
+                    matchLink, cmpRows, viewHtml, act, submit, MAX_CHOICES, MAX_LINKS, state: S };
   document.addEventListener("DOMContentLoaded", init);
 })(window.PR);

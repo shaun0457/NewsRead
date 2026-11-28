@@ -238,3 +238,138 @@ test("while a request is in flight, no form opens and cancel is disabled", async
   assert.equal(C.state.editing.index, 2);
   C.state.editing = null;
 });
+
+/* ---------- 版本衝突時保留表單（ticket 108） ---------- */
+function loadWith(replies) {
+  const calls = [];
+  const PR = {
+    lang: "zh-TW",
+    t: (s, values = {}) => s.replace(/\{(\w+)\}/g, (m, key) => values[key] ?? m),
+    esc: (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
+    $: () => null, toast() {},
+    api: (url, opts) => {
+      calls.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body ? JSON.parse(JSON.stringify(opts.body)) : null });
+      const r = replies.shift();
+      if (!r) return Promise.reject(new Error("no reply"));
+      return r.fail ? Promise.reject(r.fail) : Promise.resolve(r.ok);
+    },
+  };
+  const context = { window: { PR }, document: { addEventListener() {} } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/theme/chain.js"), "utf8"), context);
+  return { C: PR.themeChain, calls, replies };
+}
+const STALE = { fail: { status: 400, data: { error: "這一頁已經有新的版本，請重新整理再改。", field: "base_version" } } };
+const A = link({ index: 0, from: { label: "AI 加速器需求" }, to: { label: "CoWoS 產能" }, relation: "產能是出貨上限" });
+const B = link({ index: 1, from: { label: "CoWoS 產能" }, to: { label: "台積電" }, relation: "月產能 8 萬片", source: { url: "https://example.com/80k" } });
+function editing(C, links, index, relation) {
+  Object.assign(C.state, { id: "E-x", status: "ready", view: view(links), entities: [], items: [], note: "", busy: false, conflict: null });
+  const draft = index === null ? C.blankDraft() : C.toDraft(links[index]);
+  if (index === null) { draft.from.text = "新的起點"; draft.to.text = "新的終點"; }
+  draft.relation = relation;
+  C.state.editing = { index, draft, errors: {} };
+}
+
+test("a save blocked by a newer version keeps the form, shows the new version beside mine, and resends on top of it", async () => {
+  const theirs = Object.assign({}, B, { relation: "月產能年底前到 8 萬片（另一個分頁）" });
+  const { C, calls, replies } = loadWith([STALE, { ok: view([A, theirs], { version: 3 }) }]);
+  editing(C, [A, B], 1, "月產能拉到 9 萬片");
+  await C.submit();
+  assert.equal(C.state.editing.index, 1);
+  assert.equal(C.state.editing.draft.relation, "月產能拉到 9 萬片");  // 打的內容還在
+  assert.equal(C.state.view.version, 3);
+  assert.equal(C.state.note, "");
+  let html = C.viewHtml(C.state);
+  assert.match(html, /<div class="banner warn" role="alert"><span class="ico">!<\/span><div>另一個分頁已經存了新版本（v3）。你這邊打的內容還在，還沒送出。/);
+  assert.match(html, /data-act="compare" aria-expanded="false" aria-controls="chain-cmp">看新版</);
+  assert.match(html, /data-act="resend"[^>]*>用我的內容重送</);
+  assert.match(html, /data-act="discard"[^>]*>放棄我的，改用新版</);
+  assert.match(html, /<div class="cmp" id="chain-cmp" hidden="until-found">/);  // 收著，但頁內搜尋找得到
+  assert.match(html, /value="月產能拉到 9 萬片"/);
+  assert.match(html, /type="submit">用我的內容重送</);
+  await C.act("compare", null);
+  html = C.viewHtml(C.state);
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /<div class="cmp" id="chain-cmp">/);
+  assert.match(html, /<dd class="chg" data-no-i18n>月產能年底前到 8 萬片（另一個分頁）<\/dd>/);
+  assert.match(html, /<dd class="chg" data-no-i18n>月產能拉到 9 萬片<\/dd>/);
+  assert.match(html, /<dd data-no-i18n>CoWoS 產能 → 台積電<\/dd>/);  // 一樣的欄位不上底色
+  assert.match(html, /v3 · 另一個分頁/);
+  replies.push({ ok: view([A, Object.assign({}, B, { relation: "月產能拉到 9 萬片" })], { version: 4 }) });
+  await C.act("resend", null);
+  const last = calls[calls.length - 1];
+  same([last.method, last.body.base_version, last.body.op, last.body.index, last.body.link.relation], ["POST", 3, "update", 1, "月產能拉到 9 萬片"]);
+  assert.equal(C.state.editing, null);
+  assert.equal(C.state.conflict, null);
+  assert.doesNotMatch(C.viewHtml(C.state), /另一個分頁/);
+});
+
+test("the link being edited is followed to its new place, or the resend becomes an add when it is gone", async () => {
+  const X = link({ index: 0, from: { label: "雲端資本支出" }, to: { label: "AI 加速器需求" } });
+  let r = loadWith([STALE, { ok: view([X, Object.assign({}, A, { index: 1 }), Object.assign({}, B, { index: 2 })], { version: 3 }) }]);
+  editing(r.C, [A, B], 1, "我的說明");
+  await r.C.submit();
+  assert.equal(r.C.state.editing.index, 2);  // 另一個分頁在前面加了一環
+  assert.match(r.C.viewHtml(r.C.state), /另一個分頁已經存了新版本（v3）。/);
+  r.replies.push({ ok: view([X, A, B], { version: 4 }) });
+  await r.C.submit();
+  same([r.calls[2].body.op, r.calls[2].body.index], ["update", 2]);
+
+  r = loadWith([STALE, { ok: view([A], { version: 3 }) }]);
+  editing(r.C, [A, B], 1, "我的說明");
+  await r.C.submit();
+  assert.equal(r.C.state.editing.index, null);
+  assert.equal(r.C.state.conflict.moved, true);
+  const html = r.C.viewHtml(r.C.state);
+  assert.match(html, /這一環在新版裡被移除，或改了從、到。你這邊打的內容還在，重送會加成新的一環。/);
+  assert.doesNotMatch(html, /data-act="compare"/);
+  assert.match(html, /value="我的說明"/);
+  r.replies.push({ ok: view([A, B], { version: 4 }) });
+  await r.C.submit();
+  same([r.calls[2].body.op, r.calls[2].body.base_version, r.calls[2].body.link.relation], ["add", 3, "我的說明"]);
+});
+
+test("a blocked add keeps the form; an unreadable new version keeps the old one and the next resend tries again", async () => {
+  let r = loadWith([STALE, { ok: view([A, B], { version: 3 }) }]);
+  editing(r.C, [A], null, "新的一環");
+  await r.C.submit();
+  assert.equal(r.C.state.editing.index, null);
+  assert.match(r.C.viewHtml(r.C.state), /另一個分頁已經存了新版本（v3），上面已經是新版的因果鏈。/);
+  assert.equal(r.C.viewHtml(r.C.state).match(/<li class="edit">/g).length, 1);
+
+  r = loadWith([STALE, { fail: new Error("offline") }]);
+  editing(r.C, [A, B], 1, "我的說明");
+  await r.C.submit();
+  assert.equal(r.C.state.view.version, 2);
+  assert.equal(r.C.state.editing.index, 1);
+  assert.match(r.C.viewHtml(r.C.state), /但現在讀不到新版。你這邊打的內容還在，稍後再按「用我的內容重送」。/);
+  r.replies.push(STALE, { ok: view([A, B], { version: 3 }) });
+  await r.C.act("resend", null);
+  same([r.calls[2].body.base_version, r.C.state.view.version, r.C.state.conflict.unread], [2, 3, false]);
+});
+
+test("dropping mine closes the form and reloads; other actions blocked by a new version still just reload", async () => {
+  let r = loadWith([STALE, { ok: view([A, B], { version: 3 }) }, { ok: view([A, B], { version: 3 }) }]);
+  editing(r.C, [A, B], 1, "我的說明");
+  await r.C.submit();
+  await r.C.act("discard", null);
+  same([r.C.state.editing, r.C.state.conflict, r.calls[2].method], [null, null, "GET"]);
+
+  r = loadWith([STALE, { ok: view([A], { version: 3 }) }]);
+  Object.assign(r.C.state, { id: "E-x", status: "ready", view: view([A, B]), editing: null, conflict: null, busy: false, note: "" });
+  await r.C.act("remove", 1);
+  same([r.C.state.note, r.C.state.view.version, r.C.state.conflict], ["這一頁已經有新的版本，已重新載入。", 3, null]);
+});
+
+test("matchLink: same place first, then the only link with the same from and to; duplicates or none give null", () => {
+  const E2 = "E-" + "b".repeat(32);
+  const ent = link({ from: { label: "需求" }, to: { entity_id: E2, name: "改名後也一樣" } });
+  assert.equal(C.matchLink(A, 0, [A, B]), 0);
+  assert.equal(C.matchLink(B, 0, [B, A]), 0);
+  assert.equal(C.matchLink(B, 0, [A, B]), 1);
+  assert.equal(C.matchLink(B, 1, [A, B, B]), 1);
+  assert.equal(C.matchLink(B, 0, [A, B, B]), null);  // 好幾個一樣的：不猜
+  assert.equal(C.matchLink(B, 1, [A]), null);
+  assert.equal(C.matchLink(link({ from: { label: "需求" }, to: { entity_id: E2 } }), 0, [ent]), 0);  // 追蹤對象看 id，不看名稱
+  assert.equal(C.matchLink(null, 0, [A]), null);
+});
+

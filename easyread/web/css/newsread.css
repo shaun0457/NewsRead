@@ -71,6 +71,7 @@ svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-widt
 .banner.warn { background: var(--warn-soft); }
 .banner.bad { background: var(--danger-soft); }
 .banner .ico { font-weight: 700; }
+.banner .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
 .field { display: grid; gap: 4px; margin-bottom: 14px; }
 .field > label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
