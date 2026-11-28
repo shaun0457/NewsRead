@@ -11,7 +11,8 @@ const settled = () => new Promise(resolve => setImmediate(resolve));
 async function reader(threads = [], options = {}) {
   const listeners = new Map(), events = new Map(), nodes = new Map(), requests = [], copied = [], confirmations = [], focused = [];
   const apiCalls = [], ingested = [];
-  let finish;
+  let finish, push;
+  const liveBody = { innerHTML: "" };
   const pendingReads = [];
   const panelEvents = new Map();
   const panel = { addEventListener(name, fn) { panelEvents.set(name, fn); }, classList: { add() {}, remove() {} } };
@@ -22,6 +23,7 @@ async function reader(threads = [], options = {}) {
       const ta = { value: (html.match(/<textarea[^>]*>(.*?)<\/textarea>/s) || [])[1] || "", focus() {} };
       nodes.set("#chatInput", ta);
       nodes.set("#chatList", { scrollHeight: 100, scrollTop: 0, clientHeight: 100 });
+      nodes.set("#chatList .cm.ai:last-child .body", liveBody);
       const button = (html.match(/<button class="ch-pill[^>]*data-c="style"[^>]*>/) || [""])[0];
       nodes.set("#chatAnswerStyle", {
         value: /aria-pressed="true"/.test(button) ? "ste100" : "standard",
@@ -71,9 +73,10 @@ async function reader(threads = [], options = {}) {
       return new Response(new ReadableStream({
         start(ctrl) {
           opts.signal.addEventListener("abort", () => ctrl.error(Object.assign(new Error("Stopped"), { name: "AbortError" })));
+          push = events => ctrl.enqueue(new TextEncoder().encode(events.map(e => JSON.stringify(e) + "\n").join("")));
           finish = () => {
             const events = [{ thread: "new", model: "Model", answer_style: requests.at(-1).answer_style },
-              { t: options.text || answer }, { done: true, id: "answer", ...(options.done || {}) }];
+              ...(options.text === null ? [] : [{ t: options.text || answer }]), { done: true, id: "answer", ...(options.done || {}) }];
             ctrl.enqueue(new TextEncoder().encode(events.map(e => JSON.stringify(e) + "\n").join("")));
             ctrl.close();
           };
@@ -106,7 +109,8 @@ async function reader(threads = [], options = {}) {
   return { PR, panel, nodes, requests, copied, confirmations, focused, dispatch, click, selectThread, setStyle, apiCalls, ingested,
     finishImages: () => pendingReads.splice(0).forEach(done => done()),
     paste: files => { let prevented = false; return Promise.resolve(panelEvents.get("paste")({ target: { id: "chatInput" }, clipboardData: { items: files.map(file => ({ kind: "file", type: file.type, getAsFile: () => file })) }, preventDefault: () => { prevented = true; } })).then(() => prevented); },
-    emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish() };
+    emit: async name => { await events.get(name)(); await settled(); }, finish: () => finish(), liveBody,
+    push: async events => { push(events); await settled(); await settled(); } };
 }
 
 test("STE selection reaches the request, stays fixed during streaming, and copies the complete Chinese answer", async () => {
@@ -574,4 +578,47 @@ test("pasting only a link asks whether to import it or ask AI", async () => {
   assert.equal(r.requests.length, 3);  // 網址夾在句子裡就直接問
   r.finish();
   await plain;
+});
+
+test("while an article answer streams, only the checked points show, without rating buttons", async () => {
+  const r = await reader([], { noPdf: true, text: null, done: { answer: structured, prompt_version: "ask-article-v1@claude/opus" } });
+  r.nodes.get("#chatInput").value = "營收多少？";
+  const sending = r.click("send");
+  await settled();
+  const partial = { version: 1, lead: "", dropped: 1, truncated: false, sections: [structured.sections[0]] };
+  await r.push([{ thread: "new", model: "Model" }, { partial }]);
+  const live = r.liveBody.innerHTML;
+  assert.ok(live.includes("營收成長 12%。"));
+  assert.ok(live.includes("有 1 句的引述對不上原文，已隱藏"));
+  assert.ok(!live.includes('data-c="rate"'));
+  assert.ok(!live.includes("引用的 ¶ 都對過原文"));  // 頁尾答完才出現
+  assert.ok(!live.includes("一般解釋"));
+  r.finish();
+  await sending;
+  assert.equal((r.panel.innerHTML.match(/data-c="rate"/g) || []).length, 9);
+});
+
+test("stopping an article answer keeps only the checked points", async () => {
+  const r = await reader([], { noPdf: true, text: null });
+  r.nodes.get("#chatInput").value = "營收多少？";
+  const sending = r.click("send");
+  await settled();
+  const partial = { version: 1, lead: "", dropped: 0, truncated: false, sections: [structured.sections[0]] };
+  await r.push([{ thread: "new", model: "Model" }, { partial }]);
+  await r.click("stop");
+  await sending;
+  const html = r.panel.innerHTML;
+  assert.ok(html.includes("營收成長 12%。"));
+  assert.ok(html.includes("（已停止）"));
+  assert.ok(!html.includes("【文章怎麼說】"));
+});
+
+test("an article answer that skipped the format shows its text once done", async () => {
+  const r = await reader([], { noPdf: true, text: null, done: { answer: null, content: "這篇文章沒有可以判斷股價的資訊。" } });
+  r.nodes.get("#chatInput").value = "股價會漲嗎？";
+  const sending = r.click("send");
+  await settled();
+  r.finish();
+  await sending;
+  assert.ok(r.panel.innerHTML.includes("這篇文章沒有可以判斷股價的資訊。"));
 });

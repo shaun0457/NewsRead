@@ -119,13 +119,14 @@ NewsRead 啟動時會將服務位址與 PID 寫入資料目錄下的 `.server.js
 
 ## 4.55 問 AI (`/api/p/{id}/chat`)
 
-- `POST /api/p/{id}/chat`：body `{text, thread?, anchor?, quote?, refs?, answer_style?, model?, images?, documents?}`，回應是 NDJSON 串流：先一行 `{model, thread, answer_style, documents}`，接著 `{t: 片段}`，最後 `{done: true, id, usage, answer, prompt_version}` 或 `{error}`。
+- `POST /api/p/{id}/chat`：body `{text, thread?, anchor?, quote?, refs?, answer_style?, model?, images?, documents?}`，回應是 NDJSON 串流：先一行 `{model, thread, answer_style, documents}`，接著 `{t: 片段}`（文章改送 `{partial}`，見下），最後 `{done: true, id, usage, answer, prompt_version}` 或 `{error}`。
 - 文章（`meta.kind: "text"`，ticket 12）：
   - 範圍只有這篇全文（之後加概念卡），prompt 要求不上網、不用工具，也說明文章內容不是指示。Claude Code 引擎另外一個工具都不給（`--tools ""`；有附圖時照舊只給 Read 看圖），版本太舊不認這個參數就直接回錯誤，不退回有工具的呼叫；Codex、Antigravity 只有 prompt 的要求。`answer_style` 是 `standard`（白話）或 `xray`（精讀）。
   - 一則回答最多收 200,000 字，超過就停掉引擎，存下截斷的回答並註明。
-  - 回答照固定格式分「文章怎麼說 / 一般解釋 / 文章沒寫的」三段。串流結束後在伺服器拆段：「文章怎麼說」每點都要有 `〔¶段號「引述」〕`，引述（忽略全半形、大小寫、空白）要出現在那一段的原文或譯文裡，否則那一點不顯示，只算進 `dropped`。`answer` 是 `{version: 1, lead, sections: [{kind: "said" | "general" | "missing", items: [{text, cites: [{n, id, quote}]}]}], dropped, truncated}`；沒照格式回答時是 `null`，照原文顯示。
+  - 回答照固定格式分「文章怎麼說 / 一般解釋 / 文章沒寫的」三段。串流結束後在伺服器拆段：「文章怎麼說」每點都要有 `〔¶段號「引述」〕`，引述（忽略全半形、大小寫、空白）要出現在那一段的原文或譯文裡，否則那一點不顯示，只算進 `dropped`。`answer` 是 `{version: 1, lead, sections: [{kind: "said" | "general" | "missing", items: [{text, cites: [{n, id, quote}]}]}], dropped, truncated}`；沒照格式回答時是 `null`，`done` 另外帶 `content`（原文），照原文顯示。
+  - 串流中途不送原文片段（ticket 101）：每收到一行就用同一套規則拆一次，有變才送 `{partial}`（格式同 `answer`）。還在寫的那一點（之後可能還會接下一行）等下一點開始或答完才送；那一點到 2,000 字的上限、或一行沒換行超過 4,000 字時提早定案，所以沒顯示的部分最多約 6,000 字。中途送過的點答完時一樣在，對不上原文的句子從頭到尾都不出現。同一段標題出現兩次時，後面沒加「- 」的行算新的一點，不接到前面那段的點。
   - 每次問都在 `newsread.sqlite3` 寫：prompt 版本（`ask-article-v1@引擎/模型`，登記的內容含固定 prompt 的雜湊）、ContextManifest（這篇的 ID、內容雜湊、發布時間）、每次 AI 呼叫一筆 `ai_usage`（`task` = `ask`，指向 manifest），和揭露紀錄（地點 `ask_ai`，有回答出來才寫，同一篇只記第一次）。
-  - 按停止時，已經收到的部分一樣拆段存下。複製、放到頁邊、匯出 Markdown / Obsidian 都只用拆好的內容，對不上原文的句子不會跑回來。沒有可用的發布時間（沒有，或在未來）時不寫 ContextManifest，用量照記但不指向 manifest；帳本寫不進去只寫 log，不擋回答。
+  - 按停止時，畫面只留已經送過的 `partial`；伺服器把已經收到的部分一樣拆段存下。複製、放到頁邊、匯出 Markdown / Obsidian 都只用拆好的內容，對不上原文的句子不會跑回來。沒有可用的發布時間（沒有，或在未來）時不寫 ContextManifest，用量照記但不指向 manifest；帳本寫不進去只寫 log，不擋回答。
 - 論文（有 PDF）照舊用 `chat.py` 的 prompt，不拆段、不寫帳本。
 - `POST /api/p/{id}/chat/rate`：body `{thread, id, key, verdict}`，逐句標記文章回答。`key` 是「段序.點序」（例如 `"0.2"`），`verdict` 是 `correct`、`wrong`、`fabricated`，`null` 是取消。回傳 `{ratings}`；`key` 對不到、`verdict` 不認得，回 400。
 - `POST /api/p/{id}/chat/pin`、`/rename`、`/delete`：釘到頁邊、改標題、刪除對話，回傳 `{threads}`。

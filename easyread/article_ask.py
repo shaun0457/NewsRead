@@ -2,6 +2,7 @@
 
 回答分三段：「文章怎麼說」每句附段落出處和逐字引述，「一般解釋」是 AI 自己補的，「文章沒寫的」是文章沒回答的部分。
 模型照固定格式輸出，串流結束後在這裡拆段、對引述：「文章怎麼說」裡出處對不上原文的句子不顯示，只記數量。
+串流中途也用同一套拆法（Live）：只送已經定案、對過引述的部分，對不上的句子從頭到尾都不出現在畫面上。
 沒照格式回答（例如「這篇沒有可以判斷股價的資訊」）就照原文顯示，不硬拆。
 
 PDF 論文的問 AI 不走這裡（chat.py）。
@@ -132,20 +133,32 @@ def _check(cites: list[tuple[str, str]], by_n: dict[int, dict]) -> tuple[list[di
     return good, all_ok and len(cites) <= MAX_CITES
 
 
-def parse(text: str, paras: list[dict]) -> dict | None:
-    """拆成三段。沒有任何段落標題就回 None（照原文顯示）。"""
+def settled(text: str) -> str:
+    """串流中已經定案的文字：寫完的行；還沒換行的最後一行超過 MAX_LINE_CHARS 也算（parse 本來就只看前面那段）。"""
+    end = text.rfind("\n")
+    return text if len(text) - end - 1 >= MAX_LINE_CHARS else text[:end + 1]
+
+
+def parse(text: str, paras: list[dict], *, live: bool = False) -> dict | None:
+    """拆成三段。沒有任何段落標題就回 None（照原文顯示）。
+
+    live=True 是串流中途：只看 settled() 的文字；還在寫的那一點（之後可能還會接下一行）先不放，
+    除非它已經到 MAX_ITEM_CHARS（之後接的行本來就不收）。所以中途給的每一點，答完時都一樣在，不會先顯示再藏。"""
     by_n = {p["n"]: p for p in paras}
     sections: dict[str, list[str]] = {}
     order: list[str] = []
     lead: list[str] = []
     current = None
+    fresh = False  # 剛換到一段：下一行一定是新的一點，不接到這段之前的點（同一段標題出現兩次時）
+    writing = None  # 最後一行寫進了哪一段的最後一點
     cut = False
-    for line in (text or "").splitlines()[:MAX_LINES]:
+    text = settled(text or "") if live else (text or "")
+    for line in text.splitlines()[:MAX_LINES]:
         if len(line) > MAX_LINE_CHARS:
             line, cut = line[:MAX_LINE_CHARS], True
         kind = _heading(line)
         if kind:
-            current = kind
+            current, fresh, writing = kind, True, None
             if current not in sections:
                 sections[current] = []
                 order.append(current)
@@ -154,13 +167,19 @@ def parse(text: str, paras: list[dict]) -> dict | None:
             continue
         if current is None:
             lead.append(line.strip())
-        elif _BULLET.match(line) or not sections[current]:
+        elif _BULLET.match(line) or fresh:
             sections[current].append(_BULLET.sub("", line, count=1).strip())
+            fresh, writing = False, current
         elif len(sections[current][-1]) <= MAX_ITEM_CHARS:
             sections[current][-1] += " " + line.strip()  # 同一點換了行
+            writing = current
         else:
             cut = True
+    if live and writing and len(sections[writing][-1]) < MAX_ITEM_CHARS:
+        sections[writing].pop()
     if not order:
+        if live and lead:  # 還沒出現段落標題：開頭的話先顯示（答完沒照格式時照原文顯示，只會多不會少）
+            return {"version": 1, "lead": " ".join(lead)[:MAX_ITEM_CHARS], "sections": [], "dropped": 0, "truncated": cut}
         return None
     out, dropped = [], 0
     for kind in order:
@@ -181,9 +200,42 @@ def parse(text: str, paras: list[dict]) -> dict | None:
                 items.append({"text": sentence, "cites": good})
         if items:
             out.append({"kind": kind, "items": items})
-    if dropped:
+    if dropped and not live:
         log.info("問 AI 的回答有 %d 句引述對不上原文，已隱藏", dropped)
     return {"version": 1, "lead": " ".join(lead)[:MAX_ITEM_CHARS], "sections": out, "dropped": dropped, "truncated": cut}
+
+
+class Live:
+    """串流中逐步拆段（ticket 101）：每收到一段就 feed，回這時候可以顯示的回答；跟上次一樣就回 None。
+
+    只在換行、或最後一行剛超過 MAX_LINE_CHARS 時重拆；超過 MAX_LINES 行之後 parse 不看，也不再重拆。
+    沒顯示、之後還會顯示的文字最多是「還在寫的那一點」加上「還沒換行的那一行」：MAX_ITEM_CHARS + MAX_LINE_CHARS。"""
+    BUFFER = MAX_ITEM_CHARS + MAX_LINE_CHARS
+
+    def __init__(self, paras: list[dict]):
+        self.paras = paras
+        self.parts: list[str] = []
+        self.lines = 0     # 已經收到幾個換行
+        self.tail = 0      # 最後一行（還沒換行）收到幾個字
+        self.last: dict | None = None
+
+    def feed(self, piece: str) -> dict | None:
+        self.parts.append(piece)
+        before, long_before = self.lines, self.tail >= MAX_LINE_CHARS
+        newline = piece.rfind("\n")
+        if newline >= 0:
+            self.lines += piece.count("\n")
+            self.tail = len(piece) - newline - 1
+        else:
+            self.tail += len(piece)
+        grew_long = self.tail >= MAX_LINE_CHARS and (newline >= 0 or not long_before)
+        if before > MAX_LINES or not (newline >= 0 or grew_long):
+            return None
+        now = parse("".join(self.parts), self.paras, live=True)
+        if now is None or now == self.last or not (now["lead"] or now["sections"] or now["dropped"]):
+            return None  # 沒變，或還沒有能顯示的（畫面照舊是「思考中」）
+        self.last = now
+        return now
 
 
 def as_text(answer: dict) -> str:

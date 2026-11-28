@@ -149,6 +149,76 @@ class ParseTest(unittest.TestCase):
         self.assertEqual([s["kind"] for s in out["sections"]], ["general"])  # MAX_LINES 之後的行不看
 
 
+class LiveTest(unittest.TestCase):
+    """ticket 101：串流中只給已經定案、對過引述的部分。"""
+    paras = ParseTest.paras
+
+    def feed_all(self, text, size=1):
+        live = article_ask.Live(self.paras)
+        return [out for i in range(0, len(text), size) if (out := live.feed(text[i:i + size])) is not None]
+
+    def test_streamed_answer_never_shows_unverified_points_and_only_grows(self):
+        final = article_ask.parse(ANSWER, self.paras)
+        shown = self.feed_all(ANSWER)
+        self.assertTrue(shown)
+        dropped = 0
+        for out in shown:
+            text = json.dumps(out, ensure_ascii=False)
+            self.assertNotIn("毛利率", text)  # 引述對不上的那句
+            self.assertNotIn("沒有附出處", text)
+            kinds = {s["kind"]: s["items"] for s in final["sections"]}
+            for section in out["sections"]:
+                done = kinds[section["kind"]]
+                self.assertEqual(section["items"], done[:len(section["items"])])  # 中途給的點，答完時一樣在
+            self.assertGreaterEqual(out["dropped"], dropped)
+            self.assertLessEqual(out["dropped"], final["dropped"])
+            dropped = out["dropped"]
+        self.assertEqual(shown[-1]["dropped"], 2)  # 對不上的照現在的規則算進 dropped
+        self.assertNotIn("missing", [s["kind"] for s in shown[-1]["sections"]])  # 最後一點可能還會接下一行：答完才給
+
+    def test_point_still_being_written_waits_for_the_next_point(self):
+        live = article_ask.Live(self.paras)
+        self.assertIsNone(live.feed("【文章怎麼說】\n- 營收成長。〔¶1「revenue rose 12%」〕\n"))
+        self.assertIsNone(live.feed("  而且毛利率創新高〔¶1「gross margin hit a record」〕\n"))  # 同一點接下一行，引述對不上
+        out = live.feed("- 公司沒有給財測。〔¶2「沒有給明年的財測」〕\n")
+        self.assertEqual((out["sections"], out["dropped"]), ([], 1))  # 先顯示第一行的話，這裡就得藏起來
+        self.assertIsNone(live.feed("還沒換行的半句"))
+
+    def test_repeated_section_title_starts_a_new_point(self):
+        text = "【文章怎麼說】\n- 營收成長。〔¶1「revenue rose 12%」〕\n【一般解釋】\n- 補充\n【文章怎麼說】\n接著說〔¶1「nope」〕\n"
+        out = article_ask.parse(text, self.paras)
+        self.assertEqual([i["text"] for i in out["sections"][0]["items"]], ["營收成長。"])  # 沒接到前面已經顯示的那點
+        self.assertEqual(out["dropped"], 1)
+
+    def test_lead_shows_before_the_first_title(self):
+        live = article_ask.Live(self.paras)
+        self.assertEqual(live.feed("先說結論。\n")["lead"], "先說結論。")
+        self.assertIsNone(live.feed("\n"))  # 沒變就不再送
+
+    def test_buffer_is_capped_by_the_line_and_point_limits(self):
+        live = article_ask.Live(self.paras)
+        self.assertIsNone(live.feed("【一般解釋】\n- "))
+        fed, out = 0, None
+        while out is None:
+            out = live.feed("長" * 500)  # 一直不換行
+            fed += 500
+        self.assertEqual(fed, article_ask.MAX_LINE_CHARS)
+        self.assertLessEqual(fed, article_ask.Live.BUFFER)
+        self.assertEqual(len(out["sections"][0]["items"][0]["text"]), article_ask.MAX_ITEM_CHARS)
+        self.assertIsNone(live.feed("長" * 500))  # 同一行再多也不重拆
+
+        live = article_ask.Live(self.paras)
+        live.feed("【一般解釋】\n- " + "長" * 1000 + "\n")
+        out = live.feed("長" * 1000 + "\n")  # 換行接下去，到 MAX_ITEM_CHARS 就定案
+        self.assertEqual(len(out["sections"][0]["items"][0]["text"]), article_ask.MAX_ITEM_CHARS)
+
+    def test_stops_reparsing_after_max_lines(self):
+        live = article_ask.Live(self.paras)
+        live.feed("【一般解釋】\n" + "- 點\n" * (article_ask.MAX_LINES + 1))
+        with patch.object(article_ask, "parse", side_effect=AssertionError("不該再拆")):
+            self.assertIsNone(live.feed("- 更多\n" * 10))
+
+
 class PromptTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -337,9 +407,23 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(len(index.exposures(self.ws.id)), 1)  # 每個地點只記第一次
         self.assertEqual(len(index.usage()), 2)
 
+    def test_article_stream_sends_only_checked_parts(self):
+        def chunks(ecfg, prompt_text, root, cancel, seen, meter, **kw):
+            for i in range(0, len(ANSWER), 3):
+                yield ANSWER[i:i + 3]
+        events, _ = self.ask({"text": "營收多少？"}, stream=chunks)
+        self.assertFalse([e for e in events if "t" in e])  # 原文片段不送
+        partial = [e["partial"] for e in events if "partial" in e]
+        self.assertTrue(partial)
+        for out in partial:
+            self.assertNotIn("毛利率", json.dumps(out, ensure_ascii=False))
+        self.assertEqual(events[-1]["answer"]["dropped"], 2)
+        self.assertNotIn("content", events[-1])  # 拆好的回答不用再帶原文
+
     def test_plain_answer_has_no_sections(self):
         events, _ = self.ask({"text": "股價會漲嗎？"}, answer="這篇文章沒有可以判斷股價的資訊。")
         self.assertIsNone(events[-1]["answer"])
+        self.assertEqual(events[-1]["content"], "這篇文章沒有可以判斷股價的資訊。")  # 沒照格式：答完照原文顯示
         self.assertNotIn("answer", chat_store.get(self.ws, events[0]["thread"])["messages"][-1])
 
     def test_ledger_failure_does_not_block_the_answer(self):
@@ -354,6 +438,8 @@ class ServerTest(unittest.TestCase):
         events, prompts = self.ask({"text": "Explain"})
         self.assertNotIn("不要上網查", prompts[0])
         self.assertIsNone(events[-1]["answer"])
+        self.assertTrue([e for e in events if "t" in e])  # 論文照舊送原文片段
+        self.assertNotIn("content", events[-1])
         self.assertFalse(self.ledger_path.exists())  # 論文的問 AI 不寫帳本
 
     def test_rate_sets_clears_and_rejects_bad_input(self):
