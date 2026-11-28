@@ -166,6 +166,21 @@ test("a failed manual import keeps the pasted text and is titled by kind", async
   assert.equal(bodies[0].text, "Example full text.");
 });
 
+test("a refetch that did not update says why, escaped", async () => {
+  const r = { status: "exists", id: "wabc", added: "2026-11-28T10:00:00+08:00", refetch: { kind: "not_found", message: "<b>gone</b>" } };
+  const { PR, slot } = dialogSetup(() => Promise.resolve(r));
+  PR.t = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v || {})[k]);
+  PR.esc = (s) => String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  PR.openIngest("https://news.example.com/x");
+  await tick();
+  const html = slot("ingestOut").innerHTML;
+  assert.match(html, /這次重抓沒有更新，保留原本的內容：&lt;b&gt;gone&lt;\/b&gt;/);
+  const plain = dialogSetup(() => Promise.resolve({ ...r, refetch: undefined }));
+  plain.PR.openIngest("https://news.example.com/x");
+  await tick();
+  assert.doesNotMatch(plain.slot("ingestOut").innerHTML, /重抓/);
+});
+
 test("retry resends the last request body", async () => {
   const bodies = [];
   const { PR, slot, click, submitManual } = dialogSetup((url, opts) => { bodies.push(opts.body); return fail("timeout", "fixed"); });

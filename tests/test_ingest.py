@@ -220,27 +220,74 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(len(meta["content_sha256"]), 64)
         self.assertEqual(story_time(app, r["id"]), "2026-11-10T13:05:00+00:00")
 
-    def test_same_article_is_not_fetched_again(self):
-        app = make_app(self.root, fixture("news-og-en.html"))
+    def test_same_article_pasted_again_is_refetched_and_kept_when_unchanged(self):
+        """#100：已匯入的網址再貼一次會重抓；內容沒變就不新增版本。"""
+        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html"))
         first = ingest.handle(app, {"url": URL})
-        again = ingest.handle(app, {"url": URL + "/amp?utm_campaign=x"})  # FakeTransport 沒有下一個回應：再抓就會失敗
-        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
-        self.assertEqual(len(app.fetch_options["transport"].requests), 1)
+        again = ingest.handle(app, {"url": URL + "/amp?utm_campaign=x"})
+        self.assertEqual((again["status"], again["id"]), ("unchanged", first["id"]))
+        self.assertEqual(len(app.fetch_options["transport"].requests), 2)
+        self.assertEqual(textitem.versions(app.lib.ws(first["id"])), [])
         self.assertTrue(again["added"])
+        self.assertNotIn("refetch", again)
+
+    def test_changed_article_pasted_again_is_saved_as_a_new_version(self):
+        changed = read("news-og-en.html").replace("larger than expected", "smaller than expected")
+        self.assertNotEqual(changed, read("news-og-en.html"))
+        app = make_app(self.root, fixture("news-og-en.html"),
+                       FakeResponse(body=changed, headers={"Content-Type": "text/html; charset=utf-8"}))
+        first = ingest.handle(app, {"url": URL})
+        again = ingest.handle(app, {"url": URL})
+        self.assertEqual((again["status"], again["id"]), ("updated", first["id"]))
+        self.assertEqual(len(textitem.versions(app.lib.ws(first["id"]))), 1)  # 舊版保留
+        self.assertEqual(again["published_at"], first["published_at"])
+
+    def test_failed_refetch_keeps_the_original_and_says_why(self):
+        app = make_app(self.root, fixture("news-og-en.html"), FakeResponse(status=404))
+        first = ingest.handle(app, {"url": URL})
+        before = app.lib.ws(first["id"]).load("paper")
+        again = ingest.handle(app, {"url": URL})
+        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual(again["refetch"]["kind"], "not_found")
+        self.assertEqual(again["refetch"]["message"], fetch.FetchError("not_found").message)
+        self.assertEqual(app.lib.ws(first["id"]).load("paper"), before)
+
+    def test_refetch_that_finds_no_text_or_only_a_preview_keeps_the_full_article(self):
+        empty = FakeResponse(body=b"<html><body><nav><p>menu</p></nav></body></html>", headers={"Content-Type": "text/html"})
+        app = make_app(self.root, fixture("news-og-en.html"), empty, fixture("news-paywall.html"))
+        first = ingest.handle(app, {"url": URL})
+        self.assertEqual(ingest.handle(app, {"url": URL})["refetch"]["kind"], "no_text")
+        r = ingest.handle(app, {"url": URL})
+        self.assertEqual((r["status"], r["refetch"]["kind"], r["preview_only"]), ("exists", "preview_only", False))
+        self.assertEqual(textitem.versions(app.lib.ws(first["id"])), [])
+
+    def test_article_with_a_pasted_full_text_is_not_refetched(self):
+        app = make_app(self.root)
+        ingest.handle(app, {"url": URL, "text": "(Example) The full text." + chr(10) * 2 + "Second paragraph."})
+        r = ingest.handle(app, {"url": URL})  # FakeTransport 沒有回應：抓了就會失敗
+        self.assertEqual((r["status"], r["refetch"]["kind"]), ("exists", "manual"))
+        self.assertEqual(app.fetch_options["transport"].requests, [])
+
+    def test_refetch_while_translating_keeps_the_original(self):
+        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html"))
+        first = ingest.handle(app, {"url": URL})
+        (app.lib.ws(first["id"]).root / "job.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
+        r = ingest.handle(app, {"url": URL})
+        self.assertEqual((r["status"], r["refetch"]["kind"]), ("exists", "busy"))
 
     def test_short_link_that_redirects_to_an_imported_article_is_a_duplicate(self):
         """#99：短網址轉址到已匯入的網址，抓了之後用轉址後的網址判斷重複。"""
         app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html", url=URL))
         first = ingest.handle(app, {"url": URL})
         again = ingest.handle(app, {"url": "https://sho.rt/abc"})
-        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual((again["status"], again["id"]), ("unchanged", first["id"]))  # 抓到的內容拿來比對同一則（#100）
         self.assertEqual(len(app.lib.list()), 1)
 
     def test_new_article_is_stored_under_the_redirect_target(self):
         app = make_app(self.root, fixture("news-og-en.html", url=URL + "?utm_source=x"))
         r = ingest.handle(app, {"url": "https://sho.rt/abc"})
         self.assertEqual((r["status"], r["url"]), ("created", URL))
-        self.assertEqual(r["id"], textitem.item_id("", URL))  # 之後直接貼原網址，不用再抓就知道重複
+        self.assertEqual(r["id"], textitem.item_id("", URL))  # 之後直接貼原網址，抓之前就知道是哪一則
 
     def test_same_site_canonical_that_points_to_an_imported_article_is_a_duplicate(self):
         """#99：canonical 指到已匯入的網址、同一個網站（子網域不同也算）。"""
@@ -251,7 +298,8 @@ class IngestFlowTest(unittest.TestCase):
         first = ingest.handle(app, {"url": URL})
         self.assertEqual(first["url"], canonical)  # 新的一則用可信的 canonical 當 ID
         again = ingest.handle(app, {"url": "https://m.example.com/story?id=7"})
-        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual((again["status"], again["id"]), ("unchanged", first["id"]))
+        self.assertEqual(len(app.lib.list()), 1)
 
     def test_canonical_on_another_site_is_not_used(self):
         other = "https://other-site.org/news/2026/11/cowos-example"
@@ -288,15 +336,14 @@ class IngestFlowTest(unittest.TestCase):
         page = read(name).replace("<head>", f'<head><link rel="canonical" href="{canonical}">', 1)
         return FakeResponse(body=page, headers={"Content-Type": "text/html; charset=utf-8"})
 
-    def test_pasting_the_same_link_again_is_known_without_fetching(self):
-        """存在 canonical 的 ID 下：貼的網址記成別名，再貼同一個網址不用重抓（FakeTransport 沒有下一個回應）。"""
+    def test_pasting_the_same_link_again_refreshes_the_article_stored_under_the_canonical(self):
+        """存在 canonical 的 ID 下：貼的網址是別名，再貼一次重抓後比對的是同一則。"""
         canonical = "https://news.example.com/news/2026/11/chips-full"
-        app = make_app(self.root, self._canonical_page("news-og-en.html", canonical))
+        app = make_app(self.root, self._canonical_page("news-og-en.html", canonical), FakeResponse(status=404))
         first = ingest.handle(app, {"url": URL})
         self.assertEqual(first["url"], canonical)
-        again = ingest.handle(app, {"url": URL + "?utm_source=x"})
-        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
-        self.assertEqual(len(app.fetch_options["transport"].requests), 1)
+        again = ingest.handle(app, {"url": URL + "?utm_source=x"})  # 重抓失敗：靠別名知道是哪一則，保留原本的
+        self.assertEqual((again["status"], again["id"], again["refetch"]["kind"]), ("exists", first["id"], "not_found"))
 
     def test_manual_paste_with_the_pasted_link_updates_the_preview_stored_under_the_canonical(self):
         """付費牆預覽存在 canonical 的 ID 下；「貼上全文」帶的是使用者貼的網址，要更新同一則，不另建一則。"""
@@ -308,12 +355,11 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(len(app.lib.list()), 1)
 
     def test_a_link_found_through_the_redirect_target_is_remembered(self):
-        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html", url=URL))
+        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html", url=URL), FakeResponse(status=404))
         first = ingest.handle(app, {"url": URL})
         ingest.handle(app, {"url": "https://sho.rt/abc"})
-        again = ingest.handle(app, {"url": "https://sho.rt/abc"})  # 第三次不用再抓
-        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
-        self.assertEqual(len(app.fetch_options["transport"].requests), 2)
+        again = ingest.handle(app, {"url": "https://sho.rt/abc"})  # 第三次重抓失敗：別名記得是哪一則
+        self.assertEqual((again["status"], again["id"], again["refetch"]["kind"]), ("exists", first["id"], "not_found"))
 
     def test_aliases_are_capped_and_drop_the_oldest(self):
         app = make_app(self.root)
