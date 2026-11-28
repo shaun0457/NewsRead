@@ -116,7 +116,7 @@
     const skip = its.length - todo.length;
     if (!todo.length) return PR.toast(PR.t("选中的论文都已译完或正在翻译"));
     if (!(await PR.confirm({ title: PR.t("翻译这 {n} 篇？", { n: todo.length }), body: PR.t("会按顺序排队，只译还没译的页，消耗模型额度。") + (skip ? PR.t("另有 {n} 篇已译完或正在翻译，跳过。", { n: skip }) : ""), ok: PR.t("开始翻译"), at }))) return;
-    if (PR.quotaGuard) PR.quotaGuard.remind();  // 手動按的翻譯照跑，額度超過門檻時先提醒（ticket 68）
+    if (PR.quotaGuard) PR.quotaGuard.remind({ jobs: todo.map((i) => i.job) });  // 手動按的翻譯照跑，額度超過門檻時先提醒（ticket 68）
     let failed = 0;
     for (const i of todo) {
       await PR.api("/api/p/" + i.id + "/translate", { method: "POST", body: i.en_pages ? { en: true } : {} }).catch(() => failed++);

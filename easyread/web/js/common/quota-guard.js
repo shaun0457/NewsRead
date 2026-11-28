@@ -92,23 +92,48 @@
     timer = 0;
   }
 
-  /* 手動按 AI 之前：超過門檻就提醒一次（不擋）。回傳有沒有提醒。
-     kind：這次用的引擎計費方式。subscription 只提醒訂閱額度，api 只提醒 API 上限；不知道（undefined）兩個都看。 */
-  function remind(kind) {
+  /* 這次手動按的 AI 用哪一種引擎（後端 status.engines，見 ai_engines.Engines.manual_kinds；#97）：
+     claude（Claude Code 訂閱）/ subscription（Codex、Antigravity）/ api / local / none；不知道是 undefined。
+     use：
+       不帶 = 重譯這段之類只用閱讀器翻譯引擎的；
+       { translate: true, job, failed, model } = 整篇翻譯：跟後端 translate_api.enqueue 一樣，任務在 confirm、waiting 或重試失敗頁時
+         沿用任務記的模型（匯入時選的問 AI 模型），否則用這次送的 model；有模型就看名單裡那個，沒有就是翻譯引擎（gate F1）；
+       { jobs: [任務…] } = 批次翻譯：每篇照上面算，種類都一樣才用它；
+       { model: id } = 問 AI 名單的模型（空的 = 名單的預設）；字串 = 直接給種類。
+     名單裡找不到的模型回 undefined（兩種都看）。 */
+  function kindOf(use) {
+    if (typeof use === "string") return use;
+    const e = (status && status.engines) || {};
+    const chat = e.chat || {};
+    if (!use || typeof use !== "object") return e.translate;
+    if (Array.isArray(use.jobs)) {
+      const kinds = new Set(use.jobs.map((job) => kindOf({ translate: true, job })));
+      return kinds.size === 1 ? [...kinds][0] : undefined;
+    }
+    if (use.translate) {
+      const job = use.job || {};
+      const m = use.failed || job.state === "confirm" || job.state === "waiting" ? job.model : use.model;
+      return m ? chat[m] : e.translate;
+    }
+    return use.model ? chat[use.model] : e.chat_default;
+  }
+
+  /* 手動按 AI 之前：這次用的引擎碰到的限制提醒一次（不擋），同時碰到的一起說。回傳有沒有提醒。
+     Claude Code 訂閱只看 5 小時額度、API 只看每月上限，本機模型和看不到額度的訂閱不提醒；不知道種類時兩個都看。 */
+  function remind(use) {
+    const kind = kindOf(use);
     const q = (status && status.quota) || {};
     const a = (status && status.api) || {};
-    let key = "", msg = "";
-    if (q.over && kind !== "api") {
-      key = "q" + q.until;
-      msg = PR.t("提醒：Claude Code 5 小時額度已用 {pct}，超過你設的 {limit}%。這次照樣送出。",
-        { pct: pct(q.used), limit: (status.settings || {}).threshold });
-    } else if (a.reached && kind !== "subscription") {
-      key = "a" + a.month;
-      msg = PR.t("提醒：API 這個月的花費到上限了。這次照樣送出。");
-    }
-    if (!msg || key === reminded) return false;
+    const quota = q.over && (kind === "claude" || kind === undefined);
+    const cap = a.reached && (kind === "api" || kind === undefined);
+    if (!quota && !cap) return false;
+    const key = (quota ? "q" + q.until : "") + "|" + (cap ? "a" + a.month : "");
+    if (key === reminded) return false;
     reminded = key;
-    PR.toast(PR.esc(msg));
+    const vars = { pct: pct(q.used), limit: (status.settings || {}).threshold };
+    PR.toast(PR.esc(quota && cap ? PR.t("提醒：Claude Code 5 小時額度已用 {pct}，超過你設的 {limit}%；API 這個月的花費也到上限了。這次照樣送出。", vars)
+      : quota ? PR.t("提醒：Claude Code 5 小時額度已用 {pct}，超過你設的 {limit}%。這次照樣送出。", vars)
+        : PR.t("提醒：API 這個月的花費到上限了。這次照樣送出。")));
     return true;
   }
 
@@ -151,7 +176,7 @@
   window.addEventListener("pagehide", stop);
   window.addEventListener("pageshow", (e) => { if (e.persisted) { stopped = false; poll(); } });  // 從上一頁快取回來
 
-  PR.quotaGuard = { poll, stop, remind, waitLabel, waitText, waitCanWait, get status() { return status; },
+  PR.quotaGuard = { poll, stop, remind, kindOf, waitLabel, waitText, waitCanWait, get status() { return status; },
     _state: () => ({ timer, delay, busy, stopped }) };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", poll);

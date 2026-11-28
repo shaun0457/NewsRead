@@ -79,7 +79,7 @@
       view.innerHTML = '<div class="rp-map-loading"><i class="spinner"></i><span>' + PR.t("正在依據論文內文產生心智圖…") + '</span></div>';
       if (expandBtn) expandBtn.style.display = "none";
       try {
-        if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
+        if (PR.quotaGuard) PR.quotaGuard.remind({ model: "" });  /* 用問 AI 名單的預設模型（#97） */  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
         const res = await PR.api(API + "/paper/" + id + "/mindmap/tasks", { method: "POST", body: { force: true } });
         PR.researchTaskMonitor?.track(res.task, true);
         if (res.task && res.task.state === "completed" && res.task.result) {

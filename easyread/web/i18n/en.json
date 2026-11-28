@@ -3061,6 +3061,7 @@
   "Claude Code 5 小時額度超過": "When the Claude Code 5-hour quota exceeds",
   "Claude Code 5 小時額度超過門檻，背景工作改用 API key。": "The Claude Code 5-hour quota is above the threshold; background work switched to the API key.",
   "Claude Code 5 小時額度超過門檻，背景工作暫停到額度重置。": "The Claude Code 5-hour quota is above the threshold; background work is paused until the quota resets.",
+  "提醒：Claude Code 5 小時額度已用 {pct}，超過你設的 {limit}%；API 這個月的花費也到上限了。這次照樣送出。": "Note: {pct} of the Claude Code 5-hour quota is used, above your {limit}% threshold, and API spending has reached this month's limit. Sending anyway.",
   "提醒：API 這個月的花費到上限了。這次照樣送出。": "Note: API spending has reached this month's limit. Sending anyway.",
   "提醒：Claude Code 5 小時額度已用 {pct}，超過你設的 {limit}%。這次照樣送出。": "Note: {pct} of the Claude Code 5-hour quota is used, above your {limit}% threshold. Sending anyway.",
   "暫停期間排隊的工作補做完了。": "Work queued during the pause has been caught up.",

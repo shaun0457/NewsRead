@@ -618,7 +618,7 @@
     start.disabled = true;
     start.innerHTML = '<span class="spin"></span> ' + PR.t("正在送出…");
     try {
-      if (PR.quotaGuard) PR.quotaGuard.remind();  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
+      if (PR.quotaGuard) PR.quotaGuard.remind({ model: "" });  /* 用問 AI 名單的預設模型（#97） */  // 額度超過門檻：手動按的照跑，先提醒（ticket 68）
       const job = await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotate", { method: "POST", body: {
         scope: PR.$("#smartScope").value, section_id: PR.$("#smartSection").value,
         mode: PR.$("#smartMode").value,

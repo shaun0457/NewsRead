@@ -844,6 +844,37 @@ class Engines:
             return {"reason": "api_off", "until": None}
         return None
 
+    @staticmethod
+    def reader_kind(cfg: dict, data: dict) -> str:
+        """閱讀器的引擎設定（/api/config：翻譯，或問 AI 名單裡的一個模型）手動按的時候算哪一種，給提醒用（#97）：
+        claude（Claude Code 訂閱，看 5 小時額度）/ subscription（Codex、Antigravity 訂閱，看不到額度）/
+        api（API key，含 API 計費的本機 CLI；看每月上限）/ local（本機模型）/ none（沒有引擎）。"""
+        engine = cfg.get("engine")
+        if engine in CLI:
+            if (data["engines"].get(engine) or {}).get("billing") == "api":
+                return "api"
+            return "claude" if engine == "claude" else "subscription"
+        if engine == "openai":
+            o = cfg.get("openai") or {}
+            return "local" if o.get("preset") == "ollama" or _is_loopback(str(o.get("base_url") or "")) else "api"
+        return "none"
+
+    def manual_kinds(self, data: dict) -> dict:
+        """每個手動 AI 入口用的引擎算哪一種（reader_kind）：translate 是翻譯、重譯；chat 是問 AI 名單的每個模型，
+        chat_default 是名單的預設。讀不到設定時回空的（前端就照舊兩種都看）。"""
+        from . import chat_models
+        try:
+            cfg = config.load()
+            chat = {}
+            for m in chat_models.models(cfg):
+                if m.get("id"):
+                    chat[str(m["id"])] = self.reader_kind(chat_models.engine_cfg(cfg, m["id"])[0], data)
+            return {"translate": self.reader_kind(cfg, data), "chat": chat,
+                    "chat_default": self.reader_kind(chat_models.engine_cfg(cfg, None)[0], data)}
+        except Exception as e:  # noqa: BLE001 設定壞了不讓右上角的狀態失敗；log 只記類型
+            log.warning("手動 AI 的引擎種類讀不到 %s", type(e).__name__)
+            return {}
+
     def guard_status(self, data: dict | None = None, found: dict | None = None) -> dict:
         """GET /api/ai/guard（每頁右上角）和設定頁要的：背景工作現在是不是暫停、為什麼、到什麼時候。
         reason：quota（額度超過門檻、等重置）/ api_cap（API 到上限）/ no_api（背景不用訂閱，又沒有 API key 或本機模型）。
@@ -871,7 +902,8 @@ class Engines:
                 "api": {"spent_usd": g["spent"], "cap_usd": g["api_monthly_usd"], "month": g["month"],
                         "warn": g["api_warn"], "reached": g["api_reached"]},
                 "background": {"paused": reason is not None, "reason": reason,
-                               "until": q["until"] if reason == "quota" else None}}
+                               "until": q["until"] if reason == "quota" else None},
+                "engines": self.manual_kinds(data)}
 
     def set_guard(self, body: dict) -> dict:
         """POST /api/ai/guard：只改有帶的欄位。"""
