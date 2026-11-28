@@ -237,6 +237,17 @@ class ServeTest(ServeBase):
         self.assertIn("已經在執行", buf.getvalue())
         self.assertIn(self.url, buf.getvalue())
 
+    def test_desktop_backend_command_exits_3_with_the_running_address(self):
+        """ticket 102：桌面版原始碼模式的 serve --port 0 不先問 running_server，碰到鎖就印出位址、代碼 3 結束，讓桌面版接手。"""
+        self.start()
+        buf = io.StringIO()
+        with redirect_stdout(buf), mock.patch.object(cli, "running_server", side_effect=AssertionError("port 0 does not ask")), \
+                mock.patch.object(launch, "_Server", side_effect=AssertionError("must not bind")), \
+                self.assertRaises(SystemExit) as code:
+            cli.cmd_serve(SimpleNamespace(port=0, open=False, exit_on_close=False, host=None))
+        self.assertEqual(code.exception.code, 3)
+        self.assertIn(f"NewsRead 已經在執行：{self.url}，", buf.getvalue())  # 桌面版的 tray.runningUrl 認這個格式
+
     def test_second_click_while_the_first_is_starting_opens_the_browser(self):
         self.start()
         answers = iter([None, None, None, self.url])  # 前幾次還沒回應：剛開始啟動

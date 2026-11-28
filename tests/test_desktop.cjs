@@ -8,7 +8,7 @@ const { test } = require("node:test");
 async function desktop(platform = "darwin", lock = true, ready = true, argv = [], opts = {}) {
   const app = new EventEmitter();
   Object.assign(app, {
-    setPath() {}, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: true,
+    setPath() {}, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: !opts.source,
     requestSingleInstanceLock: () => lock, whenReady: () => Promise.resolve(), isReady: () => true,
     setAsDefaultProtocolClient(scheme) { this.protocol = scheme; },
     quit() { this.quitCalled = true; this.emit("before-quit", { preventDefault() {} }); },
@@ -321,6 +321,21 @@ test("an already running service is adopted, and quitting leaves it running", as
   assert.equal(saved, 1);  // 頁面照樣先存檔
   assert.deepEqual(d.requests, ["/api/version"]);  // 只確認過它是 NewsRead，不去關別人開的服務
   assert.equal(d.launches.length, 1);
+});
+
+test("source mode: the desktop backend adopts the service start.cmd keeps running (ticket 102)", async () => {
+  const d = await desktop("win32", true, false, [], { source: true });
+  assert.equal(JSON.stringify(d.launches[0].args), JSON.stringify(["-m", "easyread", "serve", "--port", "0"]));  // 原始碼模式的後端指令
+  const child = d.launches[0].child;
+  // 2026-11-28 實機跑出來的那一行（暫時的 EASYREAD_HOME，start.cmd 那種常駐服務先占住鎖）
+  child.stdout.emit("data", "NewsRead 已經在執行：http://127.0.0.1:54935，不再啟動第二個。要重新啟動請先 easyread stop，或結束那個程序。\r\n");
+  child.emit("exit", 3, null);
+  child.emit("close", 3, null);
+  await d.settled();
+  assert.equal(d.windows[0].url, "http://127.0.0.1:54935/web/tabs.html");
+  assert.ok(d.stages.includes("backend-adopted"));
+  assert.deepEqual(d.errors, []);  // 不以代碼 3 結束成「啟動失敗」
+  assert.equal(d.launches.length, 1);  // 沒有再開第二個後端
 });
 
 test("the running line is read even when it arrives after the exit event", async () => {
