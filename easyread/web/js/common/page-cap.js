@@ -25,7 +25,7 @@
       const body = action === "skip" ? {} : { scope: action === "first" ? "range:1-" + (job.page_cap || 60) : job.scope || "all",
         read: !!job.read, model: job.model || null, target: job.target || PR.target };
       if (action === "all") body.confirmed = true;
-      if (action !== "skip") if (PR.quotaGuard) PR.quotaGuard.remind();  // 手動按的翻譯照跑，額度超過門檻時先提醒（ticket 68）
+      if (action !== "skip") if (PR.quotaGuard) PR.quotaGuard.remind({ translate: true, job, model: body.model });  // 手動按的翻譯照跑，額度超過門檻時先提醒（ticket 68）
       await PR.api("/api/p/" + id + (action === "skip" ? "/cancel" : "/translate"), { method: "POST", body });
       await refresh();
     } catch (error) { PR.toast(PR.esc(error.message)); }

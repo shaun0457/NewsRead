@@ -94,12 +94,28 @@
 
   /* 這次手動按的 AI 用哪一種引擎（後端 status.engines，見 ai_engines.Engines.manual_kinds；#97）：
      claude（Claude Code 訂閱）/ subscription（Codex、Antigravity）/ api / local / none；不知道是 undefined。
-     use：不帶 = 翻譯、重譯（閱讀器的翻譯引擎）；{ model: id } = 問 AI 名單的模型（空的 = 名單的預設）；字串 = 直接給種類。 */
+     use：
+       不帶 = 重譯這段之類只用閱讀器翻譯引擎的；
+       { translate: true, job, failed, model } = 整篇翻譯：跟後端 translate_api.enqueue 一樣，任務在 confirm、waiting 或重試失敗頁時
+         沿用任務記的模型（匯入時選的問 AI 模型），否則用這次送的 model；有模型就看名單裡那個，沒有就是翻譯引擎（gate F1）；
+       { jobs: [任務…] } = 批次翻譯：每篇照上面算，種類都一樣才用它；
+       { model: id } = 問 AI 名單的模型（空的 = 名單的預設）；字串 = 直接給種類。
+     名單裡找不到的模型回 undefined（兩種都看）。 */
   function kindOf(use) {
     if (typeof use === "string") return use;
     const e = (status && status.engines) || {};
-    if (use && typeof use === "object") return (e.chat || {})[use.model] || e.chat_default;
-    return e.translate;
+    const chat = e.chat || {};
+    if (!use || typeof use !== "object") return e.translate;
+    if (Array.isArray(use.jobs)) {
+      const kinds = new Set(use.jobs.map((job) => kindOf({ translate: true, job })));
+      return kinds.size === 1 ? [...kinds][0] : undefined;
+    }
+    if (use.translate) {
+      const job = use.job || {};
+      const m = use.failed || job.state === "confirm" || job.state === "waiting" ? job.model : use.model;
+      return m ? chat[m] : e.translate;
+    }
+    return use.model ? chat[use.model] : e.chat_default;
   }
 
   /* 手動按 AI 之前：這次用的引擎碰到的限制提醒一次（不擋），同時碰到的一起說。回傳有沒有提醒。

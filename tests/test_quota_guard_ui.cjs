@@ -207,6 +207,23 @@ test("the reminder follows the engine the server says each entry uses (#97)", as
   assert.ok(s.toasts[0].includes("Claude Code") && !s.toasts[0].includes("API"));
 });
 
+test("whole-paper translation follows the model the job carries, like translate_api.enqueue (#97 gate F1)", async () => {
+  const both = paused("quota", { api: { spent_usd: 15, cap_usd: 15, reached: true, month: "2026-11" },
+    engines: { translate: "local", chat: { "m-claude": "claude", "m-api": "api" }, chat_default: "claude" } });
+  const s = setup([both]);
+  await s.flush();
+  const k = s.PR.quotaGuard.kindOf;
+  assert.equal(k({ translate: true, job: { state: "done", model: "m-claude" } }), "local");  // 不沿用：用翻譯引擎
+  assert.equal(k({ translate: true, job: { state: "waiting", model: "m-claude" } }), "claude");
+  assert.equal(k({ translate: true, job: { state: "confirm", model: "m-api" } }), "api");
+  assert.equal(k({ translate: true, job: { state: "partial", model: "m-api" }, failed: true }), "api");  // 重試失敗頁
+  assert.equal(k({ translate: true, job: null, model: "m-api" }), "api");  // page-cap 直接帶模型
+  assert.equal(k({ translate: true, job: { state: "waiting", model: "gone" } }), undefined);  // 名單沒有：兩種都看
+  assert.equal(k({ jobs: [{ state: "done" }, { state: "done" }] }), "local");
+  assert.equal(k({ jobs: [{ state: "done" }, { state: "waiting", model: "m-claude" }] }), undefined);  // 混在一起：兩種都看
+  assert.equal(k({ model: "gone" }), undefined);
+});
+
 test("when the engine is not known, every limit that applies is shown together (#97)", async () => {
   const both = paused("quota", { api: { spent_usd: 15, cap_usd: 15, reached: true, month: "2026-11" } });
   const s = setup([both]);
@@ -241,6 +258,8 @@ test("every manual AI entry in the reader reminds before sending", () => {
     ["actions.js", 'PR.ask("retranslate"']]) {
     const src = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader", file), "utf8");
     const remind = src.indexOf("PR.quotaGuard.remind(");
+    const args = { "chat.js": "{ model: modelId }", "actions.js": "" }[file] ?? '{ model: "" }';  // 問 AI 選的模型；其他照名單的預設（#97 gate F2）
+    assert.ok(src.includes("PR.quotaGuard.remind(" + args + ")"), file + " remind(" + args + ")");
     assert.ok(remind > 0, file);
     assert.ok(remind < src.indexOf(call), file);
   }
@@ -258,14 +277,19 @@ test("every translate button reminds before it starts the job", () => {
     assert.ok(r > 0 && at - r < 400, file + " " + call);
   };
   const actions = read("reader/actions.js");
-  assert.match(actions, /\["retry-failed", "translate-en", "read-rest", "translate-rest"\]\.includes\(t\.dataset\.t\)\) if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\)/);
+  assert.match(actions, /\["retry-failed", "translate-en", "read-rest", "translate-rest"\]\.includes\(t\.dataset\.t\)\) if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\{ translate: true, job: S\.job, failed: t\.dataset\.t === "retry-failed" \}\)/);
+  // 每個入口照這次實際用的引擎提醒（#97 gate F1、F2）：帶的參數拿掉或改錯就失敗
+  assert.match(read("common/page-cap.js"), /PR\.quotaGuard\.remind\(\{ translate: true, job, model: body\.model \}\)/);
+  assert.match(read("library/batch.js"), /PR\.quotaGuard\.remind\(\{ jobs: todo\.map\(\(i\) => i\.job\) \}\)/);
+  assert.match(read("library/pick-pages.js"), /PR\.quotaGuard\.remind\(\{ translate: true, job: i\.job \}\)/);
   before(read("common/page-cap.js"), 'await PR.api("/api/p/" + id + (action === "skip"', "page-cap.js");
   before(read("library/batch.js"), "for (const i of todo)", "batch.js");
   before(read("library/pick-pages.js"), "body: { pages: spec }", "pick-pages.js");
   const detail = read("library/detail.js");
-  assert.match(detail, /function remindAi\(\) \{ if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\);/);
+  assert.match(detail, /function remindAi\(i, failed\) \{ if \(PR\.quotaGuard\) PR\.quotaGuard\.remind\(\{ translate: true, job: i\.job, failed: !!failed \}\);/);
+  assert.match(detail, /act === "retry-failed"\) \{ remindAi\(i, true\);/);
   const calls = detail.split('"/translate"').length - 1;
-  const reminded = (detail.match(/remindAi\(\);(\s|\n)*(try \{\s*)?(await )?PR\.api\("\/api\/p\/" \+ i\.id \+ "\/translate"/g) || []).length;
+  const reminded = (detail.match(/remindAi\(i(, true)?\);(\s|\n)*(try \{\s*)?(await )?PR\.api\("\/api\/p\/" \+ i\.id \+ "\/translate"/g) || []).length;
   assert.equal(reminded, calls);
 });
 
