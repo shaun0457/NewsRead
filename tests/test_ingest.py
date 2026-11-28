@@ -228,6 +228,71 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(len(app.fetch_options["transport"].requests), 1)
         self.assertTrue(again["added"])
 
+    def test_short_link_that_redirects_to_an_imported_article_is_a_duplicate(self):
+        """#99：短網址轉址到已匯入的網址，抓了之後用轉址後的網址判斷重複。"""
+        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html", url=URL))
+        first = ingest.handle(app, {"url": URL})
+        again = ingest.handle(app, {"url": "https://sho.rt/abc"})
+        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual(len(app.lib.list()), 1)
+
+    def test_new_article_is_stored_under_the_redirect_target(self):
+        app = make_app(self.root, fixture("news-og-en.html", url=URL + "?utm_source=x"))
+        r = ingest.handle(app, {"url": "https://sho.rt/abc"})
+        self.assertEqual((r["status"], r["url"]), ("created", URL))
+        self.assertEqual(r["id"], textitem.item_id("", URL))  # 之後直接貼原網址，不用再抓就知道重複
+
+    def test_same_site_canonical_that_points_to_an_imported_article_is_a_duplicate(self):
+        """#99：canonical 指到已匯入的網址、同一個網站（子網域不同也算）。"""
+        canonical = "https://news.example.com/news/2026/11/cowos-example"
+        mobile = read("news-jsonld.html").replace('href="/news/2026/11/cowos-example"', f'href="{canonical}"')
+        app = make_app(self.root, fixture("news-jsonld.html"),
+                       FakeResponse(body=mobile, headers={"Content-Type": "text/html; charset=utf-8"}))
+        first = ingest.handle(app, {"url": URL})
+        self.assertEqual(first["url"], canonical)  # 新的一則用可信的 canonical 當 ID
+        again = ingest.handle(app, {"url": "https://m.example.com/story?id=7"})
+        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+
+    def test_canonical_on_another_site_is_not_used(self):
+        other = "https://other-site.org/news/2026/11/cowos-example"
+        page = read("news-jsonld.html").replace('href="/news/2026/11/cowos-example"', f'href="{other}"')
+        self.assertIn(other, page)
+        app = make_app(self.root, FakeResponse(body=page, headers={"Content-Type": "text/html; charset=utf-8"}))
+        ingest.handle(app, {"text": "Another site's article.", "url": other})
+        r = ingest.handle(app, {"url": URL})
+        self.assertEqual((r["status"], r["url"]), ("created", URL))
+        self.assertEqual(len(app.lib.list()), 2)
+
+    def test_canonical_that_points_to_the_home_page_is_not_used(self):
+        """有些網站每篇的 canonical 都寫首頁：不能把不同文章併成一則。"""
+        page = read("news-jsonld.html").replace('href="/news/2026/11/cowos-example"', 'href="/"')
+        html = {"Content-Type": "text/html; charset=utf-8"}
+        app = make_app(self.root, FakeResponse(body=page, headers=html),
+                       FakeResponse(body=page.replace("先進封裝", "記憶體"), headers=html))  # i18n-ok 測試資料
+        a = ingest.handle(app, {"url": URL})
+        b = ingest.handle(app, {"url": "https://news.example.com/2026/11/memory"})
+        self.assertEqual((a["status"], b["status"]), ("created", "created"))
+        self.assertNotEqual(a["id"], b["id"])
+        self.assertEqual(a["url"], URL)
+
+    def test_too_many_redirects_is_an_error_and_nothing_is_stored(self):
+        """轉址次數的上限在 fetch（Limits.max_redirects）：碰到上限時 urllib 交回最後一個 3xx，匯入失敗。"""
+        app = make_app(self.root, FakeResponse(status=302, body="moved", headers={"Content-Type": "text/html"}))
+        with self.assertRaises(ingest.IngestError) as e:
+            ingest.handle(app, {"url": "https://sho.rt/loop"})
+        self.assertEqual(e.exception.kind, "redirect")
+        self.assertEqual(app.fetch_options["transport"].requests[0]["max_redirects"], fetch.Limits().max_redirects)
+        self.assertEqual(app.lib.list(), [])
+
+    def test_site_of(self):
+        self.assertEqual(ingest.site_of("https://amp.news.example.com/a"), "example.com")
+        self.assertEqual(ingest.site_of("https://news.ltn.com.tw/a"), "ltn.com.tw")
+        self.assertEqual(ingest.site_of("https://www.bbc.co.uk/a"), "bbc.co.uk")
+        self.assertEqual(ingest.site_of("http://127.0.0.1:8000/a"), "127.0.0.1")
+        self.assertNotEqual(ingest.site_of("https://ltn.com.tw/a"), ingest.site_of("https://udn.com.tw/a"))
+        self.assertEqual(ingest.trusted_canonical("ftp://news.example.com/a", URL), "")
+        self.assertEqual(ingest.trusted_canonical("", URL), "")
+
     def test_chinese_article_is_not_translated(self):
         app = make_app(self.root, fixture("news-jsonld.html"))
         r = ingest.handle(app, {"url": URL})

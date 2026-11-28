@@ -108,6 +108,35 @@ def normalize(url: str) -> str:
     return urlunsplit((parts.scheme, host, path, query, ""))
 
 
+# 網域最後兩段是 com.tw、co.uk 這種通用類別時，同一個網站要看最後三段
+_SECOND_LEVEL = frozenset({"com", "co", "org", "net", "gov", "edu", "ac", "or", "ne", "go", "idv", "mil"})
+
+
+def site_of(url: str) -> str:
+    """網址屬於哪個網站：主機名稱的最後兩段（com.tw 這種是最後三段）；IP 位址就是它自己。
+    沒有用 Public Suffix List：github.io 這類多人共用的網域會被當成同一個網站。"""
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    if not host or ":" in host or re.fullmatch(r"[\d.]+", host):
+        return host
+    labels = host.split(".")
+    n = 3 if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-2] in _SECOND_LEVEL else 2
+    return ".".join(labels[-n:])
+
+
+def trusted_canonical(canonical: str, page_url: str) -> str:
+    """頁面宣告的 canonical 網址：可信才回傳正規化後的網址，否則回傳空字串。
+    可信 = http(s)、和抓到的頁面同一個網站、不是首頁（有些網站每篇都把 canonical 寫成首頁）。"""
+    if not canonical:
+        return ""
+    try:
+        clean = normalize(canonical)
+    except IngestError:
+        return ""
+    if site_of(clean) != site_of(page_url) or urlsplit(clean).path in ("", "/"):
+        return ""
+    return clean
+
+
 # ---------- 抽出內容 ----------
 class _Page(HTMLParser):
     """一次走完 HTML：收 <title>、<meta>、canonical、JSON-LD、<time>，以及每個段落和它所在的區塊。
@@ -507,11 +536,23 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     return _summary(ws, status, translate)
 
 
+def _existing(app, *urls: str):
+    """這幾個網址（已正規化）裡第一個已經匯入過的那則；都沒有回 None。"""
+    for u in dict.fromkeys(u for u in urls if u):
+        ws = app.lib.ws(textitem.item_id("", u))
+        if ws is not None:
+            return ws
+    return None
+
+
 def from_url(app, url: str) -> dict:
     """抓網址並匯入。已經匯入過的不再抓（status = exists）。
+    重複的判斷：先看貼的網址；抓了之後再看轉址後的網址和可信的 canonical 網址（trusted_canonical），
+    其中一個已經匯入過就是 exists。新的一則用 canonical（沒有就用轉址後的網址）當 ID 和 source_url。
+    轉址次數的上限是 fetch.Limits.max_redirects，超過就是 redirect 錯誤。
     app.fetch_options（測試用）會原樣交給 fetch.fetch：transport、budget、sleep…；平常沒有，用真的網路和共用上限。"""
     clean = normalize(url)
-    existing = app.lib.ws(textitem.item_id("", clean))
+    existing = _existing(app, clean)
     if existing is not None:
         return _summary(existing, "exists", False)
     try:
@@ -519,14 +560,22 @@ def from_url(app, url: str) -> dict:
     except fetch.FetchError as e:
         log.warning("ingest %s", e.log_line())
         raise IngestError(e.kind, e.message) from None
+    try:
+        final = normalize(got.url) if got.url else clean
+    except IngestError:
+        final = clean
     info = extract(decode(got), got.url or clean)
+    canonical = trusted_canonical(info["canonical"], final)
+    existing = _existing(app, final, canonical)
+    if existing is not None:
+        return _summary(existing, "exists", False)
     if not info["paragraphs"]:
         raise _error("no_text")
     meta = {"publisher": info["publisher"], "preview_only": info["preview_only"],
             "canonical_url": info["canonical"][:textitem.MAX_URL], "truncated": info["truncated"]}
     if info["published_raw"]:
         meta["published_raw"] = info["published_raw"]
-    return _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=clean, meta=meta,
+    return _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=canonical or final, meta=meta,
                   time=_time_fields(info["published_at"], "metadata"))
 
 
