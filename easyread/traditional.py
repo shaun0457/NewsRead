@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import copy
 from functools import lru_cache
+from pathlib import Path
+
 from .i18n import _tw_converter
 from .store import dir_lock, text_hash, write_json_atomic
 
@@ -15,34 +17,47 @@ SIMPLIFIED_SAMPLE = 5000  # 〔預設〕判斷簡繁時看前幾個字
 
 
 @lru_cache(maxsize=2)
-def _char_converter(name: str):
+def _only_chars(name: str) -> frozenset:
+    """OpenCC 的單字對照表（STCharacters / TSCharacters）裡只屬於一邊的字：對照的候選字不含它自己。
+    「里 → 裏 里」「后 → 後 后」這種簡繁都用的字不算。沒裝 OpenCC 或讀不到表是空的。"""
     try:
-        from opencc import OpenCC
-        return OpenCC(name)
+        import opencc
     except ImportError:
-        return None
+        return frozenset()
+    path = Path(opencc.__file__).parent / "dictionary" / f"{name}.txt"
+    out = set()
+    try:
+        with path.open(encoding="utf-8") as f:
+            for line in f:
+                key, _, cands = line.rstrip("\n").partition("\t")
+                if len(key) == 1 and cands and key not in cands.split():
+                    out.add(key)
+    except OSError:
+        return frozenset()
+    return frozenset(out)
 
 
 def looks_simplified(texts: list[str]) -> bool:
-    """這段中文是不是簡體：數簡體特有字（s2t 會變）和繁體特有字（t2s 會變）各出現幾次，簡體多才算。
-    「台」簡繁都用，不算。沒裝 OpenCC 回 False（不轉）。"""
-    s2t, t2s = _char_converter("s2t"), _char_converter("t2s")
-    if not (s2t and t2s):
+    """這段中文是不是簡體：前 SIMPLIFIED_SAMPLE 個字裡，只有簡體用的字比只有繁體用的字多才算。
+    簡繁都用的字（里、后、游、台…）不算。沒裝 OpenCC 回 False（不轉）。"""
+    simp_only, trad_only = _only_chars("STCharacters"), _only_chars("TSCharacters")
+    if not (simp_only and trad_only):
         return False
     sample = "".join(texts)[:SIMPLIFIED_SAMPLE]
-    counts: dict[str, int] = {}
-    for ch in sample:
-        if "一" <= ch <= "鿿" and ch != "台":  # i18n-ok 字元範圍和簡繁共用的字，不是畫面文字
-            counts[ch] = counts.get(ch, 0) + 1
-    simp = sum(n for ch, n in counts.items() if s2t.convert(ch) != ch)
-    trad = sum(n for ch, n in counts.items() if t2s.convert(ch) != ch)
+    simp = sum(1 for ch in sample if ch in simp_only)
+    trad = sum(1 for ch in sample if ch in trad_only)
     return simp > trad
+
+
+_KEEP = "\ue000"  # 私用區的字：轉換時暫代原文本來就有的「臺」（i18n-ok）
 
 
 def to_taiwan(text: str) -> str:
     """簡體轉台灣繁體（s2twp：字和用詞，例如软件 → 軟體）。OpenCC 把「台」一律轉成「臺」，
-    簡體原文本來沒有「臺」，台灣新聞和公司名稱（台積電、台北）多用「台」，所以轉回來。"""
-    return _tw_converter().convert(text).replace("臺", "台") if isinstance(text, str) else text  # i18n-ok 字，不是畫面文字
+    台灣新聞和公司名稱（台積電、台北）多用「台」，所以轉回來；原文本來就寫「臺」的（國立臺灣大學）照舊。"""
+    if not isinstance(text, str):
+        return text
+    return _tw_converter().convert(text.replace("臺", _KEEP)).replace("臺", "台").replace(_KEEP, "臺")  # i18n-ok 字，不是畫面文字
 
 
 def normalize(data: dict) -> None:

@@ -420,16 +420,17 @@ def is_chinese(paragraphs: list[str]) -> bool:
     return letters > 0 and cjk / letters >= CJK_RATIO and kana / (cjk + kana) < KANA_RATIO
 
 
-def _hant_converter(paragraphs: list[str]):
-    """譯文語言是台灣繁體、原文是簡體時，回傳轉成台灣繁體的函式（traditional.to_taiwan）；
-    原文已經是繁體、別的譯文語言、或沒裝 OpenCC 回 None（譯文欄照舊放原文）。"""
+def _hant_plan(paragraphs: list[str]) -> str | None:
+    """譯文語言是台灣繁體時，中文原文怎麼放進譯文欄：
+    "convert" 原文是簡體，用 traditional.to_taiwan 轉；"traditional" 原文已經是繁體，照放。
+    別的譯文語言、或沒裝 OpenCC 回 None（照放，不標記）。"""
     if langs.valid(config.load().get("target")) != "zh-TW":
         return None
     from . import traditional
     from .i18n import _tw_converter
-    if not _tw_converter() or not traditional.looks_simplified(paragraphs):
+    if not _tw_converter():
         return None
-    return traditional.to_taiwan
+    return "convert" if traditional.looks_simplified(paragraphs) else "traditional"
 
 
 def _same_language(paragraphs: list[str]) -> bool:
@@ -493,20 +494,29 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     paras = [b.get("en") or "" for b in (ws.load("paper") or {}).get("blocks", [])]
     same = _same_language(paras)
     if same and status != "unchanged":
-        hant = _hant_converter(paras)
+        plan = _hant_plan(paras)
 
         def fill(paper):  # 原文已經是中文：譯文欄放原文，不送翻譯
+            from . import traditional
             meta = paper.setdefault("meta", {})
             for b in paper.get("blocks", []):
-                if not b.get("zh"):
-                    # 譯文語言是台灣繁體：用 OpenCC 轉成繁體放譯文欄（不叫 AI）；原文欄照舊，切回原文看得到（#98）
-                    b["zh"] = hant(b.get("en", "")) if hant else b.get("en", "")
-            if hant:
+                en = b.get("en", "")
+                if plan == "convert" and (not b.get("zh") or b["zh"] == en):
+                    # 簡體原文：用 OpenCC 轉成繁體放譯文欄（不叫 AI）；原文欄照舊，切回原文看得到（#98）。
+                    # 沿用的舊段落如果譯文欄還是原文的拷貝（之前用別的譯文語言匯入），一起轉
+                    b["zh"] = traditional.to_taiwan(en)
+                elif not b.get("zh"):
+                    b["zh"] = en
+            if plan == "convert":
                 title = meta.get("title_en") or ""
-                if title and (not meta.get("title_zh") or meta.get("title_zh_auto")):
-                    meta["title_zh"], meta["title_zh_auto"] = hant(title), True
-                # 已經是繁體了：閱讀頁打開時的 traditional.migrate 不用再轉一次
-                meta.update(target="zh-TW", paperread_traditional_v=1, hant_converted="opencc")
+                auto = meta.get("title_zh_auto")
+                if title and (not meta.get("title_zh") or meta.get("title_zh") == auto):  # 使用者或 AI 改過的標題不蓋掉
+                    meta["title_zh"] = meta["title_zh_auto"] = traditional.to_taiwan(title)
+                meta["hant_converted"] = "opencc"
+            else:
+                meta.pop("hant_converted", None)
+            if plan:  # 譯文欄已經是台灣繁體：閱讀頁打開時的 traditional.migrate 不用再轉（它會把「台」改成「臺」）
+                meta.update(target="zh-TW", paperread_traditional_v=1)
             paper.setdefault("translation", {})["en_pages"] = []
             meta["same_language"] = True
         ws.update("paper", fill)
