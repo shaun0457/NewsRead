@@ -2,7 +2,8 @@
 
 所有入口（匯入頁、右上角「＋ 貼網址」、Ctrl+V）都呼叫 POST /api/ingest，也就是這裡的 handle()。
 
-- 同一篇只匯入一次：網址去掉追蹤參數和 AMP 版之後算 ID（textitem.item_id），已經有了就不再抓。
+- 同一篇只匯入一次：網址去掉追蹤參數和 AMP 版之後算 ID（textitem.item_id），已經有了就不再抓；
+  抓了之後再比對轉址後的網址和可信的 canonical 網址（from_url）。
 - 發布時間一定要帶時區才算數；頁面上的時間沒有時區、或根本找不到，就標「時間不明」（time_source = unknown），
   原文留在 published_raw，讓使用者自己確認。時間不明的資料不納入事件驗證（spec「時間點規則」）。
 - 付費牆：頁面自己標了 isAccessibleForFree = false，或正文落在 paywall 區塊裡又只有幾段，就標「只有預覽」。
@@ -21,6 +22,7 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from . import config, fetch, langs, ledger, textitem
 from .i18n import tr
 from .log import log
+from .store import dir_lock, read_json, write_json_atomic
 
 SOURCE = "news"                      # 抓取規則的每小時上限用這個來源名
 ACCEPT = ("text/html", "application/xhtml")
@@ -536,10 +538,45 @@ def _store(app, text: str, *, title: str, url: str | None, meta: dict, time: dic
     return _summary(ws, status, translate)
 
 
+ALIAS_FILE = ".url-aliases.json"  # 書庫根目錄：貼過的網址 → 存在別的 ID 下的那則（開頭是點，書庫清單不會把它當成一則）
+MAX_ALIASES = 20_000  # 〔預設〕超過時丟最舊的；丟掉的網址再貼一次只是要重抓一次
+
+
+def _aliases(app) -> dict:
+    data = read_json(app.lib.root / ALIAS_FILE, {})
+    return data if isinstance(data, dict) else {}
+
+
+def _add_alias(app, url: str, item_id: str) -> None:
+    """記下「貼這個網址 = 這一則」：這則存在 canonical 或轉址後網址的 ID 下時，
+    再貼同一個網址不用重抓，手動貼全文（帶這個網址）也會更新同一則。記不下來不影響匯入。"""
+    if not url or textitem.item_id("", url) == item_id:
+        return
+    root = app.lib.root
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        with dir_lock(root, ".url-aliases.lock"):
+            data = _aliases(app)
+            data.pop(url, None)
+            data[url] = item_id
+            while len(data) > MAX_ALIASES:
+                data.pop(next(iter(data)))
+            write_json_atomic(root / ALIAS_FILE, data)
+    except (OSError, TimeoutError) as e:
+        log.warning("ingest alias not saved: %s", type(e).__name__)
+
+
 def _existing(app, *urls: str):
-    """這幾個網址（已正規化）裡第一個已經匯入過的那則；都沒有回 None。"""
+    """這幾個網址（已正規化）裡第一個已經匯入過的那則（用網址算的 ID，或記下的別名）；都沒有回 None。"""
+    aliases = None
     for u in dict.fromkeys(u for u in urls if u):
         ws = app.lib.ws(textitem.item_id("", u))
+        if ws is not None:
+            return ws
+        if aliases is None:
+            aliases = _aliases(app)
+        target = aliases.get(u)
+        ws = app.lib.ws(target) if isinstance(target, str) else None
         if ws is not None:
             return ws
     return None
@@ -548,7 +585,8 @@ def _existing(app, *urls: str):
 def from_url(app, url: str) -> dict:
     """抓網址並匯入。已經匯入過的不再抓（status = exists）。
     重複的判斷：先看貼的網址；抓了之後再看轉址後的網址和可信的 canonical 網址（trusted_canonical），
-    其中一個已經匯入過就是 exists。新的一則用 canonical（沒有就用轉址後的網址）當 ID 和 source_url。
+    其中一個已經匯入過就是 exists。新的一則用 canonical（沒有就用轉址後的網址）當 ID 和 source_url，
+    貼的網址記成別名（_add_alias），之後再貼不用重抓。
     轉址次數的上限是 fetch.Limits.max_redirects，超過就是 redirect 錯誤。
     app.fetch_options（測試用）會原樣交給 fetch.fetch：transport、budget、sleep…；平常沒有，用真的網路和共用上限。"""
     clean = normalize(url)
@@ -568,6 +606,7 @@ def from_url(app, url: str) -> dict:
     canonical = trusted_canonical(info["canonical"], final)
     existing = _existing(app, final, canonical)
     if existing is not None:
+        _add_alias(app, clean, existing.id)
         return _summary(existing, "exists", False)
     if not info["paragraphs"]:
         raise _error("no_text")
@@ -575,8 +614,10 @@ def from_url(app, url: str) -> dict:
             "canonical_url": info["canonical"][:textitem.MAX_URL], "truncated": info["truncated"]}
     if info["published_raw"]:
         meta["published_raw"] = info["published_raw"]
-    return _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=canonical or final, meta=meta,
-                  time=_time_fields(info["published_at"], "metadata"))
+    result = _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=canonical or final, meta=meta,
+                    time=_time_fields(info["published_at"], "metadata"))
+    _add_alias(app, clean, result["id"])
+    return result
 
 
 def from_text(app, body: dict) -> dict:
@@ -589,6 +630,10 @@ def from_text(app, body: dict) -> dict:
     if fields["published_at"] and not published:
         raise IngestError("bad_input", tr("發布時間要寫成 2026-11-10T13:30+08:00 這種格式（要有時區）。"))
     url = normalize(fields["url"]) if fields["url"].strip() else None
+    if url:  # 貼的網址是別名（那則存在 canonical 或轉址後網址的 ID 下）：補貼全文要更新那一則
+        ws = _existing(app, url)
+        if ws is not None and ws.id != textitem.item_id("", url):
+            url = ((ws.load("paper") or {}).get("meta") or {}).get("source_url") or url
     meta = {"preview_only": False, "truncated": False, "manual": True}  # 沒填的欄位不放：補貼全文時沿用原本抓到的
     if fields["publisher"].strip():
         meta["publisher"] = fields["publisher"].strip()[:MAX_FIELD]

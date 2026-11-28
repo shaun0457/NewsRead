@@ -101,7 +101,7 @@
       : '<span class="chip warn">' + PR.t("時間不明") + "</span>" + (r.published_raw ? ' <span class="muted">' + PR.t("頁面上寫的是「{raw}」，沒有時區", { raw: PR.esc(r.published_raw) }) + "</span>" : "") +
         ' <span class="muted">' + PR.t("不納入事件驗證") + "</span>";
     const head = r.status === "exists"
-      ? '<div class="ingest-note">↺ ' + PR.t("這篇已經匯入過（{time}，網址去掉追蹤參數後相同）。", { time: when(r.added) }) + "</div>"
+      ? '<div class="ingest-note">↺ ' + PR.t("這篇已經匯入過（{time}）。", { time: when(r.added) }) + "</div>"
       : r.status === "unchanged" ? '<div class="ingest-note">↺ ' + PR.t("內容和上次匯入的一樣，沒有建立新版本。") + "</div>"
       : r.status === "updated" ? '<div class="ingest-note">' + PR.t("原文和上次不同，存成新版本；舊版本保留。") + "</div>" : "";
     const preview = r.preview_only

@@ -284,6 +284,55 @@ class IngestFlowTest(unittest.TestCase):
         self.assertEqual(app.fetch_options["transport"].requests[0]["max_redirects"], fetch.Limits().max_redirects)
         self.assertEqual(app.lib.list(), [])
 
+    def _canonical_page(self, name: str, canonical: str) -> FakeResponse:
+        page = read(name).replace("<head>", f'<head><link rel="canonical" href="{canonical}">', 1)
+        return FakeResponse(body=page, headers={"Content-Type": "text/html; charset=utf-8"})
+
+    def test_pasting_the_same_link_again_is_known_without_fetching(self):
+        """存在 canonical 的 ID 下：貼的網址記成別名，再貼同一個網址不用重抓（FakeTransport 沒有下一個回應）。"""
+        canonical = "https://news.example.com/news/2026/11/chips-full"
+        app = make_app(self.root, self._canonical_page("news-og-en.html", canonical))
+        first = ingest.handle(app, {"url": URL})
+        self.assertEqual(first["url"], canonical)
+        again = ingest.handle(app, {"url": URL + "?utm_source=x"})
+        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual(len(app.fetch_options["transport"].requests), 1)
+
+    def test_manual_paste_with_the_pasted_link_updates_the_preview_stored_under_the_canonical(self):
+        """付費牆預覽存在 canonical 的 ID 下；「貼上全文」帶的是使用者貼的網址，要更新同一則，不另建一則。"""
+        app = make_app(self.root, self._canonical_page("news-paywall.html", "https://news.example.com/premium/chips"))
+        preview = ingest.handle(app, {"url": URL})
+        self.assertTrue(preview["preview_only"])
+        full = ingest.handle(app, {"url": URL, "text": "(Example) The full text.\n\nSecond paragraph of the full text."})
+        self.assertEqual((full["id"], full["status"]), (preview["id"], "updated"))
+        self.assertEqual(len(app.lib.list()), 1)
+
+    def test_a_link_found_through_the_redirect_target_is_remembered(self):
+        app = make_app(self.root, fixture("news-og-en.html"), fixture("news-og-en.html", url=URL))
+        first = ingest.handle(app, {"url": URL})
+        ingest.handle(app, {"url": "https://sho.rt/abc"})
+        again = ingest.handle(app, {"url": "https://sho.rt/abc"})  # 第三次不用再抓
+        self.assertEqual((again["status"], again["id"]), ("exists", first["id"]))
+        self.assertEqual(len(app.fetch_options["transport"].requests), 2)
+
+    def test_aliases_are_capped_and_drop_the_oldest(self):
+        app = make_app(self.root)
+        app.lib.root.mkdir(parents=True, exist_ok=True)
+        with mock.patch.object(ingest, "MAX_ALIASES", 2):
+            for n in range(3):
+                ingest._add_alias(app, f"https://sho.rt/{n}", "wabc")
+        self.assertEqual(list(ingest._aliases(app)), ["https://sho.rt/1", "https://sho.rt/2"])
+
+    def test_import_still_succeeds_when_the_alias_cannot_be_saved(self):
+        canonical = "https://news.example.com/news/2026/11/chips-full"
+        app = make_app(self.root, self._canonical_page("news-og-en.html", canonical))
+        with mock.patch.object(ingest, "dir_lock", side_effect=TimeoutError("C:/secret/path.lock")), \
+                self.assertLogs("easyread", "WARNING") as logs:
+            r = ingest.handle(app, {"url": URL})
+        self.assertEqual(r["status"], "created")
+        self.assertEqual(ingest._aliases(app), {})
+        self.assertEqual(logs.output, ["WARNING:easyread:ingest alias not saved: TimeoutError"])  # 只記類型，不記例外原文
+
     def test_site_of(self):
         self.assertEqual(ingest.site_of("https://amp.news.example.com/a"), "example.com")
         self.assertEqual(ingest.site_of("https://news.ltn.com.tw/a"), "ltn.com.tw")

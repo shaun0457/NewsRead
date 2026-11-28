@@ -6,7 +6,7 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 
 ## 1. 論文目錄結構 (`papers/{id}/`)
 
-每篇論文擁有獨立目錄，以 PDF 雜湊前 12 碼小寫命名（例如 `papers/a1b2c3d4e5f6/`）。沒有 PDF 的資料（見下方「沒有 PDF 的資料」）用 `t` 或 `w` 開頭的 ID，沒有 `source.pdf`、`pages/`、`layout.json`，另有 `versions/` 存舊版：
+每篇論文擁有獨立目錄，以 PDF 雜湊前 12 碼小寫命名（例如 `papers/a1b2c3d4e5f6/`）。沒有 PDF 的資料（見下方「沒有 PDF 的資料」）用 `t` 或 `w` 開頭的 ID，沒有 `source.pdf`、`pages/`、`layout.json`，另有 `versions/` 存舊版：。書庫根目錄另有 `.url-aliases.json`（`{網址: ID}`，貼的網址和存的 ID 不同時記下，最多 20000 筆；可以刪，刪了只是同一個網址要再抓一次才認得出重複）：
 
 | 檔案 | 權限/職責 | 說明 |
 |---|---|---|

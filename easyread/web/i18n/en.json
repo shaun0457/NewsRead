@@ -2881,7 +2881,7 @@
   "這一頁抽不到正文，可以改成手動貼全文。": "No article text was found on this page. You can paste the full text instead.",
   "這個網址不能抓": "This URL cannot be fetched",
   "這篇在付費牆後面，只抓到前面幾段。已匯入並標示「只有預覽」。": "This article is behind a paywall; only the first paragraphs were fetched. It was imported and marked \"Preview only\".",
-  "這篇已經匯入過（{time}，網址去掉追蹤參數後相同）。": "Already imported ({time}; same URL once tracking parameters are removed).",
+  "這篇已經匯入過（{time}）。": "Already imported ({time}).",
   "這篇正在翻譯，等它結束再重新匯入。": "This item is being translated. Import it again after that finishes.",
   "頁面 metadata": "page metadata",
   "頁面上寫的是「{raw}」，沒有時區": "The page says \"{raw}\", without a time zone",
