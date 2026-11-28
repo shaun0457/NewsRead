@@ -186,3 +186,33 @@ test("a half-typed key only comes back into the same form", () => {
   assert.equal(JSON.stringify(P.carryKeys(typed, null, "new")), JSON.stringify({ "#f-anthropic-key": "sk-ant-typed-1234" }));
   assert.equal(JSON.stringify(P.carryKeys(typed, "oA", "oA", false)), JSON.stringify({}));  // 存檔成功、取消：清掉
 });
+
+test("CLIs that cannot turn tools off are marked for triage, greyed out there, and the triage hint says what it needs (ticket 104)", () => {
+  const v = view({ no_tools: { engines: ["codex", "antigravity"], tasks: ["triage"] } });
+  v.detected.claude = { found: false };
+  v.tasks.triage = task(null, { state: "no_ai", reason: "no_tools" });
+  const html = P.viewHtml(S(v), NOW);
+  assert.match(html, /Codex CLI<\/td><td><span class="chip">找到了 · 還沒用過<\/span><span class="sub num" data-no-i18n>codex 1<\/span><span class="sub no-tools"><span class="chip warn">可閱讀／翻譯，但不支援分類<\/span><\/span>/);
+  assert.match(html, /Antigravity CLI<\/td><td><span class="chip">沒找到<\/span><\/td>/);  // 沒找到的不標
+  assert.match(html, /<p class="hint no-tools">分類要把文章全文交給 AI，引擎不能帶任何工具。Codex CLI、Antigravity CLI 的工具關不掉，/);
+  const triage = html.slice(html.indexOf('id="f-task-triage"'), html.indexOf('id="f-task-translate"'));
+  assert.match(triage, /<option value="codex\|\|" disabled>Codex CLI（訂閱） · 不支援分類<\/option>/);
+  assert.match(triage, /id="f-fb-triage"[^]*<option value="codex\|\|" disabled>/);  // 備用也不能選
+  assert.match(triage, /<span class="chip bad">不能分類<\/span> 分類要 Claude Code、API key 或本機模型 · <a href="#byok">填 API key<\/a> · 今天 0 次/);
+  assert.doesNotMatch(triage, /沒有 AI/);
+  assert.match(html, /<div class="label" id="byok">/);
+  const translate = html.slice(html.indexOf('id="f-task-translate"'), html.indexOf('id="f-task-draft"'));
+  assert.match(translate, /<option value="codex\|\|">Codex CLI（訂閱）<\/option>/);  // 別的工作照常可以選
+  const picked = view({ no_tools: { engines: ["codex"], tasks: ["triage"] } });
+  picked.tasks.triage = task(null, { primary: "codex||", state: "no_ai", reason: "no_tools" });
+  assert.match(P.viewHtml(S(picked), NOW), /<option value="codex\|\|" selected disabled>Codex CLI（訂閱） · 不支援分類/);  // 之前選的照樣顯示
+  const plain = view();  // 伺服器沒給 no_tools（舊版）：不標、不灰
+  plain.detected.claude = { found: false };
+  const old = P.viewHtml(S(plain), NOW);
+  assert.doesNotMatch(old, /不支援分類/);
+  assert.doesNotMatch(old, /工具關不掉/);
+  const none = view({ no_tools: { engines: ["codex", "antigravity"], tasks: ["triage"] } });
+  none.detected.codex = { found: false };
+  assert.doesNotMatch(P.viewHtml(S(none), NOW), /工具關不掉/);  // 都沒找到：不說明
+});
+

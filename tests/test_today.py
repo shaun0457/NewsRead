@@ -7,7 +7,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-from easyread import ledger, today
+from easyread import ai_engines, ledger, today
 from easyread.store import DataReadError
 from tests.doubles import ApiTestCase
 from tests.test_triage import Base
@@ -46,7 +46,7 @@ class TodayBase(Base):
         return item
 
     def build(self, **query):
-        return today.build(self.app, {k: str(v) for k, v in query.items()})
+        return today.build(self.app, {k: str(v) for k, v in query.items()}, engine=self.engine())
 
     def exposed(self) -> set:
         return {r["item_id"] for r in self.rows("SELECT item_id FROM exposures WHERE place='today'")}
@@ -212,6 +212,31 @@ class TodayBadDataTest(TodayBase):
         self.assertEqual((row["entities"], row["theses"]), ([], []))
         self.assertEqual(self.exposed(), set())  # 沒有 AI 看法 = 沒有揭露
 
+    def test_pending_items_say_why_triage_waits_when_only_a_cli_with_tools_is_found(self):
+        """Ticket 104：待分類的數量不看篩選；只有 Codex 時回 triage_block，Claude Code 找得到時不回。"""
+        self.item("high")
+        self.item(None)
+        self.item(None)
+        data = self.build(importance="high")
+        self.assertEqual((data["pending"], data["triage_block"]), (2, None))  # Claude Code 找得到：分類只是還沒輪到
+        self.found = {"claude": {"found": False}, "codex": {"found": True}, "antigravity": {"found": False},
+                      "ollama": {"running": False, "models": []}}
+        data = self.build(importance="high")
+        self.assertEqual((data["pending"], data["triage_block"]), (2, {"reason": "no_tools", "engines": ["codex"]}))
+        self.assertEqual(today._empty("2026-11-12", today.DEFAULT_LEVELS, 50)["triage_block"], None)
+
+    def test_triage_block_is_only_asked_when_something_waits_and_never_fails_the_page(self):
+        self.item("high")
+        broken = mock.Mock()
+        broken.triage_block.side_effect = AssertionError("should not be asked")
+        self.assertEqual(today.build(self.app, {}, engine=broken)["triage_block"], None)  # 沒有待分類：不讀 AI 設定
+        self.item(None)
+        broken.triage_block.side_effect = ValueError("C:/secret/ai.json")
+        with self.assertLogs("easyread.today", "WARNING") as logs:
+            data = today.build(self.app, {}, engine=broken)
+        self.assertEqual((data["pending"], data["triage_block"], len(data["items"])), (1, None, 2))
+        self.assertNotIn("secret", "".join(logs.output))
+
     def test_empty_states(self):
         self.assertEqual(today.build(types.SimpleNamespace(lib=self.app.lib, ledger_path=self.app.ledger_path.parent / "none.sqlite3"),
                                      {})["items"], [])
@@ -301,7 +326,11 @@ class TodayApiTest(ApiTestCase):
         self.base_case = TodayBase("setUp")
         self.base_case.setUp()
         self.addCleanup(self.base_case.doCleanups)
-        return {"lib": self.base_case.app.lib, "ledger_path": self.base_case.app.ledger_path}
+        self.addCleanup(ai_engines._ENGINES.clear)
+        b = self.base_case
+        return {"lib": b.app.lib, "ledger_path": b.app.ledger_path, "ai_path": b.settings.path,
+                "ai_options": {"adapters": b.adapters, "detector": lambda fresh=False: b.found,
+                               "wait": lambda s, c: None, "has_sdk": lambda: True, "quota": lambda: None}}
 
     def test_post_returns_items_and_writes_exposure(self):
         b = self.base_case
@@ -319,6 +348,14 @@ class TodayApiTest(ApiTestCase):
         self.assertNotIn("items", data if isinstance(data, dict) else {})
         self.assertEqual(self.post("/api/today", {"importance": "high"}, token="wrong")[0], 403)
         self.assertEqual(b.exposed(), set())
+
+    def test_post_says_why_triage_waits(self):
+        b = self.base_case
+        b.item(None)
+        b.found = {"claude": {"found": False}, "codex": {"found": True}, "antigravity": {"found": True},
+                   "ollama": {"running": False, "models": []}}
+        status, data = self.post("/api/today", {})
+        self.assertEqual((status, data["pending"], data["triage_block"]), (200, 1, {"reason": "no_tools", "engines": ["codex", "antigravity"]}))
 
     def test_bad_body_is_400_with_field(self):
         status, data = self.post("/api/today", {"importance": "urgent"})

@@ -246,3 +246,26 @@ test("the show-more button stops at the maximum and then asks for a narrower fil
   assert.match(capped, /沒顯示的還有 119 則/);
   assert.match(X.viewHtml(Object.assign(base(), some, { truncated: true })), /只讀了最新的一部分，今天有些資料可能沒列出/);
 });
+
+test("pending rows and a banner say why triage waits when only a CLI with tools is found (ticket 104)", () => {
+  const waiting = { id: "p1", title: "等待中", at: "2026-11-12T01:00:00+00:00", state: "pending", importance: "none", top: null, entities: [], theses: [] };
+  const failed = Object.assign({}, waiting, { id: "f1", state: "failed" });
+  const block = { reason: "no_tools", engines: ["codex"] };
+  const S = Object.assign(base(), { items: [waiting, failed], total: 2, counts: { none: 2 }, pending: 12, triageBlock: block });
+  const html = X.viewHtml(S);
+  assert.match(html, /<div class="banner warn"><span class="ico">!<\/span><div>有 12 則等著分類，但現在沒有能分類的引擎：Codex CLI 可以閱讀和翻譯，不支援分類。分類要 Claude Code、API key 或本機模型。/);
+  assert.match(html, /<a class="btn sm" href="\/settings#models">到設定的 AI 模型<\/a>/);
+  assert.match(html, /等待 AI 分類：分類要 Claude Code、API key 或本機模型/);
+  assert.match(html, /分類失敗/);  // 只有待分類的換說明
+  const both = X.viewHtml(Object.assign({}, S, { triageBlock: { reason: "no_tools", engines: ["codex", "antigravity", "<x>"] } }));
+  assert.match(both, /Codex CLI、Antigravity CLI 可以閱讀和翻譯/);  // 不認得的引擎名稱不顯示
+  assert.match(X.viewHtml(Object.assign({}, S, { triageBlock: { reason: "no_tools", engines: [] } })), /有 12 則等著分類，但現在沒有能分類的引擎。分類要/);
+  for (const quiet of [{ triageBlock: null }, { pending: 0 }, { triageBlock: { reason: "other" } }]) {
+    const h = X.viewHtml(Object.assign({}, S, quiet));
+    assert.doesNotMatch(h, /等著分類/);
+    if (quiet.pending !== 0) assert.match(h, />等待 AI 分類<\/div>/);
+  }
+  assert.doesNotMatch(X.viewHtml(Object.assign({}, S, { status: "error", error: "network" })), /等著分類/);
+  assert.match(X.rowHtml(waiting), />等待 AI 分類<\/div>/);  // 沒給狀態時照舊
+});
+

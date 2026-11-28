@@ -12,6 +12,10 @@ window.PR = window.PR || {};
   const BADGE = { high: "h", mid: "m", low: "l", noise: "n", none: "u" };
   const NOISE_GROUP = "group:noise";  // 雜訊組 <details> 的 data-id（跟資料 ID 分開，資料 ID 沒有冒號）
   const own = (map, key) => Object.prototype.hasOwnProperty.call(map, key);
+  const ENGINE = { codex: "Codex CLI", antigravity: "Antigravity CLI" };  // i18n-ok：產品名稱
+  const joinList = (xs) => xs.join(PR.lang === "en" ? ", " : "、");  // i18n-ok：列表分隔符號
+  /* 分類因為只有關不掉工具的 CLI 停著（ticket 104，伺服器的 triage_block） */
+  const noTools = (S) => !!(S && S.triageBlock && S.triageBlock.reason === "no_tools");
 
   const T = () => ({
     levels: { high: PR.t("高"), mid: PR.t("中"), low: PR.t("低"), noise: PR.t("雜訊"), none: PR.t("未分類") },
@@ -22,6 +26,10 @@ window.PR = window.PR || {};
              unreliable: PR.t("來源不可靠"), unrelated: PR.t("無關"), short_term: PR.t("短期波動") },
     confidence: { low: PR.t("低"), mid: PR.t("中"), high: PR.t("高") },
     states: { pending: PR.t("等待 AI 分類"), failed: PR.t("分類失敗"), done: PR.t("沒有相關的追蹤對象或論點") },
+    pendingNoTools: PR.t("等待 AI 分類：分類要 Claude Code、API key 或本機模型"),
+    blocked: (n, engines) => PR.t("有 {n} 則等著分類，但現在沒有能分類的引擎：{engines} 可以閱讀和翻譯，不支援分類。分類要 Claude Code、API key 或本機模型。", { n, engines }),
+    blockedNone: (n) => PR.t("有 {n} 則等著分類，但現在沒有能分類的引擎。分類要 Claude Code、API key 或本機模型。", { n }),
+    toSettings: PR.t("到設定的 AI 模型"),
     ai: PR.t("AI："), preview: PR.t("只有預覽"), stale: PR.t("內容已更新，看法可能過期"), retro: PR.t("事後補判"),
     filters: PR.t("篩選"), filterImportance: PR.t("重要度"), filterEntity: PR.t("追蹤對象"), allEntities: PR.t("全部"),
     detail: PR.t("相對於每個論點的判斷"), detailEntities: PR.t("相對於每個追蹤對象的判斷"),
@@ -111,7 +119,7 @@ window.PR = window.PR || {};
     return h + `</details>`;
   }
 
-  function rowHtml(item, tx, index) {
+  function rowHtml(item, tx, index, S) {
     tx = tx || T();
     const t = time(item);
     const when = !t ? "" : item.time_known === false
@@ -122,7 +130,7 @@ window.PR = window.PR || {};
                   item.retrospective ? `<span class="chip">${esc(tx.retro)}</span>` : ""].filter(Boolean).join("");
     const why = item.top
       ? `<div class="why"><b>${esc(tx.ai)}</b><span data-no-i18n>${esc(item.top.reason)}</span></div>`
-      : `<div class="why muted">${esc(label(tx.states, item.state))}</div>`;
+      : `<div class="why muted">${esc(item.state === "pending" && noTools(S) ? tx.pendingNoTools : label(tx.states, item.state))}</div>`;
     const ents = (item.entities || []).filter((e) => e.noise_kind !== "unrelated").slice(0, 6)
       .map((e) => `<span class="chip entity" data-no-i18n>${esc(e.name || e.id)}</span>`).join("");
     const top = item.top ? `<span class="chip ai">${esc(tx.ai)}${esc(label(tx.relations, item.top.relation))}·${esc(label(tx.confidence, item.top.confidence))}</span>` : "";
@@ -154,7 +162,7 @@ window.PR = window.PR || {};
       const n = Math.max(Number(counts[level]) || 0, items.length);
       const count = n > items.length ? tx.countShownOf(n, items.length) : tx.countOf(n);
       const title = `${badge(level, tx)} ${esc(tx.groups[level])} <span class="count">${esc(count)}</span>`;
-      const rows = items.map((i) => rowHtml(i, tx, index++)).join("");
+      const rows = items.map((i) => rowHtml(i, tx, index++, S)).join("");
       h += level === "noise"
         ? `<details class="group noise-group" data-id="${NOISE_GROUP}"><summary class="section-title">${title}</summary><div class="card noise-list">${rows}</div></details>`
         : `<section class="group"><h2 class="section-title">${title}</h2><div class="card">${rows}</div></section>`;
@@ -187,12 +195,23 @@ window.PR = window.PR || {};
       + `<button type="button" class="btn sm line" data-act="reset">${esc(tx.reset)}</button></p></div>`;
   }
 
+  /* 今天有待分類的、而分類只能等 Claude Code、API key 或本機模型時（ticket 104） */
+  function blockedHtml(S, tx) {
+    const n = Number(S.pending) || 0;
+    if (!noTools(S) || n < 1) return "";
+    const engines = (Array.isArray(S.triageBlock.engines) ? S.triageBlock.engines : []).filter((e) => own(ENGINE, e)).map((e) => ENGINE[e]);
+    const text = engines.length ? tx.blocked(n, joinList(engines)) : tx.blockedNone(n);
+    return `<div class="banner warn"><span class="ico">!</span><div>${esc(text)}`
+      + `<div class="acts"><a class="btn sm" href="/settings#models">${esc(tx.toSettings)}</a></div></div></div>`;
+  }
+
   function viewHtml(S) {
     const tx = T();
     if (S.status === "loading") {
       return `<div class="card" style="padding:16px; display:grid; gap:12px" aria-busy="true"><div class="skel" style="width:40%"></div><div class="skel" style="width:90%"></div><div class="skel" style="width:70%"></div></div>`;
     }
-    const warn = S.status !== "error" && S.truncated ? `<div class="banner warn"><span class="ico">!</span><div>${esc(tx.truncated)}</div></div>` : "";
+    const warn = (S.status !== "error" && S.truncated ? `<div class="banner warn"><span class="ico">!</span><div>${esc(tx.truncated)}</div></div>` : "")
+      + (S.status !== "error" ? blockedHtml(S, tx) : "");
     const main = S.status === "error" ? errorHtml(S, tx) : listHtml(S, tx);
     return `<p class="today-note">${esc(tx.note)}</p>${warn}<div class="t-layout">${filtersHtml(S, tx)}<div>${main}</div></div>`;
   }
@@ -207,7 +226,7 @@ window.PR = window.PR || {};
 
   /* ---------- 頁面 ---------- */
   const S = { status: "loading", levels: DEFAULT_LEVELS.slice(), entity: "", limit: PAGE, items: [], counts: {}, entities: [],
-              total: 0, more: false, truncated: false, date: "", busy: false, error: null };
+              total: 0, more: false, truncated: false, date: "", busy: false, error: null, pending: 0, triageBlock: null };
   let seq = 0;
 
   function find(view, focus) {
@@ -252,7 +271,8 @@ window.PR = window.PR || {};
       const before = S.entities;
       Object.assign(S, { items: Array.isArray(data.items) ? data.items : [], counts: data.counts || {},
                          entities: Array.isArray(data.entities) ? data.entities : [], total: data.total || 0, more: !!data.more,
-                         truncated: !!data.truncated, date: data.date || "", status: "ready", error: null });
+                         truncated: !!data.truncated, date: data.date || "", status: "ready", error: null,
+                         pending: Number(data.pending) || 0, triageBlock: data.triage_block || null });
       if (S.entity && !S.entities.some((e) => e.id === S.entity)) {  // 選的對象這次沒資料：名稱沿用上一次的，不顯示 ID
         const old = (before || []).find((e) => e.id === S.entity);
         S.entities = S.entities.concat({ id: S.entity, name: old ? old.name : S.entity, count: 0 });

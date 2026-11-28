@@ -3180,5 +3180,15 @@
   "匯入後的自動{what}在等額度保護確認，幾分鐘內自動接著做。": "{what} after import is waiting for the quota check. It continues within a few minutes.",
   "題材頁 →": "Theme page →",
   "{name}的題材頁": "Theme page for {name}",
-  "開啟題材頁 →": "Open theme page →"
+  "開啟題材頁 →": "Open theme page →",
+  "可閱讀／翻譯，但不支援分類": "Reading / translation only, no triage",
+  "分類要把文章全文交給 AI，引擎不能帶任何工具。{engines} 的工具關不掉，所以分類只能用 Claude Code、API key 或本機模型（Ollama）。": "Triage hands the full article text to the AI, so the engine must run without any tools. {engines} cannot turn their tools off, so triage can only use Claude Code, an API key or a local model (Ollama).",
+  "{label} · 不支援分類": "{label} · no triage",
+  "不能分類": "Cannot triage",
+  "分類要 Claude Code、API key 或本機模型": "Triage needs Claude Code, an API key or a local model",
+  "填 API key": "Add an API key",
+  "等待 AI 分類：分類要 Claude Code、API key 或本機模型": "Waiting for AI triage: triage needs Claude Code, an API key or a local model",
+  "有 {n} 則等著分類，但現在沒有能分類的引擎：{engines} 可以閱讀和翻譯，不支援分類。分類要 Claude Code、API key 或本機模型。": "{n} items are waiting for triage, but no engine can triage right now: {engines} can read and translate but not triage. Triage needs Claude Code, an API key or a local model.",
+  "有 {n} 則等著分類，但現在沒有能分類的引擎。分類要 Claude Code、API key 或本機模型。": "{n} items are waiting for triage, but no engine can triage right now. Triage needs Claude Code, an API key or a local model.",
+  "到設定的 AI 模型": "Go to AI models in Settings"
 }

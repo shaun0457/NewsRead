@@ -535,6 +535,16 @@ class Engines:
         return {"primary": primary, "fallback": fallback, "using": None, "state": state,
                 "reason": reasons[0] if reasons else None, "reasons": reasons, "order": []}
 
+    def triage_block(self, data: dict | None = None, found: dict | None = None) -> dict | None:
+        """今日新聞要的（ticket 104）：分類找不到引擎，而且原因有「只有關不掉工具的 CLI」（no_tools）時，回
+        {"reason": "no_tools", "engines": [這台電腦找到的那幾個 CLI]}；分類能跑、或是別的原因（根本沒有 AI）時回 None。"""
+        data = data or self.settings.load()
+        found = found if found is not None else self.detector()
+        p = self.plan("triage", data, found, tools=False)
+        if p["using"] is not None or "no_tools" not in p["reasons"]:
+            return None
+        return {"reason": "no_tools", "engines": [e for e in NO_TOOLS_UNSUPPORTED if (found.get(e) or {}).get("found")]}
+
     def available(self, task: str) -> bool:
         """其他模組用：這個工作現在有沒有 AI 可以用（沒有就在畫面標「沒有 AI」）。"""
         return self.plan(task, self.settings.load(), self.detector())["using"] is not None
@@ -996,6 +1006,7 @@ class Engines:
             "tasks": tasks,
             "choices": self.choices(data, found),
             "any_ai": any(v["using"] for v in tasks.values()),
+            "no_tools": {"engines": list(NO_TOOLS_UNSUPPORTED), "tasks": sorted(NO_TOOLS_TASKS)},  # 設定頁標「不支援分類」（ticket 104）
             "guard": self.guard_status(data, found),
         }
 
