@@ -6,7 +6,7 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 
 ## 1. 論文目錄結構 (`papers/{id}/`)
 
-每篇論文擁有獨立目錄，以 PDF 雜湊前 12 碼小寫命名（例如 `papers/a1b2c3d4e5f6/`）。沒有 PDF 的資料（見下方「沒有 PDF 的資料」）用 `t` 或 `w` 開頭的 ID，沒有 `source.pdf`、`pages/`、`layout.json`，另有 `versions/` 存舊版：
+每篇論文擁有獨立目錄，以 PDF 雜湊前 12 碼小寫命名（例如 `papers/a1b2c3d4e5f6/`）。沒有 PDF 的資料（見下方「沒有 PDF 的資料」）用 `t` 或 `w` 開頭的 ID，沒有 `source.pdf`、`pages/`、`layout.json`，另有 `versions/` 存舊版：。書庫根目錄另有 `.url-aliases.json`（`{網址: ID}`，貼的網址和存的 ID 不同時記下，最多 20000 筆；可以刪，刪了只是同一個網址要再抓一次才認得出重複）：
 
 | 檔案 | 權限/職責 | 說明 |
 |---|---|---|
@@ -67,7 +67,7 @@ PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單�
 - **新版本**：同一個網址再匯入、內容變了，舊的 paper.json 存成 `versions/paper-NNNN.json`（最多 50 份，滿了刪最舊的，第一版永遠留著），`meta.version` 加一；內容沒變的段落沿用 ID 和譯文。
 - **上限**：全文 40 萬字、2,000 段；單段超過 6,000 字在句尾切開。
 - 閱讀器沒有原頁面板，也不顯示 `p.N` 標記。
-- **新聞**（`easyread/ingest.py`，`POST /api/ingest`）另外在 `meta` 記：`publisher`（媒體）、`published_at`（帶時區的 ISO 8601，時間不明時是空字串）、`time_source`（`metadata` / `user` / `unknown`）、`published_raw`（頁面上沒有時區的時間原文）、`preview_only`（付費牆後面只抓到預覽）、`canonical_url`、`same_language`（原文是中文，譯文欄直接放原文、不送翻譯；譯文語言是台灣繁體、原文是簡體時放 OpenCC 轉成的繁體，另記 `hant_converted: "opencc"`、`title_zh_auto`（自動轉出的標題；`title_zh` 還等於它時，重新匯入跟著更新，改過就不動）；原文是簡體或繁體都記 `target: zh-TW`、`paperread_traditional_v: 1`（閱讀頁打開時不再轉一次））、`manual`（手動貼的全文）、`truncated`（頁面太長，只收了前面收得下的部分）。抓取時間是 `fetched_at`，內容雜湊是 `content_sha256`。
+- **新聞**（`easyread/ingest.py`，`POST /api/ingest`）另外在 `meta` 記：`publisher`（媒體）、`published_at`（帶時區的 ISO 8601，時間不明時是空字串）、`time_source`（`metadata` / `user` / `unknown`）、`published_raw`（頁面上沒有時區的時間原文）、`preview_only`（付費牆後面只抓到預覽）、`canonical_url`（頁面寫的 canonical 原文；可信的那個也是這則的 `source_url` 和 ID 的來源）、`same_language`（原文是中文，譯文欄直接放原文、不送翻譯；譯文語言是台灣繁體、原文是簡體時放 OpenCC 轉成的繁體，另記 `hant_converted: "opencc"`、`title_zh_auto`（自動轉出的標題；`title_zh` 還等於它時，重新匯入跟著更新，改過就不動）；原文是簡體或繁體都記 `target: zh-TW`、`paperread_traditional_v: 1`（閱讀頁打開時不再轉一次））、`manual`（手動貼的全文）、`truncated`（頁面太長，只收了前面收得下的部分）。抓取時間是 `fetched_at`，內容雜湊是 `content_sha256`。
 
 ### 區塊（Blocks）定義
 每個區塊擁有全域唯一且不可變的 `id`，後續筆記、劃線與原頁定位均錨定於此：
