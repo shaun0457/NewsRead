@@ -17,6 +17,13 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     setLoginItemSettings(settings) { this.loginSettings = settings; },
   });
   const windows = [], launches = [], menus = [], stages = [], handlers = new Map(), trays = [], errors = [], requests = [], probes = [];
+  const net = { version: opts.version || "ok", down: false };  // 接手的服務：/api/version 怎麼回、shutdown 之後關了沒
+  const watches = [];  // 確認接手的服務還在的計時器（15 秒）：測試自己按時間到
+  const timer = (fn, ms, ...rest) => {
+    if (ms === 15000) { const w = { fn, unref() {} }; watches.push(w); return w; }
+    return setTimeout(fn, ms === 200 ? 0 : ms, ...rest);  // 結束時等服務關掉的輪詢：馬上跑
+  };
+  const clearTimer = w => { if (w && w.fn) w.cleared = true; else clearTimeout(w); };
   const ipcMain = new EventEmitter();
   ipcMain.handle = (name, fn) => handlers.set(name, fn);
   class Window extends EventEmitter {
@@ -83,7 +90,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
       const req = new EventEmitter(); req.destroy = () => { req.destroyed = true; };
       req.setTimeout = (ms, onTimeout) => { req.timeoutMs = ms; req.onTimeout = onTimeout; };
       if (url.pathname === "/api/version") {
-        const reply = opts.version || "ok";
+        const reply = net.down ? "refused" : net.version;
         req.end = () => queueMicrotask(() => {
           if (reply === "hang") { probes.push(req.timeoutMs); return void req.onTimeout(); }
           if (reply === "refused") return void req.emit("error", new Error("ECONNREFUSED"));
@@ -94,10 +101,14 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
         return req;
       }
       req.end = () => queueMicrotask(() => {
-        const res = new EventEmitter(); res.statusCode = 200; res.setEncoding = () => {}; callback(res);
-        res.emit("data", JSON.stringify(url.pathname === "/api/library" ? { token: "test-token" } : { ok: true }));
+        const refused = url.pathname === "/api/shutdown" && opts.refuseShutdown;
+        const res = new EventEmitter(); res.statusCode = refused ? 400 : 200; res.setEncoding = () => {}; callback(res);
+        res.emit("data", JSON.stringify(refused ? { error: "文献库仍有操作未完成，请稍后再重启" } : url.pathname === "/api/library" ? { token: "test-token" } : { ok: true }));
         res.emit("end");
-        if (url.pathname === "/api/shutdown") launches[launches.length - 1].child.kill();
+        if (url.pathname === "/api/shutdown" && !refused) {
+          if (!opts.stayUp) net.down = true;
+          launches[launches.length - 1].child.kill();
+        }
       }); return req;
     } }
     : name === "./startup-feedback.cjs" ? { ...require("../electron/startup-feedback.cjs"), mark(_app, stage) { stages.push(stage); }, loginShellPath: async () => "/usr/bin:/bin" }
@@ -109,7 +120,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
     : require(name);
   const source = fs.readFileSync(path.join(__dirname, "../electron/main.cjs"), "utf8");
-  vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout, clearTimeout, console });
+  vm.runInNewContext(source, { require: fakeRequire, process: proc, __dirname: "/tmp/electron", setTimeout: timer, clearTimeout: clearTimer, console });
   const settled = async () => {
     // createWindow awaits several microtask turns: loading screen, backend
     // readiness, and the final navigation.  Drain them so assertions observe
@@ -117,7 +128,12 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     for (let i = 0; i < 4; i += 1) await new Promise(resolve => setImmediate(resolve));
   };
   await settled();
-  return { app, windows, launches, menus, handlers, stages, settled, trays, errors, requests, ipcMain, probes };
+  const tick = async () => {  // 確認接手服務的計時器時間到
+    const w = watches.filter(x => !x.cleared && !x.ran).at(-1);
+    if (!w) return false;
+    w.ran = true; w.fn(); await settled(); return true;
+  };
+  return { app, windows, launches, menus, handlers, stages, settled, trays, errors, requests, ipcMain, probes, net, watches, tick };
 }
 
 test("macOS keeps native editing roles and offers input context actions", async () => {
@@ -301,7 +317,81 @@ test("a broken tray falls back to closing the app", async () => {
 
 const RUNNING_LINE = "NewsRead 已經在執行：http://127.0.0.1:8123，不再啟動第二個。要重新啟動請先 easyread stop，或結束那個程序。\n";
 
-test("an already running service is adopted, and quitting leaves it running", async () => {
+async function adopt(opts) {
+  const d = await desktop("win32", true, false, [], opts);
+  const child = d.launches[0].child;
+  child.stdout.emit("data", RUNNING_LINE);
+  child.emit("exit", 3, null);
+  child.emit("close", 3, null);
+  await d.settled();
+  d.requests.length = 0;
+  return d;
+}
+
+test("quitting stops the adopted service and waits until it is gone (ticket 105)", async () => {
+  const d = await adopt();
+  trayItem(d, trayLib.LABELS.quit).click();
+  for (let i = 0; i < 4; i += 1) await d.settled();
+  assert.deepEqual(d.requests, ["/api/library", "/api/shutdown", "/api/version"]);  // 跟 easyread stop 一樣，再確認關了
+  assert.equal(d.net.down, true);
+  assert.equal(d.app.quitCalled, true);
+  assert.deepEqual(d.errors, []);
+  assert.ok(d.watches.every(w => w.cleared || w.ran));  // 不再確認它還在不在
+});
+
+test("closing only the window keeps the adopted service running", async () => {
+  const d = await adopt();
+  const event = { prevented: false, preventDefault() { this.prevented = true; } };
+  d.windows[0].emit("close", event);
+  await d.settled();
+  assert.equal(event.prevented, true);
+  assert.equal(d.windows[0].shown, false);
+  assert.deepEqual(d.requests, []);
+  assert.equal(d.net.down, false);
+  d.app.quit(); for (let i = 0; i < 4; i += 1) await d.settled();
+});
+
+test("waiting for the adopted service to stop is bounded, and a refused stop is reported", async () => {
+  const d = await adopt({ stayUp: true });
+  const quit = d.app.quit;
+  let quits = 0;
+  d.app.quit = function () { quits += 1; return quit.call(this); };
+  trayItem(d, trayLib.LABELS.quit).click();
+  for (let i = 0; i < 2000 && quits < 2; i += 1) await new Promise(resolve => setTimeout(resolve, 1));  // 第二次 quit：停服務的流程跑完了
+  assert.equal(d.requests.filter(r => r === "/api/version").length, 40);  // 最多看 40 次就結束
+  assert.equal(d.app.quitCalled, true);
+
+  const r = await adopt({ refuseShutdown: true });
+  trayItem(r, trayLib.LABELS.quit).click();
+  for (let i = 0; i < 4; i += 1) await r.settled();
+  assert.deepEqual(r.errors, ["接手的 NewsRead 服務沒有停：文献库仍有操作未完成，请稍后再重启"]);
+  assert.deepEqual(r.requests, ["/api/library", "/api/shutdown"]);
+});
+
+test("an adopted service that goes away is reported once; one slow check is not", async () => {
+  const d = await adopt();
+  d.net.version = "refused";
+  assert.equal(await d.tick(), true);
+  assert.deepEqual(d.errors, []);  // 一次確認不到不算
+  d.net.version = "ok";
+  assert.equal(await d.tick(), true);
+  d.net.version = "hang";
+  assert.equal(await d.tick(), true);
+  assert.deepEqual(d.errors, []);  // 中間有一次回來了：重新算
+  assert.equal(await d.tick(), true);
+  assert.deepEqual(d.errors, [d.errors[0]]);
+  assert.match(d.errors[0], /接手的 NewsRead 服務已經停了/);
+  assert.ok(d.stages.includes("adopted-lost"));
+  assert.equal(await d.tick(), false);  // 說過一次就不再確認
+});
+
+test("the backend this app started is not watched", async () => {
+  const d = await desktop("win32");
+  assert.equal(d.watches.length, 0);
+  d.app.quit(); await d.settled();
+});
+
+test("an already running service is adopted, and quitting saves the page first", async () => {
   const d = await desktop("win32", true, false);
   const child = d.launches[0].child;
   child.stdout.emit("data", RUNNING_LINE);
@@ -319,7 +409,7 @@ test("an already running service is adopted, and quitting leaves it running", as
   trayItem(d, trayLib.LABELS.quit).click();
   await d.settled();
   assert.equal(saved, 1);  // 頁面照樣先存檔
-  assert.deepEqual(d.requests, ["/api/version"]);  // 只確認過它是 NewsRead，不去關別人開的服務
+  assert.deepEqual(d.requests.slice(0, 3), ["/api/version", "/api/library", "/api/shutdown"]);  // 先確認是 NewsRead 才接手；結束時停掉它（ticket 105）
   assert.equal(d.launches.length, 1);
 });
 

@@ -77,7 +77,7 @@ docker compose up -d
 
 NewsRead 關掉頁面後仍在背景執行，定時工作才會一直跑；同一個資料目錄同時只會有一個在跑。用 `start.cmd` 啟動的，停止用 `.venv\Scripts\easyread stop`（macOS／Linux 的 `start.sh`：`.venv/bin/easyread stop`），工作管理員裡看到的是 `pythonw.exe`；Windows 上 `.venv\Scripts\easyread autostart on` 設定登入後自動啟動（`off` 取消）。
 
-Windows 安裝版關掉視窗會縮到系統匣，抓取和排程繼續跑；從系統匣按「結束」才停。開機自動啟動在設定頁的「背景執行」（開機後直接縮在系統匣）。已經有 `start.cmd` 開的服務在跑時，桌面版會直接接手那個服務，結束桌面版時也不會關掉它。
+Windows 安裝版關掉視窗會縮到系統匣，抓取和排程繼續跑；從系統匣按「結束」才停。開機自動啟動在設定頁的「背景執行」（開機後直接縮在系統匣）。已經有 `start.cmd` 開的服務在跑時，桌面版會直接接手那個服務：只關視窗時它照樣在背景跑，按「結束」時一起停掉；那個服務中途停了，桌面版會跳出提示。
 
 ## 資料與隱私
 

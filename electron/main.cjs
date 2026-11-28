@@ -40,6 +40,15 @@ const PIPE_WAIT = 1000;  // 後端以代碼 3 結束後，最多等這麼久讓�
 const PROBE_WAIT = 3000;  // 接手前確認那個服務：最多等這麼久
 const PROBE_MAX = 4096;   // /api/version 的回應最多讀這麼多 bytes
 const NO_ADDRESS = "NewsRead 已經在執行，但讀不到它在這台電腦上的位址。請先結束那個 NewsRead（easyread stop），再打開桌面版。";
+/* 接手的服務（start.cmd 或 easyread serve 開的，ticket 105）：結束時一起停掉；中途掉線要讓使用者知道 */
+let adopted = false;
+let watchTimer;
+const WATCH_EVERY = 15000;  // 每隔這麼久確認接手的服務還在
+const WATCH_MISSES = 2;     // 連續確認不到這麼多次才算掉線（偶爾一次慢回應不算）
+const STOP_POLL = 200;      // 結束時送出 shutdown 後，每隔這麼久看它關了沒
+const STOP_TRIES = 40;      // 最多看這麼多次（約 8 秒，每次確認本身最多 PROBE_WAIT）
+const ADOPTED_LOST = "桌面版接手的 NewsRead 服務已經停了：畫面上的資料不會再更新，背景的排程也停了。請結束 NewsRead 再重新打開。";
+const ADOPTED_KEPT = "接手的 NewsRead 服務沒有停：";
 
 /* 接手之前先確認那個埠號上真的是活著的 NewsRead：.server.json 可能是上次當掉留下的舊位址，
    埠號也可能被別的程式拿走。對了才接手，那個網頁才拿得到桌面版的功能（存檔、選資料夾…）。 */
@@ -154,13 +163,15 @@ function startBackend() {
       backend = undefined;
       const done = () => {
         // 已經有一個 NewsRead 服務在跑（start.cmd 或 easyread serve 開的）：接手它，不開第二個。
-        // 那個服務不是這裡開的，結束桌面版時也不去關它。
+        // 只關視窗時它照樣在背景跑；從系統匣按「結束」時一起停掉（stopAdopted，ticket 105）。
         const running = !settled && code === 3 ? tray.runningUrl(output) : "";
         if (running) {
           probeNewsRead(running).then(ok => {
             if (!ok || settled) return void fail();
             startup.mark(app, "backend-adopted");
             backendUrl = running;
+            adopted = true;
+            watchAdopted(running);
             finish(resolve, running);
           });
           return;
@@ -175,6 +186,7 @@ function startBackend() {
         }
         backendReady = undefined;
         backendUrl = undefined;
+        adopted = false;
       };
       if (settled || code !== 3) return void done();
       // 「已經在執行」那句可能還在管線裡：等輸出關掉再看，最多 PIPE_WAIT 毫秒
@@ -230,6 +242,47 @@ async function stopBackendGracefully() {
     function exited() { clearTimeout(timer); resolve(); }
     child.once("exit", exited);
   });
+}
+
+function watchAdopted(url) {
+  let misses = 0;
+  const schedule = () => {
+    watchTimer = setTimeout(check, WATCH_EVERY);
+    if (watchTimer && typeof watchTimer.unref === "function") watchTimer.unref();
+  };
+  const check = () => {
+    watchTimer = undefined;
+    probeNewsRead(url).then(ok => {
+      if (quitting || !adopted || backendUrl !== url) return;
+      misses = ok ? 0 : misses + 1;
+      if (misses < WATCH_MISSES) return void schedule();
+      startup.mark(app, "adopted-lost");
+      dialog.showErrorBox("NewsRead", ADOPTED_LOST);  // 只說一次，不再確認
+    });
+  };
+  schedule();
+}
+
+function stopWatch() {
+  clearTimeout(watchTimer);
+  watchTimer = undefined;
+}
+
+/* 結束時停掉接手的服務：跟 easyread stop 一樣走 /api/shutdown，再確認它真的關了（有上限） */
+async function stopAdopted() {
+  stopWatch();
+  const url = backendUrl;
+  try {
+    const info = await backendJson("/api/library");
+    await backendJson("/api/shutdown", info.token);
+  } catch (error) {
+    dialog.showErrorBox("NewsRead", ADOPTED_KEPT + error.message);  // 例如正在翻譯：服務留著，桌面版照樣結束
+    return;
+  }
+  for (let i = 0; i < STOP_TRIES; i += 1) {
+    if (!(await probeNewsRead(url))) return;
+    await new Promise(resolve => setTimeout(resolve, STOP_POLL));
+  }
 }
 
 /* 退出前先让页面把没落盘的东西写回去再停后端；页面没应就照常退出 */
@@ -558,9 +611,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on("before-quit", event => {
     if (quitting) return;
     quitting = true;
-    if (!backend && !backendUrl) return;  // 接手別人的服務時也要先讓頁面存檔，只是不關那個服務
+    if (!backend && !backendUrl) return;
     event.preventDefault();
-    savePageState().then(stopBackendGracefully).catch(stopBackend).finally(() => app.quit());
+    stopWatch();
+    // 先讓頁面存檔；接手的服務也一起停掉（只關視窗、縮到系統匣時不會走到這裡）
+    savePageState().then(() => adopted ? stopAdopted() : stopBackendGracefully()).catch(stopBackend).finally(() => app.quit());
   });
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
