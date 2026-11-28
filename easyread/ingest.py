@@ -2,8 +2,8 @@
 
 所有入口（匯入頁、右上角「＋ 貼網址」、Ctrl+V）都呼叫 POST /api/ingest，也就是這裡的 handle()。
 
-- 同一篇只匯入一次：網址去掉追蹤參數和 AMP 版之後算 ID（textitem.item_id），已經有了就不再抓；
-  抓了之後再比對轉址後的網址和可信的 canonical 網址（from_url）。
+- 同一篇只匯入一次：網址去掉追蹤參數和 AMP 版之後算 ID（textitem.item_id），抓了之後再比對轉址後的網址和可信的 canonical 網址（from_url）。
+  已經有了就重抓一次，內容變了才存新版本；重抓失敗保留原本的（#100）。
 - 發布時間一定要帶時區才算數；頁面上的時間沒有時區、或根本找不到，就標「時間不明」（time_source = unknown），
   原文留在 published_raw，讓使用者自己確認。時間不明的資料不納入事件驗證（spec「時間點規則」）。
 - 付費牆：頁面自己標了 isAccessibleForFree = false，或正文落在 paywall 區塊裡又只有幾段，就標「只有預覽」。
@@ -78,6 +78,8 @@ def _messages() -> dict:
         "busy": tr("這篇正在翻譯，等它結束再重新匯入。"),
         "bad_input": tr("要給網址，或是手動貼上的全文。"),
         "internal": tr("匯入時出了問題，請稍後再試。"),
+        "manual": tr("這篇的全文是你手動貼的，沒有重抓。"),
+        "preview_only": tr("這次只抓到付費牆前面的預覽，保留原本的全文。"),
     }
 
 
@@ -582,7 +584,7 @@ def _aliases(app) -> dict:
 
 def _add_alias(app, url: str, item_id: str) -> None:
     """記下「貼這個網址 = 這一則」：這則存在 canonical 或轉址後網址的 ID 下時，
-    再貼同一個網址不用重抓，手動貼全文（帶這個網址）也會更新同一則。記不下來不影響匯入。"""
+    再貼同一個網址時知道是哪一則（重抓失敗也一樣），手動貼全文（帶這個網址）也會更新同一則。記不下來不影響匯入。"""
     if not url or textitem.item_id("", url) == item_id:
         return
     root = app.lib.root
@@ -615,21 +617,61 @@ def _existing(app, *urls: str):
     return None
 
 
+def _fetched_meta(info: dict) -> dict:
+    meta = {"publisher": info["publisher"], "preview_only": info["preview_only"],
+            "canonical_url": info["canonical"][:textitem.MAX_URL], "truncated": info["truncated"]}
+    if info["published_raw"]:
+        meta["published_raw"] = info["published_raw"]
+    return meta
+
+
+def _kept(ws, kind: str, message_text: str) -> dict:
+    """重抓沒有更新：保留原本的那則，回 exists，refetch 寫原因（固定的類別和訊息）。"""
+    return {**_summary(ws, "exists", False), "refetch": {"kind": kind, "message": message_text}}
+
+
+def _refresh(app, ws, info: dict) -> dict:
+    """已經匯入過的那則：用這次抓到的內容比對。內容一樣是 unchanged（不新增版本），變了是 updated（舊版留在 versions/）。
+    下面這些保留原本的、回 exists 加原因：抽不到正文、這次只抓到付費牆預覽但原本是全文、正在翻譯、內容不能存。
+    發布時間已經記了就不改（原本不明的才補上）。"""
+    old = (ws.load("paper") or {}).get("meta") or {}
+    src = old.get("source_url") or ""
+    if not src or textitem.item_id("", src) != ws.id:  # 舊資料的 ID 不是用網址算的：不重存，免得另建一則
+        return _summary(ws, "exists", False)
+    if not info["paragraphs"]:
+        return _kept(ws, "no_text", message("no_text"))
+    if info["preview_only"] and not old.get("preview_only"):
+        return _kept(ws, "preview_only", message("preview_only"))
+    known = parse_time(old.get("published_at") or "")
+    try:
+        return _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=src, meta=_fetched_meta(info),
+                      time=None if known else _time_fields(info["published_at"], "metadata"))
+    except IngestError as e:
+        return _kept(ws, e.kind, e.message)
+
+
+def _fetch(app, url: str):
+    return fetch.fetch(url, source=SOURCE, accept=ACCEPT, **dict(getattr(app, "fetch_options", None) or {}))
+
+
 def from_url(app, url: str) -> dict:
-    """抓網址並匯入。已經匯入過的不再抓（status = exists）。
-    重複的判斷：先看貼的網址；抓了之後再看轉址後的網址和可信的 canonical 網址（trusted_canonical），
-    其中一個已經匯入過就是 exists。新的一則用 canonical（沒有就用轉址後的網址）當 ID 和 source_url，
-    貼的網址記成別名（_add_alias），之後再貼不用重抓。
+    """抓網址並匯入。
+    重複的判斷：先看貼的網址；抓了之後再看轉址後的網址和可信的 canonical 網址（trusted_canonical）。
+    新的一則用 canonical（沒有就用轉址後的網址）當 ID 和 source_url，貼的網址記成別名（_add_alias）。
+    已經匯入過的（#100）：重抓一次，內容有變才存新版本（_refresh）；重抓失敗保留原本的，回 exists 加 refetch 原因。
+    手動貼過全文的不重抓（不讓網頁上的預覽蓋掉）。
     轉址次數的上限是 fetch.Limits.max_redirects，超過就是 redirect 錯誤。
     app.fetch_options（測試用）會原樣交給 fetch.fetch：transport、budget、sleep…；平常沒有，用真的網路和共用上限。"""
     clean = normalize(url)
     existing = _existing(app, clean)
-    if existing is not None:
-        return _summary(existing, "exists", False)
+    if existing is not None and ((existing.load("paper") or {}).get("meta") or {}).get("manual"):
+        return _kept(existing, "manual", message("manual"))
     try:
-        got = fetch.fetch(clean, source=SOURCE, accept=ACCEPT, **dict(getattr(app, "fetch_options", None) or {}))
+        got = _fetch(app, clean)
     except fetch.FetchError as e:
         log.warning("ingest %s", e.log_line())
+        if existing is not None:
+            return _kept(existing, e.kind, e.message)
         raise IngestError(e.kind, e.message) from None
     try:
         final = normalize(got.url) if got.url else clean
@@ -637,17 +679,17 @@ def from_url(app, url: str) -> dict:
         final = clean
     info = extract(decode(got), got.url or clean)
     canonical = trusted_canonical(info["canonical"], final)
-    existing = _existing(app, final, canonical)
+    if existing is None:
+        existing = _existing(app, final, canonical)
+        if existing is not None:
+            _add_alias(app, clean, existing.id)
+            if ((existing.load("paper") or {}).get("meta") or {}).get("manual"):
+                return _kept(existing, "manual", message("manual"))
     if existing is not None:
-        _add_alias(app, clean, existing.id)
-        return _summary(existing, "exists", False)
+        return _refresh(app, existing, info)
     if not info["paragraphs"]:
         raise _error("no_text")
-    meta = {"publisher": info["publisher"], "preview_only": info["preview_only"],
-            "canonical_url": info["canonical"][:textitem.MAX_URL], "truncated": info["truncated"]}
-    if info["published_raw"]:
-        meta["published_raw"] = info["published_raw"]
-    result = _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=canonical or final, meta=meta,
+    result = _store(app, "\n\n".join(info["paragraphs"]), title=info["title"], url=canonical or final, meta=_fetched_meta(info),
                     time=_time_fields(info["published_at"], "metadata"))
     _add_alias(app, clean, result["id"])
     return result
