@@ -219,7 +219,7 @@ function backendJson(endpoint, token) {
       res.on("end", () => {
         try {
           const data = JSON.parse(body);
-          if (res.statusCode !== 200) return reject(new Error(data.error || `HTTP ${res.statusCode}`));
+          if (res.statusCode !== 200) return reject(Object.assign(new Error(data.error || `HTTP ${res.statusCode}`), { status: res.statusCode }));
           resolve(data);
         } catch (error) { reject(error); }
       });
@@ -276,8 +276,9 @@ async function stopAdopted() {
     const info = await backendJson("/api/library");
     await backendJson("/api/shutdown", info.token);
   } catch (error) {
-    dialog.showErrorBox("NewsRead", ADOPTED_KEPT + error.message);  // 例如正在翻譯：服務留著，桌面版照樣結束
-    return;
+    // 服務回了錯誤（例如正在翻譯）才是「沒有停」；連不上而且確認也沒回應，就是它已經停了（例如先跑了 easyread stop）
+    if (error.status || await probeNewsRead(url)) dialog.showErrorBox("NewsRead", ADOPTED_KEPT + error.message);
+    return;  // 服務留著，桌面版照樣結束
   }
   for (let i = 0; i < STOP_TRIES; i += 1) {
     if (!(await probeNewsRead(url))) return;

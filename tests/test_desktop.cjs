@@ -101,6 +101,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
         return req;
       }
       req.end = () => queueMicrotask(() => {
+        if (net.down) return void req.emit("error", new Error("connect ECONNREFUSED 127.0.0.1:8123"));  // 服務已經停了：什麼都連不上
         const refused = url.pathname === "/api/shutdown" && opts.refuseShutdown;
         const res = new EventEmitter(); res.statusCode = refused ? 400 : 200; res.setEncoding = () => {}; callback(res);
         res.emit("data", JSON.stringify(refused ? { error: "文献库仍有操作未完成，请稍后再重启" } : url.pathname === "/api/library" ? { token: "test-token" } : { ok: true }));
@@ -337,6 +338,19 @@ test("quitting stops the adopted service and waits until it is gone (ticket 105)
   assert.equal(d.app.quitCalled, true);
   assert.deepEqual(d.errors, []);
   assert.ok(d.watches.every(w => w.cleared || w.ran));  // 不再確認它還在不在
+});
+
+test("quitting after the adopted service already stopped shows no false error", async () => {
+  const d = await adopt();
+  d.net.down = true;  // 例如使用者先跑了 easyread stop
+  assert.equal(await d.tick(), true);
+  assert.equal(await d.tick(), true);
+  assert.equal(d.errors.length, 1);  // 掉線提示說了一次
+  trayItem(d, trayLib.LABELS.quit).click();
+  for (let i = 0; i < 4; i += 1) await d.settled();
+  assert.equal(d.errors.length, 1);  // 結束時不再說「沒有停」
+  assert.deepEqual(d.requests.slice(-2), ["/api/library", "/api/version"]);  // 連不上：再確認一次它真的不在
+  assert.equal(d.app.quitCalled, true);
 });
 
 test("closing only the window keeps the adopted service running", async () => {
