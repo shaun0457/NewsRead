@@ -79,9 +79,9 @@ def _safe(base: Path, rel: str) -> Path | None:
 
 
 class App:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, gate_required: bool = False):
         self.lib = Library(config.library_dir(cfg))
-        self.jobs = Jobs(self.lib)
+        self.jobs = Jobs(self.lib, gate_required=gate_required)
         self.token = os.urandom(12).hex()
         self.location = library_api.LibraryLocation(self)
         self.presence = None  # presence.Presence，serve() 里设

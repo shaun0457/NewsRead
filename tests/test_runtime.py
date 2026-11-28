@@ -127,8 +127,8 @@ class ServeBase(unittest.TestCase):
         self.apps = []
         real_app = launch.App
 
-        def remember(cfg):
-            app = real_app(cfg)
+        def remember(cfg, **kw):
+            app = real_app(cfg, **kw)
             self.apps.append(app)
             return app
         for patcher in (mock.patch.dict(os.environ, env, clear=True),
@@ -325,6 +325,7 @@ class ServeTest(ServeBase):
         with mock.patch.object(self.app.jobs, "resume_waiting") as resume:
             job.run()
         resume.assert_called_once_with()
+        self.assertTrue(self.app.jobs.gate_required)  # 接上之前輪到的背景任務先等
         fake = mock.Mock()
         fake.translation_gate.return_value = {"reason": "quota", "until": None}
         with mock.patch.object(ai_engines, "for_app", return_value=fake) as for_app:

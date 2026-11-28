@@ -123,6 +123,7 @@
     const r = ((job && job.wait) || {}).reason;
     if (r === "subscription" || r === "api_off") return PR.t("等你按翻譯");
     if (r === "api_cap") return PR.t("API 到上限");
+    if (r === "check") return PR.t("稍後自動翻譯");
     return PR.t("等額度重置");
   }
 
@@ -131,6 +132,7 @@
     const what = job && job.read ? PR.t("整理") : PR.t("翻譯");
     if (w.reason === "subscription") return PR.t("用 Claude Code、Codex 訂閱時，匯入後不會自動{what}，要你按了才開始。", { what });
     if (w.reason === "api_off") return PR.t("API 每月上限設成 0（背景不用 API），匯入後不會自動{what}，要你按了才開始。", { what });
+    if (w.reason === "check") return PR.t("匯入後的自動{what}在等額度保護確認，幾分鐘內自動接著做。", { what });
     if (w.reason === "api_cap") return PR.t("API 這個月的花費到了上限，匯入後的自動{what}先等，下個月或調高上限後自動接著做。", { what });
     const time = clock(w.until);
     return time ? PR.t("Claude Code 5 小時額度超過你設的門檻，匯入後的自動{what}先等，{time} 額度重置後自動接著做。", { what, time })

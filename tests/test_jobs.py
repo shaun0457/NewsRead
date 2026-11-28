@@ -89,12 +89,12 @@ class JobsTest(unittest.TestCase):
             raise OSError("locked")
         tp = self.run_background(broken)
         tp.assert_not_called()
-        self.assertEqual(self.ws.load("job")["wait"]["reason"], "quota")
+        self.assertEqual(self.ws.load("job")["wait"]["reason"], "check")  # 不說成 Claude 額度超過
 
     def test_an_unknown_gate_answer_also_waits(self):
         tp = self.run_background(lambda cfg: {"reason": "something-new"})
         tp.assert_not_called()
-        self.assertEqual(self.ws.load("job")["wait"]["reason"], "quota")
+        self.assertEqual(self.ws.load("job")["wait"]["reason"], "check")
 
     def test_waiting_translation_is_queued_again_once_the_gate_clears(self):
         blocked = {"on": True}
@@ -144,6 +144,43 @@ class JobsTest(unittest.TestCase):
             again = Jobs(self.lib)
         self.assertEqual(again.bulk.qsize(), 0)
         self.assertEqual(self.ws.load("job")["state"], "waiting")
+
+    def test_background_job_before_the_gate_is_wired_waits_for_the_check(self):
+        """正式執行：重啟後排回去的背景任務，可能在 launch 接上額度保護之前就輪到（gate F1）。"""
+        self.jobs.enqueue(self.ws, background=True)
+        with patch("easyread.jobs.threading.Thread.start"):
+            again = Jobs(self.lib, gate_required=True)  # 重啟：_resume 把排隊的排回去，這時還沒有 translate_gate
+        self.assertEqual(again.bulk.qsize(), 1)
+        self.jobs = again
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE), \
+                patch("easyread.jobs.translate.translate_pages", return_value={}) as tp:
+            self.drain()
+        tp.assert_not_called()
+        self.assertEqual(self.ws.load("job")["wait"], {"reason": "check", "until": None})
+        again.translate_gate = lambda cfg: None  # launch 接上之後，補翻那一輪就排回去
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE):
+            self.assertEqual(again.resume_waiting(), 1)
+
+    def test_manual_job_is_not_held_back_while_the_gate_is_not_wired(self):
+        with patch("easyread.jobs.threading.Thread.start"):
+            self.jobs = Jobs(self.lib, gate_required=True)
+        self.jobs.enqueue(self.ws)
+        with patch("easyread.jobs.config.load", return_value=self.CLAUDE), \
+                patch("easyread.jobs.translate.translate_pages", return_value={}) as tp:
+            self.drain()
+        tp.assert_called_once()
+
+    def test_start_now_on_a_waiting_job_keeps_what_the_import_chose(self):
+        """在等的任務按「開始翻譯」（body 是空的）：沿用匯入時選的範圍、模型、語言、只整理原文（gate F2）。"""
+        from easyread import translate_api
+        write_json_atomic(self.ws.root / "job.json", {"state": "waiting", "translate": True, "background": True,
+                                                      "scope": "body", "model": "m-1", "target": "ja", "read": True,
+                                                      "wait": {"reason": "subscription", "until": None}})
+        translate_api.enqueue(self.jobs, self.ws, {})
+        job = self.ws.load("job")
+        self.assertEqual((job["state"], job["scope"], job["model"], job["target"], job["read"], job["background"]),
+                         ("queued", "body", "m-1", "ja", True, False))
+        self.assertNotIn("wait", job)
 
     def test_catch_up_without_a_gate_does_nothing(self):
         self.assertEqual(self.jobs.resume_waiting(), 0)

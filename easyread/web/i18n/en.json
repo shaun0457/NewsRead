@@ -3168,5 +3168,7 @@
   "整理": "organizing",
   "用 Claude Code、Codex 訂閱時，匯入後不會自動{what}，要你按了才開始。": "With a Claude Code or Codex subscription, {what} does not start automatically after import. It starts when you press it.",
   "等你按翻譯": "Waiting for you",
-  "等額度重置": "Waiting for quota reset"
+  "等額度重置": "Waiting for quota reset",
+  "稍後自動翻譯": "Translates shortly",
+  "匯入後的自動{what}在等額度保護確認，幾分鐘內自動接著做。": "{what} after import is waiting for the quota check. It continues within a few minutes."
 }

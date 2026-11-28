@@ -15,7 +15,8 @@ from .library import Library
 from .log import log
 from .store import DataReadError, Workspace, now_iso
 
-WAIT_REASONS = ("subscription", "quota", "api_off", "api_cap")  # 見 ai_engines.Engines.translation_gate
+WAIT_REASONS = ("subscription", "quota", "api_off", "api_cap", "check")  # 見 ai_engines.Engines.translation_gate；
+# check：額度保護還沒接上（剛啟動）或讀不到，下一輪補翻時再問
 CATCHUP_PER_ROUND = 5  # 〔預設〕額度解除後，每一輪最多補翻幾篇（依排進來的先後）
 
 
@@ -63,8 +64,11 @@ def engine_for(cfg: dict, model: str | None) -> dict:
 
 
 class Jobs:
-    def __init__(self, lib: Library):
+    def __init__(self, lib: Library, gate_required: bool = False):
+        """gate_required：正式執行時一定會接上 translate_gate（launch 在伺服器起來後才接）；
+        接上之前輪到的背景任務先等（check），不在沒保護的空檔送出（gate F1）。"""
         self.lib = lib
+        self.gate_required = gate_required
         self.bulk: queue.Queue[str] = queue.Queue()
         self.small: queue.Queue[dict] = queue.Queue()
         self.cancels: dict[str, threading.Event] = {}
@@ -152,13 +156,15 @@ class Jobs:
 
     def _gate(self, cfg: dict) -> dict | None:
         """問額度保護；問不到（帳本被鎖、設定壞了）就先等，下一輪補翻時再問。log 只記類型。"""
+        if not self.translate_gate:
+            return {"reason": "check", "until": None}
         try:
             wait = self.translate_gate(cfg)
         except Exception as e:  # noqa: BLE001
             log.warning("翻譯的額度保護讀不到 %s", type(e).__name__)
-            return {"reason": "quota", "until": None}
-        if wait and wait.get("reason") not in WAIT_REASONS:
-            return {"reason": "quota", "until": None}
+            return {"reason": "check", "until": None}
+        if wait and (not isinstance(wait, dict) or wait.get("reason") not in WAIT_REASONS):
+            return {"reason": "check", "until": None}
         return wait
 
     def resume_waiting(self, limit: int = CATCHUP_PER_ROUND) -> int:
@@ -270,7 +276,7 @@ class Jobs:
         if not pages:
             self._write(ws, state="done", message=tr("选定范围已整理完") if read else tr("选定范围已译完"))
             return
-        if job.get("background") and self.translate_gate:
+        if job.get("background") and (self.translate_gate or self.gate_required):
             wait = self._gate(cfg)
             if wait:
                 with self.lock:

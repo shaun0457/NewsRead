@@ -64,7 +64,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
 
 
 def _serve(cfg: dict, started: float, port, open_browser: bool, path: str, exit_on_close: bool, host):
-    app = App(cfg)
+    app = App(cfg, gate_required=True)  # 匯入後自動翻譯一定要經過額度保護（serve 裡接上）
     log.info("startup library-jobs-ready +%.0fms", (time.monotonic() - started) * 1000)
     Handler.app = app
     detect.warm(cfg)

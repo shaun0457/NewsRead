@@ -7,13 +7,14 @@ from . import paperdata, translate
 def enqueue(jobs, ws, body: dict) -> dict:
     last = ws.load("job") or {}
     pending = last.get("state") == "confirm"
+    carry = pending or last.get("state") == "waiting"  # 匯入後的自動翻譯在等：使用者按了就照匯入時選的跑（gate F2）
     explicit = body.get("pages") is not None
     pages = paperdata.parse_pages(body["pages"]) if explicit else None
     cap_check = False
-    scope = body.get("scope") or (last.get("scope") if pending else None)
-    read = bool(last.get("read")) if pending else bool(body.get("read"))
-    model = (last.get("model") or "") if pending else str(body.get("model") or "")
-    target = (last.get("target") or "") if pending else ""
+    scope = body.get("scope") or (last.get("scope") if carry else None)
+    read = bool(last.get("read")) if carry else bool(body.get("read"))
+    model = (last.get("model") or "") if carry else str(body.get("model") or "")
+    target = (last.get("target") or "") if carry else ""
     if pending and not explicit:
         # 确认的是等待时已算好的页，不能因为后来又整理了原文而扩大范围。
         pages = last.get("pages")
